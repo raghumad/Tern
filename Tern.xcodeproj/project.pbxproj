@@ -1,0 +1,638 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		EFB7A25B29172C8400776151 /* TernApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFB7A25A29172C8400776151 /* TernApp.swift */; };
+		EFB7A25D29172C8400776151 /* Persistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFB7A25C29172C8400776151 /* Persistence.swift */; };
+		EFB7A26029172C8400776151 /* Tern.xcdatamodeld in Sources */ = {isa = PBXBuildFile; fileRef = EFB7A25E29172C8400776151 /* Tern.xcdatamodeld */; };
+		EFB7A26229172C8400776151 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFB7A26129172C8400776151 /* ContentView.swift */; };
+		EFB7A26429172C8500776151 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = EFB7A26329172C8500776151 /* Assets.xcassets */; };
+		EFB7A26829172C8500776151 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = EFB7A26729172C8500776151 /* Preview Assets.xcassets */; };
+		EFB7A27229172C8600776151 /* TernTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFB7A27129172C8600776151 /* TernTests.swift */; };
+		EFB7A27C29172C8600776151 /* TernUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFB7A27B29172C8600776151 /* TernUITests.swift */; };
+		EFB7A27E29172C8600776151 /* TernUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFB7A27D29172C8600776151 /* TernUITestsLaunchTests.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		EFB7A26E29172C8600776151 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = EFB7A24F29172C8400776151 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = EFB7A25629172C8400776151;
+			remoteInfo = Tern;
+		};
+		EFB7A27829172C8600776151 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = EFB7A24F29172C8400776151 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = EFB7A25629172C8400776151;
+			remoteInfo = Tern;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		EFB7A25729172C8400776151 /* Tern.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Tern.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		EFB7A25A29172C8400776151 /* TernApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TernApp.swift; sourceTree = "<group>"; };
+		EFB7A25C29172C8400776151 /* Persistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persistence.swift; sourceTree = "<group>"; };
+		EFB7A25F29172C8400776151 /* Tern.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = Tern.xcdatamodel; sourceTree = "<group>"; };
+		EFB7A26129172C8400776151 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		EFB7A26329172C8500776151 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		EFB7A26529172C8500776151 /* Tern.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Tern.entitlements; sourceTree = "<group>"; };
+		EFB7A26729172C8500776151 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
+		EFB7A26D29172C8600776151 /* TernTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TernTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		EFB7A27129172C8600776151 /* TernTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TernTests.swift; sourceTree = "<group>"; };
+		EFB7A27729172C8600776151 /* TernUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TernUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		EFB7A27B29172C8600776151 /* TernUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TernUITests.swift; sourceTree = "<group>"; };
+		EFB7A27D29172C8600776151 /* TernUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TernUITestsLaunchTests.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		EFB7A25429172C8400776151 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		EFB7A26A29172C8600776151 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		EFB7A27429172C8600776151 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		EFB7A24E29172C8400776151 = {
+			isa = PBXGroup;
+			children = (
+				EFB7A25929172C8400776151 /* Tern */,
+				EFB7A27029172C8600776151 /* TernTests */,
+				EFB7A27A29172C8600776151 /* TernUITests */,
+				EFB7A25829172C8400776151 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		EFB7A25829172C8400776151 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				EFB7A25729172C8400776151 /* Tern.app */,
+				EFB7A26D29172C8600776151 /* TernTests.xctest */,
+				EFB7A27729172C8600776151 /* TernUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		EFB7A25929172C8400776151 /* Tern */ = {
+			isa = PBXGroup;
+			children = (
+				EFB7A25A29172C8400776151 /* TernApp.swift */,
+				EFB7A25C29172C8400776151 /* Persistence.swift */,
+				EFB7A26129172C8400776151 /* ContentView.swift */,
+				EFB7A26329172C8500776151 /* Assets.xcassets */,
+				EFB7A26529172C8500776151 /* Tern.entitlements */,
+				EFB7A25E29172C8400776151 /* Tern.xcdatamodeld */,
+				EFB7A26629172C8500776151 /* Preview Content */,
+			);
+			path = Tern;
+			sourceTree = "<group>";
+		};
+		EFB7A26629172C8500776151 /* Preview Content */ = {
+			isa = PBXGroup;
+			children = (
+				EFB7A26729172C8500776151 /* Preview Assets.xcassets */,
+			);
+			path = "Preview Content";
+			sourceTree = "<group>";
+		};
+		EFB7A27029172C8600776151 /* TernTests */ = {
+			isa = PBXGroup;
+			children = (
+				EFB7A27129172C8600776151 /* TernTests.swift */,
+			);
+			path = TernTests;
+			sourceTree = "<group>";
+		};
+		EFB7A27A29172C8600776151 /* TernUITests */ = {
+			isa = PBXGroup;
+			children = (
+				EFB7A27B29172C8600776151 /* TernUITests.swift */,
+				EFB7A27D29172C8600776151 /* TernUITestsLaunchTests.swift */,
+			);
+			path = TernUITests;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		EFB7A25629172C8400776151 /* Tern */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = EFB7A28129172C8600776151 /* Build configuration list for PBXNativeTarget "Tern" */;
+			buildPhases = (
+				EFB7A25329172C8400776151 /* Sources */,
+				EFB7A25429172C8400776151 /* Frameworks */,
+				EFB7A25529172C8400776151 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Tern;
+			productName = Tern;
+			productReference = EFB7A25729172C8400776151 /* Tern.app */;
+			productType = "com.apple.product-type.application";
+		};
+		EFB7A26C29172C8600776151 /* TernTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = EFB7A28429172C8600776151 /* Build configuration list for PBXNativeTarget "TernTests" */;
+			buildPhases = (
+				EFB7A26929172C8600776151 /* Sources */,
+				EFB7A26A29172C8600776151 /* Frameworks */,
+				EFB7A26B29172C8600776151 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				EFB7A26F29172C8600776151 /* PBXTargetDependency */,
+			);
+			name = TernTests;
+			productName = TernTests;
+			productReference = EFB7A26D29172C8600776151 /* TernTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		EFB7A27629172C8600776151 /* TernUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = EFB7A28729172C8600776151 /* Build configuration list for PBXNativeTarget "TernUITests" */;
+			buildPhases = (
+				EFB7A27329172C8600776151 /* Sources */,
+				EFB7A27429172C8600776151 /* Frameworks */,
+				EFB7A27529172C8600776151 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				EFB7A27929172C8600776151 /* PBXTargetDependency */,
+			);
+			name = TernUITests;
+			productName = TernUITests;
+			productReference = EFB7A27729172C8600776151 /* TernUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		EFB7A24F29172C8400776151 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1410;
+				LastUpgradeCheck = 1410;
+				TargetAttributes = {
+					EFB7A25629172C8400776151 = {
+						CreatedOnToolsVersion = 14.1;
+					};
+					EFB7A26C29172C8600776151 = {
+						CreatedOnToolsVersion = 14.1;
+						TestTargetID = EFB7A25629172C8400776151;
+					};
+					EFB7A27629172C8600776151 = {
+						CreatedOnToolsVersion = 14.1;
+						TestTargetID = EFB7A25629172C8400776151;
+					};
+				};
+			};
+			buildConfigurationList = EFB7A25229172C8400776151 /* Build configuration list for PBXProject "Tern" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = EFB7A24E29172C8400776151;
+			productRefGroup = EFB7A25829172C8400776151 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				EFB7A25629172C8400776151 /* Tern */,
+				EFB7A26C29172C8600776151 /* TernTests */,
+				EFB7A27629172C8600776151 /* TernUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		EFB7A25529172C8400776151 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				EFB7A26829172C8500776151 /* Preview Assets.xcassets in Resources */,
+				EFB7A26429172C8500776151 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		EFB7A26B29172C8600776151 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		EFB7A27529172C8600776151 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		EFB7A25329172C8400776151 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				EFB7A26029172C8400776151 /* Tern.xcdatamodeld in Sources */,
+				EFB7A25B29172C8400776151 /* TernApp.swift in Sources */,
+				EFB7A26229172C8400776151 /* ContentView.swift in Sources */,
+				EFB7A25D29172C8400776151 /* Persistence.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		EFB7A26929172C8600776151 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				EFB7A27229172C8600776151 /* TernTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		EFB7A27329172C8600776151 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				EFB7A27C29172C8600776151 /* TernUITests.swift in Sources */,
+				EFB7A27E29172C8600776151 /* TernUITestsLaunchTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		EFB7A26F29172C8600776151 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = EFB7A25629172C8400776151 /* Tern */;
+			targetProxy = EFB7A26E29172C8600776151 /* PBXContainerItemProxy */;
+		};
+		EFB7A27929172C8600776151 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = EFB7A25629172C8400776151 /* Tern */;
+			targetProxy = EFB7A27829172C8600776151 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		EFB7A27F29172C8600776151 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		EFB7A28029172C8600776151 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+			};
+			name = Release;
+		};
+		EFB7A28229172C8600776151 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Tern/Tern.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"Tern/Preview Content\"";
+				DEVELOPMENT_TEAM = XKRX4LVLZ9;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
+				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
+				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
+				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphonesimulator*]" = YES;
+				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphoneos*]" = YES;
+				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphonesimulator*]" = YES;
+				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphoneos*]" = UIStatusBarStyleDefault;
+				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.1;
+				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
+				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = madanala.com.Tern;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		EFB7A28329172C8600776151 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Tern/Tern.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"Tern/Preview Content\"";
+				DEVELOPMENT_TEAM = XKRX4LVLZ9;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
+				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
+				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
+				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphonesimulator*]" = YES;
+				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphoneos*]" = YES;
+				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphonesimulator*]" = YES;
+				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphoneos*]" = UIStatusBarStyleDefault;
+				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.1;
+				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
+				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = madanala.com.Tern;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		EFB7A28529172C8600776151 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = XKRX4LVLZ9;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.1;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = madanala.com.TernTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Tern.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Tern";
+			};
+			name = Debug;
+		};
+		EFB7A28629172C8600776151 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = XKRX4LVLZ9;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.1;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = madanala.com.TernTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Tern.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Tern";
+			};
+			name = Release;
+		};
+		EFB7A28829172C8600776151 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = XKRX4LVLZ9;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.1;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = madanala.com.TernUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Tern;
+			};
+			name = Debug;
+		};
+		EFB7A28929172C8600776151 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = XKRX4LVLZ9;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.1;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = madanala.com.TernUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Tern;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		EFB7A25229172C8400776151 /* Build configuration list for PBXProject "Tern" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				EFB7A27F29172C8600776151 /* Debug */,
+				EFB7A28029172C8600776151 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		EFB7A28129172C8600776151 /* Build configuration list for PBXNativeTarget "Tern" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				EFB7A28229172C8600776151 /* Debug */,
+				EFB7A28329172C8600776151 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		EFB7A28429172C8600776151 /* Build configuration list for PBXNativeTarget "TernTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				EFB7A28529172C8600776151 /* Debug */,
+				EFB7A28629172C8600776151 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		EFB7A28729172C8600776151 /* Build configuration list for PBXNativeTarget "TernUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				EFB7A28829172C8600776151 /* Debug */,
+				EFB7A28929172C8600776151 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCVersionGroup section */
+		EFB7A25E29172C8400776151 /* Tern.xcdatamodeld */ = {
+			isa = XCVersionGroup;
+			children = (
+				EFB7A25F29172C8400776151 /* Tern.xcdatamodel */,
+			);
+			currentVersion = EFB7A25F29172C8400776151 /* Tern.xcdatamodel */;
+			path = Tern.xcdatamodeld;
+			sourceTree = "<group>";
+			versionGroupType = wrapper.xcdatamodel;
+		};
+/* End XCVersionGroup section */
+	};
+	rootObject = EFB7A24F29172C8400776151 /* Project object */;
+}
