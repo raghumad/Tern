@@ -2,10 +2,11 @@
 //  TernTests.swift
 //  TernTests
 //
-//  Created by Raghu Madanala on 11/5/22.
+//  Created by Raghu Madanala on 11/22/22.
 //
 
 import XCTest
+@testable import Tern
 
 final class TernTests: XCTestCase {
 
@@ -27,7 +28,7 @@ final class TernTests: XCTestCase {
 
     func testPerformanceExample() throws {
         // This is an example of a performance test case.
-        measure {
+        self.measure {
             // Put the code you want to measure the time of here.
         }
     }

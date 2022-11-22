@@ -2,7 +2,7 @@
 //  TernUITests.swift
 //  TernUITests
 //
-//  Created by Raghu Madanala on 11/5/22.
+//  Created by Raghu Madanala on 11/22/22.
 //
 
 import XCTest
