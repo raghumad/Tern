@@ -16,6 +16,8 @@
 		EF31A51F292D49F8000719DE /* TernUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF31A51E292D49F8000719DE /* TernUITests.swift */; };
 		EF31A521292D49F8000719DE /* TernUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF31A520292D49F8000719DE /* TernUITestsLaunchTests.swift */; };
 		EF31A530292D4B34000719DE /* RoutePlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF31A52F292D4B34000719DE /* RoutePlanner.swift */; };
+		EF6C26F1293B131B00735B40 /* RoutePlannerModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF6C26F0293B131B00735B40 /* RoutePlannerModel.swift */; };
+		EF6C26F5293B13E100735B40 /* WayPoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF6C26F4293B13E100735B40 /* WayPoint.swift */; };
 		EF797F58292E097B0004B5B4 /* SwiftyJSON in Frameworks */ = {isa = PBXBuildFile; productRef = EF797F57292E097B0004B5B4 /* SwiftyJSON */; };
 /* End PBXBuildFile section */
 
@@ -50,6 +52,8 @@
 		EF31A51E292D49F8000719DE /* TernUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TernUITests.swift; sourceTree = "<group>"; };
 		EF31A520292D49F8000719DE /* TernUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TernUITestsLaunchTests.swift; sourceTree = "<group>"; };
 		EF31A52F292D4B34000719DE /* RoutePlanner.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RoutePlanner.swift; sourceTree = "<group>"; };
+		EF6C26F0293B131B00735B40 /* RoutePlannerModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutePlannerModel.swift; sourceTree = "<group>"; };
+		EF6C26F4293B13E100735B40 /* WayPoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WayPoint.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -101,6 +105,8 @@
 		EF31A4FC292D49F7000719DE /* Tern */ = {
 			isa = PBXGroup;
 			children = (
+				EF6C26F4293B13E100735B40 /* WayPoint.swift */,
+				EF6C26F0293B131B00735B40 /* RoutePlannerModel.swift */,
 				EF31A52F292D4B34000719DE /* RoutePlanner.swift */,
 				EF31A4FD292D49F7000719DE /* TernApp.swift */,
 				EF31A4FF292D49F7000719DE /* ContentView.swift */,
@@ -275,7 +281,9 @@
 			files = (
 				EF31A500292D49F7000719DE /* ContentView.swift in Sources */,
 				EF31A50A292D49F8000719DE /* Tern.xcdatamodeld in Sources */,
+				EF6C26F1293B131B00735B40 /* RoutePlannerModel.swift in Sources */,
 				EF31A4FE292D49F7000719DE /* TernApp.swift in Sources */,
+				EF6C26F5293B13E100735B40 /* WayPoint.swift in Sources */,
 				EF31A530292D4B34000719DE /* RoutePlanner.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
