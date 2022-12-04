@@ -16,43 +16,33 @@ class RoutePlannerModel : NSObject, CLLocationManagerDelegate, ObservableObject,
     @Published var latestLocation : CLLocation = .init()
     @Published var region : MKCoordinateRegion = .init()
     @Published var waypoints: [WayPoint] = .init()
-    
+
     private let locationManager : CLLocationManager = .init()
     @Published var mapView: MKMapView = .init()
-    
+
     override init() {
         super.init()
         locationManager.delegate = self
         mapView.delegate = self
-        locationManager.requestWhenInUseAuthorization()
+        mapView.showsUserLocation = true
         //locationManager.startUpdatingLocation()
         //locationManager.startMonitoring(for: CLRegion())
     }
-    
-    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
-        switch manager.authorizationStatus {
-        case .authorizedAlways: manager.requestLocation()
-        case .authorizedWhenInUse: manager.requestLocation()
-        case .denied: handleLocationAuthError()
-        case .notDetermined: manager.requestWhenInUseAuthorization()
-        default: ()
-        }
-    }
-    
+
     func handleLocationAuthError(){
         //Handle error
     }
-    
+
     func addWaypoint(){
         let annotation = WayPoint(coordinate: mapView.region.center, cylinderRadius: 50)
-        if waypoints.firstIndex(of: annotation) == nil { //fix duplicates
+        if (!waypoints.contains(where: {$0 == annotation})) {//dont instert waypoint if its already there
             waypoints.append(annotation)
             annotation.coordinate = mapView.region.center
             Task {
                 await annotation.getMeteo()
             }
-            annotation.title = "This is a very long waypoint title \(annotation.coordinate)"
-            annotation.subtitle = String("This is a very long waypoint subtitle and a lot more information tooooooo\(annotation.coordinate)")
+            annotation.title = "WP\(waypoints.count)"
+            annotation.subtitle = "\(String(format: "%.5f", annotation.coordinate.latitude)):\(String(format: "%.5f", annotation.coordinate.longitude))"
             //mapView.removeAnnotations(mapView.annotations)
             mapView.addAnnotation(annotation)
             let cyclinderOverlay = MKCircle(center: mapView.region.center, radius: CLLocationDistance(annotation.cylinderRadius))
@@ -62,34 +52,69 @@ class RoutePlannerModel : NSObject, CLLocationManagerDelegate, ObservableObject,
             }
         }
     }
-    
+
     deinit {
         locationManager.stopUpdatingLocation()
+    }
+}
+
+extension RoutePlannerModel {
+    //MARK: LocationManagerDelegates
+    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        //Set default location
+        self.latestLocation = CLLocation(latitude: 38.9121906016191, longitude: -104.72783900204881)//latitude: 38.9121906016191, longitude: -104.72783900204881)
+        self.region = MKCoordinateRegion(center: latestLocation.coordinate, latitudinalMeters: 10000, longitudinalMeters: 10000)
+    }
+    
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        switch manager.authorizationStatus {
+        case .authorizedAlways: manager.requestLocation()
+        case .authorizedWhenInUse: manager.requestLocation()
+        case .denied: handleLocationAuthError()
+        case .notDetermined: manager.requestWhenInUseAuthorization()
+        default: manager.requestWhenInUseAuthorization()
+        }
     }
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.last else {return}
-        Task {
+        DispatchQueue.main.async {
+            print ("latest location in didUpdateLocations: \(location.coordinate)")
             self.latestLocation = location
             self.region = MKCoordinateRegion(center: location.coordinate, latitudinalMeters: 6000, longitudinalMeters: 6000)
         }
     }
+}
 
-    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        //Set default location
-        self.latestLocation = CLLocation()//latitude: 38.9121906016191, longitude: -104.72783900204881)
-    }
-    
+extension RoutePlannerModel {
+    //MARK: MapViewDelegates
     func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
         let marker = MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: "WaypointPin")
         marker.isDraggable = true
         marker.canShowCallout = true
         marker.glyphImage = UIImage(systemName: "arrowshape.turn.up.right.circle.fill")
-        marker.markerTintColor = .green
-        let callout = UIHostingController(rootView: WayPointCallout(waypointAnnotation: annotation))
-//        marker.leftCalloutAccessoryView = callout.view
+        marker.markerTintColor = .systemBlue
+        var waypoint = annotation as! WayPoint
+        let wpc = WayPointCallout(waypoint: waypoint).environmentObject(self)
+        let callout = UIHostingController(rootView: wpc)
+//        marker.leftCalloutAccessoryView = callout.view //could be weather and wind direction
 //        marker.rightCalloutAccessoryView = callout.view
         marker.detailCalloutAccessoryView = callout.view
+//        for i in mapView.annotations.indices {
+//            if mapView.annotations[i] as! WayPoint == wpt {
+//                mapView.removeAnnotation(mapView.annotations[i])
+//                print ("removing \(wpt.title)")
+//            }
+//        }
+//        for i in waypoints.indices {
+//            if waypoints[i] == wpt {
+//                waypoints[i].coordinate = CLLocationCoordinate2D(latitude: wpc.latitude, longitude: wpc.longitude)
+//                waypoints[i].cylinderRadius = wpc.cylinderRadius
+//                waypoints[i].title = wpc.waypointName
+//            }
+//        }
+//        mapView.addAnnotations(waypoints)
+//        mapView.updateConstraints()
         return marker
     }
 
@@ -114,16 +139,8 @@ class RoutePlannerModel : NSObject, CLLocationManagerDelegate, ObservableObject,
         }
         return MKPolygonRenderer(overlay: overlay)
     }
-}
 
-
-struct RoutePlannerMapViewHelper : UIViewRepresentable {
-    @EnvironmentObject var manager: RoutePlannerModel
-    func makeUIView(context: Context) -> MKMapView {
-        return manager.mapView
-    }
-    
-    func updateUIView(_ uiView: MKMapView, context: Context) {
-        
+    func mapView(_ mapView: MKMapView, didUpdate userLocation: MKUserLocation) {
+        mapView.region = MKCoordinateRegion(center: userLocation.coordinate, latitudinalMeters: 10000, longitudinalMeters: 10000)
     }
 }

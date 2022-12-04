@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		EF0EAC84293C091D00A877DD /* RoutePlannerMapViewHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF0EAC83293C091D00A877DD /* RoutePlannerMapViewHelper.swift */; };
+		EF0EAC86293C79FA00A877DD /* WayPointCallout.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF0EAC85293C79F900A877DD /* WayPointCallout.swift */; };
 		EF31A4FE292D49F7000719DE /* TernApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF31A4FD292D49F7000719DE /* TernApp.swift */; };
 		EF31A500292D49F7000719DE /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF31A4FF292D49F7000719DE /* ContentView.swift */; };
 		EF31A502292D49F8000719DE /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = EF31A501292D49F8000719DE /* Assets.xcassets */; };
@@ -39,6 +41,8 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		EF0EAC83293C091D00A877DD /* RoutePlannerMapViewHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutePlannerMapViewHelper.swift; sourceTree = "<group>"; };
+		EF0EAC85293C79F900A877DD /* WayPointCallout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WayPointCallout.swift; sourceTree = "<group>"; };
 		EF31A4FA292D49F7000719DE /* Tern.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Tern.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		EF31A4FD292D49F7000719DE /* TernApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TernApp.swift; sourceTree = "<group>"; };
 		EF31A4FF292D49F7000719DE /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -82,6 +86,26 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		EF0EAC81293C081900A877DD /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				EF6C26F4293B13E100735B40 /* WayPoint.swift */,
+				EF31A52F292D4B34000719DE /* RoutePlanner.swift */,
+				EF31A4FF292D49F7000719DE /* ContentView.swift */,
+				EF0EAC85293C79F900A877DD /* WayPointCallout.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		EF0EAC82293C088900A877DD /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				EF6C26F0293B131B00735B40 /* RoutePlannerModel.swift */,
+				EF0EAC83293C091D00A877DD /* RoutePlannerMapViewHelper.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
 		EF31A4F1292D49F7000719DE = {
 			isa = PBXGroup;
 			children = (
@@ -105,11 +129,9 @@
 		EF31A4FC292D49F7000719DE /* Tern */ = {
 			isa = PBXGroup;
 			children = (
-				EF6C26F4293B13E100735B40 /* WayPoint.swift */,
-				EF6C26F0293B131B00735B40 /* RoutePlannerModel.swift */,
-				EF31A52F292D4B34000719DE /* RoutePlanner.swift */,
+				EF0EAC81293C081900A877DD /* Views */,
+				EF0EAC82293C088900A877DD /* Models */,
 				EF31A4FD292D49F7000719DE /* TernApp.swift */,
-				EF31A4FF292D49F7000719DE /* ContentView.swift */,
 				EF31A501292D49F8000719DE /* Assets.xcassets */,
 				EF31A50B292D49F8000719DE /* Info.plist */,
 				EF31A508292D49F8000719DE /* Tern.xcdatamodeld */,
@@ -280,11 +302,13 @@
 			buildActionMask = 2147483647;
 			files = (
 				EF31A500292D49F7000719DE /* ContentView.swift in Sources */,
+				EF0EAC84293C091D00A877DD /* RoutePlannerMapViewHelper.swift in Sources */,
 				EF31A50A292D49F8000719DE /* Tern.xcdatamodeld in Sources */,
 				EF6C26F1293B131B00735B40 /* RoutePlannerModel.swift in Sources */,
 				EF31A4FE292D49F7000719DE /* TernApp.swift in Sources */,
 				EF6C26F5293B13E100735B40 /* WayPoint.swift in Sources */,
 				EF31A530292D4B34000719DE /* RoutePlanner.swift in Sources */,
+				EF0EAC86293C79FA00A877DD /* WayPointCallout.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -448,6 +472,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Tern/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.sports";
+				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "This app needs location for doing everything. But needs location only while running. location data is not uploaded.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -484,6 +509,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Tern/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.sports";
+				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "This app needs location for doing everything. But needs location only while running. location data is not uploaded.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
