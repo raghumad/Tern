@@ -8,7 +8,6 @@
 import Foundation
 import MapKit
 import SwiftyJSON
-import SwiftUI
 
 class WayPoint : NSObject, MKAnnotation {
     var coordinate: CLLocationCoordinate2D
@@ -21,6 +20,7 @@ class WayPoint : NSObject, MKAnnotation {
         self.cylinderRadius = cylinderRadius
         self.weather = weather
     }
+
     func getMeteo() async {
         //https://api.open-meteo.com/v1/gfs?latitude=38.83&longitude=-104.82&current_weather=true&hourly=dewpoint_2m,pressure_msl,cloudcover,cape,windspeed_80m,winddirection_80m,windgusts_10m&temperature_unit=fahrenheit&windspeed_unit=mph&precipitation_unit=inch&forecast_days=1&timezone=auto
         //https://github.com/SwiftyJSON/SwiftyJSON to parse. got no time to create model structs.
@@ -41,11 +41,10 @@ class WayPoint : NSObject, MKAnnotation {
             print("Open mateo fails.")
         }
     }
-}
 
-struct WayPointCallout : View {
-    let waypointAnnotation: MKAnnotation
-    var body : some View {
-        Text("This is a very long waypoint subtitle and a lot more information tooooooo asfldkjasd;lfja;slkj qow;ij a;fsodfjaslkjd fawoiej f;asdkgfnj ;aksjghoaw;ei jfsdl;fkj as;glijewoajsldfjl")
+    static func ==(left: WayPoint, right: WayPoint) -> Bool
+    {
+        return (left.coordinate.latitude == right.coordinate.latitude) && (left.coordinate.longitude == right.coordinate.longitude)
     }
 }
+
