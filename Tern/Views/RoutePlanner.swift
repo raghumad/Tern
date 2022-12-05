@@ -15,7 +15,8 @@ struct RoutePlanner: View {
         ZStack(alignment: .center){
             RoutePlannerMapViewHelper(manager: model)
             .ignoresSafeArea()
-            Image(systemName: "scope")
+            Image(systemName: "mappin.and.ellipse")
+                .offset(y:-5)
             VStack(alignment: .trailing) {
                 
             }
@@ -27,7 +28,8 @@ struct RoutePlanner: View {
                         Button{
                             model.addWaypoint()
                         } label: {
-                            Image(systemName: "point.topleft.down.curvedto.point.bottomright.up")
+                            Image(systemName: "point.3.connected.trianglepath.dotted")
+                                .rotationEffect(.degrees(30))
                         }
                         .padding(12)
                         .background(.blue.opacity(0.9))

@@ -1,6 +1,15 @@
 {
   "pins" : [
     {
+      "identity" : "coordinatetransformationlibrary",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Oops-AB/CoordinateTransformationLibrary.git",
+      "state" : {
+        "revision" : "04554b14d67d002e37794cacae3d84c7aed00391",
+        "version" : "1.0.2"
+      }
+    },
+    {
       "identity" : "swiftyjson",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/SwiftyJSON/SwiftyJSON",

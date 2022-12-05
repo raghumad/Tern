@@ -10,6 +10,7 @@ import MapKit
 import SwiftyJSON
 
 class WayPoint : NSObject, MKAnnotation {
+    let id = ContinuousClock.now
     var coordinate: CLLocationCoordinate2D
     var cylinderRadius: Int = 0
     var title: String?
@@ -45,6 +46,20 @@ class WayPoint : NSObject, MKAnnotation {
     static func ==(left: WayPoint, right: WayPoint) -> Bool
     {
         return (left.coordinate.latitude == right.coordinate.latitude) && (left.coordinate.longitude == right.coordinate.longitude)
+    }
+    
+    func notNear(newPt: WayPoint) -> Bool {
+        return CLLocation(latitude: newPt.coordinate.latitude, longitude: newPt.coordinate.longitude).distance(from: CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)) >= Double(newPt.cylinderRadius + cylinderRadius + 100) //Cylinders atleast 100 apart
+    }
+    
+    func isNear(newPt: WayPoint) -> Bool {
+        return !notNear(newPt: newPt)
+    }
+}
+
+extension WayPoint : Comparable { //Sort based on Id which is continuous clock so always incrementing. Example: waypoints.sort()
+    static func < (lhs: WayPoint, rhs: WayPoint) -> Bool {
+        return lhs.id < rhs.id
     }
 }
 
