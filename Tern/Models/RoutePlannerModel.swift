@@ -39,12 +39,12 @@ class RoutePlannerModel : NSObject, CLLocationManagerDelegate, ObservableObject,
             Task {
                 await newWaypoint.getMeteo()
             }
-            newWaypoint.title = "WP\(waypoints.count)"
+            newWaypoint.title = "WP\(waypoints.count + 1)"
             newWaypoint.subtitle = "Notes about this waypoint..."
             newWaypoint.cylinderRadius = 500
             //mapView.removeAnnotations(mapView.annotations)
             mapView.addAnnotation(newWaypoint)
-            let cyclinderOverlay = MKCircle(center: mapView.region.center, radius: CLLocationDistance(newWaypoint.cylinderRadius))
+            let cyclinderOverlay = MKCircle(center: newwpt.coordinate, radius: CLLocationDistance(newWaypoint.cylinderRadius))
             mapView.addOverlay(cyclinderOverlay)
             waypoints.append(newWaypoint)
             if waypoints.count >  1 {
@@ -60,7 +60,7 @@ class RoutePlannerModel : NSObject, CLLocationManagerDelegate, ObservableObject,
             Task {
                 await newWaypoint.getMeteo()
             }
-            newWaypoint.title = "WP\(waypoints.count)"
+            newWaypoint.title = "WP\(waypoints.count + 1)"
             newWaypoint.subtitle = "Notes about this waypoint..."
             //mapView.removeAnnotations(mapView.annotations)
             mapView.addAnnotation(newWaypoint)
@@ -116,8 +116,8 @@ extension RoutePlannerModel {
             marker.isDraggable = true
             marker.canShowCallout = true
             let wptIndex = waypoints.firstIndex(of: annotation as! WayPoint) ?? 9999
-            if wptIndex != 9999 && wptIndex < 50 {
-                marker.glyphImage = UIImage(systemName: "\(wptIndex).circle")
+            if wptIndex != 9999 && wptIndex < 51 {
+                marker.glyphImage = UIImage(systemName: "\(wptIndex + 1).circle")
             } else {
                 marker.glyphImage = UIImage(systemName: "1f595")
             }
@@ -151,13 +151,13 @@ extension RoutePlannerModel {
             return renderer
         }
         if overlay is MKPolyline {
-            let renderer = MKGradientPolylineRenderer(polyline: overlay as! MKPolyline)
+            let renderer = MKPolylineRenderer(polyline: overlay as! MKPolyline)
             renderer.lineWidth = 2
             renderer.strokeColor = .red
             return renderer
         }
         if overlay is MKGeodesicPolyline {
-            let renderer = MKGradientPolylineRenderer(polyline: overlay as! MKGeodesicPolyline)
+            let renderer = MKPolylineRenderer(polyline: overlay as! MKGeodesicPolyline)
             renderer.lineWidth = 2
             renderer.strokeColor = .red
             return renderer
