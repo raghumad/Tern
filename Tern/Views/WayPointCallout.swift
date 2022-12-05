@@ -37,7 +37,7 @@ struct WayPointCallout : View {
                         Spacer()
                     }
                     HStack {
-                        Text("Weather is \(waypoint.weather.stringValue)")
+                        Text("Wind direction is \(waypoint.weatherForecast.winddirection_80m[0].description) and speed is \(waypoint.weatherForecast.windspeed80m[0].description)")
                         //Text("\(waypoint.weather["hourly"]["inddirection_80m"][0].stringValue)\(waypoint.weather["hourly_units"]["winddirection_80m"].stringValue)")
                         Spacer()
                     }
@@ -75,7 +75,7 @@ struct WayPointCallout : View {
                                 model.waypoints[i].cylinderRadius = cylinderRadius
                                 model.waypoints[i].subtitle = waypointDescription
                                 Task {
-                                    await model.waypoints[i].getMeteo()
+                                    await model.waypoints[i].weatherForecast.getMeteoForecast()
                                 }
                                 model.mapView.removeAnnotations(model.waypoints)
                                 model.mapView.addAnnotations(model.waypoints)

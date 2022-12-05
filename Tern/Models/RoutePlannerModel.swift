@@ -37,7 +37,7 @@ class RoutePlannerModel : NSObject, CLLocationManagerDelegate, ObservableObject,
         let newWaypoint = newwpt
         if (!waypoints.contains(where: {$0.isNear(newPt: newWaypoint)})) {//dont instert waypoints are kissing
             Task {
-                await newWaypoint.getMeteo()
+                await newWaypoint.weatherForecast.getMeteoForecast()
             }
             newWaypoint.title = "WP\(waypoints.count + 1)"
             newWaypoint.subtitle = "Notes about this waypoint..."
@@ -58,7 +58,7 @@ class RoutePlannerModel : NSObject, CLLocationManagerDelegate, ObservableObject,
         if (!waypoints.contains(where: {$0.isNear(newPt: newWaypoint)})) {//dont instert waypoints are kissing
             newWaypoint.coordinate = mapView.region.center
             Task {
-                await newWaypoint.getMeteo()
+                await newWaypoint.weatherForecast.getMeteoForecast()
             }
             newWaypoint.title = "WP\(waypoints.count + 1)"
             newWaypoint.subtitle = "Notes about this waypoint..."
