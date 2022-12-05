@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		EF0EAC84293C091D00A877DD /* RoutePlannerMapViewHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF0EAC83293C091D00A877DD /* RoutePlannerMapViewHelper.swift */; };
 		EF0EAC86293C79FA00A877DD /* WayPointCallout.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF0EAC85293C79F900A877DD /* WayPointCallout.swift */; };
+		EF275A44293DE26700752177 /* CoordinateTransformationLibrary in Frameworks */ = {isa = PBXBuildFile; productRef = EF275A43293DE26700752177 /* CoordinateTransformationLibrary */; };
 		EF31A4FE292D49F7000719DE /* TernApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF31A4FD292D49F7000719DE /* TernApp.swift */; };
 		EF31A500292D49F7000719DE /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF31A4FF292D49F7000719DE /* ContentView.swift */; };
 		EF31A502292D49F8000719DE /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = EF31A501292D49F8000719DE /* Assets.xcassets */; };
@@ -70,6 +71,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				EF797F58292E097B0004B5B4 /* SwiftyJSON in Frameworks */,
+				EF275A44293DE26700752177 /* CoordinateTransformationLibrary in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -189,6 +191,7 @@
 			name = Tern;
 			packageProductDependencies = (
 				EF797F57292E097B0004B5B4 /* SwiftyJSON */,
+				EF275A43293DE26700752177 /* CoordinateTransformationLibrary */,
 			);
 			productName = Tern;
 			productReference = EF31A4FA292D49F7000719DE /* Tern.app */;
@@ -264,6 +267,7 @@
 			mainGroup = EF31A4F1292D49F7000719DE;
 			packageReferences = (
 				EF797F56292E097B0004B5B4 /* XCRemoteSwiftPackageReference "SwiftyJSON" */,
+				EF275A42293DE26700752177 /* XCRemoteSwiftPackageReference "CoordinateTransformationLibrary" */,
 			);
 			productRefGroup = EF31A4FB292D49F7000719DE /* Products */;
 			projectDirPath = "";
@@ -487,7 +491,7 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -524,7 +528,7 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -655,6 +659,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		EF275A42293DE26700752177 /* XCRemoteSwiftPackageReference "CoordinateTransformationLibrary" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/Oops-AB/CoordinateTransformationLibrary.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.0.0;
+			};
+		};
 		EF797F56292E097B0004B5B4 /* XCRemoteSwiftPackageReference "SwiftyJSON" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/SwiftyJSON/SwiftyJSON";
@@ -666,6 +678,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		EF275A43293DE26700752177 /* CoordinateTransformationLibrary */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = EF275A42293DE26700752177 /* XCRemoteSwiftPackageReference "CoordinateTransformationLibrary" */;
+			productName = CoordinateTransformationLibrary;
+		};
 		EF797F57292E097B0004B5B4 /* SwiftyJSON */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = EF797F56292E097B0004B5B4 /* XCRemoteSwiftPackageReference "SwiftyJSON" */;
