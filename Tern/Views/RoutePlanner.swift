@@ -13,7 +13,7 @@ struct RoutePlanner: View {
     @StateObject var model = RoutePlannerModel()
     var body: some View {
         ZStack(alignment: .center){
-            RoutePlannerMapViewHelper().environmentObject(model)
+            RoutePlannerMapViewHelper(manager: model)
             .ignoresSafeArea()
             Image(systemName: "scope")
             VStack(alignment: .trailing) {
@@ -32,13 +32,6 @@ struct RoutePlanner: View {
                         .padding(12)
                         .background(.blue.opacity(0.9))
                         .cornerRadius(8)
-                        LocationButton(.currentLocation) {
-                            model.region = MKCoordinateRegion(center: model.latestLocation.coordinate, latitudinalMeters: 10000, longitudinalMeters: 10000)
-                            print(model.latestLocation.coordinate)
-                        }
-                        .foregroundColor(.white)
-                        .cornerRadius(8)
-                        .labelStyle(.iconOnly)
                     }
                 }
                 .foregroundColor(.white)
@@ -51,6 +44,6 @@ struct RoutePlanner: View {
 
 struct RoutePlanner_Previews: PreviewProvider {
     static var previews: some View {
-        RoutePlanner(model: RoutePlannerModel())
+        RoutePlanner()
     }
 }

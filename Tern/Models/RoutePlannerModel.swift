@@ -36,7 +36,6 @@ class RoutePlannerModel : NSObject, CLLocationManagerDelegate, ObservableObject,
     func addWaypoint(){
         let annotation = WayPoint(coordinate: mapView.region.center, cylinderRadius: 50)
         if (!waypoints.contains(where: {$0 == annotation})) {//dont instert waypoint if its already there
-            waypoints.append(annotation)
             annotation.coordinate = mapView.region.center
             Task {
                 await annotation.getMeteo()
@@ -50,6 +49,7 @@ class RoutePlannerModel : NSObject, CLLocationManagerDelegate, ObservableObject,
             if waypoints.count >  1 {
                 mapView.addOverlay(MKPolyline(coordinates: waypoints.map( {$0.coordinate} ), count: waypoints.count))
             }
+            waypoints.append(annotation)
         }
     }
 
@@ -63,7 +63,8 @@ extension RoutePlannerModel {
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         //Set default location
         self.latestLocation = CLLocation(latitude: 38.9121906016191, longitude: -104.72783900204881)//latitude: 38.9121906016191, longitude: -104.72783900204881)
-        self.region = MKCoordinateRegion(center: latestLocation.coordinate, latitudinalMeters: 10000, longitudinalMeters: 10000)
+        self.region = MKCoordinateRegion(center: latestLocation.coordinate, latitudinalMeters: 50000, longitudinalMeters: 50000)
+        self.mapView.setRegion(self.region, animated: false)
     }
     
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
@@ -81,7 +82,8 @@ extension RoutePlannerModel {
         DispatchQueue.main.async {
             print ("latest location in didUpdateLocations: \(location.coordinate)")
             self.latestLocation = location
-            self.region = MKCoordinateRegion(center: location.coordinate, latitudinalMeters: 6000, longitudinalMeters: 6000)
+            self.region = MKCoordinateRegion(center: location.coordinate, latitudinalMeters: 25000, longitudinalMeters: 25000)
+            self.mapView.setRegion(self.region, animated: true)
         }
     }
 }
@@ -89,38 +91,26 @@ extension RoutePlannerModel {
 extension RoutePlannerModel {
     //MARK: MapViewDelegates
     func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
-        let marker = MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: "WaypointPin")
-        marker.isDraggable = true
-        marker.canShowCallout = true
-        marker.glyphImage = UIImage(systemName: "arrowshape.turn.up.right.circle.fill")
-        marker.markerTintColor = .systemBlue
-        var waypoint = annotation as! WayPoint
-        let wpc = WayPointCallout(waypoint: waypoint).environmentObject(self)
-        let callout = UIHostingController(rootView: wpc)
-//        marker.leftCalloutAccessoryView = callout.view //could be weather and wind direction
-//        marker.rightCalloutAccessoryView = callout.view
-        marker.detailCalloutAccessoryView = callout.view
-//        for i in mapView.annotations.indices {
-//            if mapView.annotations[i] as! WayPoint == wpt {
-//                mapView.removeAnnotation(mapView.annotations[i])
-//                print ("removing \(wpt.title)")
-//            }
-//        }
-//        for i in waypoints.indices {
-//            if waypoints[i] == wpt {
-//                waypoints[i].coordinate = CLLocationCoordinate2D(latitude: wpc.latitude, longitude: wpc.longitude)
-//                waypoints[i].cylinderRadius = wpc.cylinderRadius
-//                waypoints[i].title = wpc.waypointName
-//            }
-//        }
-//        mapView.addAnnotations(waypoints)
-//        mapView.updateConstraints()
-        return marker
-    }
-
-    func mapView(_ mapView: MKMapView, annotationView view: MKAnnotationView, didChange newState: MKAnnotationView.DragState, fromOldState oldState: MKAnnotationView.DragState) {
-        //print("\(view.annotation?.coordinate)")
-        print(waypoints.count)
+        if annotation is WayPoint {
+            let marker = MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: "WaypointPin")
+            marker.isDraggable = true
+            marker.canShowCallout = true
+            marker.glyphImage = UIImage(systemName: "arrowshape.turn.up.right.circle.fill")
+            marker.markerTintColor = .systemBlue
+            let wpt = annotation as! WayPoint
+            let longitude = wpt.coordinate.longitude
+            let latitude = wpt.coordinate.latitude
+            let cyliderRadius = wpt.cylinderRadius
+            
+            let wpc = WayPointCallout(waypoint: annotation as! WayPoint, waypointName: wpt.title ?? "WPT___", latitude: latitude, longitude: longitude, cylinderRadius: cyliderRadius).environmentObject(self)
+            let callout = UIHostingController(rootView: wpc)
+            //        marker.leftCalloutAccessoryView = callout.view //could be weather and wind direction
+            //        marker.rightCalloutAccessoryView = callout.view
+            marker.detailCalloutAccessoryView = callout.view
+            return marker
+        } else {
+            return MKUserLocationView()
+        }
     }
 
     func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
@@ -138,9 +128,5 @@ extension RoutePlannerModel {
             return renderer
         }
         return MKPolygonRenderer(overlay: overlay)
-    }
-
-    func mapView(_ mapView: MKMapView, didUpdate userLocation: MKUserLocation) {
-        mapView.region = MKCoordinateRegion(center: userLocation.coordinate, latitudinalMeters: 10000, longitudinalMeters: 10000)
     }
 }

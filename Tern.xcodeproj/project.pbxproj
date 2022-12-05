@@ -21,6 +21,8 @@
 		EF6C26F1293B131B00735B40 /* RoutePlannerModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF6C26F0293B131B00735B40 /* RoutePlannerModel.swift */; };
 		EF6C26F5293B13E100735B40 /* WayPoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF6C26F4293B13E100735B40 /* WayPoint.swift */; };
 		EF797F58292E097B0004B5B4 /* SwiftyJSON in Frameworks */ = {isa = PBXBuildFile; productRef = EF797F57292E097B0004B5B4 /* SwiftyJSON */; };
+		EFE92DF7293D823E0093BBF1 /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = EFE92DF5293D823E0093BBF1 /* README.md */; };
+		EFE92DF8293D823E0093BBF1 /* LICENSE in Resources */ = {isa = PBXBuildFile; fileRef = EFE92DF6293D823E0093BBF1 /* LICENSE */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -58,6 +60,8 @@
 		EF31A52F292D4B34000719DE /* RoutePlanner.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RoutePlanner.swift; sourceTree = "<group>"; };
 		EF6C26F0293B131B00735B40 /* RoutePlannerModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutePlannerModel.swift; sourceTree = "<group>"; };
 		EF6C26F4293B13E100735B40 /* WayPoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WayPoint.swift; sourceTree = "<group>"; };
+		EFE92DF5293D823E0093BBF1 /* README.md */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
+		EFE92DF6293D823E0093BBF1 /* LICENSE */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = LICENSE; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -89,7 +93,6 @@
 		EF0EAC81293C081900A877DD /* Views */ = {
 			isa = PBXGroup;
 			children = (
-				EF6C26F4293B13E100735B40 /* WayPoint.swift */,
 				EF31A52F292D4B34000719DE /* RoutePlanner.swift */,
 				EF31A4FF292D49F7000719DE /* ContentView.swift */,
 				EF0EAC85293C79F900A877DD /* WayPointCallout.swift */,
@@ -100,6 +103,7 @@
 		EF0EAC82293C088900A877DD /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				EF6C26F4293B13E100735B40 /* WayPoint.swift */,
 				EF6C26F0293B131B00735B40 /* RoutePlannerModel.swift */,
 				EF0EAC83293C091D00A877DD /* RoutePlannerMapViewHelper.swift */,
 			);
@@ -109,6 +113,8 @@
 		EF31A4F1292D49F7000719DE = {
 			isa = PBXGroup;
 			children = (
+				EFE92DF6293D823E0093BBF1 /* LICENSE */,
+				EFE92DF5293D823E0093BBF1 /* README.md */,
 				EF31A4FC292D49F7000719DE /* Tern */,
 				EF31A513292D49F8000719DE /* TernTests */,
 				EF31A51D292D49F8000719DE /* TernUITests */,
@@ -275,7 +281,9 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				EFE92DF7293D823E0093BBF1 /* README.md in Resources */,
 				EF31A505292D49F8000719DE /* Preview Assets.xcassets in Resources */,
+				EFE92DF8293D823E0093BBF1 /* LICENSE in Resources */,
 				EF31A502292D49F8000719DE /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
