@@ -10,13 +10,11 @@ import SwiftUI
 import MapKit
 
 struct RoutePlannerMapViewHelper : UIViewRepresentable {
-    @EnvironmentObject var manager: RoutePlannerModel
+    @ObservedObject var manager: RoutePlannerModel
     func makeUIView(context: Context) -> MKMapView {
         return manager.mapView
     }
 
     func updateUIView(_ uiView: MKMapView, context: Context) {
-        uiView.removeAnnotations(uiView.annotations)
-        uiView.addAnnotations(manager.waypoints)
     }
 }
