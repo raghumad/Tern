@@ -123,13 +123,8 @@ extension RoutePlannerModel {
             marker.markerTintColor = .systemBlue
             marker.animatesWhenAdded = true
             marker.selectedGlyphImage = UIImage(systemName: "mappin.and.ellipse")
-            let wpt = annotation as! WayPoint
-            let longitude = wpt.coordinate.longitude
-            let latitude = wpt.coordinate.latitude
-            let cyliderRadius = wpt.cylinderRadius
-            let waypointDescription = wpt.subtitle ?? "Very long description..."
-            
-            let wpc = WayPointCallout(waypoint: annotation as! WayPoint, waypointName: wpt.title ?? "WPT___", latitude: latitude, longitude: longitude, cylinderRadius: cyliderRadius, waypointDescription: waypointDescription).environmentObject(self)
+
+            let wpc = WayPointCallout(waypoint: annotation as! WayPoint).environmentObject(self)
             let callout = UIHostingController(rootView: wpc)
             //        marker.leftCalloutAccessoryView = callout.view //could be weather and wind direction
             //        marker.rightCalloutAccessoryView = callout.view

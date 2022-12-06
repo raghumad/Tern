@@ -13,131 +13,53 @@ struct WayPointCallout : View {
     @EnvironmentObject var model : RoutePlannerModel
     @State var editWaypoint : Bool = false
     @State var waypoint : WayPoint
-    
-    @State var waypointName : String
-    @State var latitude : Double
-    @State var longitude : Double
-    @State var cylinderRadius : Int
-    @State var waypointDescription : String
 
     var body : some View {
-        Button{
-            editWaypoint.toggle()
-        } label: {
-            Section{
-                VStack{
-                    HStack{
-                        Image(systemName: "mappin.and.ellipse")
-                        Text("\(String(format: "%.5f", waypoint.coordinate.latitude)),\(String(format: "%.5f", waypoint.coordinate.longitude))")
-                        Spacer()
-                    }
-                    HStack{
-                        Image(systemName: "cylinder")
-                        Text("\(String(waypoint.cylinderRadius))m")
-                        Spacer()
-                    }
-                    VStack {
-                        //Text("Forecast Coordinate is: \(waypoint.weatherForecast.coordinate.latitude):\(waypoint.weatherForecast.coordinate.longitude)")
-//                        HStack {
-//                            Image(systemName: "watchface.applewatch.case")
-//                            Text("\(waypoint.weatherForecast.weather_time[0].description)")
-//                            Spacer()
-//                        }
-                        HStack {
-                            Image(systemName: "arrow.up")
-                                .rotationEffect(.degrees((waypoint.weatherForecast.winddirection_80m[0].value)))
-                            Image(systemName: "speedometer")
-                            Text("\(waypoint.weatherForecast.windspeed80m[0].description)")
-                            Spacer()
-                        }
-                        //Text("\(waypoint.weather["hourly"]["inddirection_80m"][0].stringValue)\(waypoint.weather["hourly_units"]["winddirection_80m"].stringValue)")
-                        Spacer()
-                    }
-                }
-            }
-        }
-        .sheet(isPresented: $editWaypoint) {
-            Section {
-                TextField("Waypoint Name", text: $waypointName)
-                    .keyboardType(.twitter)
+        VStack{
+            VStack{
                 HStack{
                     Image(systemName: "mappin.and.ellipse")
-                    TextField("Latitude", value: $latitude, format: .number)
-                        .keyboardType(.decimalPad)
-                        .frame(width: 80)
-                    Text(",")
-                    TextField("Longitude", value: $longitude, format: .number)
-                        .keyboardType(.decimalPad)
+                    Text("\(String(format: "%.5f", waypoint.coordinate.latitude)),\(String(format: "%.5f", waypoint.coordinate.longitude))")
                     Spacer()
                 }
                 HStack{
                     Image(systemName: "cylinder")
-                    TextField("Cylinder Radius", value: $cylinderRadius, format: .number)
-                        .keyboardType(.numberPad)
+                    Text("\(String(waypoint.cylinderRadius))m")
+                    Spacer()
                 }
-                HStack{
-                    TextEditor(text: $waypointDescription)
-                }
-                HStack{
-                    Button {
-                        for i in model.waypoints.indices {
-                            if model.waypoints[i] == waypoint {
-                                model.waypoints[i].update(coordinate: CLLocationCoordinate2D(latitude: latitude, longitude: longitude), name: waypointName, description: waypointDescription, radius: cylinderRadius)
-                                model.mapView.removeAnnotations(model.waypoints)
-                                model.mapView.addAnnotations(model.waypoints)
-                                model.mapView.removeOverlays(model.mapView.overlays) //remove before re adding all of them
-                                for wpt in model.waypoints {
-                                    let cyclinderOverlay = MKCircle(center: wpt.coordinate, radius: CLLocationDistance(wpt.cylinderRadius))
-                                    model.mapView.addOverlay(cyclinderOverlay)
-                                }
-                                if model.waypoints.count >  1 {
-                                    model.mapView.addOverlay(MKGeodesicPolyline(coordinates: model.waypoints.map( {$0.coordinate} ), count: model.waypoints.count))
-                                }
-                            }
-                        }
-                        model.mapView.setRegion(MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: latitude, longitude: longitude), latitudinalMeters: 50000, longitudinalMeters: 50000), animated: true)
-                        editWaypoint.toggle()
-                    } label: {
-                        Text("Send It")
-                            .fontWeight(.heavy)
-                            .frame(width: 80,height: 40)
-                            .foregroundColor(.white)
-                            .background(.blue.opacity(0.9))
-                            .cornerRadius(8)
+                VStack {
+                    //Text("Forecast Coordinate is: \(waypoint.weatherForecast.coordinate.latitude):\(waypoint.weatherForecast.coordinate.longitude)")
+                    //                        HStack {
+                    //                            Image(systemName: "watchface.applewatch.case")
+                    //                            Text("\(waypoint.weatherForecast.weather_time[0].description)")
+                    //                            Spacer()
+                    //                        }
+                    HStack {
+                        Image(systemName: "arrow.up.circle")
+                            .rotationEffect(.degrees((waypoint.weatherForecast.winddirection_80m[0].value)))
+                        Text("\(waypoint.weatherForecast.windspeed80m[0].description)")
+                        Image(systemName: "wind.circle")
+                        Text("\(waypoint.weatherForecast.windgusts_10m[0].description)")
+                        Spacer()
                     }
-                    Button {
-                        model.waypoints.remove(at: model.waypoints.firstIndex(of: waypoint) ?? 9999)
-                        model.mapView.removeAnnotation(waypoint)
-                        //model.mapView.addAnnotations(model.waypoints)
-                        model.mapView.removeOverlays(model.mapView.overlays) //remove before re adding all of them
-                        for wpt in model.waypoints {
-                            model.mapView.removeAnnotation(wpt) //re-add all waypoints so that they are numbered correctly
-                            model.mapView.addAnnotation(wpt)
-                            let cyclinderOverlay = MKCircle(center: wpt.coordinate, radius: CLLocationDistance(wpt.cylinderRadius))
-                            model.mapView.addOverlay(cyclinderOverlay)
-                        }
-                        if model.waypoints.count >  1 {
-                            model.mapView.addOverlay(MKGeodesicPolyline(coordinates: model.waypoints.map( {$0.coordinate} ), count: model.waypoints.count))
-                        }
-                        editWaypoint.toggle()
-                    } label: {
-                        Text("Kill It")
-                            .fontWeight(.heavy)
-                            .frame(width: 80,height: 40)
-                            .foregroundColor(.white)
-                            .background(.red.opacity(0.7))
-                            .cornerRadius(8)
-                    }
+                    //Text("\(waypoint.weather["hourly"]["inddirection_80m"][0].stringValue)\(waypoint.weather["hourly_units"]["winddirection_80m"].stringValue)")
+                    Spacer()
                 }
             }
-            .presentationDetents([.fraction(0.6)])
-            .presentationDragIndicator(.visible)
         }
+        .onTapGesture {
+            editWaypoint.toggle()
+        }
+        .sheet(isPresented: $editWaypoint) {
+            EditWaypoint(waypoint: waypoint, editWaypoint: $editWaypoint, waypointName: waypoint.title ?? "", latitude: waypoint.coordinate.latitude, longitude: waypoint.coordinate.longitude, cylinderRadius: waypoint.cylinderRadius, waypointDescription: waypoint.description).environmentObject(model)
+         .presentationDetents([.fraction(0.6)])
+         .presentationDragIndicator(.visible)
+         }
     }
 }
-
-struct WayPointCallout_Previews: PreviewProvider {
-    static var previews: some View {
-        WayPointCallout(waypoint: WayPoint(coordinate: CLLocationCoordinate2D(latitude: 38.839149999999997, longitude: -104.78780999999999),cylinderRadius: 500), waypointName: "Die Motherfucker", latitude: 38.839149999999997, longitude: -104.78780999999999, cylinderRadius: 500, waypointDescription: "A very long descrption and personal feelings about this waypoint. Don't hold anything back!!!").environmentObject(RoutePlannerModel())
-    }
-}
+//
+//struct WayPointCallout_Previews: PreviewProvider {
+//    static var previews: some View {
+//        WayPointCallout(waypoint: WayPoint(coordinate: CLLocationCoordinate2D(latitude: 38.839149999999997, longitude: -104.78780999999999),cylinderRadius: 500)).environmentObject(RoutePlannerModel())
+//    }
+//}

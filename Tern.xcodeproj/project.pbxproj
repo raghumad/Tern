@@ -22,6 +22,7 @@
 		EF6C26F1293B131B00735B40 /* RoutePlannerModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF6C26F0293B131B00735B40 /* RoutePlannerModel.swift */; };
 		EF6C26F5293B13E100735B40 /* WayPoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF6C26F4293B13E100735B40 /* WayPoint.swift */; };
 		EF797F58292E097B0004B5B4 /* SwiftyJSON in Frameworks */ = {isa = PBXBuildFile; productRef = EF797F57292E097B0004B5B4 /* SwiftyJSON */; };
+		EFAC18AD293FF6990045B1FF /* EditWaypoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFAC18AC293FF6990045B1FF /* EditWaypoint.swift */; };
 		EFB4B67D293EA14A00B4AE13 /* WeatherForecast.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFB4B67C293EA14A00B4AE13 /* WeatherForecast.swift */; };
 		EFE92DF7293D823E0093BBF1 /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = EFE92DF5293D823E0093BBF1 /* README.md */; };
 		EFE92DF8293D823E0093BBF1 /* LICENSE in Resources */ = {isa = PBXBuildFile; fileRef = EFE92DF6293D823E0093BBF1 /* LICENSE */; };
@@ -62,6 +63,7 @@
 		EF31A52F292D4B34000719DE /* RoutePlanner.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RoutePlanner.swift; sourceTree = "<group>"; };
 		EF6C26F0293B131B00735B40 /* RoutePlannerModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutePlannerModel.swift; sourceTree = "<group>"; };
 		EF6C26F4293B13E100735B40 /* WayPoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WayPoint.swift; sourceTree = "<group>"; };
+		EFAC18AC293FF6990045B1FF /* EditWaypoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditWaypoint.swift; sourceTree = "<group>"; };
 		EFB4B67C293EA14A00B4AE13 /* WeatherForecast.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherForecast.swift; sourceTree = "<group>"; };
 		EFE92DF5293D823E0093BBF1 /* README.md */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		EFE92DF6293D823E0093BBF1 /* LICENSE */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = LICENSE; sourceTree = "<group>"; };
@@ -100,6 +102,7 @@
 				EF31A52F292D4B34000719DE /* RoutePlanner.swift */,
 				EF31A4FF292D49F7000719DE /* ContentView.swift */,
 				EF0EAC85293C79F900A877DD /* WayPointCallout.swift */,
+				EFAC18AC293FF6990045B1FF /* EditWaypoint.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -318,6 +321,7 @@
 			files = (
 				EFB4B67D293EA14A00B4AE13 /* WeatherForecast.swift in Sources */,
 				EF31A500292D49F7000719DE /* ContentView.swift in Sources */,
+				EFAC18AD293FF6990045B1FF /* EditWaypoint.swift in Sources */,
 				EF0EAC84293C091D00A877DD /* RoutePlannerMapViewHelper.swift in Sources */,
 				EF31A50A292D49F8000719DE /* Tern.xcdatamodeld in Sources */,
 				EF6C26F1293B131B00735B40 /* RoutePlannerModel.swift in Sources */,
