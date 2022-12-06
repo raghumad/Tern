@@ -10,7 +10,7 @@ import SwiftyJSON
 import CoreLocation
 
 class WeatherForecast {
-    let coordinate : CLLocationCoordinate2D
+    var coordinate : CLLocationCoordinate2D
     private var weatherForecast : JSON = []
     init(coordinate: CLLocationCoordinate2D, weatherForecast: JSON = JSON("")) {
         self.coordinate = coordinate
