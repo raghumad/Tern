@@ -34,6 +34,25 @@ class WayPoint : NSObject, MKAnnotation {
     func isNear(newPt: WayPoint) -> Bool {
         return !notNear(newPt: newPt)
     }
+
+    func update()
+    {
+        weatherForecast.coordinate = self.coordinate
+        Task {
+            await weatherForecast.getMeteoForecast()
+        }
+    }
+
+    func update(coordinate: CLLocationCoordinate2D, name: String, description: String, radius: Int)
+    {
+        self.coordinate = coordinate
+        title = name
+        cylinderRadius = radius
+        subtitle = description
+        Task {
+            await weatherForecast.getMeteoForecast()
+        }
+    }
 }
 
 extension WayPoint : Comparable { //Sort based on Id which is continuous clock so always incrementing. Example: waypoints.sort()

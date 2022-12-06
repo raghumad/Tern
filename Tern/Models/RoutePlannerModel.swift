@@ -33,18 +33,17 @@ class RoutePlannerModel : NSObject, CLLocationManagerDelegate, ObservableObject,
         //Handle error
     }
 
-    func addWaypoint(newwpt: WayPoint){
-        let newWaypoint = newwpt
+    func addWaypoint(coordinate: CLLocationCoordinate2D){
+        let newWaypoint = WayPoint(coordinate: coordinate, cylinderRadius: 500)
         if (!waypoints.contains(where: {$0.isNear(newPt: newWaypoint)})) {//dont instert waypoints are kissing
             Task {
-                await newWaypoint.weatherForecast.getMeteoForecast()
+                await newWaypoint.weatherForecast.getMeteoForecast() //fire off weather while other stuff is done.
             }
             newWaypoint.title = "WP\(waypoints.count + 1)"
             newWaypoint.subtitle = "Notes about this waypoint..."
-            newWaypoint.cylinderRadius = 500
             //mapView.removeAnnotations(mapView.annotations)
             mapView.addAnnotation(newWaypoint)
-            let cyclinderOverlay = MKCircle(center: newwpt.coordinate, radius: CLLocationDistance(newWaypoint.cylinderRadius))
+            let cyclinderOverlay = MKCircle(center: newWaypoint.coordinate, radius: CLLocationDistance(newWaypoint.cylinderRadius))
             mapView.addOverlay(cyclinderOverlay)
             waypoints.append(newWaypoint)
             if waypoints.count >  1 {
@@ -172,6 +171,8 @@ extension RoutePlannerModel {
             for i in mapView.annotations.indices {
                 if mapView.annotations[i] is WayPoint {
                     waypoints.append(mapView.annotations[i] as! WayPoint)
+                    //update waypoint icon and get new weather
+                    (mapView.annotations[i] as! WayPoint).update()
                 }
             }
             waypoints.sort() // Always ordered
@@ -210,11 +211,7 @@ extension RoutePlannerModel {
             let touchPoint = gestureRecognizer.location(in: self.mapView)
             
             let touchMapCoordinate =  self.mapView.convert(touchPoint, toCoordinateFrom: mapView)
-            let wpt = WayPoint()
-            wpt.title = "Fuck you!"
-            wpt.subtitle = "You long pressed here"
-            wpt.coordinate = touchMapCoordinate
-            addWaypoint(newwpt: wpt)
+            addWaypoint(coordinate: touchMapCoordinate)
         }
     }
 }

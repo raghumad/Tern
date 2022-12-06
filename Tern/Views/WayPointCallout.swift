@@ -36,8 +36,20 @@ struct WayPointCallout : View {
                         Text("\(String(waypoint.cylinderRadius))m")
                         Spacer()
                     }
-                    HStack {
-                        Text("Wind direction is \(waypoint.weatherForecast.winddirection_80m[0].description) and speed is \(waypoint.weatherForecast.windspeed80m[0].description)")
+                    VStack {
+                        //Text("Forecast Coordinate is: \(waypoint.weatherForecast.coordinate.latitude):\(waypoint.weatherForecast.coordinate.longitude)")
+//                        HStack {
+//                            Image(systemName: "watchface.applewatch.case")
+//                            Text("\(waypoint.weatherForecast.weather_time[0].description)")
+//                            Spacer()
+//                        }
+                        HStack {
+                            Image(systemName: "arrow.up")
+                                .rotationEffect(.degrees((waypoint.weatherForecast.winddirection_80m[0].value)))
+                            Image(systemName: "speedometer")
+                            Text("\(waypoint.weatherForecast.windspeed80m[0].description)")
+                            Spacer()
+                        }
                         //Text("\(waypoint.weather["hourly"]["inddirection_80m"][0].stringValue)\(waypoint.weather["hourly_units"]["winddirection_80m"].stringValue)")
                         Spacer()
                     }
@@ -70,13 +82,7 @@ struct WayPointCallout : View {
                     Button {
                         for i in model.waypoints.indices {
                             if model.waypoints[i] == waypoint {
-                                model.waypoints[i].coordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
-                                model.waypoints[i].title = waypointName
-                                model.waypoints[i].cylinderRadius = cylinderRadius
-                                model.waypoints[i].subtitle = waypointDescription
-                                Task {
-                                    await model.waypoints[i].weatherForecast.getMeteoForecast()
-                                }
+                                model.waypoints[i].update(coordinate: CLLocationCoordinate2D(latitude: latitude, longitude: longitude), name: waypointName, description: waypointDescription, radius: cylinderRadius)
                                 model.mapView.removeAnnotations(model.waypoints)
                                 model.mapView.addAnnotations(model.waypoints)
                                 model.mapView.removeOverlays(model.mapView.overlays) //remove before re adding all of them
@@ -105,13 +111,14 @@ struct WayPointCallout : View {
                         //model.mapView.addAnnotations(model.waypoints)
                         model.mapView.removeOverlays(model.mapView.overlays) //remove before re adding all of them
                         for wpt in model.waypoints {
+                            model.mapView.removeAnnotation(wpt) //re-add all waypoints so that they are numbered correctly
+                            model.mapView.addAnnotation(wpt)
                             let cyclinderOverlay = MKCircle(center: wpt.coordinate, radius: CLLocationDistance(wpt.cylinderRadius))
                             model.mapView.addOverlay(cyclinderOverlay)
                         }
                         if model.waypoints.count >  1 {
                             model.mapView.addOverlay(MKGeodesicPolyline(coordinates: model.waypoints.map( {$0.coordinate} ), count: model.waypoints.count))
                         }
-                        model.mapView.setRegion(MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: latitude, longitude: longitude), latitudinalMeters: 50000, longitudinalMeters: 50000), animated: true)
                         editWaypoint.toggle()
                     } label: {
                         Text("Kill It")
