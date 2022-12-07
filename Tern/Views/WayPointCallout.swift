@@ -24,26 +24,16 @@ struct WayPointCallout : View {
                     Text("\(String(waypoint.cylinderRadius))m")
                     Spacer()
                 }
-                VStack {
-                    //Text("Forecast Coordinate is: \(waypoint.weatherForecast.coordinate.latitude):\(waypoint.weatherForecast.coordinate.longitude)")
-                    //                        HStack {
-                    //                            Image(systemName: "watchface.applewatch.case")
-                    //                            Text("\(waypoint.weatherForecast.weather_time[0].description)")
-                    //                            Spacer()
-                    //                        }
-                    HStack {
-                        Image(systemName: "arrow.up.circle")
-                            .rotationEffect(.degrees((waypoint.weatherForecast.winddirection_80m[0].value)))
-                        Text("\(waypoint.weatherForecast.windspeed80m[0].description)")
-                        Image(systemName: "wind.circle")
-                        Text("\(waypoint.weatherForecast.windgusts_10m[0].description)")
-                        Image(systemName: "humidity")
-                        Text("\(waypoint.weatherForecast.relativehumidity_2m[0].description)")
-                        Image(systemName: "cloud.circle")
-                        Text("\(waypoint.weatherForecast.cloudcover[0].description)")
-                        Spacer()
-                    }
-                    //Text("\(waypoint.weather["hourly"]["inddirection_80m"][0].stringValue)\(waypoint.weather["hourly_units"]["winddirection_80m"].stringValue)")
+                HStack {
+                    Image(systemName: "arrow.up.circle")
+                        .rotationEffect(.degrees((waypoint.weatherForecast.winddirection_80m[0].value)))
+                    Text("\(waypoint.weatherForecast.windspeed80m.first!.description)")
+                    Image(systemName: "wind.circle")
+                    Text("\(waypoint.weatherForecast.windgusts_10m.first!.description)")
+                    Image(systemName: "humidity")
+                    Text("\(waypoint.weatherForecast.relativehumidity_2m.first!.description)")
+                    Image(systemName: "cloud.circle")
+                    Text("\(waypoint.weatherForecast.cloudcover.first!.description)")
                     Spacer()
                 }
             }
@@ -53,7 +43,7 @@ struct WayPointCallout : View {
         }
         .sheet(isPresented: $editWaypoint) {
             EditWaypoint(waypoint: waypoint, editWaypoint: $editWaypoint, waypointName: waypoint.title ?? "", latitude: waypoint.coordinate.latitude, longitude: waypoint.coordinate.longitude, cylinderRadius: waypoint.cylinderRadius, waypointDescription: waypoint.subtitle!).environmentObject(model)
-         .presentationDetents([.fraction(0.6)])
+         .presentationDetents([.fraction(0.8)])
          .presentationDragIndicator(.visible)
          }
     }
