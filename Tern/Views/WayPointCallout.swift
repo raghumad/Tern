@@ -20,9 +20,6 @@ struct WayPointCallout : View {
                 HStack{
                     Image(systemName: "mappin.and.ellipse")
                     Text("\(String(format: "%.5f", waypoint.coordinate.latitude)),\(String(format: "%.5f", waypoint.coordinate.longitude))")
-                    Spacer()
-                }
-                HStack{
                     Image(systemName: "cylinder")
                     Text("\(String(waypoint.cylinderRadius))m")
                     Spacer()
@@ -40,6 +37,10 @@ struct WayPointCallout : View {
                         Text("\(waypoint.weatherForecast.windspeed80m[0].description)")
                         Image(systemName: "wind.circle")
                         Text("\(waypoint.weatherForecast.windgusts_10m[0].description)")
+                        Image(systemName: "humidity")
+                        Text("\(waypoint.weatherForecast.relativehumidity_2m[0].description)")
+                        Image(systemName: "cloud.circle")
+                        Text("\(waypoint.weatherForecast.cloudcover[0].description)")
                         Spacer()
                     }
                     //Text("\(waypoint.weather["hourly"]["inddirection_80m"][0].stringValue)\(waypoint.weather["hourly_units"]["winddirection_80m"].stringValue)")
@@ -51,7 +52,7 @@ struct WayPointCallout : View {
             editWaypoint.toggle()
         }
         .sheet(isPresented: $editWaypoint) {
-            EditWaypoint(waypoint: waypoint, editWaypoint: $editWaypoint, waypointName: waypoint.title ?? "", latitude: waypoint.coordinate.latitude, longitude: waypoint.coordinate.longitude, cylinderRadius: waypoint.cylinderRadius, waypointDescription: waypoint.description).environmentObject(model)
+            EditWaypoint(waypoint: waypoint, editWaypoint: $editWaypoint, waypointName: waypoint.title ?? "", latitude: waypoint.coordinate.latitude, longitude: waypoint.coordinate.longitude, cylinderRadius: waypoint.cylinderRadius, waypointDescription: waypoint.subtitle!).environmentObject(model)
          .presentationDetents([.fraction(0.6)])
          .presentationDragIndicator(.visible)
          }
