@@ -8,6 +8,15 @@
 import Foundation
 import SwiftyJSON
 import CoreLocation
+struct WeatherForecastData: Identifiable {
+    var id = UUID()
+    var windspeed80m : Double
+    var winddirection_80m : Double
+    var windgusts_10m : Double
+    var temperature_2m : Double
+    var dewpoint_2m : Double
+    var time : String
+}
 
 class WeatherForecast {
     var coordinate : CLLocationCoordinate2D
@@ -71,9 +80,21 @@ class WeatherForecast {
         }
     }
 
-    var weather_time : [NSDate] {
+    var time : [NSDate] {
         get {
             return weatherForecast["hourly"]["time"].arrayValue.map { NSDate(timeIntervalSince1970: $0.doubleValue) }
+        }
+    }
+
+    var weatherdata : [WeatherForecastData] {
+        get {
+            let fmt = DateFormatter()
+            fmt.dateFormat = "HH:mm:ss"
+            var weatherdata = [WeatherForecastData]()
+            for i in time.indices {
+                weatherdata.append(WeatherForecastData(windspeed80m: windspeed80m[i].value, winddirection_80m: winddirection_80m[i].value, windgusts_10m: windgusts_10m[i].value, temperature_2m: temperature_2m[i].value, dewpoint_2m: dewpoint_2m[i].value, time: fmt.string(from: time[i] as Date)))
+            }
+            return weatherdata
         }
     }
 

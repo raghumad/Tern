@@ -79,21 +79,24 @@ class RoutePlannerModel : NSObject, CLLocationManagerDelegate, ObservableObject,
         //Degrees is 38 N
         // Decimal minutes is 0.9121906016191 * 60 = 54.731436097146 => 54'
         // Seconds is 0.731436097146 * 60 = 43.88616582876 => 43"
-        let paths = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)
-        let url = paths[0].appendingPathComponent("waypoints").appendingPathExtension("txt")
+        guard let paths = FileManager.default.urls(for: .documentDirectory, in: .localDomainMask).first else {
+            return
+        }
+        let url = paths.appendingPathComponent("waypoints").appendingPathExtension("txt")
         FileManager.default.createFile(atPath: url.absoluteString, contents: nil)
         //FileManager.default.createFile(atPath: url.absoluteString)
         print(url.absoluteString)
-        var savedata = String("")
+        var cupFile = "name,code,country,lat,lon,elev,style,rwdir,rwlen,freq,desc"
         for wpt in waypoints {
-            savedata = wpt.CUPdata()
-            print (savedata)
-            do {
-                //try savedata.write(toFile: url.absoluteString, atomically: true, encoding: .utf8)
-                try savedata.write(to: url, atomically: true, encoding: .utf8)
-            } catch {
-                print(error.localizedDescription)
-            }
+            print (wpt.CUPdata)
+            cupFile = "\(cupFile)\n\(wpt.CUPdata)"
+        }
+        cupFile = "\(cupFile)\n"
+        do {
+            //try savedata.write(toFile: url.absoluteString, atomically: true, encoding: .utf8)
+            try cupFile.write(to: url, atomically: true, encoding: .utf8)
+        } catch {
+            print(error.localizedDescription)
         }
     }
 

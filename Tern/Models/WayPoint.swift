@@ -54,7 +54,7 @@ class WayPoint : NSObject, MKAnnotation {
         }
     }
 
-    func CUPdata() -> String {
+    var CUPdata : String {
         var strLatitude = "\(String(format: "%.0f", abs(coordinate.latitude.rounded(.towardZero))))\(String(format: "%.3f",  coordinate.latitude.truncatingRemainder(dividingBy: 1)*60))"
         if coordinate.latitude > 0 {
             strLatitude = "\(strLatitude)N"
