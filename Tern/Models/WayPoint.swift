@@ -53,6 +53,22 @@ class WayPoint : NSObject, MKAnnotation {
             await weatherForecast.getMeteoForecast()
         }
     }
+
+    func CUPdata() -> String {
+        var strLatitude = "\(String(format: "%.0f", abs(coordinate.latitude.rounded(.towardZero))))\(String(format: "%.3f",  coordinate.latitude.truncatingRemainder(dividingBy: 1)*60))"
+        if coordinate.latitude > 0 {
+            strLatitude = "\(strLatitude)N"
+        } else {
+            strLatitude = "\(strLatitude)S"
+        }
+        var strLongitude = "\(String(format: "%.0f", abs(coordinate.longitude.rounded(.towardZero))))\(String(format: "%.3f", coordinate.latitude.truncatingRemainder(dividingBy: 1)*60))"
+        if coordinate.longitude > 0 {
+            strLongitude = "\(strLongitude)E"
+        } else {
+            strLongitude = "\(strLongitude)W"
+        }
+        return "\"\(subtitle!)\",\"\(title!)\",US,\(strLatitude),\(strLongitude),0m,1,,,,"
+    }
 }
 
 extension WayPoint : Comparable { //Sort based on Id which is continuous clock so always incrementing. Example: waypoints.sort()

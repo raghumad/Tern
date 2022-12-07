@@ -24,17 +24,22 @@ struct RoutePlanner: View {
                 Spacer()
                 HStack(alignment: .bottom){ //Everything in this stack will be white and title2 size.
                     Spacer()
-                    Section{
+                    HStack (spacing: 1){
                         Button{
                             model.addWaypoint()
                         } label: {
                             Image(systemName: "point.3.connected.trianglepath.dotted")
                                 .rotationEffect(.degrees(30))
                         }
-                        .padding(12)
-                        .background(.blue.opacity(0.9))
-                        .cornerRadius(8)
+                        Button{
+                            model.saveWaypoints()
+                        } label: {
+                            Image(systemName: "folder.circle")
+                        }
                     }
+                    .padding(5)
+                    .background(.blue.opacity(0.9))
+                    .cornerRadius(8)
                 }
                 .foregroundColor(.white)
                 .font(.title2) // This size looks better.

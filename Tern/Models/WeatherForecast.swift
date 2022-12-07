@@ -59,6 +59,12 @@ class WeatherForecast {
         }
     }
 
+    var relativehumidity_2m : [UInt8] {
+        get {
+            return weatherForecast["hourly"]["relativehumidity_2m"].arrayValue.map { $0.uInt8Value }
+        }
+    }
+
     var CAPE : [Double] {
         get {
             return weatherForecast["hourly"]["cloudcover"].arrayValue.map { $0.doubleValue   }
@@ -75,7 +81,7 @@ class WeatherForecast {
         //https://api.open-meteo.com/v1/gfs?latitude=38.83&longitude=-104.82&current_weather=true&hourly=dewpoint_2m,pressure_msl,cloudcover,cape,windspeed_80m,winddirection_80m,windgusts_10m&temperature_unit=fahrenheit&windspeed_unit=mph&precipitation_unit=inch&forecast_days=1&timezone=auto
         //https://github.com/SwiftyJSON/SwiftyJSON to parse. got no time to create model structs.
         //https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames#Swift coordinate to xyz
-        guard let url = URL(string: "https://api.open-meteo.com/v1/gfs?latitude=\(self.coordinate.latitude)&longitude=\(self.coordinate.longitude)&current_weather=true&hourly=temperature_2m,dewpoint_2m,pressure_msl,cloudcover,cape,windspeed_80m,winddirection_80m,windgusts_10m&temperature_unit=fahrenheit&windspeed_unit=mph&precipitation_unit=inch&forecast_days=1&timezone=auto&&timeformat=unixtime") else {
+        guard let url = URL(string: "https://api.open-meteo.com/v1/gfs?latitude=\(self.coordinate.latitude)&longitude=\(self.coordinate.longitude)&current_weather=true&hourly=temperature_2m,dewpoint_2m,pressure_msl,cloudcover,cape,windspeed_80m,winddirection_80m,windgusts_10m,relativehumidity_2m&temperature_unit=fahrenheit&windspeed_unit=mph&precipitation_unit=inch&forecast_days=1&timezone=auto&&timeformat=unixtime") else {
             print ("link error")
             return
         }

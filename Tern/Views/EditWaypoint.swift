@@ -59,6 +59,7 @@ struct EditWaypoint: View {
                         }
                     }
                     model.mapView.setRegion(MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: latitude, longitude: longitude), latitudinalMeters: 50000, longitudinalMeters: 50000), animated: true)
+                    editWaypoint.toggle()
                 } label: {
                     Text("Send It")
                         .fontWeight(.heavy)
