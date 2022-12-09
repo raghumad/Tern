@@ -7,18 +7,19 @@
 
 import Foundation
 import MapKit
+import SwiftyJSON
 
 class WayPoint : NSObject, MKAnnotation {
     let id = ContinuousClock.now
     var coordinate: CLLocationCoordinate2D
-    var cylinderRadius: Int = 0
+    var elevation : Measurement<UnitLength> = .init(value: 0, unit: .meters)
+    var cylinderRadius: Measurement<UnitLength> = .init(value: 100, unit: .meters)
     var title: String?
     var subtitle: String?
     var weatherForecast : WeatherForecast
 
-    init(coordinate: CLLocationCoordinate2D = CLLocationCoordinate2D(), cylinderRadius: Int = 0) {
+    init(coordinate: CLLocationCoordinate2D = CLLocationCoordinate2D()) {
         self.coordinate = coordinate
-        self.cylinderRadius = cylinderRadius
         self.weatherForecast = WeatherForecast(coordinate: coordinate)
     }
 
@@ -28,7 +29,7 @@ class WayPoint : NSObject, MKAnnotation {
     }
     
     func notNear(newPt: WayPoint) -> Bool {
-        return CLLocation(latitude: newPt.coordinate.latitude, longitude: newPt.coordinate.longitude).distance(from: CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)) >= Double(newPt.cylinderRadius + cylinderRadius + 100) //Cylinders atleast 100 apart
+        return CLLocation(latitude: newPt.coordinate.latitude, longitude: newPt.coordinate.longitude).distance(from: CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)) >= (newPt.cylinderRadius.converted(to: .feet).value + cylinderRadius.converted(to: .feet).value + 100) //Cylinders atleast 100 apart
     }
 
     func isNear(newPt: WayPoint) -> Bool {
@@ -39,22 +40,46 @@ class WayPoint : NSObject, MKAnnotation {
     {
         weatherForecast.coordinate = self.coordinate
         Task {
-            await weatherForecast.getMeteoForecast()
+            await weatherForecast.getForecast()
+            await getElevation()
         }
     }
 
-    func update(coordinate: CLLocationCoordinate2D, name: String, description: String, radius: Int)
+    func getElevation() async {
+        //https://api.open-meteo.com/v1/elevation?latitude=52.52&longitude=13.41
+        guard let url = URL(string: "https://api.open-meteo.com/v1/elevation?latitude=\(coordinate.latitude)&longitude=\(coordinate.longitude)") else {
+            print ("link error")
+            return
+        }
+        
+        do {
+            //print(url.absoluteString)
+            let (data, _) = try await URLSession.shared.data(from: url)
+            let eleJSON = try! JSON(data: data)
+            //print(url)
+            DispatchQueue.main.async {
+                self.elevation = Measurement<UnitLength>(value: eleJSON["elevation"][0].doubleValue, unit: .meters)
+            }
+            //print(self.weather)
+        } catch {
+            print("Open mateo fails.")
+        }
+    }
+
+    func update(coordinate: CLLocationCoordinate2D, name: String, description: String, radius: Measurement<UnitLength>)
     {
         self.coordinate = coordinate
         title = name
         cylinderRadius = radius
         subtitle = description
         Task {
-            await weatherForecast.getMeteoForecast()
+            await weatherForecast.getForecast()
+            await getElevation()
         }
     }
 
     var CUPdata : String {
+        //https://downloads.naviter.com/docs/SeeYou_CUP_file_format.pdf
         var strLatitude = "\(String(format: "%.0f", abs(coordinate.latitude.rounded(.towardZero))))\(String(format: "%.3f",  coordinate.latitude.truncatingRemainder(dividingBy: 1)*60))"
         if coordinate.latitude > 0 {
             strLatitude = "\(strLatitude)N"
@@ -68,6 +93,11 @@ class WayPoint : NSObject, MKAnnotation {
             strLongitude = "\(strLongitude)W"
         }
         return "\"\(subtitle!)\",\"\(title!)\",US,\(strLatitude),\(strLongitude),0m,1,,,,"
+    }
+
+    var OziWPTdata : String {
+        //https://www.oziexplorer4.com/eng/help/fileformats.html
+        return "You're Fucked!"
     }
 }
 

@@ -18,8 +18,46 @@ struct EditWaypoint: View {
     @State var waypointName : String
     @State var latitude : Double
     @State var longitude : Double
-    @State var cylinderRadius : Int
+    @State var cylinderRadius : Measurement<UnitLength>
     @State var waypointDescription : String
+    
+    func saveWaypoint() {
+        for i in model.waypoints.indices {
+            if model.waypoints[i] == waypoint {
+                model.waypoints[i].update(coordinate: CLLocationCoordinate2D(latitude: latitude, longitude: longitude), name: waypointName, description: waypointDescription, radius: cylinderRadius)
+                model.mapView.removeAnnotations(model.waypoints)
+                model.mapView.addAnnotations(model.waypoints)
+                model.mapView.removeOverlays(model.mapView.overlays) //remove before re adding all of them
+                for wpt in model.waypoints {
+                    let cyclinderOverlay = MKCircle(center: wpt.coordinate, radius: CLLocationDistance(wpt.cylinderRadius.converted(to: .meters).value))
+                    model.mapView.addOverlay(cyclinderOverlay)
+                }
+                if model.waypoints.count >  1 {
+                    model.mapView.addOverlay(MKGeodesicPolyline(coordinates: model.waypoints.map( {$0.coordinate} ), count: model.waypoints.count))
+                }
+            }
+        }
+        model.mapView.setRegion(MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: latitude, longitude: longitude), latitudinalMeters: 50000, longitudinalMeters: 50000), animated: true)
+        editWaypoint.toggle()
+    }
+
+    func deleteWaypoint() {
+        model.waypoints.remove(at: model.waypoints.firstIndex(of: waypoint) ?? 9999)
+        model.mapView.removeAnnotation(waypoint)
+        //model.mapView.addAnnotations(model.waypoints)
+        model.mapView.removeOverlays(model.mapView.overlays) //remove before re adding all of them
+        for wpt in model.waypoints {
+            model.mapView.removeAnnotation(wpt) //re-add all waypoints so that they are numbered correctly
+            model.mapView.addAnnotation(wpt)
+            let cyclinderOverlay = MKCircle(center: wpt.coordinate, radius: CLLocationDistance(wpt.cylinderRadius.converted(to: .meters).value))
+            model.mapView.addOverlay(cyclinderOverlay)
+        }
+        if model.waypoints.count >  1 {
+            model.mapView.addOverlay(MKGeodesicPolyline(coordinates: model.waypoints.map( {$0.coordinate} ), count: model.waypoints.count))
+        }
+        editWaypoint.toggle()
+    }
+
     var body: some View {
         VStack {
             TextField("Waypoint Name", text: $waypointName)
@@ -32,9 +70,16 @@ struct EditWaypoint: View {
                 Text(",")
                 TextField("Longitude", value: $longitude, format: .number)
                     .keyboardType(.decimalPad)
+                Spacer()
+            }
+            HStack {
                 Image(systemName: "cylinder")
-                TextField("Cylinder Radius", value: $cylinderRadius, format: .number)
+                TextField("Cylinder Radius", value: $cylinderRadius.value, format: .number)
                     .keyboardType(.numberPad)
+                    .frame(width: 50)
+                Image(systemName: "figure.climbing")
+                Text("\(String(format: "%.1f ft", waypoint.elevation.value))")
+                Spacer()
             }
             ZStack{
                 VStack{
@@ -88,23 +133,7 @@ struct EditWaypoint: View {
             }
             HStack{
                 Button {
-                    for i in model.waypoints.indices {
-                        if model.waypoints[i] == waypoint {
-                            model.waypoints[i].update(coordinate: CLLocationCoordinate2D(latitude: latitude, longitude: longitude), name: waypointName, description: waypointDescription, radius: cylinderRadius)
-                            model.mapView.removeAnnotations(model.waypoints)
-                            model.mapView.addAnnotations(model.waypoints)
-                            model.mapView.removeOverlays(model.mapView.overlays) //remove before re adding all of them
-                            for wpt in model.waypoints {
-                                let cyclinderOverlay = MKCircle(center: wpt.coordinate, radius: CLLocationDistance(wpt.cylinderRadius))
-                                model.mapView.addOverlay(cyclinderOverlay)
-                            }
-                            if model.waypoints.count >  1 {
-                                model.mapView.addOverlay(MKGeodesicPolyline(coordinates: model.waypoints.map( {$0.coordinate} ), count: model.waypoints.count))
-                            }
-                        }
-                    }
-                    model.mapView.setRegion(MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: latitude, longitude: longitude), latitudinalMeters: 50000, longitudinalMeters: 50000), animated: true)
-                    editWaypoint.toggle()
+                    saveWaypoint()
                 } label: {
                     Image(systemName: "location")
                         .frame(width: 40,height: 40)
@@ -113,27 +142,8 @@ struct EditWaypoint: View {
                         .cornerRadius(8)
                 }
                 Button {
-                    model.waypoints.remove(at: model.waypoints.firstIndex(of: waypoint) ?? 9999)
-                    model.mapView.removeAnnotation(waypoint)
-                    //model.mapView.addAnnotations(model.waypoints)
-                    model.mapView.removeOverlays(model.mapView.overlays) //remove before re adding all of them
-                    for wpt in model.waypoints {
-                        model.mapView.removeAnnotation(wpt) //re-add all waypoints so that they are numbered correctly
-                        model.mapView.addAnnotation(wpt)
-                        let cyclinderOverlay = MKCircle(center: wpt.coordinate, radius: CLLocationDistance(wpt.cylinderRadius))
-                        model.mapView.addOverlay(cyclinderOverlay)
-                    }
-                    if model.waypoints.count >  1 {
-                        model.mapView.addOverlay(MKGeodesicPolyline(coordinates: model.waypoints.map( {$0.coordinate} ), count: model.waypoints.count))
-                    }
-                    editWaypoint.toggle()
+                    deleteWaypoint()
                 } label: {
-//                    Text("Kill It")
-//                        .fontWeight(.heavy)
-//                        .frame(width: 80,height: 40)
-//                        .foregroundColor(.white)
-//                        .background(.red.opacity(0.7))
-//                        .cornerRadius(8)
                     Image(systemName: "location.slash.fill")
                         .frame(width: 40,height: 40)
                         .foregroundColor(.white)
@@ -141,6 +151,9 @@ struct EditWaypoint: View {
                         .cornerRadius(8)
                 }
             }
+        }
+        .onDisappear {
+            saveWaypoint()
         }
     }
 }

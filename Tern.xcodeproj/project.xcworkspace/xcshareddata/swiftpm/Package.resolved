@@ -1,12 +1,12 @@
 {
   "pins" : [
     {
-      "identity" : "coordinatetransformationlibrary",
+      "identity" : "polyline",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/Oops-AB/CoordinateTransformationLibrary.git",
+      "location" : "https://github.com/raphaelmor/Polyline",
       "state" : {
-        "revision" : "04554b14d67d002e37794cacae3d84c7aed00391",
-        "version" : "1.0.2"
+        "branch" : "master",
+        "revision" : "353f80378dcd8f17eefe8550090c6b1ae3c9da23"
       }
     },
     {
