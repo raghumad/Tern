@@ -78,7 +78,7 @@ struct EditWaypoint: View {
                     .keyboardType(.numberPad)
                     .frame(width: 50)
                 Image(systemName: "figure.climbing")
-                Text("\(String(format: "%.1f ft", waypoint.elevation.value))")
+                Text("\(String(format: "%.1f ft", waypoint.elevation.converted(to: .feet).value))")
                 Spacer()
             }
             ZStack{

@@ -41,6 +41,9 @@ class WayPoint : NSObject, MKAnnotation {
         weatherForecast.coordinate = self.coordinate
         Task {
             await weatherForecast.getForecast()
+        }
+        Task {
+            
             await getElevation()
         }
     }
@@ -74,6 +77,8 @@ class WayPoint : NSObject, MKAnnotation {
         subtitle = description
         Task {
             await weatherForecast.getForecast()
+        }
+        Task {
             await getElevation()
         }
     }

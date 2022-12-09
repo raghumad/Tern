@@ -64,6 +64,9 @@ class RoutePlannerModel : NSObject, CLLocationManagerDelegate, ObservableObject,
             newWaypoint.coordinate = mapView.region.center
             Task {
                 await newWaypoint.weatherForecast.getForecast()
+            }
+            Task {
+                
                 await newWaypoint.getElevation()
             }
             newWaypoint.title = "WP\(waypoints.count + 1)"
@@ -107,8 +110,8 @@ class RoutePlannerModel : NSObject, CLLocationManagerDelegate, ObservableObject,
         } catch {
             print(error.localizedDescription)
         }
-        print (cupFile)
-        return cupFile
+        //print (cupFile)
+        return urlPath.absoluteString
     }
 
     func saveWpt() -> String {

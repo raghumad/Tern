@@ -70,10 +70,7 @@ struct RoutePlanner: View {
                                     }
                                 }
                                 Button {
-                                    guard let paths = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
-                                        return
-                                    }
-                                    let urlPath = paths.appendingPathComponent("waypoints.cup")
+                                    let urlPath = URL(filePath: model.saveCUP())
                                     model.shareItems.removeAll()
                                     model.shareItems.append(urlPath)
                                     model.shareRoute.toggle()
@@ -98,9 +95,10 @@ struct RoutePlanner: View {
             .sheet(isPresented: $model.shareRoute) {
                 //let waypoint = model.waypoints.first!
                 //EditWaypoint(waypoint: waypoint, editWaypoint: $model.shareRoute, waypointName: waypoint.title ?? "", latitude: waypoint.coordinate.latitude, longitude: waypoint.coordinate.longitude, cylinderRadius: waypoint.cylinderRadius, waypointDescription: waypoint.subtitle!).environmentObject(model)
-                ShareSheet(items: model.shareItems)
+                ShareSheet(items: $model.shareItems)
              .presentationDetents([.fraction(0.8)])
              .presentationDragIndicator(.visible)
+             .onDisappear { model.shareItems.removeAll() }
              }
             .padding(.trailing)
         }
@@ -114,7 +112,7 @@ struct RoutePlanner: View {
 //}
 
 struct ShareSheet : UIViewControllerRepresentable {
-    let items : [Any]
+    @Binding var items : [Any]
     func makeUIViewController(context: Context) ->UIActivityViewController {
         let controller = UIActivityViewController(activityItems: items, applicationActivities: nil)
         return controller
