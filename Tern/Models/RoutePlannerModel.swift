@@ -217,9 +217,9 @@ class RoutePlannerModel : NSObject, CLLocationManagerDelegate, ObservableObject,
            ...
          ]
        }*/
-        var xctskData = "{"
+        var xctskData = "XCTSK:{"
         xctskData.append("\"T\":\"W\",")
-        xctskData.append("\"V\":\"2\",")
+        xctskData.append("\"V\":2,")
         xctskData.append("\"t\":")
         if waypoints.count > 0 {
             xctskData.append("[")
@@ -251,12 +251,12 @@ class RoutePlannerModel : NSObject, CLLocationManagerDelegate, ObservableObject,
             xctskData.append("[")
             for i in waypoints.indices {
                 xctskData.append("{\"type\":\"TAKEOFF\",")
-                xctskData.append("\"radius\":\"\(waypoints[i].cylinderRadius.converted(to: .meters).value)\",")
+                xctskData.append("\"radius\":\(waypoints[i].cylinderRadius.converted(to: .meters).value),")
                 xctskData.append("\"waypoint\": {\"name\":\"\(waypoints[i].title ?? "")\",")
                 xctskData.append("\"description\":\"\(waypoints[i].subtitle ?? "")\",")
-                xctskData.append("\"lat\":\"\(waypoints[i].coordinate.latitude)\",")
-                xctskData.append("\"lon\":\"\(waypoints[i].coordinate.longitude)\",")
-                xctskData.append("\"altSmoothed\":\"\(waypoints[i].elevation.converted(to: .meters).value)\"}")
+                xctskData.append("\"lat\":\(waypoints[i].coordinate.latitude),")
+                xctskData.append("\"lon\":\(waypoints[i].coordinate.longitude),")
+                xctskData.append("\"altSmoothed\":\(waypoints[i].elevation.converted(to: .meters).value)}")
                 if i == waypoints.count-1 {
                     xctskData.append("}]")
                 } else {
