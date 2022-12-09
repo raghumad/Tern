@@ -9,7 +9,6 @@
 /* Begin PBXBuildFile section */
 		EF0EAC84293C091D00A877DD /* RoutePlannerMapViewHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF0EAC83293C091D00A877DD /* RoutePlannerMapViewHelper.swift */; };
 		EF0EAC86293C79FA00A877DD /* WayPointCallout.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF0EAC85293C79F900A877DD /* WayPointCallout.swift */; };
-		EF275A44293DE26700752177 /* CoordinateTransformationLibrary in Frameworks */ = {isa = PBXBuildFile; productRef = EF275A43293DE26700752177 /* CoordinateTransformationLibrary */; };
 		EF31A4FE292D49F7000719DE /* TernApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF31A4FD292D49F7000719DE /* TernApp.swift */; };
 		EF31A500292D49F7000719DE /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF31A4FF292D49F7000719DE /* ContentView.swift */; };
 		EF31A502292D49F8000719DE /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = EF31A501292D49F8000719DE /* Assets.xcassets */; };
@@ -26,6 +25,8 @@
 		EFB4B67D293EA14A00B4AE13 /* WeatherForecast.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFB4B67C293EA14A00B4AE13 /* WeatherForecast.swift */; };
 		EFE92DF7293D823E0093BBF1 /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = EFE92DF5293D823E0093BBF1 /* README.md */; };
 		EFE92DF8293D823E0093BBF1 /* LICENSE in Resources */ = {isa = PBXBuildFile; fileRef = EFE92DF6293D823E0093BBF1 /* LICENSE */; };
+		EFEF03B62942C27600912949 /* qrCode.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFEF03B52942C27600912949 /* qrCode.swift */; };
+		EFEF03BA294304DE00912949 /* Polyline in Frameworks */ = {isa = PBXBuildFile; productRef = EFEF03B9294304DE00912949 /* Polyline */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -67,6 +68,7 @@
 		EFB4B67C293EA14A00B4AE13 /* WeatherForecast.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherForecast.swift; sourceTree = "<group>"; };
 		EFE92DF5293D823E0093BBF1 /* README.md */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		EFE92DF6293D823E0093BBF1 /* LICENSE */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = LICENSE; sourceTree = "<group>"; };
+		EFEF03B52942C27600912949 /* qrCode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = qrCode.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -74,8 +76,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				EFEF03BA294304DE00912949 /* Polyline in Frameworks */,
 				EF797F58292E097B0004B5B4 /* SwiftyJSON in Frameworks */,
-				EF275A44293DE26700752177 /* CoordinateTransformationLibrary in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -103,6 +105,7 @@
 				EF31A4FF292D49F7000719DE /* ContentView.swift */,
 				EF0EAC85293C79F900A877DD /* WayPointCallout.swift */,
 				EFAC18AC293FF6990045B1FF /* EditWaypoint.swift */,
+				EFEF03B52942C27600912949 /* qrCode.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -197,7 +200,7 @@
 			name = Tern;
 			packageProductDependencies = (
 				EF797F57292E097B0004B5B4 /* SwiftyJSON */,
-				EF275A43293DE26700752177 /* CoordinateTransformationLibrary */,
+				EFEF03B9294304DE00912949 /* Polyline */,
 			);
 			productName = Tern;
 			productReference = EF31A4FA292D49F7000719DE /* Tern.app */;
@@ -273,7 +276,7 @@
 			mainGroup = EF31A4F1292D49F7000719DE;
 			packageReferences = (
 				EF797F56292E097B0004B5B4 /* XCRemoteSwiftPackageReference "SwiftyJSON" */,
-				EF275A42293DE26700752177 /* XCRemoteSwiftPackageReference "CoordinateTransformationLibrary" */,
+				EFEF03B8294304DE00912949 /* XCRemoteSwiftPackageReference "Polyline" */,
 			);
 			productRefGroup = EF31A4FB292D49F7000719DE /* Products */;
 			projectDirPath = "";
@@ -320,6 +323,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				EFB4B67D293EA14A00B4AE13 /* WeatherForecast.swift in Sources */,
+				EFEF03B62942C27600912949 /* qrCode.swift in Sources */,
 				EF31A500292D49F7000719DE /* ContentView.swift in Sources */,
 				EFAC18AD293FF6990045B1FF /* EditWaypoint.swift in Sources */,
 				EF0EAC84293C091D00A877DD /* RoutePlannerMapViewHelper.swift in Sources */,
@@ -494,6 +498,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.sports";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NSDownloadsFolderUsageDescription = "Access to Downloads folder for saving waypoints and route files.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "This app needs location for doing everything. But needs location only while running. location data is not uploaded.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -532,6 +537,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.sports";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NSDownloadsFolderUsageDescription = "Access to Downloads folder for saving waypoints and route files.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "This app needs location for doing everything. But needs location only while running. location data is not uploaded.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -669,14 +675,6 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		EF275A42293DE26700752177 /* XCRemoteSwiftPackageReference "CoordinateTransformationLibrary" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/Oops-AB/CoordinateTransformationLibrary.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 1.0.0;
-			};
-		};
 		EF797F56292E097B0004B5B4 /* XCRemoteSwiftPackageReference "SwiftyJSON" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/SwiftyJSON/SwiftyJSON";
@@ -685,18 +683,26 @@
 				minimumVersion = 4.0.0;
 			};
 		};
+		EFEF03B8294304DE00912949 /* XCRemoteSwiftPackageReference "Polyline" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/raphaelmor/Polyline";
+			requirement = {
+				branch = master;
+				kind = branch;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		EF275A43293DE26700752177 /* CoordinateTransformationLibrary */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = EF275A42293DE26700752177 /* XCRemoteSwiftPackageReference "CoordinateTransformationLibrary" */;
-			productName = CoordinateTransformationLibrary;
-		};
 		EF797F57292E097B0004B5B4 /* SwiftyJSON */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = EF797F56292E097B0004B5B4 /* XCRemoteSwiftPackageReference "SwiftyJSON" */;
 			productName = SwiftyJSON;
+		};
+		EFEF03B9294304DE00912949 /* Polyline */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = EFEF03B8294304DE00912949 /* XCRemoteSwiftPackageReference "Polyline" */;
+			productName = Polyline;
 		};
 /* End XCSwiftPackageProductDependency section */
 

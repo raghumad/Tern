@@ -7,7 +7,8 @@
 
 import SwiftUI
 import MapKit
-import CoreLocationUI
+import CoreImage
+import CoreImage.CIFilterBuiltins
 
 struct RoutePlanner: View {
     @StateObject var model = RoutePlannerModel()
@@ -24,17 +25,67 @@ struct RoutePlanner: View {
                 Spacer()
                 HStack(alignment: .bottom){ //Everything in this stack will be white and title2 size.
                     Spacer()
-                    HStack (spacing: 1){
+                    HStack (spacing: 10){
                         Button{
                             model.addWaypoint()
                         } label: {
                             Image(systemName: "point.3.connected.trianglepath.dotted")
                                 .rotationEffect(.degrees(30))
-                        }
+                        }.padding(.trailing, 10)
                         Button{
-                            model.saveWaypoints()
+                            //We open a menu here so nothing doing.
                         } label: {
-                            Image(systemName: "folder.circle")
+                            Menu {
+                                Button {
+                                    let urlPath = URL(filePath: model.saveXCTSK())
+                                    model.shareItems.removeAll()
+                                    model.shareItems.append(urlPath)
+                                    model.shareRoute.toggle()
+                                } label: {
+                                    HStack {
+                                        Text (".xctsk File")
+                                        Image(systemName: "square.and.arrow.up")
+                                    }
+                                }
+                                Button {
+                                    let imageContext = CIContext()
+                                    let qrFilter = CIFilter.qrCodeGenerator()
+                                    qrFilter.message = Data(model.saveXCTSKWqr().utf8)
+                                    if let outputImage = qrFilter.outputImage {
+                                        if let cgImg = imageContext.createCGImage(outputImage, from: outputImage.extent) {
+                                            let qr = qrCode(qr: UIImage(cgImage: cgImg))
+                                            let renderer = ImageRenderer(content: qr)
+                                            if let qrImage = renderer.uiImage {
+                                                model.shareItems.removeAll()
+                                                model.shareItems.append(qrImage)
+                                                model.shareRoute.toggle()
+                                            }
+                                        }
+                                    }
+                                } label: {
+                                    HStack{
+                                        Spacer()
+                                        Text ("QrCode")
+                                        Image(systemName: "qrcode")
+                                    }
+                                }
+                                Button {
+                                    guard let paths = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+                                        return
+                                    }
+                                    let urlPath = paths.appendingPathComponent("waypoints.cup")
+                                    model.shareItems.removeAll()
+                                    model.shareItems.append(urlPath)
+                                    model.shareRoute.toggle()
+                                } label: {
+                                    HStack {
+                                        Text (".cup File")
+                                        Image(systemName: "cup.and.saucer")
+                                    }
+                                }
+                            } label: {
+                                Image(systemName: "doc.badge.arrow.up")
+                            }
                         }
                     }
                     .padding(5)
@@ -44,13 +95,31 @@ struct RoutePlanner: View {
                 .foregroundColor(.white)
                 .font(.title2) // This size looks better.
             }
+            .sheet(isPresented: $model.shareRoute) {
+                //let waypoint = model.waypoints.first!
+                //EditWaypoint(waypoint: waypoint, editWaypoint: $model.shareRoute, waypointName: waypoint.title ?? "", latitude: waypoint.coordinate.latitude, longitude: waypoint.coordinate.longitude, cylinderRadius: waypoint.cylinderRadius, waypointDescription: waypoint.subtitle!).environmentObject(model)
+                ShareSheet(items: model.shareItems)
+             .presentationDetents([.fraction(0.8)])
+             .presentationDragIndicator(.visible)
+             }
             .padding(.trailing)
         }
     }
 }
 
-struct RoutePlanner_Previews: PreviewProvider {
-    static var previews: some View {
-        RoutePlanner()
+//struct RoutePlanner_Previews: PreviewProvider {
+//    static var previews: some View {
+//        RoutePlanner()
+//    }
+//}
+
+struct ShareSheet : UIViewControllerRepresentable {
+    let items : [Any]
+    func makeUIViewController(context: Context) ->UIActivityViewController {
+        let controller = UIActivityViewController(activityItems: items, applicationActivities: nil)
+        return controller
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {
     }
 }

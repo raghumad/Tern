@@ -20,8 +20,13 @@ struct WayPointCallout : View {
                 HStack{
                     Image(systemName: "mappin.and.ellipse")
                     Text("\(String(format: "%.5f", waypoint.coordinate.latitude)),\(String(format: "%.5f", waypoint.coordinate.longitude))")
+                    Spacer()
+                }
+                HStack {
                     Image(systemName: "cylinder")
-                    Text("\(String(waypoint.cylinderRadius))m")
+                    Text("\(String(waypoint.cylinderRadius.converted(to: .meters).value))m")
+                    Image(systemName: "figure.climbing")
+                    Text("\(String(format: "%.1f ft", waypoint.elevation.converted(to: .feet).value))")
                     Spacer()
                 }
                 HStack {
