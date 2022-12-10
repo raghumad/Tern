@@ -335,12 +335,12 @@ extension RoutePlannerModel {
             marker.animatesWhenAdded = true
             marker.selectedGlyphImage = UIImage(systemName: "mappin.and.ellipse")
 
-            let wpc = WayPointCallout(waypoint: annotation as! WayPoint).environmentObject(self)
+            let wIndex = waypoints.firstIndex(of: annotation as! WayPoint)!
+            let wpc = WayPointCallout(index: Int(wIndex)).environmentObject(self)
             let callout = UIHostingController(rootView: wpc)
-            //        marker.leftCalloutAccessoryView = callout.view //could be weather and wind direction
-            //        marker.rightCalloutAccessoryView = callout.view
-            marker.detailCalloutAccessoryView = callout.view
-            
+                //marker.leftCalloutAccessoryView = callout.view //could be weather and wind direction
+                //marker.rightCalloutAccessoryView = callout.view
+                marker.detailCalloutAccessoryView = callout.view
             return marker
         } else {
             return MKUserLocationView()
