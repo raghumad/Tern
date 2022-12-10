@@ -105,12 +105,6 @@ struct RoutePlanner: View {
     }
 }
 
-//struct RoutePlanner_Previews: PreviewProvider {
-//    static var previews: some View {
-//        RoutePlanner()
-//    }
-//}
-
 struct ShareSheet : UIViewControllerRepresentable {
     @Binding var items : [Any]
     func makeUIViewController(context: Context) ->UIActivityViewController {

@@ -12,7 +12,7 @@ import Charts
 
 struct EditWaypoint: View {
     @EnvironmentObject var model : RoutePlannerModel
-    @State var waypoint : WayPoint
+    @State var index : Int
     @Binding var editWaypoint : Bool
     
     @State var waypointName : String
@@ -22,28 +22,24 @@ struct EditWaypoint: View {
     @State var waypointDescription : String
     
     func saveWaypoint() {
-        for i in model.waypoints.indices {
-            if model.waypoints[i] == waypoint {
-                model.waypoints[i].update(coordinate: CLLocationCoordinate2D(latitude: latitude, longitude: longitude), name: waypointName, description: waypointDescription, radius: cylinderRadius)
-                model.mapView.removeAnnotations(model.waypoints)
-                model.mapView.addAnnotations(model.waypoints)
-                model.mapView.removeOverlays(model.mapView.overlays) //remove before re adding all of them
-                for wpt in model.waypoints {
-                    let cyclinderOverlay = MKCircle(center: wpt.coordinate, radius: CLLocationDistance(wpt.cylinderRadius.converted(to: .meters).value))
-                    model.mapView.addOverlay(cyclinderOverlay)
-                }
-                if model.waypoints.count >  1 {
-                    model.mapView.addOverlay(MKGeodesicPolyline(coordinates: model.waypoints.map( {$0.coordinate} ), count: model.waypoints.count))
-                }
-            }
+        model.waypoints[index].update(coordinate: CLLocationCoordinate2D(latitude: latitude, longitude: longitude), name: waypointName, description: waypointDescription, radius: cylinderRadius)
+        model.mapView.removeAnnotations(model.waypoints)
+        model.mapView.addAnnotations(model.waypoints)
+        model.mapView.removeOverlays(model.mapView.overlays) //remove before re adding all of them
+        for wpt in model.waypoints {
+            let cyclinderOverlay = MKCircle(center: wpt.coordinate, radius: CLLocationDistance(wpt.cylinderRadius.converted(to: .meters).value))
+            model.mapView.addOverlay(cyclinderOverlay)
+        }
+        if model.waypoints.count >  1 {
+            model.mapView.addOverlay(MKGeodesicPolyline(coordinates: model.waypoints.map( {$0.coordinate} ), count: model.waypoints.count))
         }
         model.mapView.setRegion(MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: latitude, longitude: longitude), latitudinalMeters: 50000, longitudinalMeters: 50000), animated: true)
         editWaypoint.toggle()
     }
 
     func deleteWaypoint() {
-        model.waypoints.remove(at: model.waypoints.firstIndex(of: waypoint) ?? 9999)
-        model.mapView.removeAnnotation(waypoint)
+        model.waypoints.remove(at: index)
+        model.mapView.removeAnnotation(model.waypoints[index])
         //model.mapView.addAnnotations(model.waypoints)
         model.mapView.removeOverlays(model.mapView.overlays) //remove before re adding all of them
         for wpt in model.waypoints {
@@ -78,7 +74,7 @@ struct EditWaypoint: View {
                     .keyboardType(.numberPad)
                     .frame(width: 50)
                 Image(systemName: "figure.climbing")
-                Text("\(String(format: "%.1f ft", waypoint.elevation.converted(to: .feet).value))")
+                Text("\(String(format: "%.1f ft", model.waypoints[index].elevation.converted(to: .feet).value))")
                 Spacer()
             }
             ZStack{
@@ -90,12 +86,12 @@ struct EditWaypoint: View {
                     Text("Windspeed").fontWeight(.ultraLight).foregroundColor(.cyan)
                     Text("Gustspeed").fontWeight(.ultraLight).foregroundColor(.red)
                 }
-                Chart (waypoint.weatherForecast.weatherdata) { item in
+                Chart (model.waypoints[index].weatherForecast.weatherdata) { item in
                     LineMark(x: .value("Time", item.time),
                              y: .value("WindGust", item.windgusts_10m))
                 }
                 .foregroundStyle(.red)
-                Chart (waypoint.weatherForecast.weatherdata) { item in
+                Chart (model.waypoints[index].weatherForecast.weatherdata) { item in
                     LineMark(x: .value("Time", item.time),
                              y: .value("WindSpeed", item.windspeed80m))
                 }
@@ -103,7 +99,7 @@ struct EditWaypoint: View {
             }
             ZStack{
                 Text("Wind Direction").fontWeight(.ultraLight).foregroundColor(.red)
-                Chart (waypoint.weatherForecast.weatherdata) { item in
+                Chart (model.waypoints[index].weatherForecast.weatherdata) { item in
                     RectangleMark(
                         x: .value("Time", item.time),
                         y: .value("WindDirection", item.winddirection_80m),
@@ -116,7 +112,7 @@ struct EditWaypoint: View {
                     Text("Temperature").fontWeight(.ultraLight).foregroundColor(.orange)
                     Text("Due Point").fontWeight(.ultraLight).foregroundColor(.blue)
                 }
-                Chart (waypoint.weatherForecast.weatherdata) { item in
+                Chart (model.waypoints[index].weatherForecast.weatherdata) { item in
                     LineMark(x: .value("Time", item.time),
                              y: .value("Temp", item.temperature_2m))
                     .foregroundStyle(.orange)
