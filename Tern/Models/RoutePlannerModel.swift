@@ -15,7 +15,6 @@ import Polyline
 
 class RoutePlannerModel : NSObject, CLLocationManagerDelegate, ObservableObject, MKMapViewDelegate, UIGestureRecognizerDelegate {
     //38.9121906016191, -104.72783900204881
-    @Published var latestLocation : CLLocation = .init()
     @Published var region : MKCoordinateRegion = .init()
     @Published var waypoints: [WayPoint] = .init()
     
@@ -24,6 +23,8 @@ class RoutePlannerModel : NSObject, CLLocationManagerDelegate, ObservableObject,
 
     private let locationManager : CLLocationManager = .init()
     @Published var mapView: MKMapView = .init()
+
+    private var airspaceCountryCodes : [String] = .init()
 
     override init() {
         super.init()
@@ -38,42 +39,210 @@ class RoutePlannerModel : NSObject, CLLocationManagerDelegate, ObservableObject,
         //Handle error
     }
 
+    deinit {
+        locationManager.stopUpdatingLocation()
+    }
+}
+
+extension RoutePlannerModel {
+    //MARK: LocationManagerDelegates
+    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        //Set default location
+        self.region = MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: 38.9121906016191, longitude: -104.72783900204881), latitudinalMeters: 50000, longitudinalMeters: 50000)
+        self.mapView.setRegion(self.region, animated: false)
+    }
+    
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        switch manager.authorizationStatus {
+        case .authorizedAlways: manager.requestLocation()
+        case .authorizedWhenInUse: manager.requestLocation()
+        case .denied: handleLocationAuthError()
+        case .notDetermined: manager.requestWhenInUseAuthorization()
+        default: manager.requestWhenInUseAuthorization()
+        }
+    }
+
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        guard let location = locations.last else {return}
+        DispatchQueue.main.async {
+            //print ("latest location in didUpdateLocations: \(location.coordinate)")
+            self.region = MKCoordinateRegion(center: location.coordinate, latitudinalMeters: 25000, longitudinalMeters: 25000)
+            self.mapView.setRegion(self.region, animated: true)
+        }
+    }
+}
+
+extension RoutePlannerModel {
+    //MARK: MapViewDelegates
+    func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
+        if annotation is WayPoint {
+            let marker = MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: "WaypointPin")
+            marker.isDraggable = true
+            marker.canShowCallout = true
+            let wptIndex = waypoints.firstIndex(of: annotation as! WayPoint) ?? 9999
+            if wptIndex != 9999 && wptIndex < 51 {
+                marker.glyphImage = UIImage(systemName: "\(wptIndex + 1).circle")
+            } else {
+                marker.glyphImage = UIImage(systemName: "1f595")
+            }
+            marker.markerTintColor = .systemBlue
+            marker.animatesWhenAdded = true
+            marker.selectedGlyphImage = UIImage(systemName: "mappin.and.ellipse")
+
+            let wIndex = waypoints.firstIndex(of: annotation as! WayPoint)!
+            let wpc = WayPointCallout(index: wIndex).environmentObject(self)
+            let callout = UIHostingController(rootView: wpc)
+                //marker.leftCalloutAccessoryView = callout.view //could be weather and wind direction
+                //marker.rightCalloutAccessoryView = callout.view
+                marker.detailCalloutAccessoryView = callout.view
+            return marker
+        } else {
+            return MKUserLocationView()
+        }
+    }
+
+    func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
+        if overlay is MKCircle {
+            let renderer = MKCircleRenderer(circle: overlay as! MKCircle)
+            renderer.alpha = 0.3
+            renderer.lineWidth = 2
+            renderer.fillColor = .blue
+            return renderer
+        }
+        if overlay is MKPolyline {
+            let renderer = MKPolylineRenderer(polyline: overlay as! MKPolyline)
+            renderer.lineWidth = 2
+            renderer.strokeColor = .red
+            return renderer
+        }
+        if overlay is MKGeodesicPolyline {
+            let renderer = MKPolylineRenderer(polyline: overlay as! MKGeodesicPolyline)
+            renderer.lineWidth = 2
+            renderer.strokeColor = .red
+            //Adding a second waypoint. We get airspaces too.
+            for ccode in self.airspaceCountryCodes {
+                let airspaces = Airspaces(countryCode: ccode)
+                Task(priority: .background) {
+                    await airspaces.getAirspaces()
+                }
+                mapView.addOverlays(airspaces.overlays)
+            }
+            return renderer
+        }
+        return MKPolygonRenderer(overlay: overlay)
+    }
+
+    func mapView(_ mapView: MKMapView, annotationView view: MKAnnotationView, didChange newState: MKAnnotationView.DragState, fromOldState oldState: MKAnnotationView.DragState) {
+        if (newState == .ending) {
+            //print ("Ending coordinate : \(view.annotation?.coordinate)")
+            waypoints.removeAll()
+            for i in mapView.annotations.indices {
+                if mapView.annotations[i] is WayPoint {
+                    waypoints.append(mapView.annotations[i] as! WayPoint)
+                    //update waypoint icon and get new weather
+                    (mapView.annotations[i] as! WayPoint).update()
+                }
+            }
+            waypoints.sort() // Always ordered
+            mapView.removeAnnotations(waypoints)
+            for overlay in mapView.overlays {
+                if overlay is MKCircle || overlay is MKPolyline {
+                    mapView.removeOverlay(overlay)
+                }
+            }
+            mapView.addAnnotations(waypoints)
+            for wpt in waypoints {
+                let cyclinderOverlay = MKCircle(center: wpt.coordinate, radius: CLLocationDistance(wpt.cylinderRadius.converted(to: .meters).value))
+                mapView.addOverlay(cyclinderOverlay)
+            }
+            if waypoints.count >  1 {
+                mapView.addOverlay(MKPolyline(coordinates: waypoints.map( {$0.coordinate} ), count: waypoints.count))
+            }
+        }
+    }
+
+    func mapViewDidFinishLoadingMap(_ mapView: MKMapView) {
+        let lpgr = UILongPressGestureRecognizer(target: self,
+                             action:#selector(self.handleLongPress))
+        lpgr.minimumPressDuration = 1
+        lpgr.delaysTouchesBegan = true
+        lpgr.delegate = self
+        self.mapView.addGestureRecognizer(lpgr)
+    }
+
+    @objc func handleLongPress(gestureRecognizer: UILongPressGestureRecognizer) {
+        if gestureRecognizer.state != UIGestureRecognizer.State.ended {
+            return
+        }
+        else if gestureRecognizer.state != UIGestureRecognizer.State.began {
+            
+            let touchPoint = gestureRecognizer.location(in: self.mapView)
+            
+            let touchMapCoordinate =  self.mapView.convert(touchPoint, toCoordinateFrom: mapView)
+            addWaypoint(coordinate: touchMapCoordinate)
+        }
+    }
+}
+
+extension RoutePlannerModel {
+    //MARK: helper functions
+    func encodeSingleInteger(_ value: Int) -> String {
+        
+        var intValue = value
+        
+        if intValue < 0 {
+            intValue = intValue << 1
+            intValue = ~intValue
+        } else {
+            intValue = intValue << 1
+        }
+        
+        return encodeFiveBitComponents(intValue)
+    }
+
+    func encodeFiveBitComponents(_ value: Int) -> String {
+        var remainingComponents = value
+        
+        var fiveBitComponent = 0
+        var returnString = String()
+        
+        repeat {
+            fiveBitComponent = remainingComponents & 0x1F
+            
+            if remainingComponents >= 0x20 {
+                fiveBitComponent |= 0x20
+            }
+            
+            fiveBitComponent += 63
+
+            let char = UnicodeScalar(fiveBitComponent)!
+            returnString.append(String(char))
+            remainingComponents = remainingComponents >> 5
+        } while (remainingComponents != 0)
+        
+        return returnString
+    }
+
     func addWaypoint(coordinate: CLLocationCoordinate2D){
         let newWaypoint = WayPoint(coordinate: coordinate)
         if (!waypoints.contains(where: {$0.isNear(newPt: newWaypoint)})) {//dont instert waypoints are kissing
             Task {
                 await newWaypoint.weatherForecast.getForecast() //fire off weather while other stuff is done.
+            }
+            Task {
                 await newWaypoint.getElevation()
+            }
+            if !airspaceCountryCodes.contains(newWaypoint.countryCode) {
+                airspaceCountryCodes.append(newWaypoint.countryCode)
+                Task (priority: .background) {
+                    await Airspaces(countryCode: newWaypoint.countryCode).getAirspaces()
+                }
             }
             newWaypoint.title = "WP\(waypoints.count + 1)"
             newWaypoint.subtitle = "Waypoint description"
             //mapView.removeAnnotations(mapView.annotations)
             mapView.addAnnotation(newWaypoint)
             let cyclinderOverlay = MKCircle(center: newWaypoint.coordinate, radius: CLLocationDistance(newWaypoint.cylinderRadius.converted(to: .meters).value))
-            mapView.addOverlay(cyclinderOverlay)
-            waypoints.append(newWaypoint)
-            if waypoints.count >  1 {
-                mapView.addOverlay(MKGeodesicPolyline(coordinates: waypoints.map( {$0.coordinate} ), count: waypoints.count))
-            }
-        }
-    }
-    
-    func addWaypoint(){
-        let newWaypoint = WayPoint(coordinate: mapView.region.center)
-        if (!waypoints.contains(where: {$0.isNear(newPt: newWaypoint)})) {//dont instert waypoints are kissing
-            newWaypoint.coordinate = mapView.region.center
-            Task {
-                await newWaypoint.weatherForecast.getForecast()
-            }
-            Task {
-                
-                await newWaypoint.getElevation()
-            }
-            newWaypoint.title = "WP\(waypoints.count + 1)"
-            newWaypoint.subtitle = "Waypoint description"
-            //mapView.removeAnnotations(mapView.annotations)
-            mapView.addAnnotation(newWaypoint)
-            let cyclinderOverlay = MKCircle(center: mapView.region.center, radius: CLLocationDistance(newWaypoint.cylinderRadius.converted(to: .meters).value))
             mapView.addOverlay(cyclinderOverlay)
             waypoints.append(newWaypoint)
             if waypoints.count >  1 {
@@ -191,7 +360,6 @@ class RoutePlannerModel : NSObject, CLLocationManagerDelegate, ObservableObject,
                     wptJ = 3 // "ESS"
                     xctskData.append(",\"t\":\"3\"")
                 }
-                //print(wptJ.rawString() ?? "Srryyy")
                 xctsk["t"][i] = wptJ
                 if i == waypoints.count-1 {
                     xctskData.append("}")
@@ -281,183 +449,5 @@ class RoutePlannerModel : NSObject, CLLocationManagerDelegate, ObservableObject,
             print(error.localizedDescription)
         }
         return urlPath.absoluteString
-    }
-
-    deinit {
-        locationManager.stopUpdatingLocation()
-    }
-}
-
-extension RoutePlannerModel {
-    //MARK: LocationManagerDelegates
-    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        //Set default location
-        self.latestLocation = CLLocation(latitude: 38.9121906016191, longitude: -104.72783900204881)//latitude: 38.9121906016191, longitude: -104.72783900204881)
-        self.region = MKCoordinateRegion(center: latestLocation.coordinate, latitudinalMeters: 50000, longitudinalMeters: 50000)
-        self.mapView.setRegion(self.region, animated: false)
-    }
-    
-    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
-        switch manager.authorizationStatus {
-        case .authorizedAlways: manager.requestLocation()
-        case .authorizedWhenInUse: manager.requestLocation()
-        case .denied: handleLocationAuthError()
-        case .notDetermined: manager.requestWhenInUseAuthorization()
-        default: manager.requestWhenInUseAuthorization()
-        }
-    }
-
-    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        guard let location = locations.last else {return}
-        DispatchQueue.main.async {
-            print ("latest location in didUpdateLocations: \(location.coordinate)")
-            self.latestLocation = location
-            self.region = MKCoordinateRegion(center: location.coordinate, latitudinalMeters: 25000, longitudinalMeters: 25000)
-            self.mapView.setRegion(self.region, animated: true)
-        }
-    }
-}
-
-extension RoutePlannerModel {
-    //MARK: MapViewDelegates
-    func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
-        if annotation is WayPoint {
-            let marker = MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: "WaypointPin")
-            marker.isDraggable = true
-            marker.canShowCallout = true
-            let wptIndex = waypoints.firstIndex(of: annotation as! WayPoint) ?? 9999
-            if wptIndex != 9999 && wptIndex < 51 {
-                marker.glyphImage = UIImage(systemName: "\(wptIndex + 1).circle")
-            } else {
-                marker.glyphImage = UIImage(systemName: "1f595")
-            }
-            marker.markerTintColor = .systemBlue
-            marker.animatesWhenAdded = true
-            marker.selectedGlyphImage = UIImage(systemName: "mappin.and.ellipse")
-
-            let wIndex = waypoints.firstIndex(of: annotation as! WayPoint)!
-            let wpc = WayPointCallout(index: Int(wIndex)).environmentObject(self)
-            let callout = UIHostingController(rootView: wpc)
-                //marker.leftCalloutAccessoryView = callout.view //could be weather and wind direction
-                //marker.rightCalloutAccessoryView = callout.view
-                marker.detailCalloutAccessoryView = callout.view
-            return marker
-        } else {
-            return MKUserLocationView()
-        }
-    }
-
-    func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
-        if overlay is MKCircle {
-            let renderer = MKCircleRenderer(circle: overlay as! MKCircle)
-            renderer.alpha = 0.3
-            renderer.lineWidth = 2
-            renderer.fillColor = .blue
-            return renderer
-        }
-        if overlay is MKPolyline {
-            let renderer = MKPolylineRenderer(polyline: overlay as! MKPolyline)
-            renderer.lineWidth = 2
-            renderer.strokeColor = .red
-            return renderer
-        }
-        if overlay is MKGeodesicPolyline {
-            let renderer = MKPolylineRenderer(polyline: overlay as! MKGeodesicPolyline)
-            renderer.lineWidth = 2
-            renderer.strokeColor = .red
-            return renderer
-        }
-        return MKPolygonRenderer(overlay: overlay)
-    }
-
-    func mapView(_ mapView: MKMapView, annotationView view: MKAnnotationView, didChange newState: MKAnnotationView.DragState, fromOldState oldState: MKAnnotationView.DragState) {
-        if (newState == .ending) {
-            //print ("Ending coordinate : \(view.annotation?.coordinate)")
-            waypoints.removeAll()
-            for i in mapView.annotations.indices {
-                if mapView.annotations[i] is WayPoint {
-                    waypoints.append(mapView.annotations[i] as! WayPoint)
-                    //update waypoint icon and get new weather
-                    (mapView.annotations[i] as! WayPoint).update()
-                }
-            }
-            waypoints.sort() // Always ordered
-            mapView.removeAnnotations(waypoints)
-            for overlay in mapView.overlays {
-                if overlay is MKCircle || overlay is MKPolyline {
-                    mapView.removeOverlay(overlay)
-                }
-            }
-            mapView.addAnnotations(waypoints)
-            for wpt in waypoints {
-                let cyclinderOverlay = MKCircle(center: wpt.coordinate, radius: CLLocationDistance(wpt.cylinderRadius.converted(to: .meters).value))
-                mapView.addOverlay(cyclinderOverlay)
-            }
-            if waypoints.count >  1 {
-                mapView.addOverlay(MKPolyline(coordinates: waypoints.map( {$0.coordinate} ), count: waypoints.count))
-            }
-        }
-    }
-
-    func mapViewDidFinishLoadingMap(_ mapView: MKMapView) {
-        let lpgr = UILongPressGestureRecognizer(target: self,
-                             action:#selector(self.handleLongPress))
-        lpgr.minimumPressDuration = 1
-        lpgr.delaysTouchesBegan = true
-        lpgr.delegate = self
-        self.mapView.addGestureRecognizer(lpgr)
-    }
-
-    @objc func handleLongPress(gestureRecognizer: UILongPressGestureRecognizer) {
-        if gestureRecognizer.state != UIGestureRecognizer.State.ended {
-            return
-        }
-        else if gestureRecognizer.state != UIGestureRecognizer.State.began {
-            
-            let touchPoint = gestureRecognizer.location(in: self.mapView)
-            
-            let touchMapCoordinate =  self.mapView.convert(touchPoint, toCoordinateFrom: mapView)
-            addWaypoint(coordinate: touchMapCoordinate)
-        }
-    }
-}
-
-extension RoutePlannerModel {
-    //MARK: helper functions
-    func encodeSingleInteger(_ value: Int) -> String {
-        
-        var intValue = value
-        
-        if intValue < 0 {
-            intValue = intValue << 1
-            intValue = ~intValue
-        } else {
-            intValue = intValue << 1
-        }
-        
-        return encodeFiveBitComponents(intValue)
-    }
-
-    func encodeFiveBitComponents(_ value: Int) -> String {
-        var remainingComponents = value
-        
-        var fiveBitComponent = 0
-        var returnString = String()
-        
-        repeat {
-            fiveBitComponent = remainingComponents & 0x1F
-            
-            if remainingComponents >= 0x20 {
-                fiveBitComponent |= 0x20
-            }
-            
-            fiveBitComponent += 63
-
-            let char = UnicodeScalar(fiveBitComponent)!
-            returnString.append(String(char))
-            remainingComponents = remainingComponents >> 5
-        } while (remainingComponents != 0)
-        
-        return returnString
     }
 }
