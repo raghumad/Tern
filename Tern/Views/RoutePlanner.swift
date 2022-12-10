@@ -27,7 +27,7 @@ struct RoutePlanner: View {
                     Spacer()
                     HStack (spacing: 10){
                         Button{
-                            model.addWaypoint()
+                            model.addWaypoint(coordinate: model.mapView.centerCoordinate)
                         } label: {
                             Image(systemName: "point.3.connected.trianglepath.dotted")
                                 .rotationEffect(.degrees(30))
@@ -93,8 +93,6 @@ struct RoutePlanner: View {
                 .font(.title2) // This size looks better.
             }
             .sheet(isPresented: $model.shareRoute) {
-                //let waypoint = model.waypoints.first!
-                //EditWaypoint(waypoint: waypoint, editWaypoint: $model.shareRoute, waypointName: waypoint.title ?? "", latitude: waypoint.coordinate.latitude, longitude: waypoint.coordinate.longitude, cylinderRadius: waypoint.cylinderRadius, waypointDescription: waypoint.subtitle!).environmentObject(model)
                 ShareSheet(items: $model.shareItems)
              .presentationDetents([.fraction(0.8)])
              .presentationDragIndicator(.visible)
