@@ -12,7 +12,7 @@ import Charts
 
 struct EditWaypoint: View {
     @EnvironmentObject var model : RoutePlannerModel
-    @State var index : Int
+    let waypoint : WayPoint
     @Binding var editWaypoint : Bool
     
     @State var waypointName : String
@@ -22,7 +22,7 @@ struct EditWaypoint: View {
     @State var waypointDescription : String
     
     func saveWaypoint() {
-        model.waypoints[index].update(coordinate: CLLocationCoordinate2D(latitude: latitude, longitude: longitude), name: waypointName, description: waypointDescription, radius: cylinderRadius)
+        waypoint.update(coordinate: CLLocationCoordinate2D(latitude: latitude, longitude: longitude), name: waypointName, description: waypointDescription, radius: cylinderRadius)
         model.mapView.removeAnnotations(model.waypoints)
         model.mapView.addAnnotations(model.waypoints)
         model.mapView.removeOverlays(model.mapView.overlays) //remove before re adding all of them
@@ -38,9 +38,10 @@ struct EditWaypoint: View {
     }
 
     func deleteWaypoint() {
-        model.waypoints.remove(at: index)
-        model.mapView.removeAnnotation(model.waypoints[index])
-        //model.mapView.addAnnotations(model.waypoints)
+        if let id = model.waypoints.firstIndex(of: waypoint) {
+            model.waypoints.remove(at: id)
+        }
+        model.mapView.removeAnnotation(waypoint)
         model.mapView.removeOverlays(model.mapView.overlays) //remove before re adding all of them
         for wpt in model.waypoints {
             model.mapView.removeAnnotation(wpt) //re-add all waypoints so that they are numbered correctly
@@ -74,7 +75,7 @@ struct EditWaypoint: View {
                     .keyboardType(.numberPad)
                     .frame(width: 50)
                 Image(systemName: "figure.climbing")
-                Text("\(String(format: "%.1f ft", model.waypoints[index].elevation.converted(to: .feet).value))")
+                Text("\(String(format: "%.1f ft", waypoint.elevation.converted(to: .feet).value))")
                 Spacer()
             }
             ZStack{
@@ -86,12 +87,12 @@ struct EditWaypoint: View {
                     Text("Windspeed").fontWeight(.ultraLight).foregroundColor(.cyan)
                     Text("Gustspeed").fontWeight(.ultraLight).foregroundColor(.red)
                 }
-                Chart (model.waypoints[index].weatherForecast.weatherdata) { item in
+                Chart (waypoint.weatherForecast.weatherdata) { item in
                     LineMark(x: .value("Time", item.time),
                              y: .value("WindGust", item.windgusts_10m))
                 }
                 .foregroundStyle(.red)
-                Chart (model.waypoints[index].weatherForecast.weatherdata) { item in
+                Chart (waypoint.weatherForecast.weatherdata) { item in
                     LineMark(x: .value("Time", item.time),
                              y: .value("WindSpeed", item.windspeed80m))
                 }
@@ -99,7 +100,7 @@ struct EditWaypoint: View {
             }
             ZStack{
                 Text("Wind Direction").fontWeight(.ultraLight).foregroundColor(.red)
-                Chart (model.waypoints[index].weatherForecast.weatherdata) { item in
+                Chart (waypoint.weatherForecast.weatherdata) { item in
                     RectangleMark(
                         x: .value("Time", item.time),
                         y: .value("WindDirection", item.winddirection_80m),
@@ -112,7 +113,7 @@ struct EditWaypoint: View {
                     Text("Temperature").fontWeight(.ultraLight).foregroundColor(.orange)
                     Text("Due Point").fontWeight(.ultraLight).foregroundColor(.blue)
                 }
-                Chart (model.waypoints[index].weatherForecast.weatherdata) { item in
+                Chart (waypoint.weatherForecast.weatherdata) { item in
                     LineMark(x: .value("Time", item.time),
                              y: .value("Temp", item.temperature_2m))
                     .foregroundStyle(.orange)

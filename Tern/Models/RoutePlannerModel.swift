@@ -88,17 +88,17 @@ extension RoutePlannerModel {
             marker.markerTintColor = .systemBlue
             marker.animatesWhenAdded = true
             marker.selectedGlyphImage = UIImage(systemName: "mappin.and.ellipse")
-
-            let wIndex = waypoints.firstIndex(of: annotation as! WayPoint)!
-            let wpc = WayPointCallout(index: wIndex).environmentObject(self)
-            let callout = UIHostingController(rootView: wpc)
+            
+            if let wpt4Callout = annotation as? WayPoint {
+                let wpc = WayPointCallout(waypoint: wpt4Callout).environmentObject(self)
+                let callout = UIHostingController(rootView: wpc)
                 //marker.leftCalloutAccessoryView = callout.view //could be weather and wind direction
                 //marker.rightCalloutAccessoryView = callout.view
                 marker.detailCalloutAccessoryView = callout.view
-            return marker
-        } else {
-            return MKUserLocationView()
+                return marker
+            }
         }
+        return MKUserLocationView()
     }
 
     func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
