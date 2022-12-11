@@ -17,21 +17,6 @@ class WayPoint : NSObject, MKAnnotation {
     var title: String?
     var subtitle: String?
     var weatherForecast : WeatherForecast
-    
-    var countryCode : String {
-        var countryCode = "us"
-        
-        CLGeocoder().reverseGeocodeLocation(
-            CLLocation(
-                latitude: coordinate.latitude,
-                longitude: coordinate.longitude),
-                completionHandler: {(placemarks, error) in
-            if (error != nil) {print("reverse geodcode fail: \(error!.localizedDescription)")}
-            let pm = placemarks! as [CLPlacemark]
-                    if pm.count > 0 { countryCode = pm[0].isoCountryCode?.lowercased() ?? "us" }
-        })
-        return countryCode
-    }
 
     init(coordinate: CLLocationCoordinate2D = CLLocationCoordinate2D()) {
         self.coordinate = coordinate
