@@ -25,6 +25,7 @@ class RoutePlannerModel : NSObject, CLLocationManagerDelegate, ObservableObject,
     @Published var mapView: MKMapView = .init()
 
     @Published var airspaces : [String:Airspaces] = .init()
+    @State var refreshAirspaces : Bool = false
 
     override init() {
         super.init()
@@ -74,11 +75,19 @@ extension RoutePlannerModel {
 
 extension RoutePlannerModel {
     //MARK: MapViewDelegates
+
+    func mapView(_ mapView: MKMapView, regionWillChangeAnimated animated: Bool) {
+        if self.refreshAirspaces {
+            self.addAirspaceOverlays()
+        }
+    }
+
     func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
         if annotation is MKUserLocation {
             return MKUserLocationView()
         }
         if annotation is WayPoint {
+            //mapView.dequeueReusableAnnotationView(withIdentifier: "WaypointPin") ?? MKAnnotationView()
             let marker = MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: "WaypointPin")
             marker.isDraggable = true
             marker.canShowCallout = true
@@ -90,7 +99,7 @@ extension RoutePlannerModel {
             }
             marker.markerTintColor = .systemBlue
             marker.animatesWhenAdded = true
-            marker.selectedGlyphImage = UIImage(systemName: "mappin.and.ellipse")
+            //marker.selectedGlyphImage = UIImage(systemName: "mappin.and.ellipse")
             
             if let wpt4Callout = annotation as? WayPoint {
                 let wpc = WayPointCallout(waypoint: wpt4Callout).environmentObject(self)
@@ -127,11 +136,6 @@ extension RoutePlannerModel {
             let renderer = MKPolylineRenderer(polyline: overlay as! MKGeodesicPolyline)
             renderer.lineWidth = 2
             renderer.strokeColor = .red
-            //Adding a second waypoint. We get airspaces too.
-            for airspacesEntry in self.airspaces {
-                let airspaces = airspacesEntry.value
-                mapView.addOverlays(airspaces.overlays)
-            }
             return renderer
         }
         if overlay is MKPolygon {
@@ -141,7 +145,7 @@ extension RoutePlannerModel {
             renderer.strokeColor = .red
             return renderer
         }
-        return MKPolygonRenderer(overlay: overlay)
+        return MKOverlayRenderer(overlay: overlay)
     }
 
     func mapView(_ mapView: MKMapView, annotationView view: MKAnnotationView, didChange newState: MKAnnotationView.DragState, fromOldState oldState: MKAnnotationView.DragState) {
@@ -257,29 +261,6 @@ extension RoutePlannerModel {
                         }
             })
 
-            //Update overlays for airspaces because we have a route.
-            let cachesURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("TernAirspaceCache")
-            for cC in self.airspaces.keys {
-                var airspaces = [MKGeoJSONObject]()
-                do {
-                    let airspacePath = cachesURL.appending(path: "\(cC)_asp.geojson",directoryHint: .notDirectory)
-                    let data = try Data(contentsOf: airspacePath)
-                    airspaces = try MKGeoJSONDecoder().decode(data)
-                    print ("got airspaces: \(airspaces.count)")
-                    for item in airspaces {
-                        if let feature =  item as? MKGeoJSONFeature {
-                            for polygon in feature.geometry {
-                                if let airspacePolygon = polygon as? MKPolygon {
-                                    self.airspaces[cC]?.overlays.append(airspacePolygon)
-                                    //self.mapView.addOverlay(airspacePolygon)
-                                }
-                            }
-                        }
-                    }
-                } catch {
-                    print (error.localizedDescription)
-                }
-            }
             newWaypoint.title = "WP\(waypoints.count + 1)"
             newWaypoint.subtitle = "Waypoint description"
             //mapView.removeAnnotations(mapView.annotations)
@@ -291,6 +272,36 @@ extension RoutePlannerModel {
                 mapView.addOverlay(MKGeodesicPolyline(coordinates: waypoints.map( {$0.coordinate} ), count: waypoints.count))
             }
         }
+    }
+
+    func addAirspaceOverlays(){
+        //Update overlays for airspaces because we have a route.
+        let cachesURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("TernAirspaceCache")
+        for cC in self.airspaces.keys {
+            var airspaces = [MKGeoJSONObject]()
+            do {
+                let airspacePath = cachesURL.appending(path: "\(cC)_asp.geojson",directoryHint: .notDirectory)
+                let data = try Data(contentsOf: airspacePath)
+                airspaces = try MKGeoJSONDecoder().decode(data)
+                print ("got airspaces: \(airspaces.count)")
+                for item in airspaces {
+                    if let feature =  item as? MKGeoJSONFeature {
+                        for polygon in feature.geometry {
+                            if let airspacePolygon = polygon as? MKPolygon {
+                                self.airspaces[cC]?.overlays.append(airspacePolygon)
+                                //self.mapView.addOverlay(airspacePolygon)
+                            }
+                        }
+                    }
+                }
+                if let overl = self.airspaces[cC]?.overlays {
+                    self.mapView.addOverlays(overl)
+                }
+            } catch {
+                print (error.localizedDescription)
+            }
+        }
+        self.refreshAirspaces.toggle()
     }
 
     func saveCUP() -> String{
