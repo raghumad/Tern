@@ -29,15 +29,25 @@ struct WayPointCallout : View {
                 Spacer()
             }
             HStack {
-                Image(systemName: "arrow.up.circle")
-                    .rotationEffect(.degrees((waypoint.weatherForecast.winddirection_80m[0].value)))
-                Text("\(waypoint.weatherForecast.windspeed80m.first!.description)")
-                Image(systemName: "wind.circle")
-                Text("\(waypoint.weatherForecast.windgusts_10m.first!.description)")
-                Image(systemName: "humidity")
-                Text("\(waypoint.weatherForecast.relativehumidity_2m.first!.description)")
-                Image(systemName: "cloud.circle")
-                Text("\(waypoint.weatherForecast.cloudcover.first!.description)")
+                if let dir = waypoint.weatherForecast.winddirection_80m.first?.value {
+                    Image(systemName: "arrow.up.circle")
+                        .rotationEffect(.degrees(dir))
+                }
+                if let speed = waypoint.weatherForecast.windspeed80m.first?.description {
+                    Text("\(speed)")
+                }
+                if let gust = waypoint.weatherForecast.windgusts_10m.first?.description {
+                    Image(systemName: "wind.circle")
+                    Text("\(gust)")
+                }
+                if let humidity = waypoint.weatherForecast.relativehumidity_2m.first?.description {
+                    Image(systemName: "humidity")
+                    Text("\(humidity)")
+                }
+                if let clouds = waypoint.weatherForecast.cloudcover.first?.description {
+                    Image(systemName: "cloud.circle")
+                    Text("\(clouds)")
+                }
                 Spacer()
             }
         }

@@ -9,7 +9,7 @@
 /* Begin PBXBuildFile section */
 		EF0EAC84293C091D00A877DD /* RoutePlannerMapViewHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF0EAC83293C091D00A877DD /* RoutePlannerMapViewHelper.swift */; };
 		EF0EAC86293C79FA00A877DD /* WayPointCallout.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF0EAC85293C79F900A877DD /* WayPointCallout.swift */; };
-		EF25C60C2944F0C6001EB8D1 /* Airspace.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF25C60B2944F0C6001EB8D1 /* Airspace.swift */; };
+		EF25C60C2944F0C6001EB8D1 /* Airspaces.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF25C60B2944F0C6001EB8D1 /* Airspaces.swift */; };
 		EF31A4FE292D49F7000719DE /* TernApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF31A4FD292D49F7000719DE /* TernApp.swift */; };
 		EF31A500292D49F7000719DE /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF31A4FF292D49F7000719DE /* ContentView.swift */; };
 		EF31A502292D49F8000719DE /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = EF31A501292D49F8000719DE /* Assets.xcassets */; };
@@ -50,7 +50,7 @@
 /* Begin PBXFileReference section */
 		EF0EAC83293C091D00A877DD /* RoutePlannerMapViewHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutePlannerMapViewHelper.swift; sourceTree = "<group>"; };
 		EF0EAC85293C79F900A877DD /* WayPointCallout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WayPointCallout.swift; sourceTree = "<group>"; };
-		EF25C60B2944F0C6001EB8D1 /* Airspace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Airspace.swift; sourceTree = "<group>"; };
+		EF25C60B2944F0C6001EB8D1 /* Airspaces.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Airspaces.swift; sourceTree = "<group>"; };
 		EF31A4FA292D49F7000719DE /* Tern.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Tern.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		EF31A4FD292D49F7000719DE /* TernApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TernApp.swift; sourceTree = "<group>"; };
 		EF31A4FF292D49F7000719DE /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -119,7 +119,7 @@
 				EF6C26F0293B131B00735B40 /* RoutePlannerModel.swift */,
 				EF0EAC83293C091D00A877DD /* RoutePlannerMapViewHelper.swift */,
 				EFB4B67C293EA14A00B4AE13 /* WeatherForecast.swift */,
-				EF25C60B2944F0C6001EB8D1 /* Airspace.swift */,
+				EF25C60B2944F0C6001EB8D1 /* Airspaces.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -330,7 +330,7 @@
 				EF31A500292D49F7000719DE /* ContentView.swift in Sources */,
 				EFAC18AD293FF6990045B1FF /* EditWaypoint.swift in Sources */,
 				EF0EAC84293C091D00A877DD /* RoutePlannerMapViewHelper.swift in Sources */,
-				EF25C60C2944F0C6001EB8D1 /* Airspace.swift in Sources */,
+				EF25C60C2944F0C6001EB8D1 /* Airspaces.swift in Sources */,
 				EF31A50A292D49F8000719DE /* Tern.xcdatamodeld in Sources */,
 				EF6C26F1293B131B00735B40 /* RoutePlannerModel.swift in Sources */,
 				EF31A4FE292D49F7000719DE /* TernApp.swift in Sources */,
