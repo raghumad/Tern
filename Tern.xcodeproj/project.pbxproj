@@ -8,7 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		EF0EAC84293C091D00A877DD /* RoutePlannerMapViewHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF0EAC83293C091D00A877DD /* RoutePlannerMapViewHelper.swift */; };
-		EF0EAC86293C79FA00A877DD /* WayPointCallout.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF0EAC85293C79F900A877DD /* WayPointCallout.swift */; };
+		EF0EAC86293C79FA00A877DD /* WayPointAnnotationCallout.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF0EAC85293C79F900A877DD /* WayPointAnnotationCallout.swift */; };
 		EF25C60C2944F0C6001EB8D1 /* Airspaces.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF25C60B2944F0C6001EB8D1 /* Airspaces.swift */; };
 		EF31A4FE292D49F7000719DE /* TernApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF31A4FD292D49F7000719DE /* TernApp.swift */; };
 		EF31A500292D49F7000719DE /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF31A4FF292D49F7000719DE /* ContentView.swift */; };
@@ -49,7 +49,7 @@
 
 /* Begin PBXFileReference section */
 		EF0EAC83293C091D00A877DD /* RoutePlannerMapViewHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutePlannerMapViewHelper.swift; sourceTree = "<group>"; };
-		EF0EAC85293C79F900A877DD /* WayPointCallout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WayPointCallout.swift; sourceTree = "<group>"; };
+		EF0EAC85293C79F900A877DD /* WayPointAnnotationCallout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WayPointAnnotationCallout.swift; sourceTree = "<group>"; };
 		EF25C60B2944F0C6001EB8D1 /* Airspaces.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Airspaces.swift; sourceTree = "<group>"; };
 		EF31A4FA292D49F7000719DE /* Tern.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Tern.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		EF31A4FD292D49F7000719DE /* TernApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TernApp.swift; sourceTree = "<group>"; };
@@ -105,7 +105,7 @@
 			children = (
 				EF31A52F292D4B34000719DE /* RoutePlanner.swift */,
 				EF31A4FF292D49F7000719DE /* ContentView.swift */,
-				EF0EAC85293C79F900A877DD /* WayPointCallout.swift */,
+				EF0EAC85293C79F900A877DD /* WayPointAnnotationCallout.swift */,
 				EFAC18AC293FF6990045B1FF /* EditWaypoint.swift */,
 				EFEF03B52942C27600912949 /* qrCode.swift */,
 			);
@@ -336,7 +336,7 @@
 				EF31A4FE292D49F7000719DE /* TernApp.swift in Sources */,
 				EF6C26F5293B13E100735B40 /* WayPoint.swift in Sources */,
 				EF31A530292D4B34000719DE /* RoutePlanner.swift in Sources */,
-				EF0EAC86293C79FA00A877DD /* WayPointCallout.swift in Sources */,
+				EF0EAC86293C79FA00A877DD /* WayPointAnnotationCallout.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

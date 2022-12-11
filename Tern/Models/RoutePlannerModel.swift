@@ -25,7 +25,6 @@ class RoutePlannerModel : NSObject, CLLocationManagerDelegate, ObservableObject,
     @Published var mapView: MKMapView = .init()
 
     @Published var airspaces : [String:Airspaces] = .init()
-    @State var refreshAirspaces : Bool = false
 
     override init() {
         super.init()
@@ -76,22 +75,58 @@ extension RoutePlannerModel {
 extension RoutePlannerModel {
     //MARK: MapViewDelegates
 
-    func mapView(_ mapView: MKMapView, regionWillChangeAnimated animated: Bool) {
-        if self.refreshAirspaces {
-            self.addAirspaceOverlays()
-        }
-    }
+//    optional func mapView(_ mapView: MKMapView, annotationView view: MKAnnotationView, calloutAccessoryControlTapped control: UIControl) {
+//
+//    }
 
     func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
-        if annotation is MKUserLocation {
-            return MKUserLocationView()
-        }
+        guard !annotation.isKind(of: MKUserLocation.self) else {
+                // Make a fast exit if the annotation is the `MKUserLocation`, as it's not an annotation view we wish to customize.
+                return nil
+            }
+        /*var annotationView: MKAnnotationView?
+            
+            if let annotation = annotation as? BridgeAnnotation {
+                annotationView = setupBridgeAnnotationView(for: annotation, on: mapView)
+            } else if let annotation = annotation as? CustomAnnotation {
+                annotationView = setupCustomAnnotationView(for: annotation, on: mapView)
+            } else if let annotation = annotation as? SanFranciscoAnnotation {
+                annotationView = setupSanFranciscoAnnotationView(for: annotation, on: mapView)
+            } else if let annotation = annotation as? FerryBuildingAnnotation {
+                annotationView = setupFerryBuildingAnnotationView(for: annotation, on: mapView)
+            }
+            
+            return annotationView
+         private func setupSanFranciscoAnnotationView(for annotation: SanFranciscoAnnotation, on mapView: MKMapView) -> MKAnnotationView {
+             let reuseIdentifier = NSStringFromClass(SanFranciscoAnnotation.self)
+             let flagAnnotationView = mapView.dequeueReusableAnnotationView(withIdentifier: reuseIdentifier, for: annotation)
+             
+             flagAnnotationView.canShowCallout = true
+             
+             // Provide the annotation view's image.
+             let image = #imageLiteral(resourceName: "flag")
+             flagAnnotationView.image = image
+             
+             // Provide the left image icon for the annotation.
+             flagAnnotationView.leftCalloutAccessoryView = UIImageView(image: #imageLiteral(resourceName: "sf_icon"))
+             
+             // Offset the flag annotation so that the flag pole rests on the map coordinate.
+             let offset = CGPoint(x: image.size.width / 2, y: -(image.size.height / 2) )
+             flagAnnotationView.centerOffset = offset
+             
+             return flagAnnotationView
+         }
+         let rightButton = UIButton(type: .detailDisclosure)
+         markerAnnotationView.rightCalloutAccessoryView = rightButton
+         https://stackoverflow.com/questions/30793315/customize-mkannotation-callout-view
+        }*/
         if annotation is WayPoint {
-            //mapView.dequeueReusableAnnotationView(withIdentifier: "WaypointPin") ?? MKAnnotationView()
-            let marker = MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: "WaypointPin")
+            let wptIndex = waypoints.firstIndex(of: annotation as! WayPoint) ?? 9999
+            //let mkAnnotation = mapView.dequeueReusableAnnotationView(withIdentifier: "WaypointPin") ?? MKMarkerAnnotationView()
+            let marker = MKMarkerAnnotationView(annotation: waypoints[wptIndex], reuseIdentifier: "WaypointPin")
+            //let marker = mkAnnotation as! MKMarkerAnnotationView
             marker.isDraggable = true
             marker.canShowCallout = true
-            let wptIndex = waypoints.firstIndex(of: annotation as! WayPoint) ?? 9999
             if wptIndex != 9999 && wptIndex < 51 {
                 marker.glyphImage = UIImage(systemName: "\(wptIndex + 1).circle")
             } else {
@@ -99,21 +134,22 @@ extension RoutePlannerModel {
             }
             marker.markerTintColor = .systemBlue
             marker.animatesWhenAdded = true
-            //marker.selectedGlyphImage = UIImage(systemName: "mappin.and.ellipse")
+            marker.annotation = waypoints[wptIndex]
             
-            if let wpt4Callout = annotation as? WayPoint {
-                let wpc = WayPointCallout(waypoint: wpt4Callout).environmentObject(self)
-                let callout = UIHostingController(rootView: wpc)
-                
-                //detailCalloutAccessoryView is hanging so we create an image and pass it instead.
-                //let renderer = ImageRenderer(content: wpc)
-                //marker.detailCalloutAccessoryView?.largeContentImage = renderer.uiImage
-                //marker.largeContentImage = renderer.uiImage
-                //marker.leftCalloutAccessoryView = callout.view //could be weather and wind direction
-                //marker.rightCalloutAccessoryView = callout.view
-                marker.detailCalloutAccessoryView = callout.view
-                return marker
-            }
+            //marker.selectedGlyphImage = UIImage(systemName: "mappin.and.ellipse")
+            let wpc = WayPointAnnotationCallout(waypointIndex: wptIndex).environmentObject(self)
+            let callout = UIHostingController(rootView: wpc)
+            
+            //detailCalloutAccessoryView is hanging so we create an image and pass it instead.
+            //let renderer = ImageRenderer(content: wpc)
+            //let callout = UIImageView(image: renderer.uiImage)
+            callout.loadView()
+            marker.detailCalloutAccessoryView = callout.viewIfLoaded
+            //callout.isUserInteractionEnabled = true
+            //marker.largeContentImage = renderer.uiImage
+            //marker.leftCalloutAccessoryView = callout.view //could be weather and wind direction
+            //marker.rightCalloutAccessoryView = callout.view
+            return marker
         }
         return MKAnnotationView()
     }
@@ -271,6 +307,7 @@ extension RoutePlannerModel {
             if waypoints.count >  1 {
                 mapView.addOverlay(MKGeodesicPolyline(coordinates: waypoints.map( {$0.coordinate} ), count: waypoints.count))
             }
+            addAirspaceOverlays()
         }
     }
 
@@ -284,24 +321,31 @@ extension RoutePlannerModel {
                 let data = try Data(contentsOf: airspacePath)
                 airspaces = try MKGeoJSONDecoder().decode(data)
                 print ("got airspaces: \(airspaces.count)")
+                let waypointsBoundingRect = self.fiveKmileWaypointBoudingRect
                 for item in airspaces {
                     if let feature =  item as? MKGeoJSONFeature {
                         for polygon in feature.geometry {
                             if let airspacePolygon = polygon as? MKPolygon {
-                                self.airspaces[cC]?.overlays.append(airspacePolygon)
-                                //self.mapView.addOverlay(airspacePolygon)
+                                if  airspacePolygon.coordinate.longitude > waypointsBoundingRect[0].longitude &&
+                                    airspacePolygon.coordinate.longitude < waypointsBoundingRect[1].longitude &&
+                                    airspacePolygon.coordinate.latitude > waypointsBoundingRect[0].latitude &&
+                                    airspacePolygon.coordinate.latitude < waypointsBoundingRect[1].latitude {
+                                    //add only if inside the radius
+                                    self.airspaces[cC]?.overlays.append(airspacePolygon)
+                                    //self.mapView.addOverlay(airspacePolygon)
+                                }
                             }
                         }
                     }
                 }
                 if let overl = self.airspaces[cC]?.overlays {
+                    print("adding \(self.airspaces[cC]?.overlays.count ?? 0) airspaces to the map.")
                     self.mapView.addOverlays(overl)
                 }
             } catch {
                 print (error.localizedDescription)
             }
         }
-        self.refreshAirspaces.toggle()
     }
 
     func saveCUP() -> String{
@@ -502,5 +546,21 @@ extension RoutePlannerModel {
             print(error.localizedDescription)
         }
         return urlPath.absoluteString
+    }
+
+    var fiveKmileWaypointBoudingRect : [CLLocationCoordinate2D] {
+        var lx, ly, hx, hy : Double
+        lx = waypoints.map{ $0.coordinate.latitude }.sorted().first ?? region.center.latitude
+        ly = waypoints.map{ $0.coordinate.longitude }.sorted().first ?? region.center.longitude
+        hx = waypoints.map{ $0.coordinate.latitude }.sorted().last ?? region.center.latitude
+        hy = waypoints.map{ $0.coordinate.longitude }.sorted().last ?? region.center.longitude
+        // 450nm = 0.125 arc degrees or 450 arc sec or 500mi radius
+        lx = lx - 0.125
+        ly = ly - 0.125
+        hx = hx + 0.125
+        hy = hy + 0.125
+        let coLow = CLLocationCoordinate2D(latitude: lx, longitude: ly)
+        let coHi = CLLocationCoordinate2D(latitude: hx, longitude: hy)
+        return [coLow, coHi]
     }
 }
