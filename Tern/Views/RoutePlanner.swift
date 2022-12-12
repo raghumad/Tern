@@ -44,7 +44,7 @@ struct RoutePlanner: View {
                                 } label: {
                                     HStack {
                                         Text (".xctsk File")
-                                        Image(systemName: "square.and.arrow.up")
+                                        Image(systemName: "paperplane")
                                     }
                                 }
                                 Button {
@@ -78,6 +78,17 @@ struct RoutePlanner: View {
                                     HStack {
                                         Text (".cup File")
                                         Image(systemName: "cup.and.saucer")
+                                    }
+                                }
+                                Button {
+                                    let urlPath = URL(filePath: model.saveCompegpsWpt())
+                                    model.shareItems.removeAll()
+                                    model.shareItems.append(urlPath)
+                                    model.shareRoute.toggle()
+                                } label: {
+                                    HStack {
+                                        Text (".wpt File(CompeGPS)")
+                                        Image(systemName: "point.filled.topleft.down.curvedto.point.bottomright.up")
                                     }
                                 }
                             } label: {
