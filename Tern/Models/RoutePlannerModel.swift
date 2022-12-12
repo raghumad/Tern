@@ -155,7 +155,7 @@ extension RoutePlannerModel {
             marker.annotation = waypoints[wptIndex]
             
             //marker.selectedGlyphImage = UIImage(systemName: "mappin.and.ellipse")
-            let wpc = WayPointAnnotationCallout(waypointIndex: wptIndex).environmentObject(self)
+            let wpc = WayPointAnnotationCallout(waypoint: waypoints[wptIndex]).environmentObject(self)
             let callout = UIHostingController(rootView: wpc)
             
             //detailCalloutAccessoryView is hanging so we create an image and pass it instead.
@@ -666,7 +666,7 @@ extension RoutePlannerModel {
         guard let paths = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
             return ""
         }
-        let urlPath = paths.appendingPathComponent("\(waypoints[0].title ?? "wpts").xctsk")
+        let urlPath = paths.appendingPathComponent("waypoints.xctsk")
         do {
             try xctskData.write(to: urlPath, atomically: true, encoding: .utf8)
         }
