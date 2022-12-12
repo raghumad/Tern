@@ -68,6 +68,18 @@ extension RoutePlannerModel {
             //print ("latest location in didUpdateLocations: \(location.coordinate)")
             self.region = MKCoordinateRegion(center: location.coordinate, latitudinalMeters: 25000, longitudinalMeters: 25000)
             self.mapView.setRegion(self.region, animated: true)
+            CLGeocoder().reverseGeocodeLocation(
+                CLLocation(
+                    latitude: location.coordinate.latitude,
+                    longitude: location.coordinate.longitude),
+                completionHandler: {(placemarks, error) in
+                    if (error != nil) {print("reverse geodcode fail: \(error!.localizedDescription)")}
+                    let pm = placemarks! as [CLPlacemark]
+                    if pm.count > 0 {
+                        self.airspaces[pm[0].isoCountryCode!.lowercased()] = Airspaces(countryCode: pm[0].isoCountryCode!.lowercased())//Creating airspaces obj will download file.
+                        print("Downloading airspaces: \(pm[0].isoCountryCode!.lowercased())")
+                    }
+                })
         }
     }
 }
@@ -234,6 +246,7 @@ extension RoutePlannerModel {
             addWaypoint(coordinate: touchMapCoordinate)
         }
     }
+
 }
 
 extension RoutePlannerModel {
@@ -276,6 +289,7 @@ extension RoutePlannerModel {
     }
 
     func addWaypoint(coordinate: CLLocationCoordinate2D){
+        self.addAirspaceOverlays()
         let newWaypoint = WayPoint(coordinate: coordinate)
         if (!waypoints.contains(where: {$0.isNear(newPt: newWaypoint)})) {//dont instert waypoints are kissing
             Task {
@@ -284,18 +298,6 @@ extension RoutePlannerModel {
             Task {
                 await newWaypoint.getElevation()
             }
-            CLGeocoder().reverseGeocodeLocation(
-                CLLocation(
-                    latitude: coordinate.latitude,
-                    longitude: coordinate.longitude),
-                    completionHandler: {(placemarks, error) in
-                if (error != nil) {print("reverse geodcode fail: \(error!.localizedDescription)")}
-                let pm = placemarks! as [CLPlacemark]
-                        if pm.count > 0 {
-                            self.airspaces[pm[0].isoCountryCode!.lowercased()] = Airspaces(countryCode: pm[0].isoCountryCode!.lowercased())//Creating airspaces obj will download file.
-                            print("Downloading airspaces: \(pm[0].isoCountryCode!.lowercased())")
-                        }
-            })
 
             newWaypoint.title = "WP\(waypoints.count + 1)"
             newWaypoint.subtitle = "Waypoint description"
@@ -307,7 +309,6 @@ extension RoutePlannerModel {
             if waypoints.count >  1 {
                 mapView.addOverlay(MKGeodesicPolyline(coordinates: waypoints.map( {$0.coordinate} ), count: waypoints.count))
             }
-            addAirspaceOverlays()
         }
     }
 
@@ -322,6 +323,11 @@ extension RoutePlannerModel {
                 airspaces = try MKGeoJSONDecoder().decode(data)
                 print ("got airspaces: \(airspaces.count)")
                 let waypointsBoundingRect = self.fiveKmileWaypointBoudingRect
+                //remove previous overlays.
+                if let overl = self.airspaces[cC]?.overlays {
+                    print("removing \(self.airspaces[cC]?.overlays.count ?? 0) airspaces from the map.")
+                    self.mapView.removeOverlays(Array(overl))
+                }
                 for item in airspaces {
                     if let feature =  item as? MKGeoJSONFeature {
                         for polygon in feature.geometry {
@@ -331,7 +337,7 @@ extension RoutePlannerModel {
                                     airspacePolygon.coordinate.latitude > waypointsBoundingRect[0].latitude &&
                                     airspacePolygon.coordinate.latitude < waypointsBoundingRect[1].latitude {
                                     //add only if inside the radius
-                                    self.airspaces[cC]?.overlays.append(airspacePolygon)
+                                    self.airspaces[cC]?.overlays.insert(airspacePolygon)
                                     //self.mapView.addOverlay(airspacePolygon)
                                 }
                             }
@@ -340,7 +346,7 @@ extension RoutePlannerModel {
                 }
                 if let overl = self.airspaces[cC]?.overlays {
                     print("adding \(self.airspaces[cC]?.overlays.count ?? 0) airspaces to the map.")
-                    self.mapView.addOverlays(overl)
+                    self.mapView.addOverlays(Array(overl))
                 }
             } catch {
                 print (error.localizedDescription)
@@ -380,9 +386,114 @@ extension RoutePlannerModel {
         return urlPath.absoluteString
     }
 
-    func saveWpt() -> String {
-        // NUMBER, NAME,  LAT,  LON, XXX, WAYPOINT_SYMBOL, XXX, DISPLAY_FORMAT, FONT_COLOR, BACKGROUND_COLOR, DESCRIPTION, POINTER_DIRECTION, GARMIN_DISPLAY, PROXIMITY_DISTANCE, ALTITUDE, FONT_SIZE, FONT_BOLD, SYMBOL_SIZE, XXX, XXX, XXX,,,
-        //waypoint = "%d,%s,  %s,  %s,,0,0,3,%s,%s,%s,0,0,0,-777,6,0,17,0,10.0,2,,,\n" % (x+1, name, lat, lon, textCol, backCol, desc)
+    func saveCompegpsWpt() -> String {
+        // gpsbabel/deprecated/compegps.cc
+        /*
+
+            the meaning of leading characters in CompeGPS data lines (enhanced PCX):
+
+            header lines:
+
+            "G": WGS 84            - Datum of the map
+            "N": Anybody            - Name of the user
+            "L": -02:00:00            - Difference to UTC
+            "M": ...            - Any comments
+            "R": 16711680 , xxxx , 1     - Route header
+            "U": 1                - System of coordinates (0=UTM 1=Latitude/Longitude)
+
+            "C":  0 0 255 2 -1.000000    - ???
+            "V":  0.0 0.0 0 0 0 0 0.0    - ???
+            "E": 0|1|00-NUL-00 00:00:00|00:00:00|0 - ???
+
+            data lines:
+
+            "W": if(route) routepoint; else waypoint
+            "T": trackpoint
+                "t": if(track) additionally track info
+                 if(!track) additionally trackpoint info
+            "a": link to ...
+            "w": waypoint additional info
+
+         G  WGS 84
+         U  1
+         W  START A 46.0116190∫N 11.3010020∫E 08-AUG-22 07:58:51 500.000000 Levico start
+         w Waypoint,,,,,,,,,CyliderRadius
+         W  RIALTO A 45.6452480∫N 11.2424500∫E 08-AUG-22 07:58:51 764.000000 Malga Rialto
+         w Waypoint,,,,,,,,,
+         W  GOAL A 46.0116190∫N 11.3010020∫E 08-AUG-22 07:58:51 500.000000 Levico Goal
+         w Waypoint,,,,,,,,,
+        */
+        var compegpsWptData = "G WGS 84\n"
+        compegpsWptData.append("M Generated by Tern Paragliding\n")
+        compegpsWptData.append("U 1\n")//we dont Name and U is always 1 as we dont use UTM also no L as its only for waypoints.
+        for waypoint in waypoints {
+            compegpsWptData.append(waypoint.CompeGPSdata)
+        }
+        guard let paths = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            return ""
+        }
+        let urlPath = paths.appendingPathComponent("waypoints.wpt")
+        do {
+            //try savedata.write(toFile: url.absoluteString, atomically: true, encoding: .utf8)
+            try compegpsWptData.write(to: urlPath, atomically: true, encoding: .utf8)
+            let input = try String(contentsOf: urlPath)
+            print(input)
+        } catch {
+            print(error.localizedDescription)
+        }
+        //print (cupFile)
+        return urlPath.absoluteString
+    }
+
+    func saveOziWpt() -> String {
+        /*OziExplorer Waypoint File Version 1.1
+         WGS 84
+         Reserved 2
+         Reserved 3
+         1,GCEBB,35.972033,-87.134700,,0,1,3,0,65535,Mountain Bike Heaven by susy1313,0,0,0,0,6,0,17
+         2,GC1A37,36.090683,-86.679550,,0,1,3,0,65535,The Troll by a182pilot & Family,0,0,0,0,6,0,17
+         3,GC1C2B,35.996267,-86.620117,,0,1,3,0,65535,Dive Bomber by JoGPS & family,0,0,0,0,6,0,17
+         4,GC25A9,36.038483,-86.648617,,0,1,3,0,65535,FOSTER by JoGPS & Family,0,0,0,0,6,0,17
+         5,GC2723,36.112183,-86.741767,,0,1,3,0,65535,Logan Lighthouse by JoGps & Family,0,0,0,0,6,0,17
+         6,GC2B71,36.064083,-86.790517,,0,1,3,0,65535,Ganier Cache by Susy1313,0,0,0,0,6,0,17
+         7,GC309F,36.087767,-86.809733,,0,1,3,0,65535,Shy's Hill by FireFighterEng33,0,0,0,0,6,0,17
+         8,GC317A,36.057500,-86.892000,,0,1,3,0,65535,GittyUp by JoGPS / Warner Parks,0,0,0,0,6,0,17
+         9,GC317D,36.082800,-86.867283,,0,1,3,0,65535,Inlighting by JoGPS / Warner Parks,0,0,0,0,6,0,17
+         
+         Waypoint File (.wpt)
+         Line 1 : File type and version information
+         Line 2 : Geodetic Datum used for the Lat/Lon positions for each waypoint Line 3 : Reserved for future use
+         Line 4 : GPS Symbol set - not used yet
+         Waypoint data
+         • One line per waypoint
+         • each field separated by a comma
+         • comma's not allowed in text fields, character 209 can be used instead and a comma will be substituted.
+         • non essential fields need not be entered but comma separators must still be used (example ,,)
+         defaults will be used for empty fields
+         • Any number of the last fields in a data line need not be included at all not even the commas.
+         Field 1 : Number - for Lowrance/Eagles and Silva GPS receivers this is the storage location (slot) of the waypoint in the gps, must be unique. For other GPS receivers set this number to -1 (minus 1). For Lowrance/Eagles and Silva if the slot number is not known (new waypoints) set the number to -1.
+         Field 2 : Name - the waypoint name, use the correct length name to suit the GPS type.
+         Field 3 : Latitude - decimal degrees.
+         Field 4 : Longitude - decimal degrees.
+         Field 5 : Date - see Date Format below, if blank a preset date will be used Field 6 : Symbol - 0 to number of symbols in GPS
+         Field 7 : Status - always set to 1
+         Field 8 : Map Display Format
+         Field 9 : Foreground Color (RGB value)
+         Field 10 : Background Color (RGB value)
+         Field 11 : Description (max 40), no commas
+         Field 12 : Pointer Direction
+         Field 13 : Garmin Display Format
+         Field 14 : Proximity Distance - 0 is off any other number is valid
+         Field 15 : Altitude - in feet (-777 if not valid)
+         Field 16 : Font Size - in points
+         Field 17 : Font Style - 0 is normal, 1 is bold.
+         Field 18 : Symbol Size - 17 is normal size
+         Field 19 : Proximity Symbol Position
+         Field 20 : Proximity Time
+         Field 21 : Proximity or Route or Both
+         Field 22 : File Attachment Name
+         Field 23 : Proximity File Attachment Name
+         Field 24 : Proximity Symbol Name*/
         return "You're fucked!"
     }
 

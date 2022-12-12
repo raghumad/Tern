@@ -10,6 +10,7 @@ import CoreLocation
 import MapKit
 
 class Airspaces {
+    
     //let logger = Logger(subsystem: "Tern", category: "Airspaces")
 
     // HTTP HEADERS:
@@ -23,7 +24,7 @@ class Airspaces {
     // Content-Length: 20702285
     // Content-Type: application/pdf
     var countryCode : String
-    var overlays = [MKOverlay]()
+    var overlays = Set<MKPolygon>()
 
     // Custom URL cache with 1 GB disk storage
     lazy var cache: URLCache = {

@@ -99,6 +99,33 @@ class WayPoint : NSObject, MKAnnotation {
         return "\"\(subtitle!)\",\"\(title!)\",US,\(strLatitude),\(strLongitude),0m,1,,,,"
     }
 
+    var CompeGPSdata : String {
+        var strLatitude = "\(abs(coordinate.longitude))"
+        if coordinate.latitude > 0 {
+            strLatitude = "\(strLatitude)ºN"
+        } else {
+            strLatitude = "\(strLatitude)ºS"
+        }
+        var strLongitude = "\(abs(coordinate.longitude))"
+        if coordinate.longitude > 0 {
+            strLongitude = "\(strLongitude)ºE"
+        } else {
+            strLongitude = "\(strLongitude)ºW"
+        }
+        /*
+        G  WGS 84
+        U  1
+        W  START A 46.0116190∫N 11.3010020∫E 08-AUG-22 07:58:51 500.000000 Levico start
+        w Waypoint,,,,,,,,,
+        W  RIALTO A 45.6452480∫N 11.2424500∫E 08-AUG-22 07:58:51 764.000000 Malga Rialto
+        w Waypoint,,,,,,,,,
+        W  GOAL A 46.0116190∫N 11.3010020∫E 08-AUG-22 07:58:51 500.000000 Levico Goal
+        w Waypoint,,,,,,,,,*/
+        let fmt = DateFormatter()
+        fmt.dateFormat = "DD-MMM-YY HH:mm:ss"
+        fmt.timeZone = TimeZone.current
+        return "W \(title!) \(strLatitude) \(strLongitude) \(fmt.string(from: Date())) \(elevation.converted(to: .meters).value) \"\(subtitle!)\"\nw Waypoint,,,,,,,,\(cylinderRadius.converted(to: .meters).value)\n"
+    }
     var OziWPTdata : String {
         //https://www.oziexplorer4.com/eng/help/fileformats.html
         return "You're Fucked!"
