@@ -68,18 +68,6 @@ extension RoutePlannerModel {
             //print ("latest location in didUpdateLocations: \(location.coordinate)")
             self.region = MKCoordinateRegion(center: location.coordinate, latitudinalMeters: 25000, longitudinalMeters: 25000)
             self.mapView.setRegion(self.region, animated: true)
-            CLGeocoder().reverseGeocodeLocation(
-                CLLocation(
-                    latitude: location.coordinate.latitude,
-                    longitude: location.coordinate.longitude),
-                completionHandler: {(placemarks, error) in
-                    if (error != nil) {print("reverse geodcode fail: \(error!.localizedDescription)")}
-                    let pm = placemarks! as [CLPlacemark]
-                    if pm.count > 0 {
-                        self.airspaces[pm[0].isoCountryCode!.lowercased()] = Airspaces(countryCode: pm[0].isoCountryCode!.lowercased())//Creating airspaces obj will download file.
-                        print("Downloading airspaces: \(pm[0].isoCountryCode!.lowercased())")
-                    }
-                })
         }
     }
 }
@@ -90,6 +78,24 @@ extension RoutePlannerModel {
 //    optional func mapView(_ mapView: MKMapView, annotationView view: MKAnnotationView, calloutAccessoryControlTapped control: UIControl) {
 //
 //    }
+
+    func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
+        CLGeocoder().reverseGeocodeLocation(
+            CLLocation(
+                latitude: mapView.region.center.latitude,
+                longitude: mapView.region.center.longitude),
+            completionHandler: {(placemarks, error) in
+                if (error != nil) {print("reverse geodcode fail: \(error!.localizedDescription)")}
+                let pm = placemarks! as [CLPlacemark]
+                if pm.count > 0 {
+                    if self.airspaces[pm[0].isoCountryCode!.lowercased()] == nil {
+                        self.airspaces[pm[0].isoCountryCode!.lowercased()] = Airspaces(countryCode: pm[0].isoCountryCode!.lowercased())//Creating airspaces obj will download file.
+                        print("Downloading airspaces: \(pm[0].isoCountryCode!.lowercased())")
+                    }
+                }
+            })
+        addAirspaceOverlays()
+    }
 
     func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
         guard !annotation.isKind(of: MKUserLocation.self) else {
@@ -197,7 +203,7 @@ extension RoutePlannerModel {
     }
 
     func mapView(_ mapView: MKMapView, annotationView view: MKAnnotationView, didChange newState: MKAnnotationView.DragState, fromOldState oldState: MKAnnotationView.DragState) {
-        if (newState == .ending) {
+        if (newState == .ending) && view is MKMarkerAnnotationView {
             //print ("Ending coordinate : \(view.annotation?.coordinate)")
             waypoints.removeAll()
             for i in mapView.annotations.indices {
@@ -222,6 +228,7 @@ extension RoutePlannerModel {
             if waypoints.count >  1 {
                 mapView.addOverlay(MKPolyline(coordinates: waypoints.map( {$0.coordinate} ), count: waypoints.count))
             }
+            view.dragState = .none //May be this is hanging the phone RTFM
         }
     }
 
@@ -307,7 +314,15 @@ extension RoutePlannerModel {
             mapView.addOverlay(cyclinderOverlay)
             waypoints.append(newWaypoint)
             if waypoints.count >  1 {
-                mapView.addOverlay(MKGeodesicPolyline(coordinates: waypoints.map( {$0.coordinate} ), count: waypoints.count))
+                var totalXC : Measurement<UnitLength> = Measurement(value: 0, unit: .meters)
+                for i in 0...waypoints.count-1{
+                    if i == 0 { continue }
+                    totalXC.value += CLLocation(latitude: waypoints[i].coordinate.latitude, longitude: waypoints[i].coordinate.longitude).distance(from: CLLocation(latitude: waypoints[i-1].coordinate.latitude, longitude: waypoints[i-1].coordinate.longitude))
+                }
+                let rte = MKGeodesicPolyline(coordinates: waypoints.map( {$0.coordinate} ), count: waypoints.count)
+                rte.title = "XC is : \(totalXC.converted(to: .miles))mi"
+                rte.subtitle = "XC is : \(totalXC.converted(to: .miles))mi"
+                mapView.addOverlay(rte)
             }
         }
     }
@@ -321,32 +336,34 @@ extension RoutePlannerModel {
                 let airspacePath = cachesURL.appending(path: "\(cC)_asp.geojson",directoryHint: .notDirectory)
                 let data = try Data(contentsOf: airspacePath)
                 airspaces = try MKGeoJSONDecoder().decode(data)
-                print ("got airspaces: \(airspaces.count)")
-                let waypointsBoundingRect = self.fiveKmileWaypointBoudingRect
+                //print ("got airspaces: \(airspaces.count)")
                 //remove previous overlays.
-                if let overl = self.airspaces[cC]?.overlays {
-                    print("removing \(self.airspaces[cC]?.overlays.count ?? 0) airspaces from the map.")
-                    self.mapView.removeOverlays(Array(overl))
+                for overlay in mapView.overlays {
+                    if overlay is MKPolygon { //Thats geometry
+                        mapView.removeOverlay(overlay)
+                    }
                 }
-                for item in airspaces {
-                    if let feature =  item as? MKGeoJSONFeature {
-                        for polygon in feature.geometry {
-                            if let airspacePolygon = polygon as? MKPolygon {
-                                if  airspacePolygon.coordinate.longitude > waypointsBoundingRect[0].longitude &&
-                                    airspacePolygon.coordinate.longitude < waypointsBoundingRect[1].longitude &&
-                                    airspacePolygon.coordinate.latitude > waypointsBoundingRect[0].latitude &&
-                                    airspacePolygon.coordinate.latitude < waypointsBoundingRect[1].latitude {
-                                    //add only if inside the radius
-                                    self.airspaces[cC]?.overlays.insert(airspacePolygon)
-                                    //self.mapView.addOverlay(airspacePolygon)
+                if mapView.region.span.latitudeDelta < 10 { // about 690miles or 600nm
+                    for item in airspaces {
+                        if let feature =  item as? MKGeoJSONFeature {
+                            for polygon in feature.geometry {
+                                if let airspacePolygon = polygon as? MKPolygon {
+                                    if  airspacePolygon.coordinate.longitude > mapView.region.center.longitude - mapView.region.span.longitudeDelta &&
+                                            airspacePolygon.coordinate.longitude < mapView.region.center.longitude + mapView.region.span.longitudeDelta &&
+                                            airspacePolygon.coordinate.latitude > mapView.region.center.latitude - mapView.region.span.latitudeDelta &&
+                                            airspacePolygon.coordinate.latitude < mapView.region.center.latitude + mapView.region.span.latitudeDelta {
+                                        //add only if inside the radius
+                                        self.airspaces[cC]?.overlays[airspacePolygon.coordinate] = airspacePolygon
+                                        //self.mapView.addOverlay(airspacePolygon)
+                                    }
                                 }
                             }
                         }
                     }
-                }
-                if let overl = self.airspaces[cC]?.overlays {
-                    print("adding \(self.airspaces[cC]?.overlays.count ?? 0) airspaces to the map.")
-                    self.mapView.addOverlays(Array(overl))
+                    if let overl = self.airspaces[cC]?.overlays {
+                        //print("adding \(self.airspaces[cC]?.overlays.count ?? 0) airspaces to the map.")
+                        self.mapView.addOverlays(overl.map{$0.value})
+                    }
                 }
             } catch {
                 print (error.localizedDescription)
@@ -659,7 +676,7 @@ extension RoutePlannerModel {
         return urlPath.absoluteString
     }
 
-    var fiveKmileWaypointBoudingRect : [CLLocationCoordinate2D] {
+    /*var fiveKmileWaypointBoudingRect : [CLLocationCoordinate2D] {
         var lx, ly, hx, hy : Double
         lx = waypoints.map{ $0.coordinate.latitude }.sorted().first ?? region.center.latitude
         ly = waypoints.map{ $0.coordinate.longitude }.sorted().first ?? region.center.longitude
@@ -673,5 +690,5 @@ extension RoutePlannerModel {
         let coLow = CLLocationCoordinate2D(latitude: lx, longitude: ly)
         let coHi = CLLocationCoordinate2D(latitude: hx, longitude: hy)
         return [coLow, coHi]
-    }
+    }*/
 }

@@ -10,7 +10,6 @@ import CoreLocation
 import MapKit
 
 class Airspaces {
-    
     //let logger = Logger(subsystem: "Tern", category: "Airspaces")
 
     // HTTP HEADERS:
@@ -24,7 +23,7 @@ class Airspaces {
     // Content-Length: 20702285
     // Content-Type: application/pdf
     var countryCode : String
-    var overlays = Set<MKPolygon>()
+    var overlays = [CLLocationCoordinate2D: MKPolygon]()
 
     // Custom URL cache with 1 GB disk storage
     lazy var cache: URLCache = {
@@ -69,5 +68,20 @@ class Airspaces {
             _ = try? FileManager.default.replaceItemAt(targetURL, withItemAt: tempURL)
         }
         downloadTask.resume()
+    }
+}
+
+extension CLLocationCoordinate2D : Hashable {
+    public static func == (lhs: CLLocationCoordinate2D, rhs: CLLocationCoordinate2D) -> Bool {
+        if lhs.longitude == rhs.longitude && lhs.latitude == rhs.latitude {
+            return true
+        } else {
+            return false
+        }
+    }
+    
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(longitude)
+        hasher.combine(latitude)
     }
 }
