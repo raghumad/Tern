@@ -88,11 +88,10 @@ class WeatherForecast {
 
     var weatherdata : [WeatherForecastData] {
         get {
-            let fmt = DateFormatter()
-            fmt.dateFormat = "HH:mm:ss"
             var weatherdata = [WeatherForecastData]()
             for i in time.indices {
-                weatherdata.append(WeatherForecastData(windspeed80m: windspeed80m[i].value, winddirection_80m: winddirection_80m[i].value, windgusts_10m: windgusts_10m[i].value, temperature_2m: temperature_2m[i].value, dewpoint_2m: dewpoint_2m[i].value, time: fmt.string(from: time[i] as Date)))
+                let hour = (Calendar.current.component(.hour, from: Date()) + Calendar.current.component(.hour, from: time[i] as Date)) % 24
+                weatherdata.append(WeatherForecastData(windspeed80m: windspeed80m[i].value, winddirection_80m: winddirection_80m[i].value, windgusts_10m: windgusts_10m[i].value, temperature_2m: temperature_2m[i].value, dewpoint_2m: dewpoint_2m[i].value, time: "\(hour)"))
             }
             return weatherdata
         }

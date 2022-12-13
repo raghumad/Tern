@@ -102,46 +102,13 @@ extension RoutePlannerModel {
                 // Make a fast exit if the annotation is the `MKUserLocation`, as it's not an annotation view we wish to customize.
                 return nil
             }
-        /*var annotationView: MKAnnotationView?
-            
-            if let annotation = annotation as? BridgeAnnotation {
-                annotationView = setupBridgeAnnotationView(for: annotation, on: mapView)
-            } else if let annotation = annotation as? CustomAnnotation {
-                annotationView = setupCustomAnnotationView(for: annotation, on: mapView)
-            } else if let annotation = annotation as? SanFranciscoAnnotation {
-                annotationView = setupSanFranciscoAnnotationView(for: annotation, on: mapView)
-            } else if let annotation = annotation as? FerryBuildingAnnotation {
-                annotationView = setupFerryBuildingAnnotationView(for: annotation, on: mapView)
-            }
-            
-            return annotationView
-         private func setupSanFranciscoAnnotationView(for annotation: SanFranciscoAnnotation, on mapView: MKMapView) -> MKAnnotationView {
-             let reuseIdentifier = NSStringFromClass(SanFranciscoAnnotation.self)
-             let flagAnnotationView = mapView.dequeueReusableAnnotationView(withIdentifier: reuseIdentifier, for: annotation)
-             
-             flagAnnotationView.canShowCallout = true
-             
-             // Provide the annotation view's image.
-             let image = #imageLiteral(resourceName: "flag")
-             flagAnnotationView.image = image
-             
-             // Provide the left image icon for the annotation.
-             flagAnnotationView.leftCalloutAccessoryView = UIImageView(image: #imageLiteral(resourceName: "sf_icon"))
-             
-             // Offset the flag annotation so that the flag pole rests on the map coordinate.
-             let offset = CGPoint(x: image.size.width / 2, y: -(image.size.height / 2) )
-             flagAnnotationView.centerOffset = offset
-             
-             return flagAnnotationView
-         }
-         let rightButton = UIButton(type: .detailDisclosure)
-         markerAnnotationView.rightCalloutAccessoryView = rightButton
+        /*
          https://stackoverflow.com/questions/30793315/customize-mkannotation-callout-view
-        }*/
+        */
         if annotation is WayPoint {
             let wptIndex = waypoints.firstIndex(of: annotation as! WayPoint) ?? 9999
             //let mkAnnotation = mapView.dequeueReusableAnnotationView(withIdentifier: "WaypointPin") ?? MKMarkerAnnotationView()
-            let marker = MKMarkerAnnotationView(annotation: waypoints[wptIndex], reuseIdentifier: "WaypointPin")
+            let marker = MKMarkerAnnotationView(annotation: waypoints[wptIndex], reuseIdentifier: MKMapViewDefaultAnnotationViewReuseIdentifier)
             //let marker = mkAnnotation as! MKMarkerAnnotationView
             marker.isDraggable = true
             marker.canShowCallout = true
