@@ -19,6 +19,7 @@
 		EF31A51F292D49F8000719DE /* TernUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF31A51E292D49F8000719DE /* TernUITests.swift */; };
 		EF31A521292D49F8000719DE /* TernUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF31A520292D49F8000719DE /* TernUITestsLaunchTests.swift */; };
 		EF31A530292D4B34000719DE /* RoutePlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF31A52F292D4B34000719DE /* RoutePlanner.swift */; };
+		EF5EF39B2948FACB0070A5BB /* WaypointCalloutImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF5EF39A2948FACB0070A5BB /* WaypointCalloutImage.swift */; };
 		EF6C26F1293B131B00735B40 /* RoutePlannerModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF6C26F0293B131B00735B40 /* RoutePlannerModel.swift */; };
 		EF6C26F5293B13E100735B40 /* WayPoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF6C26F4293B13E100735B40 /* WayPoint.swift */; };
 		EF797F58292E097B0004B5B4 /* SwiftyJSON in Frameworks */ = {isa = PBXBuildFile; productRef = EF797F57292E097B0004B5B4 /* SwiftyJSON */; };
@@ -64,6 +65,7 @@
 		EF31A51E292D49F8000719DE /* TernUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TernUITests.swift; sourceTree = "<group>"; };
 		EF31A520292D49F8000719DE /* TernUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TernUITestsLaunchTests.swift; sourceTree = "<group>"; };
 		EF31A52F292D4B34000719DE /* RoutePlanner.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RoutePlanner.swift; sourceTree = "<group>"; };
+		EF5EF39A2948FACB0070A5BB /* WaypointCalloutImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WaypointCalloutImage.swift; sourceTree = "<group>"; };
 		EF6C26F0293B131B00735B40 /* RoutePlannerModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutePlannerModel.swift; sourceTree = "<group>"; };
 		EF6C26F4293B13E100735B40 /* WayPoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WayPoint.swift; sourceTree = "<group>"; };
 		EFAC18AC293FF6990045B1FF /* EditWaypoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditWaypoint.swift; sourceTree = "<group>"; };
@@ -103,6 +105,7 @@
 		EF0EAC81293C081900A877DD /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				EF5EF39A2948FACB0070A5BB /* WaypointCalloutImage.swift */,
 				EF31A52F292D4B34000719DE /* RoutePlanner.swift */,
 				EF31A4FF292D49F7000719DE /* ContentView.swift */,
 				EF0EAC85293C79F900A877DD /* WayPointAnnotationCallout.swift */,
@@ -329,6 +332,7 @@
 				EFEF03B62942C27600912949 /* qrCode.swift in Sources */,
 				EF31A500292D49F7000719DE /* ContentView.swift in Sources */,
 				EFAC18AD293FF6990045B1FF /* EditWaypoint.swift in Sources */,
+				EF5EF39B2948FACB0070A5BB /* WaypointCalloutImage.swift in Sources */,
 				EF0EAC84293C091D00A877DD /* RoutePlannerMapViewHelper.swift in Sources */,
 				EF25C60C2944F0C6001EB8D1 /* Airspaces.swift in Sources */,
 				EF31A50A292D49F8000719DE /* Tern.xcdatamodeld in Sources */,
