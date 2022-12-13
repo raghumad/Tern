@@ -508,16 +508,11 @@ extension RoutePlannerModel {
            "e":    number, optional, 0 (wgs84, default), 1(fai sphere)
          }
          */
-        var xctsk = JSON()
         var xctskData = "{"
-        xctsk["taskType"] = "CLASSIC" //taskType - the type of task used, right now only type CLASSIC is used - for other task types different set of the following attributes can be defined
         xctskData.append("\"taskType\":\"CLASSIC\",")
-        xctsk["version"] = 2 //version natural number corresponding to the version of the format for specific taskType - now fixed to 1
         xctskData.append("\"version\":\"2\",")
-        xctsk["t"] = JSON()
         xctskData.append("\"t\":")
         if waypoints.count > 0 {
-            var wptJ = JSON()
             xctskData.append("[")
             for i in waypoints.indices {
                 xctskData.append("{")
@@ -531,28 +526,15 @@ extension RoutePlannerModel {
                 encpoly.append(encodeSingleInteger(Int(waypoints[i].cylinderRadius.converted(to: .meters).value)))
                 print(encodeSingleInteger(Int(waypoints[i].cylinderRadius.converted(to: .meters).value)))
                 
-                /*var intcoord = Int(waypoints[i].coordinate.longitude*100000)
-                encpoly.append(encodeSingleInteger(intcoord))
-                print(encodeSingleInteger(intcoord))
-                intcoord = Int(waypoints[i].coordinate.latitude*100000)
-                encpoly.append(encodeSingleInteger(intcoord))
-                print(encodeSingleInteger(intcoord))*/
-                
-                wptJ["z"].stringValue = encpoly
                 xctskData.append("\"z\":\"\(encpoly)\",")
-                wptJ["n"].stringValue = waypoints[i].title! //waypoints[i].title? "WPT\(i)"
                 xctskData.append("\"n\":\"\(waypoints[i].title!)\",")
-                wptJ["d"].stringValue = waypoints[i].subtitle!
                 xctskData.append("\"d\":\"\(waypoints[i].subtitle!)\"")
                 if i == 0 {
-                    wptJ["t"] = 2 //"SSS"
                     xctskData.append(",\"t\":\"2\"")
                 }
                 if i == waypoints.count-1 {
-                    wptJ = 3 // "ESS"
                     xctskData.append(",\"t\":\"3\"")
                 }
-                xctsk["t"][i] = wptJ
                 if i == waypoints.count-1 {
                     xctskData.append("}")
                 } else {
@@ -561,7 +543,6 @@ extension RoutePlannerModel {
             }
             xctskData.append("],")
         }
-        xctsk["e"] = 0 //Always WGS84
         xctskData.append("\"e\":\"0\"")
         xctskData.append("}")
         print(xctskData)
