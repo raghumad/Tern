@@ -5,7 +5,6 @@
 //  Created by Raghu Madanala on 12/5/22.
 //
 
-import Foundation
 import SwiftyJSON
 import CoreLocation
 struct WeatherForecastData: Identifiable {

@@ -5,11 +5,9 @@
 //  Created by Raghu Madanala on 12/2/22.
 //
 
-import Foundation
 import CoreLocation
 import MapKit
 import SwiftUI
-import UniformTypeIdentifiers
 import SwiftyJSON
 import Polyline
 
@@ -74,10 +72,6 @@ extension RoutePlannerModel {
 
 extension RoutePlannerModel {
     //MARK: MapViewDelegates
-
-//    optional func mapView(_ mapView: MKMapView, annotationView view: MKAnnotationView, calloutAccessoryControlTapped control: UIControl) {
-//
-//    }
 
     func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
         CLGeocoder().reverseGeocodeLocation(
