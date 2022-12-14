@@ -155,9 +155,46 @@ extension RoutePlannerModel {
         }
         if overlay is MKPolygon {
             let renderer = MKPolygonRenderer(polygon: overlay as! MKPolygon)
-            renderer.fillColor = .red
-            renderer.alpha = 0.2
-            renderer.strokeColor = .red
+            for country in self.airspaces.keys {
+                let json = try! JSON(data: (self.airspaces[country]?.airspace[overlay.coordinate]?.properties)!)
+                switch json["icaoClass"].intValue {
+                case 1,2,3,4:
+                    renderer.fillColor = .red
+                    renderer.alpha = 1 / (2 * CGFloat(json["icaoClass"].intValue))
+                    renderer.strokeColor = .red
+                    break
+                case 8:
+                    switch json["type"].intValue {
+                    case 1:
+                        //renderer.polygon.title = json["name"].stringValue
+                        //renderer.polygon.subtitle = "Restricted"
+                        renderer.fillColor = .red
+                        renderer.alpha = 0.4
+                        renderer.strokeColor = .black
+                        renderer.lineWidth = 4
+                        break
+                    case 2:
+                        renderer.fillColor = .systemOrange
+                        renderer.alpha = 0.4
+                        renderer.lineWidth = 1
+                        renderer.strokeColor = .clear
+                    case 28,21:
+                        renderer.fillColor = .systemGreen
+                        renderer.alpha = 0.2
+                        renderer.strokeColor = .systemGreen
+                        renderer.lineWidth = 2
+                        break
+                    default:
+                        //renderer.polygon.title = "Other"
+                        renderer.strokeColor = .lightGray
+                        renderer.fillColor = .clear
+                        renderer.lineWidth = 1
+                    }
+                    break
+                default:
+                    break
+                }
+            }
             return renderer
         }
         return MKOverlayRenderer(overlay: overlay)
@@ -307,23 +344,22 @@ extension RoutePlannerModel {
                 if mapView.region.span.latitudeDelta < 10 { // about 690miles or 600nm
                     for item in airspaces {
                         if let feature =  item as? MKGeoJSONFeature {
-                            for polygon in feature.geometry {
-                                if let airspacePolygon = polygon as? MKPolygon {
-                                    if  airspacePolygon.coordinate.longitude > mapView.region.center.longitude - mapView.region.span.longitudeDelta &&
-                                            airspacePolygon.coordinate.longitude < mapView.region.center.longitude + mapView.region.span.longitudeDelta &&
-                                            airspacePolygon.coordinate.latitude > mapView.region.center.latitude - mapView.region.span.latitudeDelta &&
-                                            airspacePolygon.coordinate.latitude < mapView.region.center.latitude + mapView.region.span.latitudeDelta {
-                                        //add only if inside the radius
-                                        self.airspaces[cC]?.overlays[airspacePolygon.coordinate] = airspacePolygon
-                                        //self.mapView.addOverlay(airspacePolygon)
+                            let feaureProperties = try! JSON(data: feature.properties!)
+                            if feaureProperties["icaoClass"].intValue < 4 || feaureProperties["icaoClass"].intValue == 8{ //only EFGandUncliassified
+                                for polygon in feature.geometry {
+                                    if let airspacePolygon = polygon as? MKPolygon {
+                                        if  airspacePolygon.coordinate.longitude > mapView.region.center.longitude - mapView.region.span.longitudeDelta &&
+                                                airspacePolygon.coordinate.longitude < mapView.region.center.longitude + mapView.region.span.longitudeDelta &&
+                                                airspacePolygon.coordinate.latitude > mapView.region.center.latitude - mapView.region.span.latitudeDelta &&
+                                                airspacePolygon.coordinate.latitude < mapView.region.center.latitude + mapView.region.span.latitudeDelta {
+                                            //add only if inside the radius
+                                            self.airspaces[cC]?.airspace[airspacePolygon.coordinate] = feature
+                                            self.mapView.addOverlay(airspacePolygon)
+                                        }
                                     }
                                 }
                             }
                         }
-                    }
-                    if let overl = self.airspaces[cC]?.overlays {
-                        //print("adding \(self.airspaces[cC]?.overlays.count ?? 0) airspaces to the map.")
-                        self.mapView.addOverlays(overl.map{$0.value})
                     }
                 }
             } catch {
