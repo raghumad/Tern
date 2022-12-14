@@ -105,10 +105,10 @@
 		EF0EAC81293C081900A877DD /* Views */ = {
 			isa = PBXGroup;
 			children = (
-				EF5EF39A2948FACB0070A5BB /* WaypointCalloutImage.swift */,
 				EF31A52F292D4B34000719DE /* RoutePlanner.swift */,
 				EF31A4FF292D49F7000719DE /* ContentView.swift */,
 				EF0EAC85293C79F900A877DD /* WayPointAnnotationCallout.swift */,
+				EF5EF39A2948FACB0070A5BB /* WaypointCalloutImage.swift */,
 				EFAC18AC293FF6990045B1FF /* EditWaypoint.swift */,
 				EFEF03B52942C27600912949 /* qrCode.swift */,
 			);

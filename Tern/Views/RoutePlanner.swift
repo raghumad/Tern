@@ -16,11 +16,6 @@ struct RoutePlanner: View {
         ZStack(alignment: .center){
             RoutePlannerMapViewHelper(manager: model)
             .ignoresSafeArea()
-//            Image(systemName: "mappin.and.ellipse")
-//                .offset(y:-5)
-//            VStack(alignment: .trailing) {
-//                
-//            }
             VStack{
                 Spacer()
                 HStack(alignment: .bottom){ //Everything in this stack will be white and title2 size.

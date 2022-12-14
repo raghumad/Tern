@@ -47,7 +47,7 @@ class Airspaces {
         let airspaceURL = URL(string: "https://storage.googleapis.com/29f98e10-a489-4c82-ae5e-489dbcd4912f/\(self.countryCode)_asp.geojson")!
         let targetURL = cacheURL.appendingPathComponent(airspaceURL.lastPathComponent)
         downloadFile(remoteURL: airspaceURL, targetURL: targetURL)
-        print("Downloading airspaces to \(targetURL)")
+        //print("Downloading airspaces to \(targetURL)")
     }
 
     func downloadFile(remoteURL: URL, targetURL: URL) {
