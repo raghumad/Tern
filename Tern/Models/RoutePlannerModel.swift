@@ -84,7 +84,7 @@ extension RoutePlannerModel {
                 if pm.count > 0 {
                     if self.airspaces[pm[0].isoCountryCode!.lowercased()] == nil {
                         self.airspaces[pm[0].isoCountryCode!.lowercased()] = Airspaces(countryCode: pm[0].isoCountryCode!.lowercased())//Creating airspaces obj will download file.
-                        print("Downloading airspaces: \(pm[0].isoCountryCode!.lowercased())")
+                        //print("Downloading airspaces: \(pm[0].isoCountryCode!.lowercased())")
                     }
                 }
             })
