@@ -24,14 +24,14 @@ struct WaypointCalloutImage: View {
             HStack {
                 HStack {
                     Image(systemName: "cylinder")
-                    Text("\(String(waypoint.cylinderRadius.converted(to: .meters).value.exponent))m")
+                    Text("\(String(waypoint.cylinderRadius.converted(to: .meters).value))m")
                 }
                 .foregroundColor(.white)
                 .background(Color.blue)
                 .cornerRadius(5, antialiased: true)
                 HStack{
                     Image(systemName: "figure.climbing")
-                    Text("\(waypoint.elevation.converted(to: .feet).value.exponent)ft")
+                    Text("\(String(format:"%0.1f",waypoint.elevation.converted(to: .feet).value))ft")
                 }
                 .foregroundColor(.white)
                 .background(Color.blue)
@@ -43,14 +43,14 @@ struct WaypointCalloutImage: View {
                     HStack {
                         Image(systemName: "arrow.up.circle")
                             .rotationEffect(.degrees(waypoint.weatherForecast.winddirection_80m[0].converted(to: .degrees).value))
-                        Text("\(waypoint.weatherForecast.windspeed80m[0].value.exponent)mph")
+                        Text("\(String(format: "%0.1f", waypoint.weatherForecast.windspeed80m[0].value))mph")
                     }
                     .foregroundColor(.white)
                     .background(Color.blue)
                     .cornerRadius(5, antialiased: true)
                     HStack {
-                        Image(systemName: "wind.circle")
-                        Text("\(waypoint.weatherForecast.windgusts_10m[0].value.exponent)mph")
+                        Image(systemName: "tornado.circle")
+                        Text("\(String(format: "%0.1f", waypoint.weatherForecast.windgusts_10m[0].value))mph")
                     }
                     .foregroundColor(.white)
                     .background(Color.blue)
