@@ -13,22 +13,24 @@ import Polyline
 
 class RoutePlannerModel : NSObject, CLLocationManagerDelegate, ObservableObject, MKMapViewDelegate, UIGestureRecognizerDelegate {
     //38.9121906016191, -104.72783900204881
-    @Published var region : MKCoordinateRegion = .init()
-    @Published var waypoints: [WayPoint] = .init()
+    var region : MKCoordinateRegion = .init()
+    var waypoints: [WayPoint] = .init()
     
     @Published var shareRoute : Bool = false
-    @Published var shareItems : [Any] = .init()
+    var shareItems : [Any] = .init()
 
     private let locationManager : CLLocationManager = .init()
-    @Published var mapView: MKMapView = .init()
+    var mapView: MKMapView = .init()
 
-    @Published var airspaces : [String:Airspaces] = .init()
+    var airspaces : [String:Airspaces] = .init()
 
     override init() {
         super.init()
         locationManager.delegate = self
         mapView.delegate = self
         mapView.showsUserLocation = true
+        mapView.showsCompass = true
+        mapView.showsScale = true
         //locationManager.startUpdatingLocation()
         //locationManager.startMonitoring(for: CLRegion())
     }
@@ -64,7 +66,7 @@ extension RoutePlannerModel {
         guard let location = locations.last else {return}
         DispatchQueue.main.async {
             //print ("latest location in didUpdateLocations: \(location.coordinate)")
-            self.region = MKCoordinateRegion(center: location.coordinate, latitudinalMeters: 25000, longitudinalMeters: 25000)
+            self.region = MKCoordinateRegion(center: location.coordinate, latitudinalMeters: 50000, longitudinalMeters: 50000)
             self.mapView.setRegion(self.region, animated: true)
         }
     }
@@ -74,21 +76,27 @@ extension RoutePlannerModel {
     //MARK: MapViewDelegates
 
     func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
-        CLGeocoder().reverseGeocodeLocation(
-            CLLocation(
-                latitude: mapView.region.center.latitude,
-                longitude: mapView.region.center.longitude),
-            completionHandler: {(placemarks, error) in
-                if (error != nil) {print("reverse geodcode fail: \(error!.localizedDescription)")}
-                let pm = placemarks! as [CLPlacemark]
-                if pm.count > 0 {
-                    if self.airspaces[pm[0].isoCountryCode!.lowercased()] == nil {
-                        self.airspaces[pm[0].isoCountryCode!.lowercased()] = Airspaces(countryCode: pm[0].isoCountryCode!.lowercased())//Creating airspaces obj will download file.
-                        //print("Downloading airspaces: \(pm[0].isoCountryCode!.lowercased())")
+        if mapView.region.span.latitudeDelta < 10 && mapView.region.span.longitudeDelta < 10 { //download only when zoomed in
+            CLGeocoder().reverseGeocodeLocation(
+                CLLocation(
+                    latitude: mapView.region.center.latitude,
+                    longitude: mapView.region.center.longitude),
+                completionHandler: {(placemarks, error) in
+                    if (error != nil) {print("reverse geodcode fail: \(error!.localizedDescription)")}
+                    let pm = placemarks! as [CLPlacemark]
+                    if pm.count > 0 {
+                        if pm[0].isoCountryCode != nil && !self.airspaces.keys.contains((pm[0].isoCountryCode?.lowercased())!){
+                            self.airspaces[pm[0].isoCountryCode!.lowercased()] = Airspaces(countryCode: pm[0].isoCountryCode!.lowercased())//Creating airspaces obj will download file.
+                            //print("Downloading airspaces: \(pm[0].isoCountryCode!.lowercased())")
+                        }
                     }
-                }
-            })
-        addAirspaceOverlays()
+                })
+            if mapView.overlays.count > 500 {mapView.removeOverlays(mapView.overlays)}
+            addAirspaceOverlays()
+        } else {
+            //remove overlays when zoomed out
+            mapView.removeOverlays(mapView.overlays) // remove all overlays if >10 includin circles
+        }
     }
 
     func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
@@ -154,48 +162,53 @@ extension RoutePlannerModel {
             return renderer
         }
         if overlay is MKPolygon {
-            let renderer = MKPolygonRenderer(polygon: overlay as! MKPolygon)
             for country in self.airspaces.keys {
-                let json = try! JSON(data: (self.airspaces[country]?.airspace[overlay.coordinate]?.properties)!)
-                switch json["icaoClass"].intValue {
-                case 1,2,3,4:
-                    renderer.fillColor = .red
-                    renderer.alpha = 1 / (2 * CGFloat(json["icaoClass"].intValue))
-                    renderer.strokeColor = .red
-                    break
-                case 8:
-                    switch json["type"].intValue {
-                    case 1:
-                        //renderer.polygon.title = json["name"].stringValue
-                        //renderer.polygon.subtitle = "Restricted"
+                if self.airspaces[country]?.airspace[overlay.coordinate] != nil {
+                    let json = try! JSON(data: (self.airspaces[country]?.airspace[overlay.coordinate]?.properties)!)
+                    switch json["icaoClass"].intValue {
+                    case 1,2,3,4:
+                        let renderer = MKPolygonRenderer(polygon: overlay as! MKPolygon)
                         renderer.fillColor = .red
-                        renderer.alpha = 0.4
-                        renderer.strokeColor = .black
-                        renderer.lineWidth = 4
-                        break
-                    case 2:
-                        renderer.fillColor = .systemOrange
-                        renderer.alpha = 0.4
-                        renderer.lineWidth = 1
-                        renderer.strokeColor = .clear
-                    case 28,21:
-                        renderer.fillColor = .systemGreen
-                        renderer.alpha = 0.2
-                        renderer.strokeColor = .systemGreen
-                        renderer.lineWidth = 2
+                        renderer.alpha = 1 / (2 * CGFloat(json["icaoClass"].intValue))
+                        renderer.strokeColor = .red
+                        return renderer
+                    case 8:
+                        switch json["type"].intValue {
+                        case 1:
+                            let renderer = MKPolygonRenderer(polygon: overlay as! MKPolygon)
+                            //renderer.polygon.title = json["name"].stringValue
+                            //renderer.polygon.subtitle = "Restricted"
+                            renderer.fillColor = .red
+                            renderer.alpha = 0.4
+                            renderer.strokeColor = .black
+                            renderer.lineWidth = 4
+                            return renderer
+                        case 2:
+                            let renderer = MKPolygonRenderer(polygon: overlay as! MKPolygon)
+                            renderer.fillColor = .systemOrange
+                            renderer.alpha = 0.4
+                            renderer.lineWidth = 1
+                            renderer.strokeColor = .clear
+                            return renderer
+                        /*case 28,21:
+                            renderer.fillColor = .systemGreen
+                            renderer.alpha = 0.2
+                            renderer.strokeColor = .systemGreen
+                            renderer.lineWidth = 2
+                            break */
+                        default:
+//                            renderer.polygon.title = "Other"
+//                            renderer.strokeColor = .lightGray
+//                            renderer.fillColor = .clear
+//                            renderer.lineWidth = 1
+                            break
+                        }
                         break
                     default:
-                        //renderer.polygon.title = "Other"
-                        renderer.strokeColor = .lightGray
-                        renderer.fillColor = .clear
-                        renderer.lineWidth = 1
+                        break
                     }
-                    break
-                default:
-                    break
                 }
             }
-            return renderer
         }
         return MKOverlayRenderer(overlay: overlay)
     }
@@ -294,7 +307,6 @@ extension RoutePlannerModel {
     }
 
     func addWaypoint(coordinate: CLLocationCoordinate2D){
-        self.addAirspaceOverlays()
         let newWaypoint = WayPoint(coordinate: coordinate)
         if (!waypoints.contains(where: {$0.isNear(newPt: newWaypoint)})) {//dont instert waypoints are kissing
             Task {
@@ -335,12 +347,6 @@ extension RoutePlannerModel {
                 let data = try Data(contentsOf: airspacePath)
                 airspaces = try MKGeoJSONDecoder().decode(data)
                 //print ("got airspaces: \(airspaces.count)")
-                //remove previous overlays.
-                for overlay in mapView.overlays {
-                    if overlay is MKPolygon { //Thats geometry
-                        mapView.removeOverlay(overlay)
-                    }
-                }
                 if mapView.region.span.latitudeDelta < 10 { // about 690miles or 600nm
                     for item in airspaces {
                         if let feature =  item as? MKGeoJSONFeature {
@@ -352,9 +358,11 @@ extension RoutePlannerModel {
                                                 airspacePolygon.coordinate.longitude < mapView.region.center.longitude + mapView.region.span.longitudeDelta &&
                                                 airspacePolygon.coordinate.latitude > mapView.region.center.latitude - mapView.region.span.latitudeDelta &&
                                                 airspacePolygon.coordinate.latitude < mapView.region.center.latitude + mapView.region.span.latitudeDelta {
-                                            //add only if inside the radius
-                                            self.airspaces[cC]?.airspace[airspacePolygon.coordinate] = feature
-                                            self.mapView.addOverlay(airspacePolygon)
+                                            //add only if inside the radius.
+                                            self.airspaces[cC]?.airspace[airspacePolygon.coordinate] = feature // Add only abcd and other.
+                                            if self.mapView.overlays.firstIndex(where: { $0.coordinate == airspacePolygon.coordinate }) == nil { //only add if not added before
+                                                self.mapView.addOverlay(airspacePolygon)
+                                            }
                                         }
                                     }
                                 }
@@ -366,6 +374,14 @@ extension RoutePlannerModel {
                 print (error.localizedDescription)
             }
         }
+    }
+
+    func addHotspots(){
+        //https://thermal.kk7.ch/api/hotspots/cup/all_all/36.862,-112.819,41.295,-96.668
+        //https://thermal.kk7.ch/api/hotspots/csv/all_all/25.681,-133.375,53.305,-68.774
+        //https://thermal.kk7.ch/api/hotspots/gpx/all_all/36.862,-112.819,41.295,-96.668
+        //https://github.com/FlineDev/CSVImporter
+        //https://www.paraglidingforum.com/leonardo/download.php?type=sites&sites=34736,58036,
     }
 
     func saveCUP() -> String{

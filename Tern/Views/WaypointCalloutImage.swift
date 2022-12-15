@@ -31,7 +31,7 @@ struct WaypointCalloutImage: View {
                 .cornerRadius(5, antialiased: true)
                 HStack{
                     Image(systemName: "figure.climbing")
-                    Text("\(String(format:"%0.1f",waypoint.elevation.converted(to: .feet).value))ft")
+                    Text("\(String(format:"%0.0f",waypoint.elevation.converted(to: .feet).value))ft")
                 }
                 .foregroundColor(.white)
                 .background(Color.blue)

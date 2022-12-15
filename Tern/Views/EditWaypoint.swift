@@ -33,7 +33,7 @@ struct EditWaypoint: View {
         if model.waypoints.count >  1 {
             model.mapView.addOverlay(MKGeodesicPolyline(coordinates: model.waypoints.map( {$0.coordinate} ), count: model.waypoints.count))
         }
-        model.mapView.setRegion(MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: latitude, longitude: longitude), latitudinalMeters: 50000, longitudinalMeters: 50000), animated: true)
+        //model.mapView.setRegion(MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: latitude, longitude: longitude), latitudinalMeters: 50000, longitudinalMeters: 50000), animated: true)
         editWaypoint.toggle()
     }
 
@@ -75,7 +75,7 @@ struct EditWaypoint: View {
                     .keyboardType(.numberPad)
                     .frame(width: 50)
                 Image(systemName: "figure.climbing")
-                Text("\(waypoint.elevation.converted(to: .feet).value.exponent)ft")
+                Text("\(String(format: "%0.0f", waypoint.elevation.converted(to: .feet).value))ft")
                 Spacer()
             }
             ZStack{

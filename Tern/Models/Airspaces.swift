@@ -22,7 +22,7 @@ class Airspaces {
     // Content-Length: 20702285
     // Content-Type: application/pdf
     var countryCode : String
-    var airspace = [CLLocationCoordinate2D: MKGeoJSONFeature]()
+    lazy var airspace = [CLLocationCoordinate2D: MKGeoJSONFeature]()
 
     // Custom URL cache with 1 GB disk storage
     lazy var cache: URLCache = {
