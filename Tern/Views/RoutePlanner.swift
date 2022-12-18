@@ -18,15 +18,15 @@ struct RoutePlanner: View {
             .ignoresSafeArea()
             VStack{
                 Spacer()
-                HStack(alignment: .bottom){ //Everything in this stack will be white and title2 size.
+                HStack{ //Everything in this stack will be white and title2 size.
                     Spacer()
-                    HStack (spacing: 10){
+                    HStack{
                         Button{
                             model.addWaypoint(coordinate: model.mapView.centerCoordinate)
                         } label: {
-                            Image(systemName: "point.3.connected.trianglepath.dotted")
-                                .rotationEffect(.degrees(30))
-                        }.padding(.trailing, 10)
+                            Image(systemName: "point.filled.topleft.down.curvedto.point.bottomright.up")
+                        }.padding(5)
+                        Divider().overlay(.white)
                         Button{
                             //We open a menu here so nothing doing.
                         } label: {
@@ -87,16 +87,17 @@ struct RoutePlanner: View {
                                     }
                                 }
                             } label: {
-                                Image(systemName: "doc.badge.arrow.up")
+                                Image(systemName: "square.and.arrow.up.on.square")
                             }
-                        }
+                        }.padding(5)
                     }
-                    .padding(5)
-                    .background(.blue.opacity(0.9))
+                    .foregroundColor(.white)
+                    .font(.title2) // This size looks better.
+                    .padding(0)
+                    .background(.gray)
                     .cornerRadius(8)
+                    .fixedSize()
                 }
-                .foregroundColor(.white)
-                .font(.title2) // This size looks better.
             }
             .sheet(isPresented: $model.shareRoute) {
                 ShareSheet(items: $model.shareItems)
