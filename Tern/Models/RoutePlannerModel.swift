@@ -15,13 +15,10 @@ class RoutePlannerModel : NSObject, CLLocationManagerDelegate, ObservableObject,
     //38.9121906016191, -104.72783900204881
     var region : MKCoordinateRegion = .init()
     var waypoints: [WayPoint] = .init()
-    
     @Published var shareRoute : Bool = false
     var shareItems : [Any] = .init()
-
     private let locationManager : CLLocationManager = .init()
     var mapView: MKMapView = .init()
-
     var airspaces : [String:Airspaces] = .init()
 
     override init() {
@@ -35,6 +32,7 @@ class RoutePlannerModel : NSObject, CLLocationManagerDelegate, ObservableObject,
         mapView.showsBuildings = false
         mapView.pointOfInterestFilter = .excludingAll
         mapView.showsTraffic = false
+        mapView.mapType = .hybridFlyover
         //locationManager.startUpdatingLocation()
         //locationManager.startMonitoring(for: CLRegion())
     }
@@ -108,16 +106,11 @@ extension RoutePlannerModel {
                 // Make a fast exit if the annotation is the `MKUserLocation`, as it's not an annotation view we wish to customize.
                 return nil
             }
-        /*
-         https://stackoverflow.com/questions/30793315/customize-mkannotation-callout-view
+        /*https://stackoverflow.com/questions/30793315/customize-mkannotation-callout-view
         */
         if annotation is WayPoint {
             let wptIndex = waypoints.firstIndex(of: annotation as! WayPoint) ?? 9999
-            //let mkAnnotation = mapView.dequeueReusableAnnotationView(withIdentifier: "WaypointPin") ?? MKMarkerAnnotationView()
-            if wptIndex<9999 {
-                
-let marker = MKMarkerAnnotationView(annotation: waypoints[wptIndex], reuseIdentifier: MKMapViewDefaultAnnotationViewReuseIdentifier)
-            //let marker = mkAnnotation as! MKMarkerAnnotationView
+            let marker = MKMarkerAnnotationView(annotation: annotation as? WayPoint, reuseIdentifier: MKMapViewDefaultAnnotationViewReuseIdentifier)
             marker.isDraggable = true
             marker.canShowCallout = true
             if wptIndex != 9999 && wptIndex < 51 {
@@ -127,10 +120,10 @@ let marker = MKMarkerAnnotationView(annotation: waypoints[wptIndex], reuseIdenti
             }
             marker.markerTintColor = .systemBlue
             marker.animatesWhenAdded = true
-            marker.annotation = waypoints[wptIndex]
+            marker.annotation = annotation
             
             //marker.selectedGlyphImage = UIImage(systemName: "mappin.and.ellipse")
-            let wpc = WayPointAnnotationCallout(waypoint: waypoints[wptIndex]).environmentObject(self)
+            let wpc = WayPointAnnotationCallout(waypoint: annotation as! WayPoint).environmentObject(self)
             let callout = UIHostingController(rootView: wpc)
             
             //detailCalloutAccessoryView is hanging so we create an image and pass it instead.
