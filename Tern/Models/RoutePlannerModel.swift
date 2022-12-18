@@ -31,6 +31,10 @@ class RoutePlannerModel : NSObject, CLLocationManagerDelegate, ObservableObject,
         mapView.showsUserLocation = true
         mapView.showsCompass = true
         mapView.showsScale = true
+        mapView.preferredConfiguration.elevationStyle = .realistic
+        mapView.showsBuildings = false
+        mapView.pointOfInterestFilter = .excludingAll
+        mapView.showsTraffic = false
         //locationManager.startUpdatingLocation()
         //locationManager.startMonitoring(for: CLRegion())
     }
@@ -110,7 +114,9 @@ extension RoutePlannerModel {
         if annotation is WayPoint {
             let wptIndex = waypoints.firstIndex(of: annotation as! WayPoint) ?? 9999
             //let mkAnnotation = mapView.dequeueReusableAnnotationView(withIdentifier: "WaypointPin") ?? MKMarkerAnnotationView()
-            let marker = MKMarkerAnnotationView(annotation: waypoints[wptIndex], reuseIdentifier: MKMapViewDefaultAnnotationViewReuseIdentifier)
+            if wptIndex<9999 {
+                
+let marker = MKMarkerAnnotationView(annotation: waypoints[wptIndex], reuseIdentifier: MKMapViewDefaultAnnotationViewReuseIdentifier)
             //let marker = mkAnnotation as! MKMarkerAnnotationView
             marker.isDraggable = true
             marker.canShowCallout = true
