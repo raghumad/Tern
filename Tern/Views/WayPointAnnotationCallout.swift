@@ -22,7 +22,15 @@ struct WayPointAnnotationCallout : View {
             Image(uiImage: renderer.uiImage!)
         }
         .sheet(isPresented: $editWaypoint) {
-            EditWaypoint(waypoint: waypoint, editWaypoint: $editWaypoint, waypointName: waypoint.title ?? "", latitude: waypoint.coordinate.latitude, longitude: waypoint.coordinate.longitude, cylinderRadius: waypoint.cylinderRadius, waypointDescription: waypoint.subtitle!).environmentObject(model)
+            EditWaypoint(
+                waypoint: waypoint,
+                editWaypoint: $editWaypoint,
+                waypointName: waypoint.title ?? "",
+                latitude: waypoint.coordinate.latitude,
+                longitude: waypoint.coordinate.longitude,
+                cylinderRadius: waypoint.cylinderRadius,
+                waypointDescription: waypoint.subtitle!
+            ).environmentObject(model)
          .presentationDetents([.fraction(0.8)])
          .presentationDragIndicator(.visible)
          }

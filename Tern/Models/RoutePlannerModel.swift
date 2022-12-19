@@ -20,6 +20,18 @@ class RoutePlannerModel : NSObject, CLLocationManagerDelegate, ObservableObject,
     private let locationManager : CLLocationManager = .init()
     var mapView: MKMapView = .init()
     var airspaces : [String:Airspaces] = .init()
+    var totalXC : Measurement<UnitLength> {
+        get {
+            var xc : Measurement<UnitLength> = Measurement(value: 0, unit: .meters)
+            if waypoints.count > 1 {
+                for i in 0...waypoints.count-1{
+                    if i == 0 { continue }
+                    xc.value += CLLocation(latitude: waypoints[i].coordinate.latitude, longitude: waypoints[i].coordinate.longitude).distance(from: CLLocation(latitude: waypoints[i-1].coordinate.latitude, longitude: waypoints[i-1].coordinate.longitude))
+                }
+            }
+            return xc
+        }
+    }
 
     override init() {
         super.init()
@@ -137,6 +149,15 @@ extension RoutePlannerModel {
             //marker.rightCalloutAccessoryView = callout.view
             return marker
         }
+        if annotation is TextAnnotation {
+            let marker = MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: MKMapViewDefaultAnnotationViewReuseIdentifier)
+            marker.glyphImage = UIImage(systemName: "")
+            marker.annotation = annotation
+            marker.glyphTintColor = .clear
+            marker.tintColor = .clear
+            marker.markerTintColor = .clear
+            return marker
+        }
         return MKAnnotationView()
     }
 
@@ -224,7 +245,7 @@ extension RoutePlannerModel {
                 }
             }
             waypoints.sort() // Always ordered
-            mapView.removeAnnotations(waypoints)
+            mapView.removeAnnotations(mapView.annotations) // Remove all annotations.
             for overlay in mapView.overlays {
                 if overlay is MKCircle || overlay is MKPolyline {
                     mapView.removeOverlay(overlay)
@@ -236,9 +257,17 @@ extension RoutePlannerModel {
                 mapView.addOverlay(cyclinderOverlay)
             }
             if waypoints.count >  1 {
-                mapView.addOverlay(MKPolyline(coordinates: waypoints.map( {$0.coordinate} ), count: waypoints.count))
+                let rte = MKGeodesicPolyline(coordinates: waypoints.map( {$0.coordinate} ), count: waypoints.count)
+                mapView.addOverlay(rte)
+                let rteLabel = TextAnnotation()
+                rteLabel.coordinate = rte.coordinate
+                rteLabel.title = String(format: "%0.1fkm", totalXC.converted(to: .kilometers).value)
+                rteLabel.subtitle = "Total XC Distance"
+                mapView.addAnnotation(rteLabel)
             }
             view.dragState = .none //May be this is hanging the phone RTFM
+
+            updateXCRoute()
         }
     }
 
@@ -323,17 +352,42 @@ extension RoutePlannerModel {
             mapView.addOverlay(cyclinderOverlay)
             waypoints.append(newWaypoint)
             if waypoints.count >  1 {
-                var totalXC : Measurement<UnitLength> = Measurement(value: 0, unit: .meters)
-                for i in 0...waypoints.count-1{
-                    if i == 0 { continue }
-                    totalXC.value += CLLocation(latitude: waypoints[i].coordinate.latitude, longitude: waypoints[i].coordinate.longitude).distance(from: CLLocation(latitude: waypoints[i-1].coordinate.latitude, longitude: waypoints[i-1].coordinate.longitude))
-                }
                 let rte = MKGeodesicPolyline(coordinates: waypoints.map( {$0.coordinate} ), count: waypoints.count)
-                rte.title = "XC is : \(totalXC.converted(to: .miles))mi"
-                rte.subtitle = "XC is : \(totalXC.converted(to: .miles))mi"
                 mapView.addOverlay(rte)
+                //Remove leg distances
+                for legDist in mapView.annotations {
+                    if legDist is TextAnnotation {
+                        mapView.removeAnnotation(legDist)
+                    }
+                }
+                //Add total xc distance
+                let xcDistance = TextAnnotation()
+                xcDistance.coordinate = rte.coordinate
+                xcDistance.title = "\(String(format: "%0.1f", totalXC.converted(to: .kilometers).value))km"
+                mapView.addAnnotation(xcDistance)
+                updateXCRoute()
             }
         }
+    }
+
+    func updateXCRoute() {
+        var distanceLabels = [TextAnnotation]()
+        //Update leg distances
+        if waypoints.count > 1 {
+            for i in 1...waypoints.count-1 {
+                let legDist = TextAnnotation()
+                let distance = Measurement<UnitLength>(
+                    value:
+                        CLLocation(latitude: waypoints[i].coordinate.latitude, longitude: waypoints[i].coordinate.longitude).distance(
+                            from: CLLocation(latitude: waypoints[i-1].coordinate.latitude, longitude: waypoints[i-1].coordinate.longitude)),
+                    unit: .meters)
+                let line = MKGeodesicPolyline(coordinates: [waypoints[i-1].coordinate, waypoints[i].coordinate], count: 2)
+                legDist.coordinate = line.coordinate
+                legDist.title = String(format: "%0.1f", distance.converted(to: .kilometers).value)
+                distanceLabels.append(legDist)
+            }
+        }
+        mapView.addAnnotations(distanceLabels)
     }
 
     func addAirspaceOverlays(){
