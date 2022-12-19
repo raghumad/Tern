@@ -10,6 +10,7 @@
 		EF0EAC84293C091D00A877DD /* RoutePlannerMapViewHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF0EAC83293C091D00A877DD /* RoutePlannerMapViewHelper.swift */; };
 		EF0EAC86293C79FA00A877DD /* WayPointAnnotationCallout.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF0EAC85293C79F900A877DD /* WayPointAnnotationCallout.swift */; };
 		EF25C60C2944F0C6001EB8D1 /* Airspaces.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF25C60B2944F0C6001EB8D1 /* Airspaces.swift */; };
+		EF284841295020C1003F9F50 /* TextAnnotation.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF284840295020C1003F9F50 /* TextAnnotation.swift */; };
 		EF31A4FE292D49F7000719DE /* TernApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF31A4FD292D49F7000719DE /* TernApp.swift */; };
 		EF31A500292D49F7000719DE /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF31A4FF292D49F7000719DE /* ContentView.swift */; };
 		EF31A502292D49F8000719DE /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = EF31A501292D49F8000719DE /* Assets.xcassets */; };
@@ -52,6 +53,7 @@
 		EF0EAC83293C091D00A877DD /* RoutePlannerMapViewHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutePlannerMapViewHelper.swift; sourceTree = "<group>"; };
 		EF0EAC85293C79F900A877DD /* WayPointAnnotationCallout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WayPointAnnotationCallout.swift; sourceTree = "<group>"; };
 		EF25C60B2944F0C6001EB8D1 /* Airspaces.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Airspaces.swift; sourceTree = "<group>"; };
+		EF284840295020C1003F9F50 /* TextAnnotation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextAnnotation.swift; sourceTree = "<group>"; };
 		EF31A4FA292D49F7000719DE /* Tern.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Tern.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		EF31A4FD292D49F7000719DE /* TernApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TernApp.swift; sourceTree = "<group>"; };
 		EF31A4FF292D49F7000719DE /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -123,6 +125,7 @@
 				EF0EAC83293C091D00A877DD /* RoutePlannerMapViewHelper.swift */,
 				EFB4B67C293EA14A00B4AE13 /* WeatherForecast.swift */,
 				EF25C60B2944F0C6001EB8D1 /* Airspaces.swift */,
+				EF284840295020C1003F9F50 /* TextAnnotation.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -329,6 +332,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				EFB4B67D293EA14A00B4AE13 /* WeatherForecast.swift in Sources */,
+				EF284841295020C1003F9F50 /* TextAnnotation.swift in Sources */,
 				EFEF03B62942C27600912949 /* qrCode.swift in Sources */,
 				EF31A500292D49F7000719DE /* ContentView.swift in Sources */,
 				EFAC18AD293FF6990045B1FF /* EditWaypoint.swift in Sources */,
