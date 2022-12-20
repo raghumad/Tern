@@ -8,10 +8,13 @@
 import Foundation
 import MapKit
 
-class Hotspot : MKCircle{
-    let elevation, probability : Double
-    init(coordinate: CLLocationCoordinate2D, elevation: Double, probability: Double) {
-        self.elevation = elevation
-        self.probability = probability
+class Hotspot : NSObject, MKAnnotation {
+    var coordinate: CLLocationCoordinate2D
+    var title: String?
+    var subtitle: String?
+    init(coordinate: CLLocationCoordinate2D = CLLocationCoordinate2D(), title: String = "", subtitle: String = "") {
+        self.coordinate = coordinate
+        self.title = title
+        self.subtitle = subtitle
     }
 }

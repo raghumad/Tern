@@ -10,7 +10,7 @@ import MapKit
 import SwiftUI
 import SwiftyJSON
 import Polyline
-import CSV
+import GPX
 
 class RoutePlannerModel : NSObject, CLLocationManagerDelegate, ObservableObject, MKMapViewDelegate, UIGestureRecognizerDelegate {
     //38.9121906016191, -104.72783900204881
@@ -149,7 +149,9 @@ extension RoutePlannerModel {
             if mapView.overlays.count > 500 {mapView.removeOverlays(mapView.overlays)}
             addAirspaceOverlays()
             redrawRoutePath()
-            //addHotspots()
+            if waypoints.count > 2 {
+                addHotspots()
+            }
         } else {
             //remove overlays when zoomed out
             mapView.removeOverlays(mapView.overlays) // remove all overlays if >10 includin circles
@@ -203,19 +205,32 @@ extension RoutePlannerModel {
             marker.subtitleVisibility = .visible
             return marker
         }
+        if annotation is Hotspot {
+            let marker = MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: MKMapViewDefaultAnnotationViewReuseIdentifier)
+            marker.glyphImage = UIImage(systemName: "tornado")
+            marker.centerOffset = .init(x: 0, y: -5)
+            marker.annotation = annotation
+            marker.glyphTintColor = .red
+            marker.tintColor = .red
+            marker.markerTintColor = .clear
+            marker.canShowCallout = false
+            marker.subtitleVisibility = .visible
+            return marker
+        }
         return MKAnnotationView()
     }
 
     func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
         if overlay is MKCircle {
-            let renderer = MKCircleRenderer(circle: overlay as! MKCircle)
+            var renderer = MKCircleRenderer()
+            if overlay is Hotspot {
+                renderer = MKCircleRenderer(circle: MKCircle(center: overlay.coordinate, radius: 500))
+            } else {
+                renderer = MKCircleRenderer(circle: overlay as! MKCircle)
+            }
             renderer.alpha = 0.3
             renderer.lineWidth = 2
-            if overlay is Hotspot {
-                renderer.fillColor = UIColor(red: ((overlay as! Hotspot).probability * 255 / 100), green: 0, blue: 0, alpha: (overlay as! Hotspot).probability / 100)
-            } else {
-                renderer.fillColor = .blue
-            }
+            renderer.fillColor = .blue
             return renderer
         }
         if overlay is MKPolyline {
@@ -441,12 +456,30 @@ extension RoutePlannerModel {
         //https://thermal.kk7.ch/api/hotspots/gpx/all_all/36.862,-112.819,41.295,-96.668
         //https://github.com/FlineDev/CSVImporter
         //https://www.paraglidingforum.com/leonardo/download.php?type=sites&sites=34736,58036,
-        var url = "https://thermal.kk7.ch/api/hotspots/csv/all_all/" //Add 600 mile bounding box.
+        var url = "https://thermal.kk7.ch/api/hotspots/gpx/all_all/" //Add 600 mile bounding box.
         url.append(String(format: "%.3f", mapView.centerCoordinate.latitude - 0.125))
         url.append(String(format: ",%.3f", mapView.centerCoordinate.longitude - 0.125))
         url.append(String(format: ",%.3f", mapView.centerCoordinate.latitude + 0.125))
         url.append(String(format: ",%.3f", mapView.centerCoordinate.longitude + 0.125))
-        //let parser = try CSVParser(url: URL(string: url)!, hasHeader: true)
+        let task = URLSession.shared.dataTask(with: URLRequest(url: URL(string: url)!), completionHandler: { data, response, error -> Void in
+            //print(response!)
+            do {
+                if let data = data {
+                    let gpx = try GPX(data: data)
+                    self.mapView.addAnnotations(gpx.waypoints.map{
+                        return Hotspot(
+                            coordinate: CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude),
+                            title: $0.comment?.replacingOccurrences(of: "probability:|,.*", with: "", options: .regularExpression) ?? "",
+                            subtitle: ""
+                        )
+                    })
+                }
+            } catch {
+                print("error")
+            }
+        })
+
+        task.resume()
     }
 
     func saveCUP() -> String{

@@ -1,12 +1,12 @@
 {
   "pins" : [
     {
-      "identity" : "csv.swift",
+      "identity" : "gpx.swift",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/benkoska/CSV.Swift",
+      "location" : "https://github.com/nikstar/GPX.swift",
       "state" : {
-        "revision" : "2ce67634cde6b2c7bf41acea45ef2765d5805cce",
-        "version" : "0.1.2"
+        "revision" : "250671c298b2cded88af4c758d7f0a88e96b4013",
+        "version" : "0.2.1"
       }
     },
     {
@@ -25,6 +25,15 @@
       "state" : {
         "revision" : "2b6054efa051565954e1d2b9da831680026cd768",
         "version" : "4.3.0"
+      }
+    },
+    {
+      "identity" : "swxmlhash",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/drmohundro/SWXMLHash.git",
+      "state" : {
+        "revision" : "f43166a8e18fdd0857f29e303b1bb79a5428bca0",
+        "version" : "4.9.0"
       }
     }
   ],
