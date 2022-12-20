@@ -1,6 +1,15 @@
 {
   "pins" : [
     {
+      "identity" : "csv.swift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/benkoska/CSV.Swift",
+      "state" : {
+        "revision" : "2ce67634cde6b2c7bf41acea45ef2765d5805cce",
+        "version" : "0.1.2"
+      }
+    },
+    {
       "identity" : "polyline",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/raphaelmor/Polyline",
