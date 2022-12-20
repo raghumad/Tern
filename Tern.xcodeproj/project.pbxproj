@@ -11,6 +11,7 @@
 		EF0EAC86293C79FA00A877DD /* WayPointAnnotationCallout.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF0EAC85293C79F900A877DD /* WayPointAnnotationCallout.swift */; };
 		EF25C60C2944F0C6001EB8D1 /* Airspaces.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF25C60B2944F0C6001EB8D1 /* Airspaces.swift */; };
 		EF284841295020C1003F9F50 /* TextAnnotation.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF284840295020C1003F9F50 /* TextAnnotation.swift */; };
+		EF284846295133C3003F9F50 /* Hotspot.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF284845295133C3003F9F50 /* Hotspot.swift */; };
 		EF31A4FE292D49F7000719DE /* TernApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF31A4FD292D49F7000719DE /* TernApp.swift */; };
 		EF31A500292D49F7000719DE /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF31A4FF292D49F7000719DE /* ContentView.swift */; };
 		EF31A502292D49F8000719DE /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = EF31A501292D49F8000719DE /* Assets.xcassets */; };
@@ -21,6 +22,7 @@
 		EF31A521292D49F8000719DE /* TernUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF31A520292D49F8000719DE /* TernUITestsLaunchTests.swift */; };
 		EF31A530292D4B34000719DE /* RoutePlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF31A52F292D4B34000719DE /* RoutePlanner.swift */; };
 		EF5EF39B2948FACB0070A5BB /* WaypointCalloutImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF5EF39A2948FACB0070A5BB /* WaypointCalloutImage.swift */; };
+		EF60F3D22951486600BBCA1C /* CSV in Frameworks */ = {isa = PBXBuildFile; productRef = EF60F3D12951486600BBCA1C /* CSV */; };
 		EF6C26F1293B131B00735B40 /* RoutePlannerModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF6C26F0293B131B00735B40 /* RoutePlannerModel.swift */; };
 		EF6C26F5293B13E100735B40 /* WayPoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF6C26F4293B13E100735B40 /* WayPoint.swift */; };
 		EF797F58292E097B0004B5B4 /* SwiftyJSON in Frameworks */ = {isa = PBXBuildFile; productRef = EF797F57292E097B0004B5B4 /* SwiftyJSON */; };
@@ -54,6 +56,7 @@
 		EF0EAC85293C79F900A877DD /* WayPointAnnotationCallout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WayPointAnnotationCallout.swift; sourceTree = "<group>"; };
 		EF25C60B2944F0C6001EB8D1 /* Airspaces.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Airspaces.swift; sourceTree = "<group>"; };
 		EF284840295020C1003F9F50 /* TextAnnotation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextAnnotation.swift; sourceTree = "<group>"; };
+		EF284845295133C3003F9F50 /* Hotspot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hotspot.swift; sourceTree = "<group>"; };
 		EF31A4FA292D49F7000719DE /* Tern.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Tern.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		EF31A4FD292D49F7000719DE /* TernApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TernApp.swift; sourceTree = "<group>"; };
 		EF31A4FF292D49F7000719DE /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -82,6 +85,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				EF60F3D22951486600BBCA1C /* CSV in Frameworks */,
 				EFEF03BA294304DE00912949 /* Polyline in Frameworks */,
 				EF797F58292E097B0004B5B4 /* SwiftyJSON in Frameworks */,
 			);
@@ -126,6 +130,7 @@
 				EFB4B67C293EA14A00B4AE13 /* WeatherForecast.swift */,
 				EF25C60B2944F0C6001EB8D1 /* Airspaces.swift */,
 				EF284840295020C1003F9F50 /* TextAnnotation.swift */,
+				EF284845295133C3003F9F50 /* Hotspot.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -210,6 +215,7 @@
 			packageProductDependencies = (
 				EF797F57292E097B0004B5B4 /* SwiftyJSON */,
 				EFEF03B9294304DE00912949 /* Polyline */,
+				EF60F3D12951486600BBCA1C /* CSV */,
 			);
 			productName = Tern;
 			productReference = EF31A4FA292D49F7000719DE /* Tern.app */;
@@ -259,7 +265,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1410;
-				LastUpgradeCheck = 1410;
+				LastUpgradeCheck = 1420;
 				TargetAttributes = {
 					EF31A4F9292D49F7000719DE = {
 						CreatedOnToolsVersion = 14.1;
@@ -286,6 +292,7 @@
 			packageReferences = (
 				EF797F56292E097B0004B5B4 /* XCRemoteSwiftPackageReference "SwiftyJSON" */,
 				EFEF03B8294304DE00912949 /* XCRemoteSwiftPackageReference "Polyline" */,
+				EF60F3D02951486600BBCA1C /* XCRemoteSwiftPackageReference "CSV" */,
 			);
 			productRefGroup = EF31A4FB292D49F7000719DE /* Products */;
 			projectDirPath = "";
@@ -337,6 +344,7 @@
 				EF31A500292D49F7000719DE /* ContentView.swift in Sources */,
 				EFAC18AD293FF6990045B1FF /* EditWaypoint.swift in Sources */,
 				EF5EF39B2948FACB0070A5BB /* WaypointCalloutImage.swift in Sources */,
+				EF284846295133C3003F9F50 /* Hotspot.swift in Sources */,
 				EF0EAC84293C091D00A877DD /* RoutePlannerMapViewHelper.swift in Sources */,
 				EF25C60C2944F0C6001EB8D1 /* Airspaces.swift in Sources */,
 				EF31A50A292D49F8000719DE /* Tern.xcdatamodeld in Sources */,
@@ -439,7 +447,6 @@
 				SDKROOT = iphoneos;
 				STRIP_INSTALLED_PRODUCT = NO;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
-				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 			};
@@ -713,6 +720,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		EF60F3D02951486600BBCA1C /* XCRemoteSwiftPackageReference "CSV" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/benkoska/CSV.Swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.1.2;
+			};
+		};
 		EF797F56292E097B0004B5B4 /* XCRemoteSwiftPackageReference "SwiftyJSON" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/SwiftyJSON/SwiftyJSON";
@@ -732,6 +747,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		EF60F3D12951486600BBCA1C /* CSV */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = EF60F3D02951486600BBCA1C /* XCRemoteSwiftPackageReference "CSV" */;
+			productName = CSV;
+		};
 		EF797F57292E097B0004B5B4 /* SwiftyJSON */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = EF797F56292E097B0004B5B4 /* XCRemoteSwiftPackageReference "SwiftyJSON" */;

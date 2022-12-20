@@ -31,7 +31,8 @@ struct EditWaypoint: View {
             model.mapView.addOverlay(cyclinderOverlay)
         }
         if model.waypoints.count >  1 {
-            model.mapView.addOverlay(MKGeodesicPolyline(coordinates: model.waypoints.map( {$0.coordinate} ), count: model.waypoints.count))
+            model.redrawRoutePath()
+            model.mapView.addAnnotations(model.legLengthLabels)
         }
         //model.mapView.setRegion(MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: latitude, longitude: longitude), latitudinalMeters: 50000, longitudinalMeters: 50000), animated: true)
         editWaypoint.toggle()
@@ -49,9 +50,8 @@ struct EditWaypoint: View {
             let cyclinderOverlay = MKCircle(center: wpt.coordinate, radius: CLLocationDistance(wpt.cylinderRadius.converted(to: .meters).value))
             model.mapView.addOverlay(cyclinderOverlay)
         }
-        if model.waypoints.count >  1 {
-            model.mapView.addOverlay(MKGeodesicPolyline(coordinates: model.waypoints.map( {$0.coordinate} ), count: model.waypoints.count))
-        }
+        model.redrawRoutePath()
+        model.mapView.addAnnotations(model.legLengthLabels)
         editWaypoint.toggle()
     }
 
