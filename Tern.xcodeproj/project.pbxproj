@@ -22,10 +22,10 @@
 		EF31A521292D49F8000719DE /* TernUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF31A520292D49F8000719DE /* TernUITestsLaunchTests.swift */; };
 		EF31A530292D4B34000719DE /* RoutePlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF31A52F292D4B34000719DE /* RoutePlanner.swift */; };
 		EF5EF39B2948FACB0070A5BB /* WaypointCalloutImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF5EF39A2948FACB0070A5BB /* WaypointCalloutImage.swift */; };
-		EF60F3D22951486600BBCA1C /* CSV in Frameworks */ = {isa = PBXBuildFile; productRef = EF60F3D12951486600BBCA1C /* CSV */; };
 		EF6C26F1293B131B00735B40 /* RoutePlannerModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF6C26F0293B131B00735B40 /* RoutePlannerModel.swift */; };
 		EF6C26F5293B13E100735B40 /* WayPoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF6C26F4293B13E100735B40 /* WayPoint.swift */; };
 		EF797F58292E097B0004B5B4 /* SwiftyJSON in Frameworks */ = {isa = PBXBuildFile; productRef = EF797F57292E097B0004B5B4 /* SwiftyJSON */; };
+		EF90FF8F295157D200E49AB1 /* GPX in Frameworks */ = {isa = PBXBuildFile; productRef = EF90FF8E295157D200E49AB1 /* GPX */; };
 		EFAC18AD293FF6990045B1FF /* EditWaypoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFAC18AC293FF6990045B1FF /* EditWaypoint.swift */; };
 		EFB4B67D293EA14A00B4AE13 /* WeatherForecast.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFB4B67C293EA14A00B4AE13 /* WeatherForecast.swift */; };
 		EFE92DF7293D823E0093BBF1 /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = EFE92DF5293D823E0093BBF1 /* README.md */; };
@@ -85,7 +85,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				EF60F3D22951486600BBCA1C /* CSV in Frameworks */,
+				EF90FF8F295157D200E49AB1 /* GPX in Frameworks */,
 				EFEF03BA294304DE00912949 /* Polyline in Frameworks */,
 				EF797F58292E097B0004B5B4 /* SwiftyJSON in Frameworks */,
 			);
@@ -215,7 +215,7 @@
 			packageProductDependencies = (
 				EF797F57292E097B0004B5B4 /* SwiftyJSON */,
 				EFEF03B9294304DE00912949 /* Polyline */,
-				EF60F3D12951486600BBCA1C /* CSV */,
+				EF90FF8E295157D200E49AB1 /* GPX */,
 			);
 			productName = Tern;
 			productReference = EF31A4FA292D49F7000719DE /* Tern.app */;
@@ -292,7 +292,7 @@
 			packageReferences = (
 				EF797F56292E097B0004B5B4 /* XCRemoteSwiftPackageReference "SwiftyJSON" */,
 				EFEF03B8294304DE00912949 /* XCRemoteSwiftPackageReference "Polyline" */,
-				EF60F3D02951486600BBCA1C /* XCRemoteSwiftPackageReference "CSV" */,
+				EF90FF8D295157D200E49AB1 /* XCRemoteSwiftPackageReference "GPX" */,
 			);
 			productRefGroup = EF31A4FB292D49F7000719DE /* Products */;
 			projectDirPath = "";
@@ -720,20 +720,20 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		EF60F3D02951486600BBCA1C /* XCRemoteSwiftPackageReference "CSV" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/benkoska/CSV.Swift";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 0.1.2;
-			};
-		};
 		EF797F56292E097B0004B5B4 /* XCRemoteSwiftPackageReference "SwiftyJSON" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/SwiftyJSON/SwiftyJSON";
 			requirement = {
 				kind = upToNextMajorVersion;
 				minimumVersion = 4.0.0;
+			};
+		};
+		EF90FF8D295157D200E49AB1 /* XCRemoteSwiftPackageReference "GPX" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/nikstar/GPX.swift";
+			requirement = {
+				kind = exactVersion;
+				version = 0.2.1;
 			};
 		};
 		EFEF03B8294304DE00912949 /* XCRemoteSwiftPackageReference "Polyline" */ = {
@@ -747,15 +747,15 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		EF60F3D12951486600BBCA1C /* CSV */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = EF60F3D02951486600BBCA1C /* XCRemoteSwiftPackageReference "CSV" */;
-			productName = CSV;
-		};
 		EF797F57292E097B0004B5B4 /* SwiftyJSON */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = EF797F56292E097B0004B5B4 /* XCRemoteSwiftPackageReference "SwiftyJSON" */;
 			productName = SwiftyJSON;
+		};
+		EF90FF8E295157D200E49AB1 /* GPX */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = EF90FF8D295157D200E49AB1 /* XCRemoteSwiftPackageReference "GPX" */;
+			productName = GPX;
 		};
 		EFEF03B9294304DE00912949 /* Polyline */ = {
 			isa = XCSwiftPackageProductDependency;
