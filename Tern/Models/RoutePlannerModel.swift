@@ -21,57 +21,6 @@ class RoutePlannerModel : NSObject, CLLocationManagerDelegate, ObservableObject,
     private let locationManager : CLLocationManager = .init()
     var mapView: MKMapView = .init()
     var airspaces : [String:Airspaces] = .init()
-    var totalXC : Measurement<UnitLength> {
-        get {
-            var xc : Measurement<UnitLength> = Measurement(value: 0, unit: .meters)
-            if waypoints.count > 1 {
-                for i in 0...waypoints.count-1{
-                    if i == 0 { continue }
-                    xc.value += CLLocation(latitude: waypoints[i].coordinate.latitude, longitude: waypoints[i].coordinate.longitude).distance(from: CLLocation(latitude: waypoints[i-1].coordinate.latitude, longitude: waypoints[i-1].coordinate.longitude))
-                }
-            }
-            return xc
-        }
-    }
-
-    var legLengthLabels : [TextAnnotation] {
-        var labels = [TextAnnotation]()
-        for label in mapView.annotations {
-            if label is TextAnnotation {
-                mapView.removeAnnotation(label)
-            }
-        }
-        if waypoints.count > 2 { //if more than two legs
-            for routePath in mapView.overlays {
-                if routePath is MKGeodesicPolyline {
-                    labels.append(TextAnnotation(
-                        coordinate: routePath.coordinate,
-                        title: String(format: "%0.1fkm", totalXC.converted(to: .kilometers).value),
-                        subtitle: "Total XC Distance"))
-                }
-            }
-        }
-        if waypoints.count > 1 { //Add individual leg lengths
-            for i in 1...waypoints.count-1 {
-                let legDist = Measurement<UnitLength>(value: CLLocation(latitude: waypoints[i].coordinate.latitude, longitude: waypoints[i].coordinate.longitude)
-                    .distance(from: CLLocation(latitude: waypoints[i-1].coordinate.latitude, longitude: waypoints[i-1].coordinate.longitude)), unit: .meters)
-                let legLine = MKGeodesicPolyline(coordinates: [waypoints[i-1].coordinate, waypoints[i].coordinate], count: 2)
-                labels.append(TextAnnotation(coordinate: legLine.coordinate, title: String(format: "%0.1fkm", legDist.converted(to: .kilometers).value)))
-            }
-        }
-        return labels
-    }
-
-    func redrawRoutePath() {
-        for line in mapView.overlays {
-            if line is MKGeodesicPolyline {
-                mapView.removeOverlay(line)
-            }
-        }
-        if waypoints.count > 1 {
-            mapView.addOverlay(MKGeodesicPolyline(coordinates: waypoints.map{ $0.coordinate }, count: waypoints.count))
-        }
-    }
 
     override init() {
         super.init()
@@ -84,7 +33,7 @@ class RoutePlannerModel : NSObject, CLLocationManagerDelegate, ObservableObject,
         mapView.showsBuildings = false
         mapView.pointOfInterestFilter = .excludingAll
         mapView.showsTraffic = false
-        mapView.mapType = .hybridFlyover
+        mapView.mapType = .hybrid
         //locationManager.startUpdatingLocation()
         //locationManager.startMonitoring(for: CLRegion())
     }
@@ -148,10 +97,8 @@ extension RoutePlannerModel {
                 })
             if mapView.overlays.count > 500 {mapView.removeOverlays(mapView.overlays)}
             addAirspaceOverlays()
+            if mapView.annotations.count > 1500 {mapView.removeAnnotations(mapView.annotations)}
             redrawRoutePath()
-            if waypoints.count > 2 {
-                addHotspots()
-            }
         } else {
             //remove overlays when zoomed out
             mapView.removeOverlays(mapView.overlays) // remove all overlays if >10 includin circles
@@ -178,6 +125,8 @@ extension RoutePlannerModel {
             marker.markerTintColor = .systemBlue
             marker.animatesWhenAdded = true
             marker.annotation = annotation
+            marker.titleVisibility = .visible
+            marker.subtitleVisibility = .visible
             
             //marker.selectedGlyphImage = UIImage(systemName: "mappin.and.ellipse")
             let wpc = WayPointAnnotationCallout(waypoint: annotation as! WayPoint).environmentObject(self)
@@ -189,7 +138,6 @@ extension RoutePlannerModel {
             callout.loadView()
             marker.detailCalloutAccessoryView = callout.viewIfLoaded
             //callout.isUserInteractionEnabled = true
-            //marker.largeContentImage = renderer.uiImage
             //marker.leftCalloutAccessoryView = callout.view //could be weather and wind direction
             //marker.rightCalloutAccessoryView = callout.view
             return marker
@@ -197,6 +145,7 @@ extension RoutePlannerModel {
         if annotation is TextAnnotation {
             let marker = MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: MKMapViewDefaultAnnotationViewReuseIdentifier)
             marker.glyphImage = UIImage(systemName: "")
+            marker.clusteringIdentifier = "TextAnnotation"
             marker.annotation = annotation
             marker.glyphTintColor = .clear
             marker.tintColor = .clear
@@ -207,13 +156,15 @@ extension RoutePlannerModel {
         }
         if annotation is Hotspot {
             let marker = MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: MKMapViewDefaultAnnotationViewReuseIdentifier)
+            marker.animatesWhenAdded = false
             marker.glyphImage = UIImage(systemName: "tornado")
-            marker.centerOffset = .init(x: 0, y: -5)
+            marker.clusteringIdentifier = "HotSpot"
+            marker.selectedGlyphImage = UIImage()
             marker.annotation = annotation
             marker.glyphTintColor = .red
-            marker.tintColor = .red
             marker.markerTintColor = .clear
             marker.canShowCallout = false
+            marker.titleVisibility = .visible
             marker.subtitleVisibility = .visible
             return marker
         }
@@ -222,12 +173,7 @@ extension RoutePlannerModel {
 
     func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
         if overlay is MKCircle {
-            var renderer = MKCircleRenderer()
-            if overlay is Hotspot {
-                renderer = MKCircleRenderer(circle: MKCircle(center: overlay.coordinate, radius: 500))
-            } else {
-                renderer = MKCircleRenderer(circle: overlay as! MKCircle)
-            }
+            let renderer = MKCircleRenderer(circle: overlay as! MKCircle)
             renderer.alpha = 0.3
             renderer.lineWidth = 2
             renderer.fillColor = .blue
@@ -300,6 +246,10 @@ extension RoutePlannerModel {
     func mapView(_ mapView: MKMapView, annotationView view: MKAnnotationView, didChange newState: MKAnnotationView.DragState, fromOldState oldState: MKAnnotationView.DragState) {
         if (newState == .ending) && view is MKMarkerAnnotationView {
             //print ("Ending coordinate : \(view.annotation?.coordinate)")
+            //mapView.removeAnnotations(waypoints) // Remove only waypoints.
+            for label in mapView.annotations { //Remove all corresponding label.
+                if label is TextAnnotation { mapView.removeAnnotation(label) }
+            }
             waypoints.removeAll()
             for i in mapView.annotations.indices {
                 if mapView.annotations[i] is WayPoint {
@@ -309,7 +259,7 @@ extension RoutePlannerModel {
                 }
             }
             waypoints.sort() // Always ordered
-            mapView.removeAnnotations(mapView.annotations) // Remove all annotations.
+            mapView.removeAnnotations(waypoints) // Remove all waypoints.
             for overlay in mapView.overlays {
                 if overlay is MKCircle || overlay is MKPolyline {
                     mapView.removeOverlay(overlay)
@@ -408,6 +358,9 @@ extension RoutePlannerModel {
             waypoints.append(newWaypoint)
             redrawRoutePath()
             mapView.addAnnotations(legLengthLabels)
+            if waypoints.count == 2 { //only add at second waypoint.
+                addHotspots()
+            }
         }
     }
 
@@ -421,7 +374,7 @@ extension RoutePlannerModel {
                 let data = try Data(contentsOf: airspacePath)
                 airspaces = try MKGeoJSONDecoder().decode(data)
                 //print ("got airspaces: \(airspaces.count)")
-                if mapView.region.span.latitudeDelta < 10 { // about 690miles or 600nm
+                if mapView.region.span.latitudeDelta < 5 { // adjusting to 300nm about 690miles or 600nm for 10 delta.
                     for item in airspaces {
                         if let feature =  item as? MKGeoJSONFeature {
                             let feaureProperties = try! JSON(data: feature.properties!)
@@ -457,10 +410,10 @@ extension RoutePlannerModel {
         //https://github.com/FlineDev/CSVImporter
         //https://www.paraglidingforum.com/leonardo/download.php?type=sites&sites=34736,58036,
         var url = "https://thermal.kk7.ch/api/hotspots/gpx/all_all/" //Add 600 mile bounding box.
-        url.append(String(format: "%.3f", mapView.centerCoordinate.latitude - 0.125))
-        url.append(String(format: ",%.3f", mapView.centerCoordinate.longitude - 0.125))
-        url.append(String(format: ",%.3f", mapView.centerCoordinate.latitude + 0.125))
-        url.append(String(format: ",%.3f", mapView.centerCoordinate.longitude + 0.125))
+        url.append(String(format: "%.3f", waypoints[0].coordinate.latitude - 1.25))
+        url.append(String(format: ",%.3f", waypoints[0].coordinate.longitude - 1.25))
+        url.append(String(format: ",%.3f", waypoints[0].coordinate.latitude + 1.25))
+        url.append(String(format: ",%.3f", waypoints[0].coordinate.longitude + 1.25))
         let task = URLSession.shared.dataTask(with: URLRequest(url: URL(string: url)!), completionHandler: { data, response, error -> Void in
             //print(response!)
             do {
@@ -766,6 +719,58 @@ extension RoutePlannerModel {
             print(error.localizedDescription)
         }
         return urlPath.absoluteString
+    }
+
+    var totalXC : Measurement<UnitLength> {
+        get {
+            var xc : Measurement<UnitLength> = Measurement(value: 0, unit: .meters)
+            if waypoints.count > 1 {
+                for i in 0...waypoints.count-1{
+                    if i == 0 { continue }
+                    xc.value += CLLocation(latitude: waypoints[i].coordinate.latitude, longitude: waypoints[i].coordinate.longitude).distance(from: CLLocation(latitude: waypoints[i-1].coordinate.latitude, longitude: waypoints[i-1].coordinate.longitude))
+                }
+            }
+            return xc
+        }
+    }
+
+    var legLengthLabels : [TextAnnotation] {
+        var labels = [TextAnnotation]()
+        for label in mapView.annotations {
+            if label is TextAnnotation {
+                mapView.removeAnnotation(label)
+            }
+        }
+        if waypoints.count > 2 { //if more than two legs
+            for routePath in mapView.overlays {
+                if routePath is MKGeodesicPolyline {
+                    labels.append(TextAnnotation(
+                        coordinate: routePath.coordinate,
+                        title: String(format: "%0.1fkm", totalXC.converted(to: .kilometers).value),
+                        subtitle: "Total XC Distance"))
+                }
+            }
+        }
+        if waypoints.count > 1 { //Add individual leg lengths
+            for i in 1...waypoints.count-1 {
+                let legDist = Measurement<UnitLength>(value: CLLocation(latitude: waypoints[i].coordinate.latitude, longitude: waypoints[i].coordinate.longitude)
+                    .distance(from: CLLocation(latitude: waypoints[i-1].coordinate.latitude, longitude: waypoints[i-1].coordinate.longitude)), unit: .meters)
+                let legLine = MKGeodesicPolyline(coordinates: [waypoints[i-1].coordinate, waypoints[i].coordinate], count: 2)
+                labels.append(TextAnnotation(coordinate: legLine.coordinate, title: String(format: "%0.1fkm", legDist.converted(to: .kilometers).value)))
+            }
+        }
+        return labels
+    }
+
+    func redrawRoutePath() {
+        for line in mapView.overlays {
+            if line is MKGeodesicPolyline {
+                mapView.removeOverlay(line)
+            }
+        }
+        if waypoints.count > 1 {
+            mapView.addOverlay(MKGeodesicPolyline(coordinates: waypoints.map{ $0.coordinate }, count: waypoints.count))
+        }
     }
 
     /*var fiveKmileWaypointBoudingRect : [CLLocationCoordinate2D] {
