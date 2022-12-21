@@ -16,7 +16,6 @@
 		EF31A500292D49F7000719DE /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF31A4FF292D49F7000719DE /* ContentView.swift */; };
 		EF31A502292D49F8000719DE /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = EF31A501292D49F8000719DE /* Assets.xcassets */; };
 		EF31A505292D49F8000719DE /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = EF31A504292D49F8000719DE /* Preview Assets.xcassets */; };
-		EF31A50A292D49F8000719DE /* Tern.xcdatamodeld in Sources */ = {isa = PBXBuildFile; fileRef = EF31A508292D49F8000719DE /* Tern.xcdatamodeld */; };
 		EF31A515292D49F8000719DE /* TernTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF31A514292D49F8000719DE /* TernTests.swift */; };
 		EF31A51F292D49F8000719DE /* TernUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF31A51E292D49F8000719DE /* TernUITests.swift */; };
 		EF31A521292D49F8000719DE /* TernUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF31A520292D49F8000719DE /* TernUITestsLaunchTests.swift */; };
@@ -62,7 +61,6 @@
 		EF31A4FF292D49F7000719DE /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		EF31A501292D49F8000719DE /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		EF31A504292D49F8000719DE /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
-		EF31A509292D49F8000719DE /* Tern.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = Tern.xcdatamodel; sourceTree = "<group>"; };
 		EF31A50B292D49F8000719DE /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		EF31A510292D49F8000719DE /* TernTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TernTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		EF31A514292D49F8000719DE /* TernTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TernTests.swift; sourceTree = "<group>"; };
@@ -165,7 +163,6 @@
 				EF31A4FD292D49F7000719DE /* TernApp.swift */,
 				EF31A501292D49F8000719DE /* Assets.xcassets */,
 				EF31A50B292D49F8000719DE /* Info.plist */,
-				EF31A508292D49F8000719DE /* Tern.xcdatamodeld */,
 				EF31A503292D49F8000719DE /* Preview Content */,
 			);
 			path = Tern;
@@ -347,7 +344,6 @@
 				EF284846295133C3003F9F50 /* Hotspot.swift in Sources */,
 				EF0EAC84293C091D00A877DD /* RoutePlannerMapViewHelper.swift in Sources */,
 				EF25C60C2944F0C6001EB8D1 /* Airspaces.swift in Sources */,
-				EF31A50A292D49F8000719DE /* Tern.xcdatamodeld in Sources */,
 				EF6C26F1293B131B00735B40 /* RoutePlannerModel.swift in Sources */,
 				EF31A4FE292D49F7000719DE /* TernApp.swift in Sources */,
 				EF6C26F5293B13E100735B40 /* WayPoint.swift in Sources */,
@@ -763,19 +759,6 @@
 			productName = Polyline;
 		};
 /* End XCSwiftPackageProductDependency section */
-
-/* Begin XCVersionGroup section */
-		EF31A508292D49F8000719DE /* Tern.xcdatamodeld */ = {
-			isa = XCVersionGroup;
-			children = (
-				EF31A509292D49F8000719DE /* Tern.xcdatamodel */,
-			);
-			currentVersion = EF31A509292D49F8000719DE /* Tern.xcdatamodel */;
-			path = Tern.xcdatamodeld;
-			sourceTree = "<group>";
-			versionGroupType = wrapper.xcdatamodel;
-		};
-/* End XCVersionGroup section */
 	};
 	rootObject = EF31A4F2292D49F7000719DE /* Project object */;
 }

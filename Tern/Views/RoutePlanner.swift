@@ -25,8 +25,8 @@ struct RoutePlanner: View {
                             model.addWaypoint(coordinate: model.mapView.centerCoordinate)
                         } label: {
                             Image(systemName: "point.filled.topleft.down.curvedto.point.bottomright.up")
-                        }.padding(5)
-                        Divider().overlay(.white)
+                        }.padding([.vertical, .leading], 7)
+                        Divider().overlay(.white).padding(0)
                         Button{
                             //We open a menu here so nothing doing.
                         } label: {
@@ -89,13 +89,13 @@ struct RoutePlanner: View {
                             } label: {
                                 Image(systemName: "square.and.arrow.up.on.square")
                             }
-                        }.padding(5)
+                        }.padding([.vertical, .trailing], 5)
                     }
                     .foregroundColor(.white)
                     .font(.title2) // This size looks better.
                     .padding(0)
                     .background(.gray)
-                    .cornerRadius(8)
+                    .cornerRadius(5)
                     .fixedSize()
                 }
             }

@@ -25,7 +25,6 @@ struct EditWaypoint: View {
         waypoint.update(coordinate: CLLocationCoordinate2D(latitude: latitude, longitude: longitude), name: waypointName, description: waypointDescription, radius: cylinderRadius)
         model.mapView.removeAnnotations(model.waypoints)
         model.mapView.addAnnotations(model.waypoints)
-        model.mapView.removeOverlays(model.mapView.overlays) //remove before re adding all of them
         for wpt in model.waypoints {
             let cyclinderOverlay = MKCircle(center: wpt.coordinate, radius: CLLocationDistance(wpt.cylinderRadius.converted(to: .meters).value))
             model.mapView.addOverlay(cyclinderOverlay)
@@ -43,14 +42,14 @@ struct EditWaypoint: View {
             model.waypoints.remove(at: id)
         }
         model.mapView.removeAnnotation(waypoint)
-        model.mapView.removeOverlays(model.mapView.overlays) //remove before re adding all of them
+        //model.mapView.removeOverlays(model.mapView.overlays) //remove before re adding all of them
         for wpt in model.waypoints {
             model.mapView.removeAnnotation(wpt) //re-add all waypoints so that they are numbered correctly
             model.mapView.addAnnotation(wpt)
             let cyclinderOverlay = MKCircle(center: wpt.coordinate, radius: CLLocationDistance(wpt.cylinderRadius.converted(to: .meters).value))
             model.mapView.addOverlay(cyclinderOverlay)
         }
-        model.redrawRoutePath()
+        model.redrawRoutePath() // redraw path will also remove previous.
         model.mapView.addAnnotations(model.legLengthLabels)
         editWaypoint.toggle()
     }
