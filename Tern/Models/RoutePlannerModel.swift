@@ -18,7 +18,7 @@ class RoutePlannerModel : NSObject, CLLocationManagerDelegate, ObservableObject,
     var waypoints: [WayPoint] = .init()
     @Published var shareRoute : Bool = false
     var shareItems : [Any] = .init()
-    private let locationManager : CLLocationManager = .init()
+    let locationManager : CLLocationManager = .init()
     var mapView: MKMapView = .init()
     var airspaces : [String:Airspaces] = .init()
 
