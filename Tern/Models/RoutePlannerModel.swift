@@ -79,7 +79,7 @@ extension RoutePlannerModel {
     //MARK: MapViewDelegates
 
     func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
-        if mapView.region.span.latitudeDelta < 10 && mapView.region.span.longitudeDelta < 10 { //download only when zoomed in
+        if mapView.region.span.latitudeDelta < 20 { //download only when zoomed in
             CLGeocoder().reverseGeocodeLocation(
                 CLLocation(
                     latitude: mapView.region.center.latitude,
@@ -95,8 +95,7 @@ extension RoutePlannerModel {
                         }
                     }
                 })
-            if mapView.overlays.count > 500 {mapView.removeOverlays(mapView.overlays)}
-            addAirspaceOverlays()
+            if mapView.region.span.latitudeDelta > 5 || mapView.overlays.count > 500 {mapView.removeOverlays(mapView.overlays)} else { addAirspaceOverlays() }
             if mapView.annotations.count > 1500 {mapView.removeAnnotations(mapView.annotations)}
             redrawRoutePath()
         } else {
@@ -161,7 +160,8 @@ extension RoutePlannerModel {
             marker.clusteringIdentifier = "HotSpot"
             marker.selectedGlyphImage = UIImage()
             marker.annotation = annotation
-            marker.glyphTintColor = .red
+            let prob = Double(annotation.title!!.replacingOccurrences(of: "%", with: "", options: .regularExpression))
+            marker.glyphTintColor = UIColor(red: (prob ?? 0)/100, green: 0.7, blue: 0.5, alpha: 1)
             marker.markerTintColor = .clear
             marker.canShowCallout = false
             marker.titleVisibility = .visible
