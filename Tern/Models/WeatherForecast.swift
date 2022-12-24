@@ -22,6 +22,7 @@ class WeatherForecast {
     private var weatherForecast : JSON = []
     init(coordinate: CLLocationCoordinate2D, weatherForecast: JSON = JSON("")) {
         self.coordinate = coordinate
+        getForecast()
     }
     //MARK: windspeed80m[0].value will give 3.7 as Double whereas windspeed80m[0].description will give 3.7 mph
     var windspeed80m : [Measurement<UnitSpeed>] {
@@ -96,24 +97,26 @@ class WeatherForecast {
         }
     }
 
-    func getForecast() async {
-        //https://api.open-meteo.com/v1/gfs?latitude=38.83&longitude=-104.82&current_weather=true&hourly=dewpoint_2m,pressure_msl,cloudcover,cape,windspeed_80m,winddirection_80m,windgusts_10m&temperature_unit=fahrenheit&windspeed_unit=mph&precipitation_unit=inch&forecast_days=1&timezone=auto
-        //https://github.com/SwiftyJSON/SwiftyJSON to parse. got no time to create model structs.
-        //https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames#Swift coordinate to xyz
-        guard let url = URL(string: "https://api.open-meteo.com/v1/gfs?latitude=\(self.coordinate.latitude)&longitude=\(self.coordinate.longitude)&current_weather=true&hourly=temperature_2m,dewpoint_2m,pressure_msl,cloudcover,cape,windspeed_80m,winddirection_80m,windgusts_10m,relativehumidity_2m&temperature_unit=fahrenheit&windspeed_unit=mph&precipitation_unit=inch&forecast_days=1&timezone=auto&&timeformat=unixtime") else {
-            print ("link error")
-            return
-        }
-        
-        do {
-            let (data, _) = try await URLSession.shared.data(from: url)
-            //print(url)
-            DispatchQueue.main.async {
-                self.weatherForecast = try! JSON(data: data)
+    func getForecast() {
+        Task(priority: .background) {
+            //https://api.open-meteo.com/v1/gfs?latitude=38.83&longitude=-104.82&current_weather=true&hourly=dewpoint_2m,pressure_msl,cloudcover,cape,windspeed_80m,winddirection_80m,windgusts_10m&temperature_unit=fahrenheit&windspeed_unit=mph&precipitation_unit=inch&forecast_days=1&timezone=auto
+            //https://github.com/SwiftyJSON/SwiftyJSON to parse. got no time to create model structs.
+            //https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames#Swift coordinate to xyz
+            guard let url = URL(string: "https://api.open-meteo.com/v1/gfs?latitude=\(self.coordinate.latitude)&longitude=\(self.coordinate.longitude)&current_weather=true&hourly=temperature_2m,dewpoint_2m,pressure_msl,cloudcover,cape,windspeed_80m,winddirection_80m,windgusts_10m,relativehumidity_2m&temperature_unit=fahrenheit&windspeed_unit=mph&precipitation_unit=inch&forecast_days=1&timezone=auto&&timeformat=unixtime") else {
+                print ("link error")
+                return
             }
-            //print(self.weather)
-        } catch {
-            print("Open mateo fails.")
+            
+            do {
+                let (data, _) = try await URLSession.shared.data(from: url)
+                //print(url)
+                DispatchQueue.main.async {
+                    self.weatherForecast = try! JSON(data: data)
+                }
+                //print(self.weather)
+            } catch {
+                print("Open mateo fails.")
+            }
         }
     }
 }

@@ -23,15 +23,15 @@ struct WaypointCalloutImage: View {
             }*/
             HStack {
                 HStack {
-                    Image(systemName: "cylinder")
-                    Text("\(String(waypoint.cylinderRadius.converted(to: .meters).value))m")
+                    //Image(systemName: "cylinder")
+                    Text("⌭\(String(waypoint.cylinderRadius.converted(to: .meters).value))m")
                 }
                 .foregroundColor(.white)
                 .background(Color.blue)
                 .cornerRadius(5, antialiased: true)
                 HStack{
-                    Image(systemName: "figure.climbing")
-                    Text("\(String(format:"%0.0f",waypoint.elevation.converted(to: .feet).value))ft")
+                    //Image(systemName: "mountain.2")
+                    Text("🏔️\(String(format:"%0.0f",waypoint.elevation.converted(to: .feet).value))ft")
                 }
                 .foregroundColor(.white)
                 .background(Color.blue)
@@ -40,7 +40,7 @@ struct WaypointCalloutImage: View {
             HStack {
                 if waypoint.weatherForecast.winddirection_80m.count > 0 {
                     HStack {
-                        Image(systemName: "arrow.up.circle")
+                        Text("👆")
                             .rotationEffect(.degrees(waypoint.weatherForecast.winddirection_80m[0].converted(to: .degrees).value))
                         Text("\(String(format: "%0.1f", waypoint.weatherForecast.windspeed80m[0].value))mph")
                     }
@@ -48,8 +48,8 @@ struct WaypointCalloutImage: View {
                     .background(Color.blue)
                     .cornerRadius(5, antialiased: true)
                     HStack {
-                        Image(systemName: "tornado.circle")
-                        Text("\(String(format: "%0.1f", waypoint.weatherForecast.windgusts_10m[0].value))mph")
+                        //Image(systemName: "tornado.circle")
+                        Text("💨\(String(format: "%0.1f", waypoint.weatherForecast.windgusts_10m[0].value))mph")
                     }
                     .foregroundColor(.white)
                     .background(Color.blue)
@@ -66,15 +66,14 @@ struct WaypointCalloutImage: View {
                     .background(Color.blue)
                     .cornerRadius(5, antialiased: true)
                     HStack {
-                        Image(systemName: "cloud.circle")
-                        Text("\(waypoint.weatherForecast.cloudcover[0].description)%")
+                        //Image(systemName: "cloud.circle")
+                        Text("⛅️\(waypoint.weatherForecast.cloudcover[0].description)%")
                     }
                     .foregroundColor(.white)
                     .background(Color.blue)
                     .cornerRadius(5, antialiased: true)
                 }
             }
-            Text("Weather data by Open-Meteo.com").font(.system(size: 8, design: .monospaced))
         }
     }
 }

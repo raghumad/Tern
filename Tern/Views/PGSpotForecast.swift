@@ -8,24 +8,81 @@
 import SwiftUI
 import Charts
 import CoreLocation
+import SwiftyJSON
 
 struct PGSpotForecast: View {
     let pgSpot : PGSpotAnnotation
-    @State var isSheet = true
+    @State var isSheet = false
     
     init(pgSpot: PGSpotAnnotation) {
         self.pgSpot = pgSpot
-        Task { await pgSpot.forecast.getForecast() }
+        pgSpot.forecast.getForecast()
     }
     var body: some View {
         VStack {
-            Text(pgSpot.title ?? "")
-            Text(pgSpot.subtitle ?? "")
+            if pgSpot.subtitle != "" {
+                Text(pgSpot.subtitle ?? "").font(.system(size: 8, design: .monospaced))
+            }
+            if pgSpot.properties["comments"].stringValue != "" {
+                Text(pgSpot.properties["comments"].stringValue).font(.system(size: 8, design: .monospaced))
+            }
+            if pgSpot.properties["going_there"].stringValue != "" {
+                Text("Getting there-> \(pgSpot.properties["going_there"].stringValue)").font(.system(size: 8, design: .monospaced))
+            }
+            if let elevation = Measurement<UnitLength>(value: pgSpot.properties["takeoff_altitude"].doubleValue, unit: .meters) {
+                HStack{
+                    //Image(systemName: "mountain.2")
+                    Text("🏔️\(String(format:"%0.0f",elevation.converted(to: .feet).value))ft")
+                }
+                .foregroundColor(.white)
+                .background(Color.blue)
+                .cornerRadius(5, antialiased: true)
+            }
+            HStack {
+                if pgSpot.forecast.winddirection_80m.count > 0 {
+                    HStack {
+                        Text("👆")
+                            .rotationEffect(.degrees(pgSpot.forecast.winddirection_80m[0].converted(to: .degrees).value))
+                        Text("\(String(format: "%0.1f", pgSpot.forecast.windspeed80m[0].value))mph")
+                    }
+                    .foregroundColor(.white)
+                    .background(Color.blue)
+                    .cornerRadius(5, antialiased: true)
+                    HStack {
+                        //Image(systemName: "tornado.circle")
+                        Text("💨\(String(format: "%0.1f", pgSpot.forecast.windgusts_10m[0].value))mph")
+                    }
+                    .foregroundColor(.white)
+                    .background(Color.blue)
+                    .cornerRadius(5, antialiased: true)
+                }
+            }
+            HStack {
+                if pgSpot.forecast.relativehumidity_2m.count > 0 {
+                    HStack{
+                        Image(systemName: "humidity")
+                        Text("\(pgSpot.forecast.relativehumidity_2m[0].description)%")
+                    }
+                    .foregroundColor(.white)
+                    .background(Color.blue)
+                    .cornerRadius(5, antialiased: true)
+                    HStack {
+                        //Image(systemName: "cloud.circle")
+                        Text("⛅️\(pgSpot.forecast.cloudcover[0].description)%")
+                    }
+                    .foregroundColor(.white)
+                    .background(Color.blue)
+                    .cornerRadius(5, antialiased: true)
+                }
+            }
+        }
+        .onTapGesture {
+            isSheet.toggle()
         }
         .sheet(isPresented: $isSheet) {
             VStack {
-                HStack{
-                    Text(pgSpot.subtitle ?? "")
+                if pgSpot.properties["weather"].stringValue != "" {
+                    Text(pgSpot.properties["weather"].stringValue).font(.system(size: 8, design: .monospaced))
                 }
                 ZStack{
                     VStack{
@@ -74,10 +131,21 @@ struct PGSpotForecast: View {
                     }
                     .chartLegend(position: .trailing)
                 }
+                HStack {
+                    
+                    if pgSpot.properties["pge_link"].stringValue != "" {
+                        Link("View on Paragliding Earth", destination: URL(string: pgSpot.properties["pge_link"].stringValue)!).font(.system(size: 8, design: .monospaced))
+                    } else {
+                        Link("pg site info by paragliding earth", destination: URL(string: "https://www.paraglidingearth.com/")!).font(.system(size: 8, design: .monospaced))
+                    }
+                    Link("Weather data by Open-Meteo.com", destination: URL(string: "https://open-meteo.com/")!).font(.system(size: 8, design: .monospaced))
+                }
             }
         }
         .onDisappear{
             isSheet.toggle()
+        }
+        .onAppear {
         }
     }
 }
@@ -85,6 +153,6 @@ struct PGSpotForecast: View {
 struct PGSpotForecast_Previews: PreviewProvider {
     static var previews: some View {
         let coordinate = CLLocationCoordinate2D(latitude: 40.2530073213, longitude: -105.609067564)
-        PGSpotForecast(pgSpot: PGSpotAnnotation(coordinate: coordinate, title: "Hi", subtitle: "Big Hi"))
+        PGSpotForecast(pgSpot: PGSpotAnnotation(coordinate: coordinate, title: "Hi", subtitle: "Big Hi", properties: JSON("")))
     }
 }

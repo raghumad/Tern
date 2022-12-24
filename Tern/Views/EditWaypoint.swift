@@ -59,7 +59,8 @@ struct EditWaypoint: View {
             TextField("Waypoint Name", text: $waypointName)
                 .keyboardType(.twitter)
             HStack{
-                Image(systemName: "mappin.and.ellipse")
+                //Image(systemName: "mappin.and.ellipse")
+                Text("📍")
                 TextField("Latitude", value: $latitude, format: .number)
                     .keyboardType(.decimalPad)
                     .frame(width: 80)
@@ -69,12 +70,12 @@ struct EditWaypoint: View {
                 Spacer()
             }
             HStack {
-                Image(systemName: "cylinder")
+                Text("⌭")
                 TextField("Cylinder Radius", value: $cylinderRadius.value, format: .number)
                     .keyboardType(.numberPad)
                     .frame(width: 50)
-                Image(systemName: "figure.climbing")
-                Text("\(String(format: "%0.0f", waypoint.elevation.converted(to: .feet).value))ft")
+                //Image(systemName: "mountain.2")
+                Text("🏔️\(String(format: "%0.0f", waypoint.elevation.converted(to: .feet).value))ft")
                 Spacer()
             }
             ZStack{
@@ -147,6 +148,7 @@ struct EditWaypoint: View {
                         .cornerRadius(8)
                 }
             }
+            Link("Weather data by Open-Meteo.com", destination: URL(string: "https://www.open-meteo.com/")!).font(.system(size: 8, design: .monospaced))
         }
         .onDisappear {
             saveWaypoint()

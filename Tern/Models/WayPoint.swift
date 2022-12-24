@@ -39,32 +39,30 @@ class WayPoint : NSObject, MKAnnotation {
     func update()
     {
         weatherForecast.coordinate = self.coordinate
-        Task {
-            await weatherForecast.getForecast()
-        }
-        Task {
-            await getElevation()
-        }
+        //weatherForecast.getForecast()
+        getElevation()
     }
 
-    func getElevation() async {
-        //https://api.open-meteo.com/v1/elevation?latitude=52.52&longitude=13.41
-        guard let url = URL(string: "https://api.open-meteo.com/v1/elevation?latitude=\(coordinate.latitude)&longitude=\(coordinate.longitude)") else {
-            print ("link error")
-            return
-        }
-        
-        do {
-            //print(url.absoluteString)
-            let (data, _) = try await URLSession.shared.data(from: url)
-            let eleJSON = try! JSON(data: data)
-            //print(url)
-            DispatchQueue.main.async {
-                self.elevation = Measurement<UnitLength>(value: eleJSON["elevation"][0].doubleValue, unit: .meters)
+    func getElevation() {
+        Task(priority: .background) {
+            //https://api.open-meteo.com/v1/elevation?latitude=52.52&longitude=13.41
+            guard let url = URL(string: "https://api.open-meteo.com/v1/elevation?latitude=\(coordinate.latitude)&longitude=\(coordinate.longitude)") else {
+                print ("link error")
+                return
             }
-            //print(self.weather)
-        } catch {
-            print("Open mateo fails.")
+            
+            do {
+                //print(url.absoluteString)
+                let (data, _) = try await URLSession.shared.data(from: url)
+                let eleJSON = try! JSON(data: data)
+                //print(url)
+                DispatchQueue.main.async {
+                    self.elevation = Measurement<UnitLength>(value: eleJSON["elevation"][0].doubleValue, unit: .meters)
+                }
+                //print(self.weather)
+            } catch {
+                print("Open mateo fails.")
+            }
         }
     }
 
@@ -74,12 +72,8 @@ class WayPoint : NSObject, MKAnnotation {
         title = name
         cylinderRadius = radius
         subtitle = description
-        Task(priority: .background) {
-            await weatherForecast.getForecast()
-        }
-        Task {
-            await getElevation()
-        }
+        //weatherForecast.getForecast()
+        getElevation()
     }
 
     var CUPdata : String {
