@@ -135,15 +135,6 @@ extension RoutePlannerModel {
             marker.annotation = annotation
             marker.titleVisibility = .visible
             marker.subtitleVisibility = .visible
-            
-            //marker.selectedGlyphImage = UIImage(systemName: "mappin.and.ellipse")
-            let wpc = WayPointAnnotationCallout(waypoint: annotation as! WayPoint).environmentObject(self)
-            let callout = UIHostingController(rootView: wpc)
-            callout.loadView()
-            marker.detailCalloutAccessoryView = callout.viewIfLoaded
-            //callout.isUserInteractionEnabled = true
-            //marker.leftCalloutAccessoryView = callout.view //could be weather and wind direction
-            //marker.rightCalloutAccessoryView = callout.view
             return marker
         }
         if annotation is TextAnnotation {
@@ -163,28 +154,26 @@ extension RoutePlannerModel {
             marker.animatesWhenAdded = false
             marker.glyphImage = UIImage(systemName: "tornado")
             marker.clusteringIdentifier = "HotSpot"
-            marker.selectedGlyphImage = UIImage()
             marker.annotation = annotation
             let prob = Double(annotation.title!!.replacingOccurrences(of: "%", with: "", options: .regularExpression))
-            marker.glyphTintColor = UIColor(red: (prob ?? 0)/100, green: 0.7, blue: 0.5, alpha: 1)
+            marker.glyphTintColor = UIColor(red: (prob ?? 0)/100, green: 0.3, blue: 0.2, alpha: 1)
             marker.markerTintColor = .clear
             marker.canShowCallout = false
             marker.titleVisibility = .visible
-            marker.subtitleVisibility = .visible
+            marker.subtitleVisibility = .hidden
             return marker
         }
         if annotation is PGSpotAnnotation {
             let marker = MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: MKMapViewDefaultAnnotationViewReuseIdentifier)
             marker.animatesWhenAdded = false
-            marker.glyphImage = UIImage(systemName: "paperplane")
+            marker.glyphImage = UIImage(named: "Kjartan Birgisson")
             marker.clusteringIdentifier = "PGSpot"
             marker.annotation = annotation
-            marker.glyphTintColor = .white
+            marker.glyphTintColor = .black
             marker.markerTintColor = .systemCyan
-            marker.canShowCallout = false
+            marker.canShowCallout = true
             marker.titleVisibility = .visible
             marker.subtitleVisibility = .adaptive
-            //marker.detailCalloutAccessoryView = UIHostingController(rootView: PGSpotForecast(pgSpot: annotation as! PGSpotAnnotation)).view
             return marker
         }
         return MKAnnotationView()
@@ -317,6 +306,19 @@ extension RoutePlannerModel {
         }
     }
 
+    func mapView(_ mapView: MKMapView, didSelect view: MKAnnotationView) {
+        if view.annotation is PGSpotAnnotation {
+            let callout = UIHostingController(rootView: PGSpotForecast(pgSpot: view.annotation as! PGSpotAnnotation))
+            callout.loadView()
+            view.detailCalloutAccessoryView = callout.viewIfLoaded
+        }
+        if view.annotation is WayPoint {
+            let callout = UIHostingController(rootView: WayPointAnnotationCallout(waypoint: view.annotation as! WayPoint).environmentObject(self))
+            callout.loadView()
+            view.detailCalloutAccessoryView = callout.viewIfLoaded
+        }
+    }
+
 }
 
 extension RoutePlannerModel {
@@ -361,12 +363,8 @@ extension RoutePlannerModel {
     func addWaypoint(coordinate: CLLocationCoordinate2D){
         let newWaypoint = WayPoint(coordinate: coordinate)
         if (!waypoints.contains(where: {$0.isNear(newPt: newWaypoint)})) {//dont instert waypoints are kissing
-            Task {
-                await newWaypoint.weatherForecast.getForecast() //fire off weather while other stuff is done.
-            }
-            Task {
-                await newWaypoint.getElevation()
-            }
+            //newWaypoint.weatherForecast.getForecast() //fire off weather while other stuff is done.
+            newWaypoint.getElevation()
 
             newWaypoint.title = "WP\(waypoints.count + 1)"
             newWaypoint.subtitle = "Waypoint description"
@@ -403,7 +401,11 @@ extension RoutePlannerModel {
                                         //add only if inside the radius.
                                         self.pgspots[cC]?.pgspot[pgspotPoint.coordinate] = feature // Add only abcd and other.
                                         if self.mapView.annotations.firstIndex(where: { $0.coordinate == pgspotPoint.coordinate }) == nil { //only add if not added before
-                                            self.mapView.addAnnotation(PGSpotAnnotation(coordinate: pgspotPoint.coordinate, title: feaureProperties["name"].stringValue, subtitle: feaureProperties["takeoff_description"].stringValue))
+                                            self.mapView.addAnnotation(PGSpotAnnotation(
+                                                coordinate: pgspotPoint.coordinate,
+                                                title: feaureProperties["name"].stringValue,
+                                                subtitle: feaureProperties["takeoff_description"].stringValue,
+                                                properties: feaureProperties))
                                         }
                                     }
                                 }
