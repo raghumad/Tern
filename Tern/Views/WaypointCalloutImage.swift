@@ -12,7 +12,7 @@ struct WaypointCalloutImage: View {
     @Binding var waypoint: WayPoint
     var body: some View {
         VStack{
-            HStack {
+            /*HStack {
                 HStack {Image(systemName: "mappin.and.ellipse")
                     Text("\(String(format: "%.5f", waypoint.coordinate.latitude)),\(String(format: "%.5f", waypoint.coordinate.longitude))")
                 }
@@ -20,7 +20,7 @@ struct WaypointCalloutImage: View {
                 .background(Color.blue)
                 .cornerRadius(5, antialiased: true)
                 Spacer()
-            }
+            }*/
             HStack {
                 HStack {
                     Image(systemName: "cylinder")
@@ -36,7 +36,6 @@ struct WaypointCalloutImage: View {
                 .foregroundColor(.white)
                 .background(Color.blue)
                 .cornerRadius(5, antialiased: true)
-                Spacer()
             }
             HStack {
                 if waypoint.weatherForecast.winddirection_80m.count > 0 {
@@ -56,7 +55,6 @@ struct WaypointCalloutImage: View {
                     .background(Color.blue)
                     .cornerRadius(5, antialiased: true)
                 }
-                Spacer()
             }
             HStack {
                 if waypoint.weatherForecast.relativehumidity_2m.count > 0 {
@@ -75,8 +73,8 @@ struct WaypointCalloutImage: View {
                     .background(Color.blue)
                     .cornerRadius(5, antialiased: true)
                 }
-                Spacer()
             }
+            Text("Weather data by Open-Meteo.com").font(.system(size: 8, design: .monospaced))
         }
     }
 }
