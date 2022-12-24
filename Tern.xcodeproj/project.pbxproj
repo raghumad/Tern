@@ -23,6 +23,10 @@
 		EF31A521292D49F8000719DE /* TernUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF31A520292D49F8000719DE /* TernUITestsLaunchTests.swift */; };
 		EF31A530292D4B34000719DE /* RoutePlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF31A52F292D4B34000719DE /* RoutePlanner.swift */; };
 		EF5EF39B2948FACB0070A5BB /* WaypointCalloutImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF5EF39A2948FACB0070A5BB /* WaypointCalloutImage.swift */; };
+		EF6A71CB2956ACE6001C662A /* TernCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF6A71CA2956ACE6001C662A /* TernCache.swift */; };
+		EF6A71CD2956B1BB001C662A /* PGSpots.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF6A71CC2956B1BB001C662A /* PGSpots.swift */; };
+		EF6A71CF2956BDCC001C662A /* PGSpotAnnotation.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF6A71CE2956BDCC001C662A /* PGSpotAnnotation.swift */; };
+		EF6A71D12956C952001C662A /* PGSpotForecast.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF6A71D02956C952001C662A /* PGSpotForecast.swift */; };
 		EF6C26F1293B131B00735B40 /* RoutePlannerModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF6C26F0293B131B00735B40 /* RoutePlannerModel.swift */; };
 		EF6C26F5293B13E100735B40 /* WayPoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF6C26F4293B13E100735B40 /* WayPoint.swift */; };
 		EF797F58292E097B0004B5B4 /* SwiftyJSON in Frameworks */ = {isa = PBXBuildFile; productRef = EF797F57292E097B0004B5B4 /* SwiftyJSON */; };
@@ -73,6 +77,10 @@
 		EF31A520292D49F8000719DE /* TernUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TernUITestsLaunchTests.swift; sourceTree = "<group>"; };
 		EF31A52F292D4B34000719DE /* RoutePlanner.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RoutePlanner.swift; sourceTree = "<group>"; };
 		EF5EF39A2948FACB0070A5BB /* WaypointCalloutImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WaypointCalloutImage.swift; sourceTree = "<group>"; };
+		EF6A71CA2956ACE6001C662A /* TernCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TernCache.swift; sourceTree = "<group>"; };
+		EF6A71CC2956B1BB001C662A /* PGSpots.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PGSpots.swift; sourceTree = "<group>"; };
+		EF6A71CE2956BDCC001C662A /* PGSpotAnnotation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PGSpotAnnotation.swift; sourceTree = "<group>"; };
+		EF6A71D02956C952001C662A /* PGSpotForecast.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PGSpotForecast.swift; sourceTree = "<group>"; };
 		EF6C26F0293B131B00735B40 /* RoutePlannerModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutePlannerModel.swift; sourceTree = "<group>"; };
 		EF6C26F4293B13E100735B40 /* WayPoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WayPoint.swift; sourceTree = "<group>"; };
 		EFAC18AC293FF6990045B1FF /* EditWaypoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditWaypoint.swift; sourceTree = "<group>"; };
@@ -120,6 +128,7 @@
 				EFAC18AC293FF6990045B1FF /* EditWaypoint.swift */,
 				EFEF03B52942C27600912949 /* qrCode.swift */,
 				EF2C8B1F2953E2ED00515DF6 /* WelcomeScreen.swift */,
+				EF6A71D02956C952001C662A /* PGSpotForecast.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -134,6 +143,9 @@
 				EF25C60B2944F0C6001EB8D1 /* Airspaces.swift */,
 				EF284840295020C1003F9F50 /* TextAnnotation.swift */,
 				EF284845295133C3003F9F50 /* Hotspot.swift */,
+				EF6A71CE2956BDCC001C662A /* PGSpotAnnotation.swift */,
+				EF6A71CA2956ACE6001C662A /* TernCache.swift */,
+				EF6A71CC2956B1BB001C662A /* PGSpots.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -342,6 +354,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				EF6A71CF2956BDCC001C662A /* PGSpotAnnotation.swift in Sources */,
 				EFB4B67D293EA14A00B4AE13 /* WeatherForecast.swift in Sources */,
 				EF284841295020C1003F9F50 /* TextAnnotation.swift in Sources */,
 				EFEF03B62942C27600912949 /* qrCode.swift in Sources */,
@@ -349,13 +362,16 @@
 				EFAC18AD293FF6990045B1FF /* EditWaypoint.swift in Sources */,
 				EF5EF39B2948FACB0070A5BB /* WaypointCalloutImage.swift in Sources */,
 				EF284846295133C3003F9F50 /* Hotspot.swift in Sources */,
+				EF6A71CB2956ACE6001C662A /* TernCache.swift in Sources */,
 				EF0EAC84293C091D00A877DD /* RoutePlannerMapViewHelper.swift in Sources */,
 				EF25C60C2944F0C6001EB8D1 /* Airspaces.swift in Sources */,
+				EF6A71D12956C952001C662A /* PGSpotForecast.swift in Sources */,
 				EF6C26F1293B131B00735B40 /* RoutePlannerModel.swift in Sources */,
 				EF31A4FE292D49F7000719DE /* TernApp.swift in Sources */,
 				EF6C26F5293B13E100735B40 /* WayPoint.swift in Sources */,
 				EF2C8B202953E2ED00515DF6 /* WelcomeScreen.swift in Sources */,
 				EF31A530292D4B34000719DE /* RoutePlanner.swift in Sources */,
+				EF6A71CD2956B1BB001C662A /* PGSpots.swift in Sources */,
 				EF0EAC86293C79FA00A877DD /* WayPointAnnotationCallout.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

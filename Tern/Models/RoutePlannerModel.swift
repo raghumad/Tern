@@ -21,6 +21,7 @@ class RoutePlannerModel : NSObject, CLLocationManagerDelegate, ObservableObject,
     let locationManager : CLLocationManager = .init()
     var mapView: MKMapView = .init()
     var airspaces : [String:Airspaces] = .init()
+    var pgspots : [String:PGSpots] = .init()
 
     override init() {
         super.init()
@@ -90,12 +91,19 @@ extension RoutePlannerModel {
                         if pm.count > 0 {
                             if pm[0].isoCountryCode != nil && !self.airspaces.keys.contains((pm[0].isoCountryCode?.lowercased())!){
                                 self.airspaces[pm[0].isoCountryCode!.lowercased()] = Airspaces(countryCode: pm[0].isoCountryCode!.lowercased())//Creating airspaces obj will download file.
+                                //Also download PGSpots
+                                self.pgspots[pm[0].isoCountryCode!.lowercased()] = PGSpots(countryCode: pm[0].isoCountryCode!.lowercased())
                                 //print("Downloading airspaces: \(pm[0].isoCountryCode!.lowercased())")
                             }
                         }
                     }
                 })
-            if mapView.region.span.latitudeDelta > 5 || mapView.overlays.count > 500 {mapView.removeOverlays(mapView.overlays)} else { addAirspaceOverlays() }
+            if mapView.region.span.latitudeDelta > 5 || mapView.overlays.count > 500 {
+                mapView.removeOverlays(mapView.overlays)
+            } else {
+                addAirspaceOverlays()
+                addPGSpots()
+            }
             if mapView.annotations.count > 1500 {mapView.removeAnnotations(mapView.annotations)}
             redrawRoutePath()
         } else {
@@ -116,6 +124,7 @@ extension RoutePlannerModel {
             let marker = MKMarkerAnnotationView(annotation: annotation as? WayPoint, reuseIdentifier: MKMapViewDefaultAnnotationViewReuseIdentifier)
             marker.isDraggable = true
             marker.canShowCallout = true
+            marker.clusteringIdentifier = "Waypoint"
             if wptIndex != 9999 && wptIndex < 51 {
                 marker.glyphImage = UIImage(systemName: "\(wptIndex + 1).circle")
             } else {
@@ -130,10 +139,6 @@ extension RoutePlannerModel {
             //marker.selectedGlyphImage = UIImage(systemName: "mappin.and.ellipse")
             let wpc = WayPointAnnotationCallout(waypoint: annotation as! WayPoint).environmentObject(self)
             let callout = UIHostingController(rootView: wpc)
-            
-            //detailCalloutAccessoryView is hanging so we create an image and pass it instead.
-            //let renderer = ImageRenderer(content: wpc)
-            //let callout = UIImageView(image: renderer.uiImage)
             callout.loadView()
             marker.detailCalloutAccessoryView = callout.viewIfLoaded
             //callout.isUserInteractionEnabled = true
@@ -166,6 +171,20 @@ extension RoutePlannerModel {
             marker.canShowCallout = false
             marker.titleVisibility = .visible
             marker.subtitleVisibility = .visible
+            return marker
+        }
+        if annotation is PGSpotAnnotation {
+            let marker = MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: MKMapViewDefaultAnnotationViewReuseIdentifier)
+            marker.animatesWhenAdded = false
+            marker.glyphImage = UIImage(systemName: "paperplane")
+            marker.clusteringIdentifier = "PGSpot"
+            marker.annotation = annotation
+            marker.glyphTintColor = .white
+            marker.markerTintColor = .systemCyan
+            marker.canShowCallout = false
+            marker.titleVisibility = .visible
+            marker.subtitleVisibility = .adaptive
+            //marker.detailCalloutAccessoryView = UIHostingController(rootView: PGSpotForecast(pgSpot: annotation as! PGSpotAnnotation)).view
             return marker
         }
         return MKAnnotationView()
@@ -364,13 +383,46 @@ extension RoutePlannerModel {
         }
     }
 
+    func addPGSpots(){
+        for cC in self.pgspots.keys {
+            var pgSpots = [MKGeoJSONObject]()
+            do {
+                let pgSpotsPath = TernCache.cacheDir.appending(path: "\(cC.lowercased())_pgspots.geojson")
+                let data = try Data(contentsOf: pgSpotsPath)
+                pgSpots = try MKGeoJSONDecoder().decode(data)
+                if mapView.region.span.latitudeDelta < 5 { // adjusting to 300nm about 690miles or 600nm for 10 delta.
+                    for item in pgSpots {
+                        if let feature =  item as? MKGeoJSONFeature {
+                            let feaureProperties = try! JSON(data: feature.properties!)
+                            for pgspotPoint in feature.geometry {
+                                if let pgspotPoint = pgspotPoint as? MKPointAnnotation {
+                                    if  pgspotPoint.coordinate.longitude > mapView.region.center.longitude - mapView.region.span.longitudeDelta &&
+                                            pgspotPoint.coordinate.longitude < mapView.region.center.longitude + mapView.region.span.longitudeDelta &&
+                                            pgspotPoint.coordinate.latitude > mapView.region.center.latitude - mapView.region.span.latitudeDelta &&
+                                            pgspotPoint.coordinate.latitude < mapView.region.center.latitude + mapView.region.span.latitudeDelta {
+                                        //add only if inside the radius.
+                                        self.pgspots[cC]?.pgspot[pgspotPoint.coordinate] = feature // Add only abcd and other.
+                                        if self.mapView.annotations.firstIndex(where: { $0.coordinate == pgspotPoint.coordinate }) == nil { //only add if not added before
+                                            self.mapView.addAnnotation(PGSpotAnnotation(coordinate: pgspotPoint.coordinate, title: feaureProperties["name"].stringValue, subtitle: feaureProperties["takeoff_description"].stringValue))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch {
+                print(error.localizedDescription)
+            }
+        }
+    }
+
     func addAirspaceOverlays(){
         //Update overlays for airspaces because we have a route.
-        let cachesURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("TernAirspaceCache")
         for cC in self.airspaces.keys {
             var airspaces = [MKGeoJSONObject]()
             do {
-                let airspacePath = cachesURL.appending(path: "\(cC)_asp.geojson",directoryHint: .notDirectory)
+                let airspacePath = TernCache.cacheDir.appending(path: "\(cC)_asp.geojson",directoryHint: .notDirectory)
                 let data = try Data(contentsOf: airspacePath)
                 airspaces = try MKGeoJSONDecoder().decode(data)
                 //print ("got airspaces: \(airspaces.count)")
