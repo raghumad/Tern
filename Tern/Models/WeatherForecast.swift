@@ -33,32 +33,32 @@ class WeatherForecast {
 
     var winddirection_80m : [Measurement<UnitAngle>] {
         get {
-            return weatherForecast["hourly"]["winddirection_80m"].arrayValue.map { Measurement(value: $0.doubleValue, unit: UnitAngle.degrees) }
+            return weatherForecast["hourly"]["winddirection_80m"].arrayValue.map { Measurement(value: $0.doubleValue, unit: .degrees) }
         }
     }
 
     //var [gust] = Measurement(value: weatherForecast["hourly"]["windgusts_10m"].arrayValue.map { $0.doubleValue }, unit: UnitSpeed.milesPerHour)
     var windgusts_10m : [Measurement<UnitSpeed>] {
         get {
-            return weatherForecast["hourly"]["windgusts_10m"].arrayValue.map { Measurement(value: $0.doubleValue, unit: UnitSpeed.milesPerHour) }
+            return weatherForecast["hourly"]["windgusts_10m"].arrayValue.map { Measurement(value: $0.doubleValue, unit: .milesPerHour) }
         }
     }
 
     var temperature_2m : [Measurement<UnitTemperature>] {
         get {
-            return weatherForecast["hourly"]["temperature_2m"].arrayValue.map { Measurement(value: $0.doubleValue, unit: UnitTemperature.fahrenheit) }
+            return weatherForecast["hourly"]["temperature_2m"].arrayValue.map { Measurement(value: $0.doubleValue, unit: .fahrenheit) }
         }
     }
 
     var dewpoint_2m : [Measurement<UnitTemperature>] {
         get {
-            return weatherForecast["hourly"]["dewpoint_2m"].arrayValue.map { Measurement(value: $0.doubleValue, unit: UnitTemperature.fahrenheit) }
+            return weatherForecast["hourly"]["dewpoint_2m"].arrayValue.map { Measurement(value: $0.doubleValue, unit: .fahrenheit) }
         }
     }
 
     var pressure_msl : [Measurement<UnitPressure>] {
         get {
-            return weatherForecast["hourly"]["pressure_msl"].arrayValue.map { Measurement(value: $0.doubleValue, unit: UnitPressure.hectopascals) }
+            return weatherForecast["hourly"]["pressure_msl"].arrayValue.map { Measurement(value: $0.doubleValue, unit: .hectopascals) }
         }
     }
 

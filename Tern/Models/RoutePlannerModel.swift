@@ -788,6 +788,22 @@ extension RoutePlannerModel {
         return urlPath.absoluteString
     }
 
+    func save() {
+        if waypoints.count == 0 { return }
+        guard let paths = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            return
+        }
+        let urlPath = paths.appendingPathComponent("route.tern")
+        do {
+            //figure out a way to encode to geojson.
+            try "HelloTern".write(to: urlPath, atomically: true, encoding: .utf8)
+            print(urlPath.absoluteString)
+        }
+        catch {
+            print(error.localizedDescription)
+        }
+    }
+
     var totalXC : Measurement<UnitLength> {
         get {
             var xc : Measurement<UnitLength> = Measurement(value: 0, unit: .meters)
