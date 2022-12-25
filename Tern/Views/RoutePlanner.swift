@@ -17,6 +17,25 @@ struct RoutePlanner: View {
             RoutePlannerMapViewHelper(manager: model)
             .ignoresSafeArea()
             VStack{
+                HStack {
+                    Button{
+                    } label: {
+                        Menu {
+                            Toggle(isOn: $model.showAirspaces) {
+                                Label("Airspaces", systemImage: "airplane.circle")
+                            }
+                            Toggle(isOn: $model.showPGSpots) {
+                                Label("PGSpots", image: "Kjartan Birgisson")
+                            }
+                        } label: {
+                            Image(systemName: "gearshape")
+                                .foregroundColor(.white)
+                        }
+                    }
+                    .frame(width: 40, height: 40)
+                    .padding(.leading, 10)
+                    Spacer()
+                }
                 Spacer()
                 HStack{ //Everything in this stack will be white and title2 size.
                     Spacer()

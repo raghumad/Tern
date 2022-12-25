@@ -14,6 +14,8 @@ import GPX
 
 class RoutePlannerModel : NSObject, CLLocationManagerDelegate, ObservableObject, MKMapViewDelegate, UIGestureRecognizerDelegate {
     //38.9121906016191, -104.72783900204881
+    @AppStorage("showAirspaces") var showAirspaces = true
+    @AppStorage("showPGSpots") var showPGSpots = true
     var region : MKCoordinateRegion = .init()
     var waypoints: [WayPoint] = .init()
     @Published var shareRoute : Bool = false
@@ -80,6 +82,14 @@ extension RoutePlannerModel {
     //MARK: MapViewDelegates
 
     func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
+        if showAirspaces == false { mapView.removeOverlays(mapView.overlays) }
+        if showPGSpots == false {
+            for pgspot in mapView.annotations {
+                if pgspot is PGSpotAnnotation {
+                    mapView.removeAnnotation(pgspot)
+                }
+            }
+        }
         if mapView.region.span.latitudeDelta < 20 { //download only when zoomed in
             CLGeocoder().reverseGeocodeLocation(
                 CLLocation(
@@ -98,17 +108,18 @@ extension RoutePlannerModel {
                         }
                     }
                 })
+            if mapView.annotations.count > 1000 {mapView.removeAnnotations(mapView.annotations)}
             if mapView.region.span.latitudeDelta > 5 || mapView.overlays.count > 500 {
                 mapView.removeOverlays(mapView.overlays)
             } else {
                 addAirspaceOverlays()
                 addPGSpots()
             }
-            if mapView.annotations.count > 1500 {mapView.removeAnnotations(mapView.annotations)}
             redrawRoutePath()
         } else {
             //remove overlays when zoomed out
-            mapView.removeOverlays(mapView.overlays) // remove all overlays if >10 includin circles
+            mapView.removeOverlays(mapView.overlays)
+            mapView.removeAnnotations(mapView.annotations)
         }
     }
 
@@ -128,7 +139,7 @@ extension RoutePlannerModel {
             if wptIndex != 9999 && wptIndex < 51 {
                 marker.glyphImage = UIImage(systemName: "\(wptIndex + 1).circle")
             } else {
-                marker.glyphImage = UIImage(systemName: "1f595")
+                marker.glyphImage = UIImage(systemName: "🖕")
             }
             marker.markerTintColor = .systemBlue
             marker.animatesWhenAdded = true
@@ -206,9 +217,9 @@ extension RoutePlannerModel {
                     switch json["icaoClass"].intValue {
                     case 1,2,3,4:
                         let renderer = MKPolygonRenderer(polygon: overlay as! MKPolygon)
-                        renderer.fillColor = .red
+                        renderer.fillColor = .black
                         renderer.alpha = 1 / (2 * CGFloat(json["icaoClass"].intValue))
-                        renderer.strokeColor = .red
+                        renderer.strokeColor = .systemRed
                         return renderer
                     case 8:
                         switch json["type"].intValue {
@@ -216,17 +227,17 @@ extension RoutePlannerModel {
                             let renderer = MKPolygonRenderer(polygon: overlay as! MKPolygon)
                             //renderer.polygon.title = json["name"].stringValue
                             //renderer.polygon.subtitle = "Restricted"
-                            renderer.fillColor = .red
-                            renderer.alpha = 0.4
+                            renderer.fillColor = .systemRed
+                            renderer.alpha = 0.2
                             renderer.strokeColor = .black
-                            renderer.lineWidth = 4
+                            renderer.lineWidth = 2
                             return renderer
                         case 2:
                             let renderer = MKPolygonRenderer(polygon: overlay as! MKPolygon)
                             renderer.fillColor = .systemOrange
-                            renderer.alpha = 0.4
+                            renderer.alpha = 0.2
                             renderer.lineWidth = 1
-                            renderer.strokeColor = .clear
+                            renderer.strokeColor = .black
                             return renderer
                         /*case 28,21:
                             renderer.fillColor = .systemGreen
@@ -382,6 +393,7 @@ extension RoutePlannerModel {
     }
 
     func addPGSpots(){
+        if showPGSpots == false { return }
         for cC in self.pgspots.keys {
             var pgSpots = [MKGeoJSONObject]()
             do {
@@ -420,6 +432,7 @@ extension RoutePlannerModel {
     }
 
     func addAirspaceOverlays(){
+        if showAirspaces == false { return }
         //Update overlays for airspaces because we have a route.
         for cC in self.airspaces.keys {
             var airspaces = [MKGeoJSONObject]()
