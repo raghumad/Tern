@@ -26,10 +26,6 @@ struct WelcomeScreen: View {
                                 .padding(.top, -20)
                                 .padding(.leading,90)
                                 .frame(width: 250)
-                            //                        Circle()
-                            //                            .padding(.leading, 300)
-                            //                            .padding(.bottom, 50)
-                            //                            .foregroundColor(.yellow)
                         }
                     }
                     Text("Tern Paragliding")

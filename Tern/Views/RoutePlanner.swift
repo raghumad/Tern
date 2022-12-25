@@ -17,23 +17,11 @@ struct RoutePlanner: View {
             RoutePlannerMapViewHelper(manager: model)
             .ignoresSafeArea()
             VStack{
-                HStack {
-                    Button{
-                    } label: {
-                        Menu {
-                            Toggle(isOn: $model.showAirspaces) {
-                                Label("Airspaces", systemImage: "airplane.circle")
-                            }
-                            Toggle(isOn: $model.showPGSpots) {
-                                Label("PGSpots", image: "Kjartan Birgisson")
-                            }
-                        } label: {
-                            Image(systemName: "gearshape")
-                                .foregroundColor(.white)
-                        }
-                    }
-                    .frame(width: 40, height: 40)
-                    .padding(.leading, 10)
+                HStack{
+                    SettingsMenu()
+                        .frame(width: 300)
+                        .padding(.top, 20)
+                        .padding(.leading, 20)
                     Spacer()
                 }
                 Spacer()
@@ -50,6 +38,11 @@ struct RoutePlanner: View {
                             //We open a menu here so nothing doing.
                         } label: {
                             Menu {
+                                Button {
+                                    model.save()
+                                } label: {
+                                    Label("Save", systemImage: "square.and.arrow.down")
+                                }
                                 Button {
                                     let urlPath = URL(filePath: model.saveXCTSK())
                                     model.shareItems.removeAll()
@@ -101,8 +94,7 @@ struct RoutePlanner: View {
                                     model.shareRoute.toggle()
                                 } label: {
                                     HStack {
-                                        Text (".wpt File(CompeGPS)")
-                                        Image(systemName: "point.filled.topleft.down.curvedto.point.bottomright.up")
+                                        Label(".wpt File(CompeGPS)", systemImage: "point.filled.topleft.down.curvedto.point.bottomright.up")
                                     }
                                 }
                             } label: {
