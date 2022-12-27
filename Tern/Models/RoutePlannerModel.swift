@@ -726,31 +726,40 @@ extension RoutePlannerModel {
            ...
          ]
        }*/
-        var xctskData = "XCTSK:{"
-        xctskData.append("\"T\":\"W\",")
-        xctskData.append("\"V\":2,")
-        xctskData.append("\"t\":")
-        if waypoints.count > 0 {
-            xctskData.append("[")
-            for i in waypoints.indices {
-                xctskData.append("{")
-                var encpoly = ""
-                let polyline = Polyline(coordinates: [waypoints[i].coordinate])
-                encpoly.append(polyline.encodedPolyline)
-                print(polyline.encodedPolyline)
-                
-                encpoly.append(encodeSingleInteger(Int(waypoints[i].elevation.converted(to: .meters).value)))
-                print(encodeSingleInteger(Int(waypoints[i].elevation.converted(to: .meters).value)))
-                xctskData.append("\"z\":\"\(encpoly)\",")
-                xctskData.append("\"n\":\"\(waypoints[i].title!)\"")
-                if i == waypoints.count-1 {
-                    xctskData.append("}]}")
-                } else {
-                    xctskData.append("},")
-                }
-            }
+//        var xctskData = "XCTSK:{"
+//        xctskData.append("\"T\":\"W\",")
+//        xctskData.append("\"V\":2,")
+//        xctskData.append("\"t\":")
+//        if waypoints.count > 0 {
+//            xctskData.append("[")
+//            for i in waypoints.indices {
+//                xctskData.append("{")
+//                var encpoly = ""
+//                let polyline = Polyline(coordinates: [waypoints[i].coordinate])
+//                encpoly.append(polyline.encodedPolyline)
+//                print(polyline.encodedPolyline)
+//
+//                encpoly.append(encodeSingleInteger(Int(waypoints[i].elevation.converted(to: .meters).value)))
+//                print(encodeSingleInteger(Int(waypoints[i].elevation.converted(to: .meters).value)))
+//                xctskData.append("\"z\":\"\(encpoly)\",")
+//                xctskData.append("\"n\":\"\(waypoints[i].title!)\"")
+//                if i == waypoints.count-1 {
+//                    xctskData.append("}]}")
+//                } else {
+//                    xctskData.append("},")
+//                }
+//            }
+//        }
+//        print(xctskData)
+        var xctskData = "XCTSK:"
+        do {
+            var xctsk_wp_qr = xctsk_wp()
+            xctsk_wp_qr.turnpoints = waypoints.map{ $0.xctsk_wp_tp }
+            let data = try JSONEncoder().encode(xctsk_wp_qr)
+            xctskData.append(String(data: data, encoding: .utf8) ?? "")
+        } catch {
+            print(error.localizedDescription)
         }
-        print(xctskData)
         return xctskData
     }
 
@@ -797,10 +806,11 @@ extension RoutePlannerModel {
         let urlPath = paths.appendingPathComponent("route.tern")
         do {
             //figure out a way to encode to geojson.
-            try "HelloTern".write(to: urlPath, atomically: true, encoding: .utf8)
+            let data = try JSONEncoder().encode(waypoints)
+            try data.write(to: urlPath)
+            //try "HelloTern".write(to: urlPath, atomically: true, encoding: .utf8)
             print(urlPath.absoluteString)
-        }
-        catch {
+        } catch {
             print(error.localizedDescription)
         }
     }
