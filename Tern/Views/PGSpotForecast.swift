@@ -36,14 +36,16 @@ struct PGSpotForecast: View {
                     .truncationMode(.tail)
                     .lineLimit(3)
             }
-            if let elevation = Measurement<UnitLength>(value: pgSpot.properties["takeoff_altitude"].doubleValue, unit: units.magnitude) {
-                HStack{
-                    //Image(systemName: "mountain.2")
-                    Text("🏔️\(String(format:"%0.0f",elevation.converted(to: units.magnitude).value))\(units.magnitude.symbol)")
+            HStack{
+                if let elevation = Measurement<UnitLength>(value: pgSpot.properties["takeoff_altitude"].doubleValue, unit: .meters) {
+                    HStack{
+                        //Image(systemName: "mountain.2")
+                        Text("🏔️\(String(format:"%0.0f",elevation.converted(to: units.magnitude).value))\(units.magnitude.symbol)")
+                    }
+                    .foregroundColor(.white)
+                    .background(Color.blue)
+                    .cornerRadius(5, antialiased: true)
                 }
-                .foregroundColor(.white)
-                .background(Color.blue)
-                .cornerRadius(5, antialiased: true)
             }
             HStack {
                 if pgSpot.forecast.winddirection_80m.count > 0 {
@@ -83,6 +85,7 @@ struct PGSpotForecast: View {
                 }
             }
         }
+        .frame(minWidth: 150)
         .onTapGesture {
             isSheet.toggle()
         }
