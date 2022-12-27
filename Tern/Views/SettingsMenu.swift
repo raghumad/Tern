@@ -11,81 +11,119 @@ struct SettingsMenu: View {
     @State var menu = false
     @AppStorage("showAirspaces") var showAirspaces = true
     @AppStorage("showPGSpots") var showPGSpots = true
-    @State var windUnit : UnitSpeed = .milesPerHour
-    @State var altitudeUnit : UnitLength = .feet
-    @State var distanceUnit : UnitLength = .miles
+    @State var units = MeasurementUnits.userDefaults
     
     var body: some View {
         HStack{
-            VStack{
-                Image(systemName: "gearshape")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(height: 25,alignment: .topLeading)
-                    .foregroundColor(.white)
-                    .onTapGesture {
-                        self.menu.toggle()
-                    }
-                if menu {
-                    Toggle(isOn: $showAirspaces) {
-                        Label("Airspaces", systemImage: "airplane.circle")
-                    }
-                    Toggle(isOn: $showPGSpots) {
-                        HStack{
-                            Image("Kjartan Birgisson")
-                                .resizable()
-                                .scaledToFit()
-                                .frame(height: 15)
-                            Text("PGSpots")
-                        }
-                    }
-                    Divider()
-                    HStack{
-                        Text("Distance")
-                        Spacer()
-                        Picker(selection: $distanceUnit) {
-                            Text("km").tag(UnitLength.kilometers)
-                            Text("miles").tag(UnitLength.miles)
-                            Text("fathoms").tag(UnitLength.fathoms)
+            Image(systemName: "gearshape")
+                .resizable()
+                .scaledToFit()
+                .frame(height: 20)
+                .foregroundColor(.white)
+                .onTapGesture {
+                    self.menu.toggle()
+                    //Also restore the other states into appstate.
+                }
+                .sheet(isPresented: $menu) {
+                    HStack {
+                        Button{
+                            self.menu.toggle()
                         } label: {
-                            Text("Altitude")
+                            Text("𐦂")
+                                .foregroundColor(.red)
                         }
-                        .cornerRadius(5)
-                        .pickerStyle(.segmented)
-                    }
-                    HStack{
-                        Text("Wind")
+                        .padding([.leading, .top], 10)
                         Spacer()
-                        Picker(selection: $windUnit) {
-                            Text("kt").tag(UnitSpeed.knots)
-                            Text("mph").tag(UnitSpeed.milesPerHour)
-                            Text("kmph").tag(UnitSpeed.kilometersPerHour)
-                            Text("m/s").tag(UnitSpeed.metersPerSecond)
-                        } label: {
-                            Text("Wind")
-                        }
-                        .cornerRadius(5)
-                        .pickerStyle(.segmented)
                     }
-                    HStack{
-                        Text("Altitude")
-                        Spacer()
-                        Picker(selection: $altitudeUnit) {
-                            Text("ft").tag(UnitLength.feet)
-                            Text("m").tag(UnitLength.meters)
-                            Text("lightyears").tag(UnitLength.lightyears)
-                        } label: {
-                            Text("Altitude")
+                    NavigationView {
+                        List {
+                            Toggle(isOn: $showAirspaces) {
+                                Label("Airspaces", systemImage: "airplane.circle")
+                            }
+                            Toggle(isOn: $showPGSpots) {
+                                HStack{
+                                    Image("Kjartan Birgisson")
+                                        .resizable()
+                                        .scaledToFit()
+                                        .frame(height: 15)
+                                    Text("PGSpots")
+                                }
+                            }
+                            HStack{
+                                Text("Temperature")
+                                Spacer()
+                                Picker(selection: $units.temperature) {
+                                    Text(UnitTemperature.fahrenheit.symbol).tag(UnitTemperature.fahrenheit)
+                                    Text(UnitTemperature.celsius.symbol).tag(UnitTemperature.celsius)
+                                    Text(UnitTemperature.kelvin.symbol).tag(UnitTemperature.kelvin)
+                                } label: {
+                                    Text("Temperature")
+                                }
+                                .cornerRadius(5)
+                                .pickerStyle(.segmented)
+                                .frame(width: 200)
+                            }
+                            HStack{
+                                Text("Distance")
+                                Spacer()
+                                Picker(selection: $units.xcDistance) {
+                                    Text(UnitLength.kilometers.symbol).tag(UnitLength.kilometers)
+                                    Text(UnitLength.miles.symbol).tag(UnitLength.miles)
+                                    Text(UnitLength.furlongs.symbol).tag(UnitLength.furlongs)
+                                } label: {
+                                    Text("Altitude")
+                                }
+                                .cornerRadius(5)
+                                .pickerStyle(.segmented)
+                                .frame(width: 200)
+                            }
+                            HStack{
+                                Text("Speed")
+                                Spacer()
+                                Picker(selection: $units.speed) {
+                                    Text(UnitSpeed.knots.symbol).tag(UnitSpeed.knots)
+                                    Text(UnitSpeed.milesPerHour.symbol).tag(UnitSpeed.milesPerHour)
+                                    Text(UnitSpeed.kilometersPerHour.symbol).tag(UnitSpeed.kilometersPerHour)
+                                    Text(UnitSpeed.metersPerSecond.symbol).tag(UnitSpeed.metersPerSecond)
+                                } label: {
+                                    Text("Speed")
+                                }
+                                .cornerRadius(5)
+                                .pickerStyle(.segmented)
+                                .frame(width: 200)
+                            }
+                            HStack{
+                                Text("Altitude")
+                                Spacer()
+                                Picker(selection: $units.magnitude) {
+                                    Text(UnitLength.feet.symbol).tag(UnitLength.feet)
+                                    Text(UnitLength.meters.symbol).tag(UnitLength.meters)
+                                    Text(UnitLength.inches.symbol).tag(UnitLength.inches)
+                                } label: {
+                                    Text("Altitude")
+                                }
+                                .cornerRadius(5)
+                                .pickerStyle(.segmented)
+                                .frame(width: 200)
+                            }
                         }
-                        .cornerRadius(5)
-                        .pickerStyle(.segmented)
+                    }
+                    .presentationDetents([.fraction(0.5)])
+                    .presentationDragIndicator(.visible)
+                    .onDisappear {
+                        //Save the values to state.
+                        units.save()
                     }
                 }
-            }
-            .frame(alignment: .leading)
-            //.animation(.spring())
-            Spacer()
+                .foregroundColor(.black)
+                .font(.callout)
         }
+        .foregroundColor(.white)
+        .font(.title2) // This size looks better.
+        .padding(5)
+        .background(.gray)
+        .cornerRadius(5)
+        .fixedSize()
     }
 }
 

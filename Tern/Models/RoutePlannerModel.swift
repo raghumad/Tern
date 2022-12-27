@@ -24,6 +24,7 @@ class RoutePlannerModel : NSObject, CLLocationManagerDelegate, ObservableObject,
     var mapView: MKMapView = .init()
     var airspaces : [String:Airspaces] = .init()
     var pgspots : [String:PGSpots] = .init()
+    var units = MeasurementUnits.userDefaults
 
     override init() {
         super.init()
@@ -829,7 +830,7 @@ extension RoutePlannerModel {
                 if routePath is MKGeodesicPolyline {
                     labels.append(TextAnnotation(
                         coordinate: routePath.coordinate,
-                        title: String(format: "%0.1fkm", totalXC.converted(to: .kilometers).value),
+                        title: "\(String(format: "%0.1f", totalXC.converted(to: units.xcDistance).value))\(units.xcDistance.symbol)",
                         subtitle: "Total XC Distance"))
                 }
             }
@@ -839,7 +840,10 @@ extension RoutePlannerModel {
                 let legDist = Measurement<UnitLength>(value: CLLocation(latitude: waypoints[i].coordinate.latitude, longitude: waypoints[i].coordinate.longitude)
                     .distance(from: CLLocation(latitude: waypoints[i-1].coordinate.latitude, longitude: waypoints[i-1].coordinate.longitude)), unit: .meters)
                 let legLine = MKGeodesicPolyline(coordinates: [waypoints[i-1].coordinate, waypoints[i].coordinate], count: 2)
-                labels.append(TextAnnotation(coordinate: legLine.coordinate, title: String(format: "%0.1fkm", legDist.converted(to: .kilometers).value)))
+                labels.append(TextAnnotation(
+                    coordinate: legLine.coordinate,
+                    title: "\(String(format: "%0.1f", legDist.converted(to: units.xcDistance).value))\(units.xcDistance.symbol)"
+                    ))
             }
         }
         return labels

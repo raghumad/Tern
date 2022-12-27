@@ -10,6 +10,7 @@ import CoreLocation
 
 struct WaypointCalloutImage: View {
     @Binding var waypoint: WayPoint
+    var units = MeasurementUnits.userDefaults
     var body: some View {
         VStack{
             /*HStack {
@@ -23,15 +24,14 @@ struct WaypointCalloutImage: View {
             }*/
             HStack {
                 HStack {
-                    //Image(systemName: "cylinder")
-                    Text("⌭\(String(waypoint.cylinderRadius.converted(to: .meters).value))m")
+                    Text("⌭\(String(format: "%0.1f", waypoint.cylinderRadius.converted(to: units.magnitude).value))\(units.magnitude.symbol)")
                 }
                 .foregroundColor(.white)
                 .background(Color.blue)
                 .cornerRadius(5, antialiased: true)
                 HStack{
                     //Image(systemName: "mountain.2")
-                    Text("🏔️\(String(format:"%0.0f",waypoint.elevation.converted(to: .feet).value))ft")
+                    Text("🏔️\(String(format:"%0.0f",waypoint.elevation.converted(to: units.magnitude).value))\(units.magnitude.symbol)")
                 }
                 .foregroundColor(.white)
                 .background(Color.blue)
@@ -42,14 +42,14 @@ struct WaypointCalloutImage: View {
                     HStack {
                         Text("👆")
                             .rotationEffect(.degrees(waypoint.weatherForecast.winddirection_80m[0].converted(to: .degrees).value))
-                        Text("\(String(format: "%0.1f", waypoint.weatherForecast.windspeed80m[0].value))mph")
+                        Text("\(String(format: "%0.1f", waypoint.weatherForecast.windspeed80m[0].converted(to: units.speed).value))\(units.speed.symbol)")
                     }
                     .foregroundColor(.white)
                     .background(Color.blue)
                     .cornerRadius(5, antialiased: true)
                     HStack {
                         //Image(systemName: "tornado.circle")
-                        Text("💨\(String(format: "%0.1f", waypoint.weatherForecast.windgusts_10m[0].value))mph")
+                        Text("💨\(String(format: "%0.1f", waypoint.weatherForecast.windgusts_10m[0].converted(to: units.speed).value))\(units.speed.symbol)")
                     }
                     .foregroundColor(.white)
                     .background(Color.blue)

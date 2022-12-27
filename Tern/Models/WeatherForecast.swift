@@ -20,6 +20,7 @@ struct WeatherForecastData: Identifiable {
 class WeatherForecast {
     var coordinate : CLLocationCoordinate2D
     private var weatherForecast : JSON = []
+    private var units = MeasurementUnits.userDefaults
     init(coordinate: CLLocationCoordinate2D, weatherForecast: JSON = JSON("")) {
         self.coordinate = coordinate
         getForecast()

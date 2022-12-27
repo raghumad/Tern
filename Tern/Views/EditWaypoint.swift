@@ -14,6 +14,7 @@ struct EditWaypoint: View {
     @EnvironmentObject var model : RoutePlannerModel
     let waypoint : WayPoint
     @Binding var editWaypoint : Bool
+    var units = MeasurementUnits.userDefaults
     
     @State var waypointName : String
     @State var latitude : Double
@@ -75,7 +76,7 @@ struct EditWaypoint: View {
                     .keyboardType(.numberPad)
                     .frame(width: 50)
                 //Image(systemName: "mountain.2")
-                Text("🏔️\(String(format: "%0.0f", waypoint.elevation.converted(to: .feet).value))ft")
+                Text("🏔️\(String(format: "%0.0f", waypoint.elevation.converted(to: units.magnitude).value))\(units.magnitude.symbol)")
                 Spacer()
             }
             ZStack{
