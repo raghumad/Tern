@@ -13,6 +13,7 @@ struct WayPointAnnotationCallout : View {
     @EnvironmentObject var model : RoutePlannerModel
     @State var editWaypoint : Bool = false
     @State var waypoint : WayPoint // This has to be copy or delete will crash.
+    var units = MeasurementUnits.userDefaults
 
     var body : some View {
         let renderer = ImageRenderer(content: WaypointCalloutImage(waypoint: $waypoint))
@@ -28,7 +29,7 @@ struct WayPointAnnotationCallout : View {
                 waypointName: waypoint.title ?? "",
                 latitude: waypoint.coordinate.latitude,
                 longitude: waypoint.coordinate.longitude,
-                cylinderRadius: waypoint.cylinderRadius,
+                cylinderRadius: waypoint.cylinderRadius.converted(to: units.magnitude),
                 waypointDescription: waypoint.subtitle!
             ).environmentObject(model)
          .presentationDetents([.fraction(0.8)])
