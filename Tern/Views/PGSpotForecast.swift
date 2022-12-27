@@ -13,6 +13,7 @@ import SwiftyJSON
 struct PGSpotForecast: View {
     let pgSpot : PGSpotAnnotation
     @State var isSheet = false
+    var units = MeasurementUnits.userDefaults
     
     init(pgSpot: PGSpotAnnotation) {
         self.pgSpot = pgSpot
@@ -22,17 +23,23 @@ struct PGSpotForecast: View {
         VStack {
             if pgSpot.subtitle != "" {
                 Text(pgSpot.subtitle ?? "").font(.system(size: 8, design: .monospaced))
+                    .truncationMode(.tail)
+                    .lineLimit(3)
             }
             if pgSpot.properties["comments"].stringValue != "" {
                 Text(pgSpot.properties["comments"].stringValue).font(.system(size: 8, design: .monospaced))
+                    .truncationMode(.tail)
+                    .lineLimit(3)
             }
             if pgSpot.properties["going_there"].stringValue != "" {
                 Text("Getting there-> \(pgSpot.properties["going_there"].stringValue)").font(.system(size: 8, design: .monospaced))
+                    .truncationMode(.tail)
+                    .lineLimit(3)
             }
-            if let elevation = Measurement<UnitLength>(value: pgSpot.properties["takeoff_altitude"].doubleValue, unit: .meters) {
+            if let elevation = Measurement<UnitLength>(value: pgSpot.properties["takeoff_altitude"].doubleValue, unit: units.magnitude) {
                 HStack{
                     //Image(systemName: "mountain.2")
-                    Text("🏔️\(String(format:"%0.0f",elevation.converted(to: .feet).value))ft")
+                    Text("🏔️\(String(format:"%0.0f",elevation.converted(to: units.magnitude).value))\(units.magnitude.symbol)")
                 }
                 .foregroundColor(.white)
                 .background(Color.blue)
@@ -43,14 +50,14 @@ struct PGSpotForecast: View {
                     HStack {
                         Text("👆")
                             .rotationEffect(.degrees(pgSpot.forecast.winddirection_80m[0].converted(to: .degrees).value))
-                        Text("\(String(format: "%0.1f", pgSpot.forecast.windspeed80m[0].value))mph")
+                        Text("\(String(format: "%0.1f", pgSpot.forecast.windspeed80m[0].converted(to: units.speed).value))\(units.speed.symbol)")
                     }
                     .foregroundColor(.white)
                     .background(Color.blue)
                     .cornerRadius(5, antialiased: true)
                     HStack {
                         //Image(systemName: "tornado.circle")
-                        Text("💨\(String(format: "%0.1f", pgSpot.forecast.windgusts_10m[0].value))mph")
+                        Text("💨\(String(format: "%0.1f", pgSpot.forecast.windgusts_10m[0].converted(to: units.speed).value))\(units.speed.symbol)")
                     }
                     .foregroundColor(.white)
                     .background(Color.blue)
@@ -81,6 +88,7 @@ struct PGSpotForecast: View {
         }
         .sheet(isPresented: $isSheet) {
             VStack {
+                Spacer()
                 if pgSpot.properties["weather"].stringValue != "" {
                     Text(pgSpot.properties["weather"].stringValue).font(.system(size: 8, design: .monospaced))
                 }
@@ -141,11 +149,12 @@ struct PGSpotForecast: View {
                     Link("Weather data by Open-Meteo.com", destination: URL(string: "https://open-meteo.com/")!).font(.system(size: 8, design: .monospaced))
                 }
             }
+            .presentationDetents([.fraction(0.8)])
+            .presentationDragIndicator(.visible)
+            
         }
         .onDisappear{
             isSheet.toggle()
-        }
-        .onAppear {
         }
     }
 }

@@ -15,13 +15,11 @@ struct RoutePlanner: View {
     var body: some View {
         ZStack(alignment: .center){
             RoutePlannerMapViewHelper(manager: model)
-            .ignoresSafeArea()
             VStack{
                 HStack{
                     SettingsMenu()
-                        .frame(width: 300)
-                        .padding(.top, 20)
-                        .padding(.leading, 20)
+                        .padding([.top, .leading], 20)
+                        .padding(.top, 30)
                     Spacer()
                 }
                 Spacer()
@@ -109,6 +107,8 @@ struct RoutePlanner: View {
                     .cornerRadius(5)
                     .fixedSize()
                 }
+                .padding([.bottom, .trailing], 10)
+                .padding(.bottom, 20)
             }
             .sheet(isPresented: $model.shareRoute) {
                 ShareSheet(items: $model.shareItems)
@@ -118,6 +118,7 @@ struct RoutePlanner: View {
              }
             .padding(.trailing)
         }
+        .ignoresSafeArea()
     }
 }
 

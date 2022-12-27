@@ -48,6 +48,7 @@ struct WelcomeScreen: View {
             }
         } else {
             routePlanner
+                .transition(.move(edge: .bottom))
         }
     }
 }

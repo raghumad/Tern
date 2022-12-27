@@ -34,6 +34,7 @@
 		EFAC18AD293FF6990045B1FF /* EditWaypoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFAC18AC293FF6990045B1FF /* EditWaypoint.swift */; };
 		EFB054A229583C8E003A088A /* SettingsMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFB054A129583C8E003A088A /* SettingsMenu.swift */; };
 		EFB4B67D293EA14A00B4AE13 /* WeatherForecast.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFB4B67C293EA14A00B4AE13 /* WeatherForecast.swift */; };
+		EFC30E47295A7E3A00544D4B /* MeasurementUnits.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFC30E46295A7E3A00544D4B /* MeasurementUnits.swift */; };
 		EFE92DF7293D823E0093BBF1 /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = EFE92DF5293D823E0093BBF1 /* README.md */; };
 		EFE92DF8293D823E0093BBF1 /* LICENSE in Resources */ = {isa = PBXBuildFile; fileRef = EFE92DF6293D823E0093BBF1 /* LICENSE */; };
 		EFEF03B62942C27600912949 /* qrCode.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFEF03B52942C27600912949 /* qrCode.swift */; };
@@ -87,6 +88,7 @@
 		EFAC18AC293FF6990045B1FF /* EditWaypoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditWaypoint.swift; sourceTree = "<group>"; };
 		EFB054A129583C8E003A088A /* SettingsMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsMenu.swift; sourceTree = "<group>"; };
 		EFB4B67C293EA14A00B4AE13 /* WeatherForecast.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherForecast.swift; sourceTree = "<group>"; };
+		EFC30E46295A7E3A00544D4B /* MeasurementUnits.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeasurementUnits.swift; sourceTree = "<group>"; };
 		EFE92DF5293D823E0093BBF1 /* README.md */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		EFE92DF6293D823E0093BBF1 /* LICENSE */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = LICENSE; sourceTree = "<group>"; };
 		EFEF03B52942C27600912949 /* qrCode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = qrCode.swift; sourceTree = "<group>"; };
@@ -149,6 +151,7 @@
 				EF6A71CE2956BDCC001C662A /* PGSpotAnnotation.swift */,
 				EF6A71CA2956ACE6001C662A /* TernCache.swift */,
 				EF6A71CC2956B1BB001C662A /* PGSpots.swift */,
+				EFC30E46295A7E3A00544D4B /* MeasurementUnits.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -358,6 +361,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				EF6A71CF2956BDCC001C662A /* PGSpotAnnotation.swift in Sources */,
+				EFC30E47295A7E3A00544D4B /* MeasurementUnits.swift in Sources */,
 				EFB4B67D293EA14A00B4AE13 /* WeatherForecast.swift in Sources */,
 				EF284841295020C1003F9F50 /* TextAnnotation.swift in Sources */,
 				EFEF03B62942C27600912949 /* qrCode.swift in Sources */,
