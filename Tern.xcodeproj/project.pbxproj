@@ -22,6 +22,7 @@
 		EF31A51F292D49F8000719DE /* TernUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF31A51E292D49F8000719DE /* TernUITests.swift */; };
 		EF31A521292D49F8000719DE /* TernUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF31A520292D49F8000719DE /* TernUITestsLaunchTests.swift */; };
 		EF31A530292D4B34000719DE /* RoutePlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF31A52F292D4B34000719DE /* RoutePlanner.swift */; };
+		EF48AF12295AF52900303C0D /* json_models.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF48AF11295AF52900303C0D /* json_models.swift */; };
 		EF5EF39B2948FACB0070A5BB /* WaypointCalloutImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF5EF39A2948FACB0070A5BB /* WaypointCalloutImage.swift */; };
 		EF6A71CB2956ACE6001C662A /* TernCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF6A71CA2956ACE6001C662A /* TernCache.swift */; };
 		EF6A71CD2956B1BB001C662A /* PGSpots.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF6A71CC2956B1BB001C662A /* PGSpots.swift */; };
@@ -78,6 +79,7 @@
 		EF31A51E292D49F8000719DE /* TernUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TernUITests.swift; sourceTree = "<group>"; };
 		EF31A520292D49F8000719DE /* TernUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TernUITestsLaunchTests.swift; sourceTree = "<group>"; };
 		EF31A52F292D4B34000719DE /* RoutePlanner.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RoutePlanner.swift; sourceTree = "<group>"; };
+		EF48AF11295AF52900303C0D /* json_models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = json_models.swift; sourceTree = "<group>"; };
 		EF5EF39A2948FACB0070A5BB /* WaypointCalloutImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WaypointCalloutImage.swift; sourceTree = "<group>"; };
 		EF6A71CA2956ACE6001C662A /* TernCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TernCache.swift; sourceTree = "<group>"; };
 		EF6A71CC2956B1BB001C662A /* PGSpots.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PGSpots.swift; sourceTree = "<group>"; };
@@ -152,6 +154,7 @@
 				EF6A71CA2956ACE6001C662A /* TernCache.swift */,
 				EF6A71CC2956B1BB001C662A /* PGSpots.swift */,
 				EFC30E46295A7E3A00544D4B /* MeasurementUnits.swift */,
+				EF48AF11295AF52900303C0D /* json_models.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -366,6 +369,7 @@
 				EF284841295020C1003F9F50 /* TextAnnotation.swift in Sources */,
 				EFEF03B62942C27600912949 /* qrCode.swift in Sources */,
 				EF31A500292D49F7000719DE /* ContentView.swift in Sources */,
+				EF48AF12295AF52900303C0D /* json_models.swift in Sources */,
 				EFAC18AD293FF6990045B1FF /* EditWaypoint.swift in Sources */,
 				EF5EF39B2948FACB0070A5BB /* WaypointCalloutImage.swift in Sources */,
 				EF284846295133C3003F9F50 /* Hotspot.swift in Sources */,

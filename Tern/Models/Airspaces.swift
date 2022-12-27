@@ -42,7 +42,25 @@ class Airspaces {
     }
 }
 
-extension CLLocationCoordinate2D : Hashable {
+extension CLLocationCoordinate2D : Hashable, Codable {
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(latitude, forKey: CodingKeys.latitude)
+        try container.encode(longitude, forKey: CodingKeys.longitude)
+    }
+    
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let longitude = try container.decode(CLLocationDegrees.self, forKey: CLLocationCoordinate2D.CodingKeys.longitude)
+        let latitude = try container.decode(CLLocationDegrees.self, forKey: CLLocationCoordinate2D.CodingKeys.latitude)
+        self.init(latitude: latitude as Double, longitude: longitude)
+    }
+    
+    private enum CodingKeys : String, CodingKey {
+        case latitude = "latitude"
+        case longitude = "longitude"
+    }
+    
     public static func == (lhs: CLLocationCoordinate2D, rhs: CLLocationCoordinate2D) -> Bool {
         if lhs.longitude == rhs.longitude && lhs.latitude == rhs.latitude {
             return true

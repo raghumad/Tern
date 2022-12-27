@@ -8,19 +8,60 @@
 import Foundation
 import MapKit
 import SwiftyJSON
+import Polyline
 
-class WayPoint : NSObject, MKAnnotation {
-    let id = ContinuousClock.now
+class WayPoint : NSObject, MKAnnotation, Codable {
+    var id = ContinuousClock.now
     var coordinate: CLLocationCoordinate2D
     var elevation : Measurement<UnitLength> = .init(value: 0, unit: .meters)
     var cylinderRadius: Measurement<UnitLength> = .init(value: 100, unit: .meters)
     var title: String?
     var subtitle: String?
     var weatherForecast : WeatherForecast
+    
+    private enum CodingKeys : String, CodingKey {
+        //case id = "id"
+        case coordinate = "coordinate"
+        case elevation = "elevation"
+        case cylinderRadius = "cylinder_radius"
+        case title = "name"
+        case subtitle = "description"
+    }
 
     init(coordinate: CLLocationCoordinate2D = CLLocationCoordinate2D()) {
         self.coordinate = coordinate
         self.weatherForecast = WeatherForecast(coordinate: coordinate)
+    }
+
+    private init(coordinate: CLLocationCoordinate2D, elevation: Measurement<UnitLength>, cylinderRadius: Measurement<UnitLength>, title: String, subtitle: String)
+    {
+        self.id = ContinuousClock.now
+        self.coordinate = coordinate
+        self.elevation = elevation
+        self.cylinderRadius = cylinderRadius
+        self.title = title
+        self.subtitle = subtitle
+        self.weatherForecast = WeatherForecast(coordinate: coordinate)
+    }
+    
+    required convenience init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let coordinate = try container.decode(CLLocationCoordinate2D.self, forKey: WayPoint.CodingKeys.coordinate)
+        let elevattion = try container.decode(Double.self, forKey: WayPoint.CodingKeys.elevation)
+        let cylinderRadius = try container.decode(Double.self, forKey: WayPoint.CodingKeys.cylinderRadius)
+        let title = try container.decode(String.self, forKey: WayPoint.CodingKeys.title)
+        let subtitle = try container.decode(String.self, forKey: WayPoint.CodingKeys.subtitle)
+        //let id  = try container.decode(Double.self, forKey: WayPoint.CodingKeys.id)
+        self.init(coordinate: coordinate, elevation: Measurement<UnitLength>(value: elevattion, unit: .meters), cylinderRadius: Measurement<UnitLength>(value: cylinderRadius, unit: .meters), title: title, subtitle: subtitle)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(self.coordinate, forKey: .coordinate)
+        try container.encode(self.elevation.converted(to: .meters).value, forKey: .elevation)
+        try container.encode(self.cylinderRadius.converted(to: .meters).value, forKey: .cylinderRadius)
+        try container.encodeIfPresent(self.title, forKey: .title)
+        try container.encodeIfPresent(self.subtitle, forKey: .subtitle)
     }
 
     static func ==(left: WayPoint, right: WayPoint) -> Bool
@@ -123,6 +164,12 @@ class WayPoint : NSObject, MKAnnotation {
     var OziWPTdata : String {
         //https://www.oziexplorer4.com/eng/help/fileformats.html
         return "You're Fucked!"
+    }
+    var xctsk_wp_tp : xctsk_wp_turnpoint {
+        let polyline = Polyline(coordinates: [coordinate])
+        var coord = polyline.encodedPolyline
+        coord.append(encodeSingleInteger(Int(elevation.converted(to: .meters).value)))
+        return xctsk_wp_turnpoint(polylineCoordinate: coord, name: self.title ?? "wp")
     }
 }
 
