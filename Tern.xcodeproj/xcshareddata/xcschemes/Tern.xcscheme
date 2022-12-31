@@ -14,7 +14,7 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "EF31A4F9292D49F7000719DE"
+               BlueprintIdentifier = "EF1A6C05295FAFBF00FE9FDB"
                BuildableName = "Tern.app"
                BlueprintName = "Tern"
                ReferencedContainer = "container:Tern.xcodeproj">
@@ -44,7 +44,7 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "EF31A4F9292D49F7000719DE"
+            BlueprintIdentifier = "EF1A6C05295FAFBF00FE9FDB"
             BuildableName = "Tern.app"
             BlueprintName = "Tern"
             ReferencedContainer = "container:Tern.xcodeproj">
@@ -61,7 +61,7 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "EF31A4F9292D49F7000719DE"
+            BlueprintIdentifier = "EF1A6C05295FAFBF00FE9FDB"
             BuildableName = "Tern.app"
             BlueprintName = "Tern"
             ReferencedContainer = "container:Tern.xcodeproj">
@@ -73,7 +73,6 @@
    </AnalyzeAction>
    <ArchiveAction
       buildConfiguration = "Release"
-      customArchiveName = "Tern Paragliding"
       revealArchiveInOrganizer = "YES">
    </ArchiveAction>
 </Scheme>

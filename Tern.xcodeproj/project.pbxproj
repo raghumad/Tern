@@ -7,229 +7,169 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		EF0EAC84293C091D00A877DD /* RoutePlannerMapViewHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF0EAC83293C091D00A877DD /* RoutePlannerMapViewHelper.swift */; };
-		EF0EAC86293C79FA00A877DD /* WayPointAnnotationCallout.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF0EAC85293C79F900A877DD /* WayPointAnnotationCallout.swift */; };
-		EF25C60C2944F0C6001EB8D1 /* Airspaces.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF25C60B2944F0C6001EB8D1 /* Airspaces.swift */; };
-		EF284841295020C1003F9F50 /* TextAnnotation.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF284840295020C1003F9F50 /* TextAnnotation.swift */; };
-		EF284846295133C3003F9F50 /* Hotspot.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF284845295133C3003F9F50 /* Hotspot.swift */; };
-		EF2C8B202953E2ED00515DF6 /* WelcomeScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF2C8B1F2953E2ED00515DF6 /* WelcomeScreen.swift */; };
-		EF2C8B242954264000515DF6 /* Gruppo-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = EF2C8B232954264000515DF6 /* Gruppo-Regular.ttf */; };
-		EF31A4FE292D49F7000719DE /* TernApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF31A4FD292D49F7000719DE /* TernApp.swift */; };
-		EF31A500292D49F7000719DE /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF31A4FF292D49F7000719DE /* ContentView.swift */; };
-		EF31A502292D49F8000719DE /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = EF31A501292D49F8000719DE /* Assets.xcassets */; };
-		EF31A505292D49F8000719DE /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = EF31A504292D49F8000719DE /* Preview Assets.xcassets */; };
-		EF31A515292D49F8000719DE /* TernTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF31A514292D49F8000719DE /* TernTests.swift */; };
-		EF31A51F292D49F8000719DE /* TernUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF31A51E292D49F8000719DE /* TernUITests.swift */; };
-		EF31A521292D49F8000719DE /* TernUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF31A520292D49F8000719DE /* TernUITestsLaunchTests.swift */; };
-		EF31A530292D4B34000719DE /* RoutePlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF31A52F292D4B34000719DE /* RoutePlanner.swift */; };
-		EF48AF12295AF52900303C0D /* json_models.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF48AF11295AF52900303C0D /* json_models.swift */; };
-		EF5EF39B2948FACB0070A5BB /* WaypointCalloutImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF5EF39A2948FACB0070A5BB /* WaypointCalloutImage.swift */; };
-		EF6A71CB2956ACE6001C662A /* TernCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF6A71CA2956ACE6001C662A /* TernCache.swift */; };
-		EF6A71CD2956B1BB001C662A /* PGSpots.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF6A71CC2956B1BB001C662A /* PGSpots.swift */; };
-		EF6A71CF2956BDCC001C662A /* PGSpotAnnotation.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF6A71CE2956BDCC001C662A /* PGSpotAnnotation.swift */; };
-		EF6A71D12956C952001C662A /* PGSpotForecast.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF6A71D02956C952001C662A /* PGSpotForecast.swift */; };
-		EF6C26F1293B131B00735B40 /* RoutePlannerModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF6C26F0293B131B00735B40 /* RoutePlannerModel.swift */; };
-		EF6C26F5293B13E100735B40 /* WayPoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF6C26F4293B13E100735B40 /* WayPoint.swift */; };
-		EF797F58292E097B0004B5B4 /* SwiftyJSON in Frameworks */ = {isa = PBXBuildFile; productRef = EF797F57292E097B0004B5B4 /* SwiftyJSON */; };
-		EF90FF8F295157D200E49AB1 /* GPX in Frameworks */ = {isa = PBXBuildFile; productRef = EF90FF8E295157D200E49AB1 /* GPX */; };
-		EFAC18AD293FF6990045B1FF /* EditWaypoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFAC18AC293FF6990045B1FF /* EditWaypoint.swift */; };
-		EFB054A229583C8E003A088A /* SettingsMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFB054A129583C8E003A088A /* SettingsMenu.swift */; };
-		EFB4B67D293EA14A00B4AE13 /* WeatherForecast.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFB4B67C293EA14A00B4AE13 /* WeatherForecast.swift */; };
-		EFC30E47295A7E3A00544D4B /* MeasurementUnits.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFC30E46295A7E3A00544D4B /* MeasurementUnits.swift */; };
-		EFE92DF7293D823E0093BBF1 /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = EFE92DF5293D823E0093BBF1 /* README.md */; };
-		EFE92DF8293D823E0093BBF1 /* LICENSE in Resources */ = {isa = PBXBuildFile; fileRef = EFE92DF6293D823E0093BBF1 /* LICENSE */; };
-		EFEF03B62942C27600912949 /* qrCode.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFEF03B52942C27600912949 /* qrCode.swift */; };
-		EFEF03BA294304DE00912949 /* Polyline in Frameworks */ = {isa = PBXBuildFile; productRef = EFEF03B9294304DE00912949 /* Polyline */; };
+		EF1A6C0A295FAFBF00FE9FDB /* TernApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1A6C09295FAFBF00FE9FDB /* TernApp.swift */; };
+		EF1A6C0C295FAFBF00FE9FDB /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1A6C0B295FAFBF00FE9FDB /* ContentView.swift */; };
+		EF1A6C0E295FAFC000FE9FDB /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = EF1A6C0D295FAFC000FE9FDB /* Assets.xcassets */; };
+		EF1A6C11295FAFC000FE9FDB /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = EF1A6C10295FAFC000FE9FDB /* Preview Assets.xcassets */; };
+		EF1A6C25295FB25E00FE9FDB /* WeatherForecast.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1A6C19295FB25E00FE9FDB /* WeatherForecast.swift */; };
+		EF1A6C26295FB25E00FE9FDB /* PGSpots.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1A6C1A295FB25E00FE9FDB /* PGSpots.swift */; };
+		EF1A6C27295FB25E00FE9FDB /* RoutePlannerMapViewHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1A6C1B295FB25E00FE9FDB /* RoutePlannerMapViewHelper.swift */; };
+		EF1A6C28295FB25E00FE9FDB /* PGSpotAnnotation.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1A6C1C295FB25E00FE9FDB /* PGSpotAnnotation.swift */; };
+		EF1A6C29295FB25E00FE9FDB /* RoutePlannerModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1A6C1D295FB25E00FE9FDB /* RoutePlannerModel.swift */; };
+		EF1A6C2A295FB25E00FE9FDB /* Hotspot.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1A6C1E295FB25E00FE9FDB /* Hotspot.swift */; };
+		EF1A6C2B295FB25E00FE9FDB /* TextAnnotation.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1A6C1F295FB25E00FE9FDB /* TextAnnotation.swift */; };
+		EF1A6C2C295FB25E00FE9FDB /* MeasurementUnits.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1A6C20295FB25E00FE9FDB /* MeasurementUnits.swift */; };
+		EF1A6C2D295FB25E00FE9FDB /* TernCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1A6C21295FB25E00FE9FDB /* TernCache.swift */; };
+		EF1A6C2E295FB25E00FE9FDB /* WayPoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1A6C22295FB25E00FE9FDB /* WayPoint.swift */; };
+		EF1A6C2F295FB25E00FE9FDB /* Airspaces.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1A6C23295FB25E00FE9FDB /* Airspaces.swift */; };
+		EF1A6C30295FB25E00FE9FDB /* json_models.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1A6C24295FB25E00FE9FDB /* json_models.swift */; };
+		EF1A6C39295FB26B00FE9FDB /* WelcomeScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1A6C31295FB26B00FE9FDB /* WelcomeScreen.swift */; };
+		EF1A6C3A295FB26B00FE9FDB /* EditWaypoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1A6C32295FB26B00FE9FDB /* EditWaypoint.swift */; };
+		EF1A6C3B295FB26B00FE9FDB /* PGSpotForecast.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1A6C33295FB26B00FE9FDB /* PGSpotForecast.swift */; };
+		EF1A6C3C295FB26B00FE9FDB /* SettingsMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1A6C34295FB26B00FE9FDB /* SettingsMenu.swift */; };
+		EF1A6C3D295FB26B00FE9FDB /* qrCode.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1A6C35295FB26B00FE9FDB /* qrCode.swift */; };
+		EF1A6C3E295FB26B00FE9FDB /* WayPointAnnotationCallout.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1A6C36295FB26B00FE9FDB /* WayPointAnnotationCallout.swift */; };
+		EF1A6C3F295FB26B00FE9FDB /* WaypointCalloutImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1A6C37295FB26B00FE9FDB /* WaypointCalloutImage.swift */; };
+		EF1A6C40295FB26B00FE9FDB /* RoutePlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1A6C38295FB26B00FE9FDB /* RoutePlanner.swift */; };
+		EF1A6C43295FB36D00FE9FDB /* SwiftyJSON in Frameworks */ = {isa = PBXBuildFile; productRef = EF1A6C42295FB36D00FE9FDB /* SwiftyJSON */; };
+		EF1A6C46295FB3E600FE9FDB /* Polyline in Frameworks */ = {isa = PBXBuildFile; productRef = EF1A6C45295FB3E600FE9FDB /* Polyline */; };
+		EF1A6C49295FB64000FE9FDB /* GPX in Frameworks */ = {isa = PBXBuildFile; productRef = EF1A6C48295FB64000FE9FDB /* GPX */; };
+		EF1A6C4C295FB75400FE9FDB /* LICENSE in Resources */ = {isa = PBXBuildFile; fileRef = EF1A6C4A295FB75400FE9FDB /* LICENSE */; };
+		EF1A6C4D295FB75400FE9FDB /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = EF1A6C4B295FB75400FE9FDB /* README.md */; };
+		EF1A6C4F295FB79400FE9FDB /* Gruppo-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = EF1A6C4E295FB79300FE9FDB /* Gruppo-Regular.ttf */; };
 /* End PBXBuildFile section */
 
-/* Begin PBXContainerItemProxy section */
-		EF31A511292D49F8000719DE /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = EF31A4F2292D49F7000719DE /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = EF31A4F9292D49F7000719DE;
-			remoteInfo = Tern;
-		};
-		EF31A51B292D49F8000719DE /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = EF31A4F2292D49F7000719DE /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = EF31A4F9292D49F7000719DE;
-			remoteInfo = Tern;
-		};
-/* End PBXContainerItemProxy section */
-
 /* Begin PBXFileReference section */
-		EF0EAC83293C091D00A877DD /* RoutePlannerMapViewHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutePlannerMapViewHelper.swift; sourceTree = "<group>"; };
-		EF0EAC85293C79F900A877DD /* WayPointAnnotationCallout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WayPointAnnotationCallout.swift; sourceTree = "<group>"; };
-		EF25C60B2944F0C6001EB8D1 /* Airspaces.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Airspaces.swift; sourceTree = "<group>"; };
-		EF284840295020C1003F9F50 /* TextAnnotation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextAnnotation.swift; sourceTree = "<group>"; };
-		EF284845295133C3003F9F50 /* Hotspot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hotspot.swift; sourceTree = "<group>"; };
-		EF2C8B1F2953E2ED00515DF6 /* WelcomeScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeScreen.swift; sourceTree = "<group>"; };
-		EF2C8B232954264000515DF6 /* Gruppo-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; name = "Gruppo-Regular.ttf"; path = "../Gruppo-Regular.ttf"; sourceTree = "<group>"; };
-		EF31A4FA292D49F7000719DE /* Tern.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Tern.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		EF31A4FD292D49F7000719DE /* TernApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TernApp.swift; sourceTree = "<group>"; };
-		EF31A4FF292D49F7000719DE /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
-		EF31A501292D49F8000719DE /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		EF31A504292D49F8000719DE /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
-		EF31A50B292D49F8000719DE /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		EF31A510292D49F8000719DE /* TernTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TernTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		EF31A514292D49F8000719DE /* TernTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TernTests.swift; sourceTree = "<group>"; };
-		EF31A51A292D49F8000719DE /* TernUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TernUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		EF31A51E292D49F8000719DE /* TernUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TernUITests.swift; sourceTree = "<group>"; };
-		EF31A520292D49F8000719DE /* TernUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TernUITestsLaunchTests.swift; sourceTree = "<group>"; };
-		EF31A52F292D4B34000719DE /* RoutePlanner.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RoutePlanner.swift; sourceTree = "<group>"; };
-		EF48AF11295AF52900303C0D /* json_models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = json_models.swift; sourceTree = "<group>"; };
-		EF5EF39A2948FACB0070A5BB /* WaypointCalloutImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WaypointCalloutImage.swift; sourceTree = "<group>"; };
-		EF6A71CA2956ACE6001C662A /* TernCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TernCache.swift; sourceTree = "<group>"; };
-		EF6A71CC2956B1BB001C662A /* PGSpots.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PGSpots.swift; sourceTree = "<group>"; };
-		EF6A71CE2956BDCC001C662A /* PGSpotAnnotation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PGSpotAnnotation.swift; sourceTree = "<group>"; };
-		EF6A71D02956C952001C662A /* PGSpotForecast.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PGSpotForecast.swift; sourceTree = "<group>"; };
-		EF6C26F0293B131B00735B40 /* RoutePlannerModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutePlannerModel.swift; sourceTree = "<group>"; };
-		EF6C26F4293B13E100735B40 /* WayPoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WayPoint.swift; sourceTree = "<group>"; };
-		EFAC18AC293FF6990045B1FF /* EditWaypoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditWaypoint.swift; sourceTree = "<group>"; };
-		EFB054A129583C8E003A088A /* SettingsMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsMenu.swift; sourceTree = "<group>"; };
-		EFB4B67C293EA14A00B4AE13 /* WeatherForecast.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherForecast.swift; sourceTree = "<group>"; };
-		EFC30E46295A7E3A00544D4B /* MeasurementUnits.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeasurementUnits.swift; sourceTree = "<group>"; };
-		EFE92DF5293D823E0093BBF1 /* README.md */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
-		EFE92DF6293D823E0093BBF1 /* LICENSE */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = LICENSE; sourceTree = "<group>"; };
-		EFEF03B52942C27600912949 /* qrCode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = qrCode.swift; sourceTree = "<group>"; };
+		EF1A6C06295FAFBF00FE9FDB /* Tern.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Tern.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		EF1A6C09295FAFBF00FE9FDB /* TernApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TernApp.swift; sourceTree = "<group>"; };
+		EF1A6C0B295FAFBF00FE9FDB /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		EF1A6C0D295FAFC000FE9FDB /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		EF1A6C10295FAFC000FE9FDB /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
+		EF1A6C19295FB25E00FE9FDB /* WeatherForecast.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = WeatherForecast.swift; sourceTree = "<group>"; };
+		EF1A6C1A295FB25E00FE9FDB /* PGSpots.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PGSpots.swift; sourceTree = "<group>"; };
+		EF1A6C1B295FB25E00FE9FDB /* RoutePlannerMapViewHelper.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RoutePlannerMapViewHelper.swift; sourceTree = "<group>"; };
+		EF1A6C1C295FB25E00FE9FDB /* PGSpotAnnotation.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PGSpotAnnotation.swift; sourceTree = "<group>"; };
+		EF1A6C1D295FB25E00FE9FDB /* RoutePlannerModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RoutePlannerModel.swift; sourceTree = "<group>"; };
+		EF1A6C1E295FB25E00FE9FDB /* Hotspot.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Hotspot.swift; sourceTree = "<group>"; };
+		EF1A6C1F295FB25E00FE9FDB /* TextAnnotation.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TextAnnotation.swift; sourceTree = "<group>"; };
+		EF1A6C20295FB25E00FE9FDB /* MeasurementUnits.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MeasurementUnits.swift; sourceTree = "<group>"; };
+		EF1A6C21295FB25E00FE9FDB /* TernCache.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TernCache.swift; sourceTree = "<group>"; };
+		EF1A6C22295FB25E00FE9FDB /* WayPoint.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = WayPoint.swift; sourceTree = "<group>"; };
+		EF1A6C23295FB25E00FE9FDB /* Airspaces.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Airspaces.swift; sourceTree = "<group>"; };
+		EF1A6C24295FB25E00FE9FDB /* json_models.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = json_models.swift; sourceTree = "<group>"; };
+		EF1A6C31295FB26B00FE9FDB /* WelcomeScreen.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = WelcomeScreen.swift; sourceTree = "<group>"; };
+		EF1A6C32295FB26B00FE9FDB /* EditWaypoint.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = EditWaypoint.swift; sourceTree = "<group>"; };
+		EF1A6C33295FB26B00FE9FDB /* PGSpotForecast.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PGSpotForecast.swift; sourceTree = "<group>"; };
+		EF1A6C34295FB26B00FE9FDB /* SettingsMenu.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SettingsMenu.swift; sourceTree = "<group>"; };
+		EF1A6C35295FB26B00FE9FDB /* qrCode.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = qrCode.swift; sourceTree = "<group>"; };
+		EF1A6C36295FB26B00FE9FDB /* WayPointAnnotationCallout.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = WayPointAnnotationCallout.swift; sourceTree = "<group>"; };
+		EF1A6C37295FB26B00FE9FDB /* WaypointCalloutImage.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = WaypointCalloutImage.swift; sourceTree = "<group>"; };
+		EF1A6C38295FB26B00FE9FDB /* RoutePlanner.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RoutePlanner.swift; sourceTree = "<group>"; };
+		EF1A6C4A295FB75400FE9FDB /* LICENSE */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = LICENSE; sourceTree = "<group>"; };
+		EF1A6C4B295FB75400FE9FDB /* README.md */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
+		EF1A6C4E295FB79300FE9FDB /* Gruppo-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Gruppo-Regular.ttf"; sourceTree = "<group>"; };
+		EF1A6C50295FB90200FE9FDB /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		EF31A4F7292D49F7000719DE /* Frameworks */ = {
+		EF1A6C03295FAFBF00FE9FDB /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				EF90FF8F295157D200E49AB1 /* GPX in Frameworks */,
-				EFEF03BA294304DE00912949 /* Polyline in Frameworks */,
-				EF797F58292E097B0004B5B4 /* SwiftyJSON in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		EF31A50D292D49F8000719DE /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		EF31A517292D49F8000719DE /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
+				EF1A6C49295FB64000FE9FDB /* GPX in Frameworks */,
+				EF1A6C46295FB3E600FE9FDB /* Polyline in Frameworks */,
+				EF1A6C43295FB36D00FE9FDB /* SwiftyJSON in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		EF0EAC81293C081900A877DD /* Views */ = {
+		EF1A6BFD295FAFBF00FE9FDB = {
 			isa = PBXGroup;
 			children = (
-				EF31A52F292D4B34000719DE /* RoutePlanner.swift */,
-				EF31A4FF292D49F7000719DE /* ContentView.swift */,
-				EF0EAC85293C79F900A877DD /* WayPointAnnotationCallout.swift */,
-				EF5EF39A2948FACB0070A5BB /* WaypointCalloutImage.swift */,
-				EFAC18AC293FF6990045B1FF /* EditWaypoint.swift */,
-				EFEF03B52942C27600912949 /* qrCode.swift */,
-				EF2C8B1F2953E2ED00515DF6 /* WelcomeScreen.swift */,
-				EF6A71D02956C952001C662A /* PGSpotForecast.swift */,
-				EFB054A129583C8E003A088A /* SettingsMenu.swift */,
-			);
-			path = Views;
-			sourceTree = "<group>";
-		};
-		EF0EAC82293C088900A877DD /* Models */ = {
-			isa = PBXGroup;
-			children = (
-				EF6C26F4293B13E100735B40 /* WayPoint.swift */,
-				EF6C26F0293B131B00735B40 /* RoutePlannerModel.swift */,
-				EF0EAC83293C091D00A877DD /* RoutePlannerMapViewHelper.swift */,
-				EFB4B67C293EA14A00B4AE13 /* WeatherForecast.swift */,
-				EF25C60B2944F0C6001EB8D1 /* Airspaces.swift */,
-				EF284840295020C1003F9F50 /* TextAnnotation.swift */,
-				EF284845295133C3003F9F50 /* Hotspot.swift */,
-				EF6A71CE2956BDCC001C662A /* PGSpotAnnotation.swift */,
-				EF6A71CA2956ACE6001C662A /* TernCache.swift */,
-				EF6A71CC2956B1BB001C662A /* PGSpots.swift */,
-				EFC30E46295A7E3A00544D4B /* MeasurementUnits.swift */,
-				EF48AF11295AF52900303C0D /* json_models.swift */,
-			);
-			path = Models;
-			sourceTree = "<group>";
-		};
-		EF31A4F1292D49F7000719DE = {
-			isa = PBXGroup;
-			children = (
-				EF2C8B232954264000515DF6 /* Gruppo-Regular.ttf */,
-				EFE92DF6293D823E0093BBF1 /* LICENSE */,
-				EFE92DF5293D823E0093BBF1 /* README.md */,
-				EF31A4FC292D49F7000719DE /* Tern */,
-				EF31A513292D49F8000719DE /* TernTests */,
-				EF31A51D292D49F8000719DE /* TernUITests */,
-				EF31A4FB292D49F7000719DE /* Products */,
+				EF1A6C4E295FB79300FE9FDB /* Gruppo-Regular.ttf */,
+				EF1A6C4A295FB75400FE9FDB /* LICENSE */,
+				EF1A6C4B295FB75400FE9FDB /* README.md */,
+				EF1A6C08295FAFBF00FE9FDB /* Tern */,
+				EF1A6C07295FAFBF00FE9FDB /* Products */,
 			);
 			sourceTree = "<group>";
 		};
-		EF31A4FB292D49F7000719DE /* Products */ = {
+		EF1A6C07295FAFBF00FE9FDB /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				EF31A4FA292D49F7000719DE /* Tern.app */,
-				EF31A510292D49F8000719DE /* TernTests.xctest */,
-				EF31A51A292D49F8000719DE /* TernUITests.xctest */,
+				EF1A6C06295FAFBF00FE9FDB /* Tern.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
 		};
-		EF31A4FC292D49F7000719DE /* Tern */ = {
+		EF1A6C08295FAFBF00FE9FDB /* Tern */ = {
 			isa = PBXGroup;
 			children = (
-				EF0EAC81293C081900A877DD /* Views */,
-				EF0EAC82293C088900A877DD /* Models */,
-				EF31A4FD292D49F7000719DE /* TernApp.swift */,
-				EF31A501292D49F8000719DE /* Assets.xcassets */,
-				EF31A50B292D49F8000719DE /* Info.plist */,
-				EF31A503292D49F8000719DE /* Preview Content */,
+				EF1A6C50295FB90200FE9FDB /* Info.plist */,
+				EF1A6C18295FB21800FE9FDB /* Models */,
+				EF1A6C17295FB19400FE9FDB /* Views */,
+				EF1A6C09295FAFBF00FE9FDB /* TernApp.swift */,
+				EF1A6C0D295FAFC000FE9FDB /* Assets.xcassets */,
+				EF1A6C0F295FAFC000FE9FDB /* Preview Content */,
 			);
 			path = Tern;
 			sourceTree = "<group>";
 		};
-		EF31A503292D49F8000719DE /* Preview Content */ = {
+		EF1A6C0F295FAFC000FE9FDB /* Preview Content */ = {
 			isa = PBXGroup;
 			children = (
-				EF31A504292D49F8000719DE /* Preview Assets.xcassets */,
+				EF1A6C10295FAFC000FE9FDB /* Preview Assets.xcassets */,
 			);
 			path = "Preview Content";
 			sourceTree = "<group>";
 		};
-		EF31A513292D49F8000719DE /* TernTests */ = {
+		EF1A6C17295FB19400FE9FDB /* Views */ = {
 			isa = PBXGroup;
 			children = (
-				EF31A514292D49F8000719DE /* TernTests.swift */,
+				EF1A6C32295FB26B00FE9FDB /* EditWaypoint.swift */,
+				EF1A6C33295FB26B00FE9FDB /* PGSpotForecast.swift */,
+				EF1A6C35295FB26B00FE9FDB /* qrCode.swift */,
+				EF1A6C38295FB26B00FE9FDB /* RoutePlanner.swift */,
+				EF1A6C34295FB26B00FE9FDB /* SettingsMenu.swift */,
+				EF1A6C36295FB26B00FE9FDB /* WayPointAnnotationCallout.swift */,
+				EF1A6C37295FB26B00FE9FDB /* WaypointCalloutImage.swift */,
+				EF1A6C31295FB26B00FE9FDB /* WelcomeScreen.swift */,
+				EF1A6C0B295FAFBF00FE9FDB /* ContentView.swift */,
 			);
-			path = TernTests;
+			path = Views;
 			sourceTree = "<group>";
 		};
-		EF31A51D292D49F8000719DE /* TernUITests */ = {
+		EF1A6C18295FB21800FE9FDB /* Models */ = {
 			isa = PBXGroup;
 			children = (
-				EF31A51E292D49F8000719DE /* TernUITests.swift */,
-				EF31A520292D49F8000719DE /* TernUITestsLaunchTests.swift */,
+				EF1A6C23295FB25E00FE9FDB /* Airspaces.swift */,
+				EF1A6C1E295FB25E00FE9FDB /* Hotspot.swift */,
+				EF1A6C24295FB25E00FE9FDB /* json_models.swift */,
+				EF1A6C20295FB25E00FE9FDB /* MeasurementUnits.swift */,
+				EF1A6C1C295FB25E00FE9FDB /* PGSpotAnnotation.swift */,
+				EF1A6C1A295FB25E00FE9FDB /* PGSpots.swift */,
+				EF1A6C1B295FB25E00FE9FDB /* RoutePlannerMapViewHelper.swift */,
+				EF1A6C1D295FB25E00FE9FDB /* RoutePlannerModel.swift */,
+				EF1A6C21295FB25E00FE9FDB /* TernCache.swift */,
+				EF1A6C1F295FB25E00FE9FDB /* TextAnnotation.swift */,
+				EF1A6C22295FB25E00FE9FDB /* WayPoint.swift */,
+				EF1A6C19295FB25E00FE9FDB /* WeatherForecast.swift */,
 			);
-			path = TernUITests;
+			path = Models;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		EF31A4F9292D49F7000719DE /* Tern */ = {
+		EF1A6C05295FAFBF00FE9FDB /* Tern */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = EF31A524292D49F8000719DE /* Build configuration list for PBXNativeTarget "Tern" */;
+			buildConfigurationList = EF1A6C14295FAFC000FE9FDB /* Build configuration list for PBXNativeTarget "Tern" */;
 			buildPhases = (
-				EF31A4F6292D49F7000719DE /* Sources */,
-				EF31A4F7292D49F7000719DE /* Frameworks */,
-				EF31A4F8292D49F7000719DE /* Resources */,
+				EF1A6C02295FAFBF00FE9FDB /* Sources */,
+				EF1A6C03295FAFBF00FE9FDB /* Frameworks */,
+				EF1A6C04295FAFBF00FE9FDB /* Resources */,
 			);
 			buildRules = (
 			);
@@ -237,74 +177,30 @@
 			);
 			name = Tern;
 			packageProductDependencies = (
-				EF797F57292E097B0004B5B4 /* SwiftyJSON */,
-				EFEF03B9294304DE00912949 /* Polyline */,
-				EF90FF8E295157D200E49AB1 /* GPX */,
+				EF1A6C42295FB36D00FE9FDB /* SwiftyJSON */,
+				EF1A6C45295FB3E600FE9FDB /* Polyline */,
+				EF1A6C48295FB64000FE9FDB /* GPX */,
 			);
 			productName = Tern;
-			productReference = EF31A4FA292D49F7000719DE /* Tern.app */;
+			productReference = EF1A6C06295FAFBF00FE9FDB /* Tern.app */;
 			productType = "com.apple.product-type.application";
-		};
-		EF31A50F292D49F8000719DE /* TernTests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = EF31A527292D49F8000719DE /* Build configuration list for PBXNativeTarget "TernTests" */;
-			buildPhases = (
-				EF31A50C292D49F8000719DE /* Sources */,
-				EF31A50D292D49F8000719DE /* Frameworks */,
-				EF31A50E292D49F8000719DE /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				EF31A512292D49F8000719DE /* PBXTargetDependency */,
-			);
-			name = TernTests;
-			productName = TernTests;
-			productReference = EF31A510292D49F8000719DE /* TernTests.xctest */;
-			productType = "com.apple.product-type.bundle.unit-test";
-		};
-		EF31A519292D49F8000719DE /* TernUITests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = EF31A52A292D49F8000719DE /* Build configuration list for PBXNativeTarget "TernUITests" */;
-			buildPhases = (
-				EF31A516292D49F8000719DE /* Sources */,
-				EF31A517292D49F8000719DE /* Frameworks */,
-				EF31A518292D49F8000719DE /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				EF31A51C292D49F8000719DE /* PBXTargetDependency */,
-			);
-			name = TernUITests;
-			productName = TernUITests;
-			productReference = EF31A51A292D49F8000719DE /* TernUITests.xctest */;
-			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-		EF31A4F2292D49F7000719DE /* Project object */ = {
+		EF1A6BFE295FAFBF00FE9FDB /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 1410;
+				LastSwiftUpdateCheck = 1420;
 				LastUpgradeCheck = 1420;
 				TargetAttributes = {
-					EF31A4F9292D49F7000719DE = {
-						CreatedOnToolsVersion = 14.1;
-					};
-					EF31A50F292D49F8000719DE = {
-						CreatedOnToolsVersion = 14.1;
-						TestTargetID = EF31A4F9292D49F7000719DE;
-					};
-					EF31A519292D49F8000719DE = {
-						CreatedOnToolsVersion = 14.1;
-						TestTargetID = EF31A4F9292D49F7000719DE;
+					EF1A6C05295FAFBF00FE9FDB = {
+						CreatedOnToolsVersion = 14.2;
 					};
 				};
 			};
-			buildConfigurationList = EF31A4F5292D49F7000719DE /* Build configuration list for PBXProject "Tern" */;
+			buildConfigurationList = EF1A6C01295FAFBF00FE9FDB /* Build configuration list for PBXProject "Tern" */;
 			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -312,116 +208,70 @@
 				en,
 				Base,
 			);
-			mainGroup = EF31A4F1292D49F7000719DE;
+			mainGroup = EF1A6BFD295FAFBF00FE9FDB;
 			packageReferences = (
-				EF797F56292E097B0004B5B4 /* XCRemoteSwiftPackageReference "SwiftyJSON" */,
-				EFEF03B8294304DE00912949 /* XCRemoteSwiftPackageReference "Polyline" */,
-				EF90FF8D295157D200E49AB1 /* XCRemoteSwiftPackageReference "GPX" */,
+				EF1A6C41295FB36D00FE9FDB /* XCRemoteSwiftPackageReference "SwiftyJSON" */,
+				EF1A6C44295FB3E600FE9FDB /* XCRemoteSwiftPackageReference "Polyline" */,
+				EF1A6C47295FB64000FE9FDB /* XCRemoteSwiftPackageReference "GPX" */,
 			);
-			productRefGroup = EF31A4FB292D49F7000719DE /* Products */;
+			productRefGroup = EF1A6C07295FAFBF00FE9FDB /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				EF31A4F9292D49F7000719DE /* Tern */,
-				EF31A50F292D49F8000719DE /* TernTests */,
-				EF31A519292D49F8000719DE /* TernUITests */,
+				EF1A6C05295FAFBF00FE9FDB /* Tern */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		EF31A4F8292D49F7000719DE /* Resources */ = {
+		EF1A6C04295FAFBF00FE9FDB /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				EFE92DF7293D823E0093BBF1 /* README.md in Resources */,
-				EF31A505292D49F8000719DE /* Preview Assets.xcassets in Resources */,
-				EF2C8B242954264000515DF6 /* Gruppo-Regular.ttf in Resources */,
-				EFE92DF8293D823E0093BBF1 /* LICENSE in Resources */,
-				EF31A502292D49F8000719DE /* Assets.xcassets in Resources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		EF31A50E292D49F8000719DE /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		EF31A518292D49F8000719DE /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
+				EF1A6C4C295FB75400FE9FDB /* LICENSE in Resources */,
+				EF1A6C11295FAFC000FE9FDB /* Preview Assets.xcassets in Resources */,
+				EF1A6C4F295FB79400FE9FDB /* Gruppo-Regular.ttf in Resources */,
+				EF1A6C4D295FB75400FE9FDB /* README.md in Resources */,
+				EF1A6C0E295FAFC000FE9FDB /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		EF31A4F6292D49F7000719DE /* Sources */ = {
+		EF1A6C02295FAFBF00FE9FDB /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				EF6A71CF2956BDCC001C662A /* PGSpotAnnotation.swift in Sources */,
-				EFC30E47295A7E3A00544D4B /* MeasurementUnits.swift in Sources */,
-				EFB4B67D293EA14A00B4AE13 /* WeatherForecast.swift in Sources */,
-				EF284841295020C1003F9F50 /* TextAnnotation.swift in Sources */,
-				EFEF03B62942C27600912949 /* qrCode.swift in Sources */,
-				EF31A500292D49F7000719DE /* ContentView.swift in Sources */,
-				EF48AF12295AF52900303C0D /* json_models.swift in Sources */,
-				EFAC18AD293FF6990045B1FF /* EditWaypoint.swift in Sources */,
-				EF5EF39B2948FACB0070A5BB /* WaypointCalloutImage.swift in Sources */,
-				EF284846295133C3003F9F50 /* Hotspot.swift in Sources */,
-				EF6A71CB2956ACE6001C662A /* TernCache.swift in Sources */,
-				EF0EAC84293C091D00A877DD /* RoutePlannerMapViewHelper.swift in Sources */,
-				EF25C60C2944F0C6001EB8D1 /* Airspaces.swift in Sources */,
-				EFB054A229583C8E003A088A /* SettingsMenu.swift in Sources */,
-				EF6A71D12956C952001C662A /* PGSpotForecast.swift in Sources */,
-				EF6C26F1293B131B00735B40 /* RoutePlannerModel.swift in Sources */,
-				EF31A4FE292D49F7000719DE /* TernApp.swift in Sources */,
-				EF6C26F5293B13E100735B40 /* WayPoint.swift in Sources */,
-				EF2C8B202953E2ED00515DF6 /* WelcomeScreen.swift in Sources */,
-				EF31A530292D4B34000719DE /* RoutePlanner.swift in Sources */,
-				EF6A71CD2956B1BB001C662A /* PGSpots.swift in Sources */,
-				EF0EAC86293C79FA00A877DD /* WayPointAnnotationCallout.swift in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		EF31A50C292D49F8000719DE /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				EF31A515292D49F8000719DE /* TernTests.swift in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		EF31A516292D49F8000719DE /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				EF31A51F292D49F8000719DE /* TernUITests.swift in Sources */,
-				EF31A521292D49F8000719DE /* TernUITestsLaunchTests.swift in Sources */,
+				EF1A6C26295FB25E00FE9FDB /* PGSpots.swift in Sources */,
+				EF1A6C2A295FB25E00FE9FDB /* Hotspot.swift in Sources */,
+				EF1A6C2C295FB25E00FE9FDB /* MeasurementUnits.swift in Sources */,
+				EF1A6C25295FB25E00FE9FDB /* WeatherForecast.swift in Sources */,
+				EF1A6C3E295FB26B00FE9FDB /* WayPointAnnotationCallout.swift in Sources */,
+				EF1A6C2E295FB25E00FE9FDB /* WayPoint.swift in Sources */,
+				EF1A6C3D295FB26B00FE9FDB /* qrCode.swift in Sources */,
+				EF1A6C2B295FB25E00FE9FDB /* TextAnnotation.swift in Sources */,
+				EF1A6C27295FB25E00FE9FDB /* RoutePlannerMapViewHelper.swift in Sources */,
+				EF1A6C3B295FB26B00FE9FDB /* PGSpotForecast.swift in Sources */,
+				EF1A6C0C295FAFBF00FE9FDB /* ContentView.swift in Sources */,
+				EF1A6C3F295FB26B00FE9FDB /* WaypointCalloutImage.swift in Sources */,
+				EF1A6C3C295FB26B00FE9FDB /* SettingsMenu.swift in Sources */,
+				EF1A6C0A295FAFBF00FE9FDB /* TernApp.swift in Sources */,
+				EF1A6C30295FB25E00FE9FDB /* json_models.swift in Sources */,
+				EF1A6C2F295FB25E00FE9FDB /* Airspaces.swift in Sources */,
+				EF1A6C2D295FB25E00FE9FDB /* TernCache.swift in Sources */,
+				EF1A6C39295FB26B00FE9FDB /* WelcomeScreen.swift in Sources */,
+				EF1A6C29295FB25E00FE9FDB /* RoutePlannerModel.swift in Sources */,
+				EF1A6C3A295FB26B00FE9FDB /* EditWaypoint.swift in Sources */,
+				EF1A6C40295FB26B00FE9FDB /* RoutePlanner.swift in Sources */,
+				EF1A6C28295FB25E00FE9FDB /* PGSpotAnnotation.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
-/* Begin PBXTargetDependency section */
-		EF31A512292D49F8000719DE /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = EF31A4F9292D49F7000719DE /* Tern */;
-			targetProxy = EF31A511292D49F8000719DE /* PBXContainerItemProxy */;
-		};
-		EF31A51C292D49F8000719DE /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = EF31A4F9292D49F7000719DE /* Tern */;
-			targetProxy = EF31A51B292D49F8000719DE /* PBXContainerItemProxy */;
-		};
-/* End PBXTargetDependency section */
-
 /* Begin XCBuildConfiguration section */
-		EF31A522292D49F8000719DE /* Debug */ = {
+		EF1A6C12295FAFC000FE9FDB /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -475,16 +325,13 @@
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
-				PRODUCT_NAME = Tern_Debug;
 				SDKROOT = iphoneos;
-				STRIP_INSTALLED_PRODUCT = NO;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
-				SWIFT_VERSION = 5.0;
 			};
 			name = Debug;
 		};
-		EF31A523292D49F8000719DE /* Release */ = {
+		EF1A6C13295FAFC000FE9FDB /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -493,7 +340,7 @@
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
-				CLANG_ENABLE_OBJC_WEAK = NO;
+				CLANG_ENABLE_OBJC_WEAK = YES;
 				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
 				CLANG_WARN_BOOL_CONVERSION = YES;
 				CLANG_WARN_COMMA = YES;
@@ -516,11 +363,10 @@
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
-				COPY_PHASE_STRIP = YES;
+				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_TESTABILITY = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -532,217 +378,94 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
-				ONLY_ACTIVE_ARCH = YES;
-				PRODUCT_NAME = Tern;
 				SDKROOT = iphoneos;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
-				SWIFT_VERSION = 5.0;
 				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
 		};
-		EF31A525292D49F8000719DE /* Debug */ = {
+		EF1A6C15295FAFC000FE9FDB /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CLANG_USE_OPTIMIZATION_PROFILE = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 0.0.1;
+				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"Tern/Preview Content\"";
 				DEVELOPMENT_TEAM = XKRX4LVLZ9;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Tern/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "Tern Paragliding";
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.sports";
-				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
-				INFOPLIST_KEY_NSDownloadsFolderUsageDescription = "Access to Downloads folder for saving waypoints and route files.";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "This app needs location for doing everything. But needs location only while running. location data is not uploaded.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "App needs location for everything to work.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.1;
-				PRODUCT_BUNDLE_IDENTIFIER = com.madanala.tern;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				SUPPORTS_MACCATALYST = NO;
-				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 1;
-			};
-			name = Debug;
-		};
-		EF31A526292D49F8000719DE /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CLANG_USE_OPTIMIZATION_PROFILE = YES;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 0.0.1;
-				DEVELOPMENT_ASSET_PATHS = "\"Tern/Preview Content\"";
-				DEVELOPMENT_TEAM = XKRX4LVLZ9;
-				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = Tern/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "Tern Paragliding";
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.sports";
-				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
-				INFOPLIST_KEY_NSDownloadsFolderUsageDescription = "Access to Downloads folder for saving waypoints and route files.";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "This app needs location for doing everything. But needs location only while running. location data is not uploaded.";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
-				MARKETING_VERSION = 0.1;
+				MARKETING_VERSION = 0.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.madanala.Tern;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				SUPPORTS_MACCATALYST = NO;
-				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 1;
-			};
-			name = Release;
-		};
-		EF31A528292D49F8000719DE /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = XKRX4LVLZ9;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 16.1;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = madanala.com.TernTests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				SUPPORTS_MACCATALYST = NO;
-				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Tern.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Tern";
 			};
 			name = Debug;
 		};
-		EF31A529292D49F8000719DE /* Release */ = {
+		EF1A6C16295FAFC000FE9FDB /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
-				BUNDLE_LOADER = "$(TEST_HOST)";
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_USE_OPTIMIZATION_PROFILE = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"Tern/Preview Content\"";
 				DEVELOPMENT_TEAM = XKRX4LVLZ9;
+				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Tern/Info.plist;
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "App needs location for everything to work.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = madanala.com.TernTests;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.madanala.Tern;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				SUPPORTS_MACCATALYST = NO;
-				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Tern.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Tern";
-			};
-			name = Release;
-		};
-		EF31A52B292D49F8000719DE /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = XKRX4LVLZ9;
-				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = madanala.com.TernUITests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				SUPPORTS_MACCATALYST = NO;
-				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = Tern;
-			};
-			name = Debug;
-		};
-		EF31A52C292D49F8000719DE /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = XKRX4LVLZ9;
-				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = madanala.com.TernUITests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				SUPPORTS_MACCATALYST = NO;
-				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = Tern;
 			};
 			name = Release;
 		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		EF31A4F5292D49F7000719DE /* Build configuration list for PBXProject "Tern" */ = {
+		EF1A6C01295FAFBF00FE9FDB /* Build configuration list for PBXProject "Tern" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				EF31A522292D49F8000719DE /* Debug */,
-				EF31A523292D49F8000719DE /* Release */,
+				EF1A6C12295FAFC000FE9FDB /* Debug */,
+				EF1A6C13295FAFC000FE9FDB /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		EF31A524292D49F8000719DE /* Build configuration list for PBXNativeTarget "Tern" */ = {
+		EF1A6C14295FAFC000FE9FDB /* Build configuration list for PBXNativeTarget "Tern" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				EF31A525292D49F8000719DE /* Debug */,
-				EF31A526292D49F8000719DE /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		EF31A527292D49F8000719DE /* Build configuration list for PBXNativeTarget "TernTests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				EF31A528292D49F8000719DE /* Debug */,
-				EF31A529292D49F8000719DE /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		EF31A52A292D49F8000719DE /* Build configuration list for PBXNativeTarget "TernUITests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				EF31A52B292D49F8000719DE /* Debug */,
-				EF31A52C292D49F8000719DE /* Release */,
+				EF1A6C15295FAFC000FE9FDB /* Debug */,
+				EF1A6C16295FAFC000FE9FDB /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -750,15 +473,23 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		EF797F56292E097B0004B5B4 /* XCRemoteSwiftPackageReference "SwiftyJSON" */ = {
+		EF1A6C41295FB36D00FE9FDB /* XCRemoteSwiftPackageReference "SwiftyJSON" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/SwiftyJSON/SwiftyJSON";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 4.0.0;
+				minimumVersion = 5.0.0;
 			};
 		};
-		EF90FF8D295157D200E49AB1 /* XCRemoteSwiftPackageReference "GPX" */ = {
+		EF1A6C44295FB3E600FE9FDB /* XCRemoteSwiftPackageReference "Polyline" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/raphaelmor/Polyline";
+			requirement = {
+				kind = exactVersion;
+				version = 5.1.0;
+			};
+		};
+		EF1A6C47295FB64000FE9FDB /* XCRemoteSwiftPackageReference "GPX" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/nikstar/GPX.swift";
 			requirement = {
@@ -766,33 +497,25 @@
 				version = 0.2.1;
 			};
 		};
-		EFEF03B8294304DE00912949 /* XCRemoteSwiftPackageReference "Polyline" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/raphaelmor/Polyline";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 5.1.0;
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		EF797F57292E097B0004B5B4 /* SwiftyJSON */ = {
+		EF1A6C42295FB36D00FE9FDB /* SwiftyJSON */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = EF797F56292E097B0004B5B4 /* XCRemoteSwiftPackageReference "SwiftyJSON" */;
+			package = EF1A6C41295FB36D00FE9FDB /* XCRemoteSwiftPackageReference "SwiftyJSON" */;
 			productName = SwiftyJSON;
 		};
-		EF90FF8E295157D200E49AB1 /* GPX */ = {
+		EF1A6C45295FB3E600FE9FDB /* Polyline */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = EF90FF8D295157D200E49AB1 /* XCRemoteSwiftPackageReference "GPX" */;
-			productName = GPX;
-		};
-		EFEF03B9294304DE00912949 /* Polyline */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = EFEF03B8294304DE00912949 /* XCRemoteSwiftPackageReference "Polyline" */;
+			package = EF1A6C44295FB3E600FE9FDB /* XCRemoteSwiftPackageReference "Polyline" */;
 			productName = Polyline;
+		};
+		EF1A6C48295FB64000FE9FDB /* GPX */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = EF1A6C47295FB64000FE9FDB /* XCRemoteSwiftPackageReference "GPX" */;
+			productName = GPX;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
-	rootObject = EF31A4F2292D49F7000719DE /* Project object */;
+	rootObject = EF1A6BFE295FAFBF00FE9FDB /* Project object */;
 }
