@@ -13,76 +13,35 @@ struct WaypointCalloutImage: View {
     var units = MeasurementUnits.userDefaults
     var body: some View {
         VStack{
-            /*HStack {
-                HStack {Image(systemName: "mappin.and.ellipse")
-                    Text("\(String(format: "%.5f", waypoint.coordinate.latitude)),\(String(format: "%.5f", waypoint.coordinate.longitude))")
-                }
-                .foregroundColor(.white)
-                .background(Color.blue)
-                .cornerRadius(5, antialiased: true)
-                Spacer()
-            }*/
-            HStack {
+            if waypoint.weatherForecast.winddirection_80m.count > 0 {
                 HStack {
-                    Text("⌭\(String(format: "%0.1f", waypoint.cylinderRadius.converted(to: units.magnitude).value))\(units.magnitude.symbol)")
+                    WindGauge(label: "Wind", windSpeed: waypoint.weatherForecast.windspeed80m[0], windDirection: waypoint.weatherForecast.winddirection_80m[0])
+                    WindGauge(label: "Gust", windSpeed: waypoint.weatherForecast.windgusts_10m[0])
                 }
-                .foregroundColor(.white)
-                .background(Color.blue)
-                .cornerRadius(5, antialiased: true)
-                HStack{
-                    //Image(systemName: "mountain.2")
-                    Text("🏔️\(String(format:"%0.0f",waypoint.elevation.converted(to: units.magnitude).value))\(units.magnitude.symbol)")
-                }
-                .foregroundColor(.white)
-                .background(Color.blue)
-                .cornerRadius(5, antialiased: true)
-            }
-            HStack {
-                if waypoint.weatherForecast.winddirection_80m.count > 0 {
-                    HStack {
-                        Text("👆")
-                            .rotationEffect(.degrees(waypoint.weatherForecast.winddirection_80m[0].converted(to: .degrees).value))
-                        Text("\(String(format: "%0.1f", waypoint.weatherForecast.windspeed80m[0].converted(to: units.speed).value))\(units.speed.symbol)")
+                HStack {
+                    if waypoint.weatherForecast.relativehumidity_2m.count > 0 {
+                        Gauge(value: Double(waypoint.weatherForecast.relativehumidity_2m[0].description) ?? 0, in: 0...100) {
+                            Text("Humidity")
+                                .foregroundColor(.accentColor)
+                                .font(.custom("Gruppo", size: 8).monospaced())
+                        }
+                        .gaugeStyle(.accessoryLinearCapacity)
+                        Gauge(value: Double(waypoint.weatherForecast.cloudcover[0].description) ?? 0, in: 0...100) {
+                            Text("Cloud Cover")
+                                .font(.custom("Gruppo", size: 8).monospaced())
+                                .foregroundColor(.accentColor)
+                        }
+                        .gaugeStyle(.accessoryLinearCapacity)
                     }
-                    .foregroundColor(.white)
-                    .background(Color.blue)
-                    .cornerRadius(5, antialiased: true)
-                    HStack {
-                        //Image(systemName: "tornado.circle")
-                        Text("💨\(String(format: "%0.1f", waypoint.weatherForecast.windgusts_10m[0].converted(to: units.speed).value))\(units.speed.symbol)")
-                    }
-                    .foregroundColor(.white)
-                    .background(Color.blue)
-                    .cornerRadius(5, antialiased: true)
-                }
-            }
-            HStack {
-                if waypoint.weatherForecast.relativehumidity_2m.count > 0 {
-                    HStack{
-                        Image(systemName: "humidity")
-                        Text("\(waypoint.weatherForecast.relativehumidity_2m[0].description)%")
-                    }
-                    .foregroundColor(.white)
-                    .background(Color.blue)
-                    .cornerRadius(5, antialiased: true)
-                    HStack {
-                        //Image(systemName: "cloud.circle")
-                        Text("⛅️\(waypoint.weatherForecast.cloudcover[0].description)%")
-                    }
-                    .foregroundColor(.white)
-                    .background(Color.blue)
-                    .cornerRadius(5, antialiased: true)
                 }
             }
         }
     }
 }
 
-/*
- struct WaypointCalloutImage_Previews: PreviewProvider {
-    static var previews: some View {
-        @State var wpt = WayPoint(coordinate: CLLocationCoordinate2D(latitude: 40.2530073213, longitude: -105.609067564))
-        WaypointCalloutImage(waypoint: $wpt))
-    }
-}
-*/
+//struct WaypointCalloutImage_Previews: PreviewProvider {
+//    //var wpt = WayPoint(coordinate: CLLocationCoordinate2D(latitude: 40.2530073213, longitude: -105.609067564))
+//    static var previews: some View {
+//        WaypointCalloutImage(waypoint: WayPoint(coordinate: CLLocationCoordinate2D(latitude: 40.2530073213, longitude: -105.609067564)))
+//    }
+//}

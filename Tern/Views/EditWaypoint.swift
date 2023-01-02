@@ -34,7 +34,6 @@ struct EditWaypoint: View {
             model.redrawRoutePath()
             model.mapView.addAnnotations(model.legLengthLabels)
         }
-        //model.mapView.setRegion(MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: latitude, longitude: longitude), latitudinalMeters: 50000, longitudinalMeters: 50000), animated: true)
         editWaypoint.toggle()
     }
 
@@ -43,7 +42,6 @@ struct EditWaypoint: View {
             model.waypoints.remove(at: id)
         }
         model.mapView.removeAnnotation(waypoint)
-        //model.mapView.removeOverlays(model.mapView.overlays) //remove before re adding all of them
         for wpt in model.waypoints {
             model.mapView.removeAnnotation(wpt) //re-add all waypoints so that they are numbered correctly
             model.mapView.addAnnotation(wpt)
@@ -57,36 +55,46 @@ struct EditWaypoint: View {
 
     var body: some View {
         VStack {
-            TextField("Waypoint Name", text: $waypointName)
+            TextField("Waypoint Name", text: $waypointName).font(.custom("Gruppo", size: 16))
                 .keyboardType(.twitter)
+                .padding([.top,.leading], 5)
             HStack{
                 //Image(systemName: "mappin.and.ellipse")
                 Text("📍")
                 TextField("Latitude", value: $latitude, format: .number)
+                    .font(.custom("Gruppo", size: 16))
                     .keyboardType(.decimalPad)
                     .frame(width: 80)
                 Text(",")
+                    .font(.custom("Gruppo", size: 16))
                 TextField("Longitude", value: $longitude, format: .number)
+                    .font(.custom("Gruppo", size: 16))
                     .keyboardType(.decimalPad)
                 Spacer()
             }
             HStack {
                 Text("⌭")
+                    .font(.custom("Gruppo", size: 12))
                 TextField("Cylinder Radius", value: $cylinderRadius.value, format: .number)
+                    .font(.custom("Gruppo", size: 12))
                     .keyboardType(.numberPad)
                     .frame(width: 50)
                 //Image(systemName: "mountain.2")
                 Text("🏔️\(String(format: "%0.0f", waypoint.elevation.converted(to: units.magnitude).value))\(units.magnitude.symbol)")
+                    .font(.custom("Gruppo", size: 12))
                 Spacer()
             }
             ZStack{
                 VStack{
                     Text("Next 24hr forecast")
+                        .font(.custom("Gruppo", size: 12))
                     Spacer()
                 }
                 HStack{
                     Text("Windspeed").fontWeight(.ultraLight).foregroundColor(.cyan)
+                        .font(.custom("Gruppo", size: 12))
                     Text("Gustspeed").fontWeight(.ultraLight).foregroundColor(.red)
+                        .font(.custom("Gruppo", size: 12))
                 }
                 Chart (waypoint.weatherForecast.weatherdata) { item in
                     LineMark(x: .value("Time", item.time),
@@ -101,6 +109,7 @@ struct EditWaypoint: View {
             }
             ZStack{
                 Text("Wind Direction").fontWeight(.ultraLight).foregroundColor(.red)
+                    .font(.custom("Gruppo", size: 12))
                 Chart (waypoint.weatherForecast.weatherdata) { item in
                     RectangleMark(
                         x: .value("Time", item.time),
@@ -112,7 +121,9 @@ struct EditWaypoint: View {
             ZStack {
                 HStack {
                     Text("Temperature").fontWeight(.ultraLight).foregroundColor(.orange)
+                        .font(.custom("Gruppo", size: 12))
                     Text("Due Point").fontWeight(.ultraLight).foregroundColor(.blue)
+                        .font(.custom("Gruppo", size: 12))
                 }
                 Chart (waypoint.weatherForecast.weatherdata) { item in
                     LineMark(x: .value("Time", item.time),
@@ -127,7 +138,7 @@ struct EditWaypoint: View {
                 .chartLegend(position: .trailing)
             }
             HStack{
-                TextEditor(text: $waypointDescription)
+                TextEditor(text: $waypointDescription).font(.custom("Gruppo", size: 12))
             }
             HStack{
                 Button {
@@ -136,7 +147,7 @@ struct EditWaypoint: View {
                     Image(systemName: "location")
                         .frame(width: 40,height: 40)
                         .foregroundColor(.white)
-                        .background(.blue.opacity(0.9))
+                        .background(.green.opacity(0.9))
                         .cornerRadius(8)
                 }
                 Button {
@@ -149,7 +160,7 @@ struct EditWaypoint: View {
                         .cornerRadius(8)
                 }
             }
-            Link("Weather data by Open-Meteo.com", destination: URL(string: "https://www.open-meteo.com/")!).font(.system(size: 8, design: .monospaced))
+            Link("Weather data by Open-Meteo.com", destination: URL(string: "https://www.open-meteo.com/")!).font(.custom("Gruppo", size: 8).monospaced())
         }
         .onDisappear {
             saveWaypoint()

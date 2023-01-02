@@ -22,70 +22,54 @@ struct PGSpotForecast: View {
     var body: some View {
         VStack {
             if pgSpot.subtitle != "" {
-                Text(pgSpot.subtitle ?? "").font(.system(size: 8, design: .monospaced))
+                Text(pgSpot.subtitle ?? "")
+                    .font(.custom("Gruppo", size: 8).monospaced())
                     .truncationMode(.tail)
                     .lineLimit(3)
             }
             if pgSpot.properties["comments"].stringValue != "" {
-                Text(pgSpot.properties["comments"].stringValue).font(.system(size: 8, design: .monospaced))
+                Text(pgSpot.properties["comments"].stringValue)
+                    .font(.custom("Gruppo", size: 8).monospaced())
                     .truncationMode(.tail)
                     .lineLimit(3)
             }
             if pgSpot.properties["going_there"].stringValue != "" {
-                Text("Getting there-> \(pgSpot.properties["going_there"].stringValue)").font(.system(size: 8, design: .monospaced))
+                Text("Getting there-> \(pgSpot.properties["going_there"].stringValue)")
+                    .font(.custom("Gruppo", size: 8).monospaced())
                     .truncationMode(.tail)
                     .lineLimit(3)
             }
-            HStack{
-                if let elevation = Measurement<UnitLength>(value: pgSpot.properties["takeoff_altitude"].doubleValue, unit: .meters) {
-                    HStack{
-                        //Image(systemName: "mountain.2")
-                        Text("🏔️\(String(format:"%0.0f",elevation.converted(to: units.magnitude).value))\(units.magnitude.symbol)")
-                    }
-                    .foregroundColor(.white)
-                    .background(Color.blue)
-                    .cornerRadius(5, antialiased: true)
+            if let elevation = Measurement<UnitLength>(value: pgSpot.properties["takeoff_altitude"].doubleValue, unit: .meters) {
+                HStack{
+                    Text("🏔️\(String(format:"%0.0f",elevation.converted(to: units.magnitude).value))\(units.magnitude.symbol)")
+                        .font(.custom("Gruppo", size: 12))
                 }
+                .foregroundColor(.white)
+                .background(Color.blue)
+                .cornerRadius(3, antialiased: true)
             }
-            HStack {
-                if pgSpot.forecast.winddirection_80m.count > 0 {
-                    HStack {
-                        Text("👆")
-                            .rotationEffect(.degrees(pgSpot.forecast.winddirection_80m[0].converted(to: .degrees).value))
-                        Text("\(String(format: "%0.1f", pgSpot.forecast.windspeed80m[0].converted(to: units.speed).value))\(units.speed.symbol)")
-                    }
-                    .foregroundColor(.white)
-                    .background(Color.blue)
-                    .cornerRadius(5, antialiased: true)
-                    HStack {
-                        //Image(systemName: "tornado.circle")
-                        Text("💨\(String(format: "%0.1f", pgSpot.forecast.windgusts_10m[0].converted(to: units.speed).value))\(units.speed.symbol)")
-                    }
-                    .foregroundColor(.white)
-                    .background(Color.blue)
-                    .cornerRadius(5, antialiased: true)
+            if pgSpot.forecast.winddirection_80m.count > 0 {
+                HStack{
+                    WindGauge(label: "Wind", windSpeed: pgSpot.forecast.windspeed80m[0], windDirection: pgSpot.forecast.winddirection_80m[0])
+                    WindGauge(label: "Gust", windSpeed: pgSpot.forecast.windgusts_10m[0])
                 }
-            }
-            HStack {
-                if pgSpot.forecast.relativehumidity_2m.count > 0 {
-                    HStack{
-                        Image(systemName: "humidity")
-                        Text("\(pgSpot.forecast.relativehumidity_2m[0].description)%")
+                HStack{
+                    Gauge(value: Double(pgSpot.forecast.relativehumidity_2m[0].description) ?? 0, in: 0...100) {
+                        Text("Humidity")
+                            .foregroundColor(.accentColor)
+                            .font(.custom("Gruppo", size: 8).monospaced())
                     }
-                    .foregroundColor(.white)
-                    .background(Color.blue)
-                    .cornerRadius(5, antialiased: true)
-                    HStack {
-                        //Image(systemName: "cloud.circle")
-                        Text("⛅️\(pgSpot.forecast.cloudcover[0].description)%")
+                    .gaugeStyle(.accessoryLinearCapacity)
+                    Gauge(value: Double(pgSpot.forecast.cloudcover[0].description) ?? 0, in: 0...100) {
+                        Text("Cloud Cover")
+                            .font(.custom("Gruppo", size: 8).monospaced())
+                            .foregroundColor(.accentColor)
                     }
-                    .foregroundColor(.white)
-                    .background(Color.blue)
-                    .cornerRadius(5, antialiased: true)
+                    .gaugeStyle(.accessoryLinearCapacity)
                 }
+                .padding(.bottom,5)
             }
         }
-        .frame(minWidth: 150)
         .onTapGesture {
             isSheet.toggle()
         }
@@ -93,16 +77,17 @@ struct PGSpotForecast: View {
             VStack {
                 Spacer()
                 if pgSpot.properties["weather"].stringValue != "" {
-                    Text(pgSpot.properties["weather"].stringValue).font(.system(size: 8, design: .monospaced))
+                    Text(pgSpot.properties["weather"].stringValue).font(.custom("Gruppo", size: 8).monospaced())
                 }
                 ZStack{
                     VStack{
                         Text("Next 24hr forecast")
+                            .font(.custom("Gruppo", size: 12))
                         Spacer()
                     }
                     HStack{
-                        Text("Windspeed").fontWeight(.ultraLight).foregroundColor(.cyan)
-                        Text("Gustspeed").fontWeight(.ultraLight).foregroundColor(.red)
+                        Text("Windspeed").font(.custom("Gruppo", size: 12)).foregroundColor(.cyan)
+                        Text("Gustspeed").font(.custom("Gruppo", size: 12)).foregroundColor(.red)
                     }
                     Chart (pgSpot.forecast.weatherdata) { item in
                         LineMark(x: .value("Time", item.time),
@@ -116,7 +101,7 @@ struct PGSpotForecast: View {
                     .foregroundStyle(.cyan)
                 }
                 ZStack{
-                    Text("Wind Direction").fontWeight(.ultraLight).foregroundColor(.red)
+                    Text("Wind Direction").font(.custom("Gruppo", size: 12)).foregroundColor(.red)
                     Chart (pgSpot.forecast.weatherdata) { item in
                         RectangleMark(
                             x: .value("Time", item.time),
@@ -127,8 +112,8 @@ struct PGSpotForecast: View {
                 }
                 ZStack {
                     HStack {
-                        Text("Temperature").fontWeight(.ultraLight).foregroundColor(.orange)
-                        Text("Due Point").fontWeight(.ultraLight).foregroundColor(.blue)
+                        Text("Temperature").font(.custom("Gruppo", size: 12)).foregroundColor(.orange)
+                        Text("Due Point").font(.custom("Gruppo", size: 12)).foregroundColor(.blue)
                     }
                     Chart (pgSpot.forecast.weatherdata) { item in
                         LineMark(x: .value("Time", item.time),
@@ -145,11 +130,11 @@ struct PGSpotForecast: View {
                 HStack {
                     
                     if pgSpot.properties["pge_link"].stringValue != "" {
-                        Link("View on Paragliding Earth", destination: URL(string: pgSpot.properties["pge_link"].stringValue)!).font(.system(size: 8, design: .monospaced))
+                        Link("View on Paragliding Earth", destination: URL(string: pgSpot.properties["pge_link"].stringValue)!).font(.custom("Gruppo", size: 12).monospaced())
                     } else {
-                        Link("pg site info by paragliding earth", destination: URL(string: "https://www.paraglidingearth.com/")!).font(.system(size: 8, design: .monospaced))
+                        Link("pg site info by paragliding earth", destination: URL(string: "https://www.paraglidingearth.com/")!).font(.custom("Gruppo", size: 12).monospaced())
                     }
-                    Link("Weather data by Open-Meteo.com", destination: URL(string: "https://open-meteo.com/")!).font(.system(size: 8, design: .monospaced))
+                    Link("Weather data by Open-Meteo.com", destination: URL(string: "https://open-meteo.com/")!).font(.custom("Gruppo", size: 12).monospaced())
                 }
             }
             .presentationDetents([.fraction(0.8)])
@@ -165,6 +150,9 @@ struct PGSpotForecast: View {
 struct PGSpotForecast_Previews: PreviewProvider {
     static var previews: some View {
         let coordinate = CLLocationCoordinate2D(latitude: 40.2530073213, longitude: -105.609067564)
-        PGSpotForecast(pgSpot: PGSpotAnnotation(coordinate: coordinate, title: "Hi", subtitle: "Big Hi", properties: JSON("")))
+        let pgSpot = PGSpotAnnotation(coordinate: coordinate, title: "Hi", subtitle: "Big Hi", properties: JSON(""))
+        PGSpotForecast(pgSpot: pgSpot).onAppear {
+            pgSpot.forecast.getForecast()
+        }
     }
 }
