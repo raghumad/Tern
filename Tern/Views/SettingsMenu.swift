@@ -11,6 +11,7 @@ struct SettingsMenu: View {
     @State var menu = false
     @AppStorage("showAirspaces") var showAirspaces = true
     @AppStorage("showPGSpots") var showPGSpots = true
+    @AppStorage("showHotspots") var showHotspots = true
     @State var units = MeasurementUnits.userDefaults
     
     var body: some View {
@@ -29,7 +30,7 @@ struct SettingsMenu: View {
                         Button{
                             self.menu.toggle()
                         } label: {
-                            Text("𐦂")
+                            Text("𐦂").font(.custom("Gruppo", size: 12))
                                 .foregroundColor(.red)
                         }
                         .padding([.leading, .top], 10)
@@ -39,6 +40,9 @@ struct SettingsMenu: View {
                         List {
                             Toggle(isOn: $showAirspaces) {
                                 Label("Airspaces", systemImage: "airplane.circle")
+                            }
+                            Toggle(isOn: $showHotspots) {
+                                Label("Hotspots", systemImage: "tornado")
                             }
                             Toggle(isOn: $showPGSpots) {
                                 HStack{
@@ -108,6 +112,7 @@ struct SettingsMenu: View {
                             }
                         }
                     }
+                    .font(.custom("Gruppo", size: 12))
                     .presentationDetents([.fraction(0.5)])
                     .presentationDragIndicator(.visible)
                     .onDisappear {
@@ -116,7 +121,6 @@ struct SettingsMenu: View {
                     }
                 }
                 .foregroundColor(.black)
-                .font(.callout)
         }
         .foregroundColor(.white)
         .font(.title2) // This size looks better.

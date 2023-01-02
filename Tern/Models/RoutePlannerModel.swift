@@ -16,6 +16,7 @@ class RoutePlannerModel : NSObject, CLLocationManagerDelegate, ObservableObject,
     //38.9121906016191, -104.72783900204881
     @AppStorage("showAirspaces") var showAirspaces = true
     @AppStorage("showPGSpots") var showPGSpots = true
+    @AppStorage("showHotspots") var showHotspots = true
     var region : MKCoordinateRegion = .init()
     var waypoints: [WayPoint] = .init()
     @Published var shareRoute : Bool = false
@@ -84,9 +85,12 @@ extension RoutePlannerModel {
 
     func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
         if showAirspaces == false { mapView.removeOverlays(mapView.overlays) }
-        if showPGSpots == false {
+        if showPGSpots == false || showHotspots == false {
             for pgspot in mapView.annotations {
-                if pgspot is PGSpotAnnotation {
+                if pgspot is PGSpotAnnotation && showPGSpots == false {
+                    mapView.removeAnnotation(pgspot)
+                }
+                if pgspot is TextAnnotation && showHotspots == false {
                     mapView.removeAnnotation(pgspot)
                 }
             }
@@ -109,7 +113,7 @@ extension RoutePlannerModel {
                         }
                     }
                 })
-            if mapView.annotations.count > 1000 {mapView.removeAnnotations(mapView.annotations)}
+            if mapView.annotations.count > 2000 {mapView.removeAnnotations(mapView.annotations)}
             if mapView.region.span.latitudeDelta > 5 || mapView.overlays.count > 500 {
                 mapView.removeOverlays(mapView.overlays)
             } else {
@@ -225,6 +229,7 @@ extension RoutePlannerModel {
                     case 8:
                         switch json["type"].intValue {
                         case 1:
+                            mapView.addAnnotation(TextAnnotation(coordinate: overlay.coordinate,title: "Restricted", subtitle: json["remarks"].stringValue))
                             let renderer = MKPolygonRenderer(polygon: overlay as! MKPolygon)
                             //renderer.polygon.title = json["name"].stringValue
                             //renderer.polygon.subtitle = "Restricted"
@@ -234,6 +239,7 @@ extension RoutePlannerModel {
                             renderer.lineWidth = 2
                             return renderer
                         case 2:
+                            mapView.addAnnotation(TextAnnotation(coordinate: overlay.coordinate,title: "Danger", subtitle: json["remarks"].stringValue))
                             let renderer = MKPolygonRenderer(polygon: overlay as! MKPolygon)
                             renderer.fillColor = .systemOrange
                             renderer.alpha = 0.2
@@ -387,7 +393,7 @@ extension RoutePlannerModel {
             waypoints.append(newWaypoint)
             redrawRoutePath()
             mapView.addAnnotations(legLengthLabels)
-            if waypoints.count == 2 { //only add at second waypoint.
+            if waypoints.count >= 2 {
                 addHotspots()
             }
         }
@@ -472,6 +478,7 @@ extension RoutePlannerModel {
     }
 
     func addHotspots(){
+        if showHotspots == false { return }
         //https://thermal.kk7.ch/api/hotspots/cup/all_all/36.862,-112.819,41.295,-96.668
         //https://thermal.kk7.ch/api/hotspots/csv/all_all/25.681,-133.375,53.305,-68.774
         //https://thermal.kk7.ch/api/hotspots/gpx/all_all/36.862,-112.819,41.295,-96.668

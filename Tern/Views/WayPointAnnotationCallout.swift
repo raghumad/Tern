@@ -16,11 +16,32 @@ struct WayPointAnnotationCallout : View {
     var units = MeasurementUnits.userDefaults
 
     var body : some View {
-        let renderer = ImageRenderer(content: WaypointCalloutImage(waypoint: $waypoint))
-        Button {
+        VStack{
+            if waypoint.weatherForecast.winddirection_80m.count > 0 {
+                HStack {
+                    WindGauge(label: "Wind", windSpeed: waypoint.weatherForecast.windspeed80m[0], windDirection: waypoint.weatherForecast.winddirection_80m[0])
+                    WindGauge(label: "Gust", windSpeed: waypoint.weatherForecast.windgusts_10m[0])
+                }
+                HStack {
+                    if waypoint.weatherForecast.relativehumidity_2m.count > 0 {
+                        Gauge(value: Double(waypoint.weatherForecast.relativehumidity_2m[0].description) ?? 0, in: 0...100) {
+                            Text("Humidity")
+                                .foregroundColor(.accentColor)
+                                .font(.custom("Gruppo", size: 8).monospaced())
+                        }
+                        .gaugeStyle(.accessoryLinearCapacity)
+                        Gauge(value: Double(waypoint.weatherForecast.cloudcover[0].description) ?? 0, in: 0...100) {
+                            Text("Cloud Cover")
+                                .font(.custom("Gruppo", size: 8).monospaced())
+                                .foregroundColor(.accentColor)
+                        }
+                        .gaugeStyle(.accessoryLinearCapacity)
+                    }
+                }
+            }
+        }
+        .onTapGesture {
             editWaypoint.toggle()
-        } label: {
-            Image(uiImage: renderer.uiImage!)
         }
         .sheet(isPresented: $editWaypoint) {
             EditWaypoint(
