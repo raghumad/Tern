@@ -20,7 +20,7 @@ struct WeatherForecastData: Identifiable {
 class WeatherForecast {
     var coordinate : CLLocationCoordinate2D
     private var weatherForecast : JSON = []
-    private var units = MeasurementUnits.userDefaults
+    private let units = MeasurementUnits.userDefaults
     init(coordinate: CLLocationCoordinate2D, weatherForecast: JSON = JSON("")) {
         self.coordinate = coordinate
         getForecast()
@@ -99,7 +99,7 @@ class WeatherForecast {
     }
 
     func getForecast() {
-        Task(priority: .background) {
+        Task(priority: .high) {
             //https://api.open-meteo.com/v1/gfs?latitude=38.83&longitude=-104.82&current_weather=true&hourly=dewpoint_2m,pressure_msl,cloudcover,cape,windspeed_80m,winddirection_80m,windgusts_10m&temperature_unit=fahrenheit&windspeed_unit=mph&precipitation_unit=inch&forecast_days=1&timezone=auto
             //https://github.com/SwiftyJSON/SwiftyJSON to parse. got no time to create model structs.
             //https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames#Swift coordinate to xyz

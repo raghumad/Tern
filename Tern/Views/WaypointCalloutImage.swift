@@ -10,7 +10,7 @@ import CoreLocation
 
 struct WaypointCalloutImage: View {
     @Binding var waypoint: WayPoint
-    var units = MeasurementUnits.userDefaults
+    let units = MeasurementUnits.userDefaults
     var body: some View {
         VStack{
             if waypoint.weatherForecast.winddirection_80m.count > 0 {

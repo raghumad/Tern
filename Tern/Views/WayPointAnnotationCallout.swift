@@ -13,7 +13,7 @@ struct WayPointAnnotationCallout : View {
     @EnvironmentObject var model : RoutePlannerModel
     @State var editWaypoint : Bool = false
     @State var waypoint : WayPoint // This has to be copy or delete will crash.
-    var units = MeasurementUnits.userDefaults
+    let units = MeasurementUnits.userDefaults
 
     var body : some View {
         VStack{
