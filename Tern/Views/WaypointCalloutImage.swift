@@ -22,14 +22,14 @@ struct WaypointCalloutImage: View {
                     if waypoint.weatherForecast.relativehumidity_2m.count > 0 {
                         Gauge(value: Double(waypoint.weatherForecast.relativehumidity_2m[0].description) ?? 0, in: 0...100) {
                             Text("Humidity")
-                                .foregroundColor(.accentColor)
                                 .font(.custom("Gruppo", size: 8).monospaced())
+                                .foregroundColor(.primary)
                         }
                         .gaugeStyle(.accessoryLinearCapacity)
                         Gauge(value: Double(waypoint.weatherForecast.cloudcover[0].description) ?? 0, in: 0...100) {
                             Text("Cloud Cover")
                                 .font(.custom("Gruppo", size: 8).monospaced())
-                                .foregroundColor(.accentColor)
+                                .foregroundColor(.primary)
                         }
                         .gaugeStyle(.accessoryLinearCapacity)
                     }

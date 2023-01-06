@@ -113,6 +113,7 @@ struct SettingsMenu: View {
                         }
                     }
                     .font(.custom("Gruppo", size: 12))
+                    .foregroundColor(.primary)
                     .presentationDetents([.fraction(0.5)])
                     .presentationDragIndicator(.visible)
                     .onDisappear {

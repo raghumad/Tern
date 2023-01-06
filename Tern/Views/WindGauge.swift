@@ -42,11 +42,11 @@ struct WindGauge: View {
             Gauge(value: windSpeed.converted(to: units.speed).value, in: windMin.converted(to: units.speed).value...windMax.converted(to: units.speed).value) {
                 Text("\(label) \(units.speed.symbol)")
                     .font(.custom("Gruppo", size: 8).monospaced())
-                .foregroundColor(.accentColor)
+                .foregroundColor(.primary)
             } currentValueLabel: {
                 Text("\(String(format: "%0.0f", windSpeed.converted(to: units.speed).value))")
                     .font(.custom("Gruppo", size: 22).monospaced())
-                    .foregroundColor(.accentColor)
+                    .foregroundColor(.primary)
             }
             .gaugeStyle(.accessoryCircular)
             .tint(gradient)
