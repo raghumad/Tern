@@ -17,7 +17,6 @@ class RoutePlannerModel : NSObject, CLLocationManagerDelegate, ObservableObject,
     @AppStorage("showAirspaces") var showAirspaces = true
     @AppStorage("showPGSpots") var showPGSpots = true
     @AppStorage("showHotspots") var showHotspots = true
-    var region : MKCoordinateRegion = .init()
     var waypoints: [WayPoint] = .init()
     @Published var shareRoute : Bool = false
     var shareItems : [Any] = .init()
@@ -25,7 +24,7 @@ class RoutePlannerModel : NSObject, CLLocationManagerDelegate, ObservableObject,
     var mapView: MKMapView = .init()
     var airspaces : [String:Airspaces] = .init()
     var pgspots : [String:PGSpots] = .init()
-    var units = MeasurementUnits.userDefaults
+    let units = MeasurementUnits.userDefaults
 
     override init() {
         super.init()
@@ -43,10 +42,6 @@ class RoutePlannerModel : NSObject, CLLocationManagerDelegate, ObservableObject,
         //locationManager.startMonitoring(for: CLRegion())
     }
 
-    func handleLocationAuthError(){
-        //Handle error
-    }
-
     deinit {
         locationManager.stopUpdatingLocation()
     }
@@ -56,10 +51,14 @@ extension RoutePlannerModel {
     //MARK: LocationManagerDelegates
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         //Set default location
-        self.region = MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: 38.9121906016191, longitude: -104.72783900204881), latitudinalMeters: 50000, longitudinalMeters: 50000)
-        self.mapView.setRegion(self.region, animated: false)
+        let region = MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: 38.9121906016191, longitude: -104.72783900204881), latitudinalMeters: 50000, longitudinalMeters: 50000)
+        self.mapView.setRegion(region, animated: false)
     }
-    
+
+    func handleLocationAuthError(){
+        //Handle error
+    }
+
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         switch manager.authorizationStatus {
         case .authorizedAlways: manager.requestLocation()
@@ -72,11 +71,8 @@ extension RoutePlannerModel {
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.last else {return}
-        DispatchQueue.main.async {
-            //print ("latest location in didUpdateLocations: \(location.coordinate)")
-            self.region = MKCoordinateRegion(center: location.coordinate, latitudinalMeters: 50000, longitudinalMeters: 50000)
-            self.mapView.setRegion(self.region, animated: true)
-        }
+        let region = MKCoordinateRegion(center: location.coordinate, latitudinalMeters: 50000, longitudinalMeters: 50000)
+        self.mapView.setRegion(region, animated: true)
     }
 }
 
@@ -182,7 +178,7 @@ extension RoutePlannerModel {
         if annotation is PGSpotAnnotation {
             let marker = MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: MKMapViewDefaultAnnotationViewReuseIdentifier)
             marker.animatesWhenAdded = false
-            marker.glyphImage = UIImage(named: "Kjartan Birgisson")
+            marker.glyphImage = renderWindGauge(forecast: (annotation as! PGSpotAnnotation).forecast)
             marker.clusteringIdentifier = "PGSpot"
             marker.annotation = annotation
             marker.glyphTintColor = .black
@@ -193,6 +189,15 @@ extension RoutePlannerModel {
             return marker
         }
         return MKAnnotationView()
+    }
+
+    @MainActor func renderWindGauge(forecast: WeatherForecast) -> UIImage? {
+        let renderer : ImageRenderer<WindGauge>
+        if forecast.windspeed80m.count > 0 {
+            renderer = .init(content: WindGauge(label: "Wind", windSpeed: forecast.windspeed80m[0], windDirection: forecast.winddirection_80m[0]))
+            return renderer.uiImage
+        }
+        return UIImage(named: "Kjartan Birgisson")
     }
 
     func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
@@ -326,11 +331,14 @@ extension RoutePlannerModel {
 
     func mapView(_ mapView: MKMapView, didSelect view: MKAnnotationView) {
         if view.annotation is PGSpotAnnotation {
+            (view.annotation as! PGSpotAnnotation).forecast.getForecast() //Also update forecast
+            (view as! MKMarkerAnnotationView).glyphImage = renderWindGauge(forecast: (view.annotation as! PGSpotAnnotation).forecast)
             let callout = UIHostingController(rootView: PGSpotForecast(pgSpot: view.annotation as! PGSpotAnnotation))
             callout.loadView()
             view.detailCalloutAccessoryView = callout.viewIfLoaded
         }
         if view.annotation is WayPoint {
+            (view.annotation as! WayPoint).weatherForecast.getForecast() // update forecast
             let callout = UIHostingController(rootView: WayPointAnnotationCallout(waypoint: view.annotation as! WayPoint).environmentObject(self))
             callout.loadView()
             view.detailCalloutAccessoryView = callout.viewIfLoaded

@@ -14,7 +14,7 @@ struct EditWaypoint: View {
     @EnvironmentObject var model : RoutePlannerModel
     let waypoint : WayPoint
     @Binding var editWaypoint : Bool
-    var units = MeasurementUnits.userDefaults
+    let units = MeasurementUnits.userDefaults
     
     @State var waypointName : String
     @State var latitude : Double

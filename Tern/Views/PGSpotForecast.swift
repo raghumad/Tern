@@ -13,7 +13,7 @@ import SwiftyJSON
 struct PGSpotForecast: View {
     let pgSpot : PGSpotAnnotation
     @State var isSheet = false
-    var units = MeasurementUnits.userDefaults
+    let units = MeasurementUnits.userDefaults
     
     init(pgSpot: PGSpotAnnotation) {
         self.pgSpot = pgSpot
