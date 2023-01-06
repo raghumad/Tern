@@ -56,14 +56,14 @@ struct PGSpotForecast: View {
                 HStack{
                     Gauge(value: Double(pgSpot.forecast.relativehumidity_2m[0].description) ?? 0, in: 0...100) {
                         Text("Humidity")
-                            .foregroundColor(.accentColor)
+                            .foregroundColor(.primary)
                             .font(.custom("Gruppo", size: 8).monospaced())
                     }
                     .gaugeStyle(.accessoryLinearCapacity)
                     Gauge(value: Double(pgSpot.forecast.cloudcover[0].description) ?? 0, in: 0...100) {
                         Text("Cloud Cover")
                             .font(.custom("Gruppo", size: 8).monospaced())
-                            .foregroundColor(.accentColor)
+                            .foregroundColor(.primary)
                     }
                     .gaugeStyle(.accessoryLinearCapacity)
                 }

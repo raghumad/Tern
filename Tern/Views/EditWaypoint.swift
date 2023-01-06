@@ -74,14 +74,14 @@ struct EditWaypoint: View {
             }
             HStack {
                 Text("⌭")
-                    .font(.custom("Gruppo", size: 12))
+                    .font(.custom("Gruppo", size: 16))
                 TextField("Cylinder Radius", value: $cylinderRadius.value, format: .number)
-                    .font(.custom("Gruppo", size: 12))
+                    .font(.custom("Gruppo", size: 16))
                     .keyboardType(.numberPad)
-                    .frame(width: 50)
+                    .frame(width: 80)
                 //Image(systemName: "mountain.2")
                 Text("🏔️\(String(format: "%0.0f", waypoint.elevation.converted(to: units.magnitude).value))\(units.magnitude.symbol)")
-                    .font(.custom("Gruppo", size: 12))
+                    .font(.custom("Gruppo", size: 16))
                 Spacer()
             }
             ZStack{
