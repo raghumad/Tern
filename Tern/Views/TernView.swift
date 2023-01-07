@@ -10,11 +10,11 @@ import MapKit
 import CoreImage
 import CoreImage.CIFilterBuiltins
 
-struct RoutePlanner: View {
-    @StateObject var model = RoutePlannerModel()
+struct TernView: View {
+    @StateObject var model = TernModel()
     var body: some View {
         ZStack(alignment: .center){
-            RoutePlannerMapViewHelper(manager: model)
+            TernMapViewHelper(manager: model)
             VStack{
                 HStack{
                     SettingsMenu()
@@ -23,6 +23,17 @@ struct RoutePlanner: View {
                     Spacer()
                 }
                 Spacer()
+                Picker(selection: $model.screen) {
+                    Text("Planning").tag(TernScreen.planning)
+                    Text("FlightDeck").tag(TernScreen.flightDeck)
+                } label: {
+                    Text("Screen")
+                }
+                .font(.custom("Gruppo", size: 12))
+                .foregroundColor(.primary)
+                .cornerRadius(5)
+                .pickerStyle(.segmented)
+                .frame(width: 200)
                 HStack{ //Everything in this stack will be white and title2 size.
                     Spacer()
                     HStack{

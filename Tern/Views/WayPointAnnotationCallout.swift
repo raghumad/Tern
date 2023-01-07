@@ -10,7 +10,7 @@ import CoreLocation
 import MapKit
 
 struct WayPointAnnotationCallout : View {
-    @EnvironmentObject var model : RoutePlannerModel
+    @EnvironmentObject var model : TernModel
     @State var editWaypoint : Bool = false
     @State var waypoint : WayPoint // This has to be copy or delete will crash.
     let units = MeasurementUnits.userDefaults

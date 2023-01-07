@@ -13,9 +13,9 @@
 		EF1A6C11295FAFC000FE9FDB /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = EF1A6C10295FAFC000FE9FDB /* Preview Assets.xcassets */; };
 		EF1A6C25295FB25E00FE9FDB /* WeatherForecast.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1A6C19295FB25E00FE9FDB /* WeatherForecast.swift */; };
 		EF1A6C26295FB25E00FE9FDB /* PGSpots.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1A6C1A295FB25E00FE9FDB /* PGSpots.swift */; };
-		EF1A6C27295FB25E00FE9FDB /* RoutePlannerMapViewHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1A6C1B295FB25E00FE9FDB /* RoutePlannerMapViewHelper.swift */; };
+		EF1A6C27295FB25E00FE9FDB /* TernMapViewHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1A6C1B295FB25E00FE9FDB /* TernMapViewHelper.swift */; };
 		EF1A6C28295FB25E00FE9FDB /* PGSpotAnnotation.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1A6C1C295FB25E00FE9FDB /* PGSpotAnnotation.swift */; };
-		EF1A6C29295FB25E00FE9FDB /* RoutePlannerModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1A6C1D295FB25E00FE9FDB /* RoutePlannerModel.swift */; };
+		EF1A6C29295FB25E00FE9FDB /* TernModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1A6C1D295FB25E00FE9FDB /* TernModel.swift */; };
 		EF1A6C2A295FB25E00FE9FDB /* Hotspot.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1A6C1E295FB25E00FE9FDB /* Hotspot.swift */; };
 		EF1A6C2B295FB25E00FE9FDB /* TextAnnotation.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1A6C1F295FB25E00FE9FDB /* TextAnnotation.swift */; };
 		EF1A6C2C295FB25E00FE9FDB /* MeasurementUnits.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1A6C20295FB25E00FE9FDB /* MeasurementUnits.swift */; };
@@ -29,7 +29,7 @@
 		EF1A6C3C295FB26B00FE9FDB /* SettingsMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1A6C34295FB26B00FE9FDB /* SettingsMenu.swift */; };
 		EF1A6C3D295FB26B00FE9FDB /* qrCode.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1A6C35295FB26B00FE9FDB /* qrCode.swift */; };
 		EF1A6C3E295FB26B00FE9FDB /* WayPointAnnotationCallout.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1A6C36295FB26B00FE9FDB /* WayPointAnnotationCallout.swift */; };
-		EF1A6C40295FB26B00FE9FDB /* RoutePlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1A6C38295FB26B00FE9FDB /* RoutePlanner.swift */; };
+		EF1A6C40295FB26B00FE9FDB /* TernView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1A6C38295FB26B00FE9FDB /* TernView.swift */; };
 		EF1A6C43295FB36D00FE9FDB /* SwiftyJSON in Frameworks */ = {isa = PBXBuildFile; productRef = EF1A6C42295FB36D00FE9FDB /* SwiftyJSON */; };
 		EF1A6C46295FB3E600FE9FDB /* Polyline in Frameworks */ = {isa = PBXBuildFile; productRef = EF1A6C45295FB3E600FE9FDB /* Polyline */; };
 		EF1A6C49295FB64000FE9FDB /* GPX in Frameworks */ = {isa = PBXBuildFile; productRef = EF1A6C48295FB64000FE9FDB /* GPX */; };
@@ -47,9 +47,9 @@
 		EF1A6C10295FAFC000FE9FDB /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		EF1A6C19295FB25E00FE9FDB /* WeatherForecast.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = WeatherForecast.swift; sourceTree = "<group>"; };
 		EF1A6C1A295FB25E00FE9FDB /* PGSpots.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PGSpots.swift; sourceTree = "<group>"; };
-		EF1A6C1B295FB25E00FE9FDB /* RoutePlannerMapViewHelper.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RoutePlannerMapViewHelper.swift; sourceTree = "<group>"; };
+		EF1A6C1B295FB25E00FE9FDB /* TernMapViewHelper.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TernMapViewHelper.swift; sourceTree = "<group>"; };
 		EF1A6C1C295FB25E00FE9FDB /* PGSpotAnnotation.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PGSpotAnnotation.swift; sourceTree = "<group>"; };
-		EF1A6C1D295FB25E00FE9FDB /* RoutePlannerModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RoutePlannerModel.swift; sourceTree = "<group>"; };
+		EF1A6C1D295FB25E00FE9FDB /* TernModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TernModel.swift; sourceTree = "<group>"; };
 		EF1A6C1E295FB25E00FE9FDB /* Hotspot.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Hotspot.swift; sourceTree = "<group>"; };
 		EF1A6C1F295FB25E00FE9FDB /* TextAnnotation.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TextAnnotation.swift; sourceTree = "<group>"; };
 		EF1A6C20295FB25E00FE9FDB /* MeasurementUnits.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MeasurementUnits.swift; sourceTree = "<group>"; };
@@ -63,7 +63,7 @@
 		EF1A6C34295FB26B00FE9FDB /* SettingsMenu.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SettingsMenu.swift; sourceTree = "<group>"; };
 		EF1A6C35295FB26B00FE9FDB /* qrCode.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = qrCode.swift; sourceTree = "<group>"; };
 		EF1A6C36295FB26B00FE9FDB /* WayPointAnnotationCallout.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = WayPointAnnotationCallout.swift; sourceTree = "<group>"; };
-		EF1A6C38295FB26B00FE9FDB /* RoutePlanner.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RoutePlanner.swift; sourceTree = "<group>"; };
+		EF1A6C38295FB26B00FE9FDB /* TernView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TernView.swift; sourceTree = "<group>"; };
 		EF1A6C4A295FB75400FE9FDB /* LICENSE */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = LICENSE; sourceTree = "<group>"; };
 		EF1A6C4B295FB75400FE9FDB /* README.md */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		EF1A6C4E295FB79300FE9FDB /* Gruppo-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Gruppo-Regular.ttf"; sourceTree = "<group>"; };
@@ -133,7 +133,7 @@
 				EF1A6C32295FB26B00FE9FDB /* EditWaypoint.swift */,
 				EF1A6C33295FB26B00FE9FDB /* PGSpotForecast.swift */,
 				EF1A6C35295FB26B00FE9FDB /* qrCode.swift */,
-				EF1A6C38295FB26B00FE9FDB /* RoutePlanner.swift */,
+				EF1A6C38295FB26B00FE9FDB /* TernView.swift */,
 				EF1A6C34295FB26B00FE9FDB /* SettingsMenu.swift */,
 				EF1A6C36295FB26B00FE9FDB /* WayPointAnnotationCallout.swift */,
 				EF1A6C31295FB26B00FE9FDB /* WelcomeScreen.swift */,
@@ -152,8 +152,8 @@
 				EF1A6C20295FB25E00FE9FDB /* MeasurementUnits.swift */,
 				EF1A6C1C295FB25E00FE9FDB /* PGSpotAnnotation.swift */,
 				EF1A6C1A295FB25E00FE9FDB /* PGSpots.swift */,
-				EF1A6C1B295FB25E00FE9FDB /* RoutePlannerMapViewHelper.swift */,
-				EF1A6C1D295FB25E00FE9FDB /* RoutePlannerModel.swift */,
+				EF1A6C1B295FB25E00FE9FDB /* TernMapViewHelper.swift */,
+				EF1A6C1D295FB25E00FE9FDB /* TernModel.swift */,
 				EF1A6C21295FB25E00FE9FDB /* TernCache.swift */,
 				EF1A6C1F295FB25E00FE9FDB /* TextAnnotation.swift */,
 				EF1A6C22295FB25E00FE9FDB /* WayPoint.swift */,
@@ -253,7 +253,7 @@
 				EF1A6C2E295FB25E00FE9FDB /* WayPoint.swift in Sources */,
 				EF1A6C3D295FB26B00FE9FDB /* qrCode.swift in Sources */,
 				EF1A6C2B295FB25E00FE9FDB /* TextAnnotation.swift in Sources */,
-				EF1A6C27295FB25E00FE9FDB /* RoutePlannerMapViewHelper.swift in Sources */,
+				EF1A6C27295FB25E00FE9FDB /* TernMapViewHelper.swift in Sources */,
 				EF1A6C3B295FB26B00FE9FDB /* PGSpotForecast.swift in Sources */,
 				EF1A6C0C295FAFBF00FE9FDB /* ContentView.swift in Sources */,
 				EF1A6C3C295FB26B00FE9FDB /* SettingsMenu.swift in Sources */,
@@ -262,9 +262,9 @@
 				EF1A6C2F295FB25E00FE9FDB /* Airspaces.swift in Sources */,
 				EF1A6C2D295FB25E00FE9FDB /* TernCache.swift in Sources */,
 				EF1A6C39295FB26B00FE9FDB /* WelcomeScreen.swift in Sources */,
-				EF1A6C29295FB25E00FE9FDB /* RoutePlannerModel.swift in Sources */,
+				EF1A6C29295FB25E00FE9FDB /* TernModel.swift in Sources */,
 				EF1A6C3A295FB26B00FE9FDB /* EditWaypoint.swift in Sources */,
-				EF1A6C40295FB26B00FE9FDB /* RoutePlanner.swift in Sources */,
+				EF1A6C40295FB26B00FE9FDB /* TernView.swift in Sources */,
 				EF1A6C28295FB25E00FE9FDB /* PGSpotAnnotation.swift in Sources */,
 				EFBC55722960223D00D606A8 /* WindGauge.swift in Sources */,
 			);
@@ -405,9 +405,11 @@
 				INFOPLIST_KEY_LSApplicationCategoryType = "";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "App needs location for everything to work.";
+				INFOPLIST_KEY_NSMotionUsageDescription = "Tern uses information from accelerometer, barometer, gyroscope and other available sensors to provide variometer gauges and functionality. btw, apart from creating flight logs that you can store on the device I dont steal any of this data.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIRequiredDeviceCapabilities = "location-services gps magnetometer";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -440,9 +442,11 @@
 				INFOPLIST_KEY_LSApplicationCategoryType = "";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "App needs location for everything to work.";
+				INFOPLIST_KEY_NSMotionUsageDescription = "Tern uses information from accelerometer, barometer, gyroscope and other available sensors to provide variometer gauges and functionality. btw, apart from creating flight logs that you can store on the device I dont steal any of this data.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIRequiredDeviceCapabilities = "location-services gps magnetometer";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (

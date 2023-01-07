@@ -10,7 +10,7 @@ import CoreLocation
 
 struct WelcomeScreen: View {
     @State var splash : Bool = true
-    let routePlanner = RoutePlanner()
+    let tern = TernView()
     var body: some View {
         if (splash) {
             VStack{
@@ -47,7 +47,7 @@ struct WelcomeScreen: View {
                 }
             }
         } else {
-            routePlanner
+            tern
         }
     }
 }

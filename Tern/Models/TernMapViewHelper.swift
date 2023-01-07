@@ -9,8 +9,8 @@ import Foundation
 import SwiftUI
 import MapKit
 
-struct RoutePlannerMapViewHelper : UIViewRepresentable {
-    @ObservedObject var manager: RoutePlannerModel
+struct TernMapViewHelper : UIViewRepresentable {
+    @ObservedObject var manager: TernModel
     func makeUIView(context: Context) -> MKMapView {
         return manager.mapView
     }

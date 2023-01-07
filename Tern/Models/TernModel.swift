@@ -12,7 +12,12 @@ import SwiftyJSON
 import Polyline
 import GPX
 
-class RoutePlannerModel : NSObject, CLLocationManagerDelegate, ObservableObject, MKMapViewDelegate, UIGestureRecognizerDelegate {
+enum TernScreen {
+    case planning
+    case flightDeck
+}
+
+class TernModel : NSObject, CLLocationManagerDelegate, ObservableObject, MKMapViewDelegate, UIGestureRecognizerDelegate {
     //38.9121906016191, -104.72783900204881
     @AppStorage("showAirspaces") var showAirspaces = true
     @AppStorage("showPGSpots") var showPGSpots = true
@@ -25,6 +30,7 @@ class RoutePlannerModel : NSObject, CLLocationManagerDelegate, ObservableObject,
     var airspaces : [String:Airspaces] = .init()
     var pgspots : [String:PGSpots] = .init()
     let units = MeasurementUnits.userDefaults
+    var screen : TernScreen = .planning
 
     override init() {
         super.init()
@@ -47,7 +53,7 @@ class RoutePlannerModel : NSObject, CLLocationManagerDelegate, ObservableObject,
     }
 }
 
-extension RoutePlannerModel {
+extension TernModel {
     //MARK: LocationManagerDelegates
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         //Set default location
@@ -76,7 +82,7 @@ extension RoutePlannerModel {
     }
 }
 
-extension RoutePlannerModel {
+extension TernModel {
     //MARK: MapViewDelegates
 
     func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
@@ -347,7 +353,7 @@ extension RoutePlannerModel {
 
 }
 
-extension RoutePlannerModel {
+extension TernModel {
     //MARK: helper functions
     func encodeSingleInteger(_ value: Int) -> String {
         

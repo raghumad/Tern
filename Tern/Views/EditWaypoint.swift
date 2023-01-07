@@ -11,7 +11,7 @@ import MapKit
 import Charts
 
 struct EditWaypoint: View {
-    @EnvironmentObject var model : RoutePlannerModel
+    @EnvironmentObject var model : TernModel
     let waypoint : WayPoint
     @Binding var editWaypoint : Bool
     let units = MeasurementUnits.userDefaults
