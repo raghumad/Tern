@@ -42,13 +42,12 @@ struct WelcomeScreen: View {
             .background(Color.cyan)
             .ignoresSafeArea(.all)
             .onAppear {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+                withAnimation(.easeIn(duration: 5.0)) {
                     splash.toggle()
                 }
             }
         } else {
             routePlanner
-                .transition(.move(edge: .bottom))
         }
     }
 }
