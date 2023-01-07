@@ -25,5 +25,10 @@
 	<array>
 		<string>Gruppo-Regular.ttf</string>
 	</array>
+    <key>UIApplicationSceneManifest</key>
+    <dict>
+        <key>UISceneConfigurations</key>
+        <dict/>
+    </dict>
 </dict>
 </plist>
