@@ -8,6 +8,7 @@
 import SwiftUI
 
 struct SettingsMenu: View {
+    @EnvironmentObject var model : TernModel
     @State var menu = false
     @AppStorage("showAirspaces") var showAirspaces = true
     @AppStorage("showPGSpots") var showPGSpots = true
@@ -41,8 +42,14 @@ struct SettingsMenu: View {
                             Toggle(isOn: $showAirspaces) {
                                 Label("Airspaces", systemImage: "airplane.circle")
                             }
+                            .onChange(of: showAirspaces) { newValue in
+                                model.showAirspaces = showAirspaces
+                            }
                             Toggle(isOn: $showHotspots) {
                                 Label("Hotspots", systemImage: "tornado")
+                            }
+                            .onChange(of: showHotspots) { newValue in
+                                model.showHotspots = showHotspots
                             }
                             Toggle(isOn: $showPGSpots) {
                                 HStack{
@@ -52,6 +59,9 @@ struct SettingsMenu: View {
                                         .frame(height: 15)
                                     Text("PGSpots")
                                 }
+                            }
+                            .onChange(of: showPGSpots) { newValue in
+                                model.showPGSpots = showPGSpots
                             }
                             HStack{
                                 Text("Temperature")

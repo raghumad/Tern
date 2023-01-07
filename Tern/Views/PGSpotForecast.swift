@@ -130,11 +130,11 @@ struct PGSpotForecast: View {
                 HStack {
                     
                     if pgSpot.properties["pge_link"].stringValue != "" {
-                        Link("View on Paragliding Earth", destination: URL(string: pgSpot.properties["pge_link"].stringValue)!).font(.custom("Gruppo", size: 12).monospaced())
+                        Link("View on Paragliding Earth", destination: URL(string: pgSpot.properties["pge_link"].stringValue)!).font(.custom("Gruppo", size: 8).monospaced())
                     } else {
-                        Link("pg site info by paragliding earth", destination: URL(string: "https://www.paraglidingearth.com/")!).font(.custom("Gruppo", size: 12).monospaced())
+                        Link("pg site info by paragliding earth", destination: URL(string: "https://www.paraglidingearth.com/")!).font(.custom("Gruppo", size: 8).monospaced())
                     }
-                    Link("Weather data by Open-Meteo.com", destination: URL(string: "https://open-meteo.com/")!).font(.custom("Gruppo", size: 12).monospaced())
+                    Link("Weather data by Open-Meteo.com", destination: URL(string: "https://open-meteo.com/")!).font(.custom("Gruppo", size: 8).monospaced())
                 }
             }
             .presentationDetents([.fraction(0.8)])

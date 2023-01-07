@@ -19,9 +19,9 @@ enum TernScreen {
 
 class TernModel : NSObject, CLLocationManagerDelegate, ObservableObject, MKMapViewDelegate, UIGestureRecognizerDelegate {
     //38.9121906016191, -104.72783900204881
-    @AppStorage("showAirspaces") var showAirspaces = true
-    @AppStorage("showPGSpots") var showPGSpots = true
-    @AppStorage("showHotspots") var showHotspots = true
+    @Published var showAirspaces = UserDefaults.standard.bool(forKey: "showAirspaces")
+    @Published var showPGSpots = UserDefaults.standard.bool(forKey: "showPGSpots")
+    @Published var showHotspots = UserDefaults.standard.bool(forKey: "showHotspots")
     var waypoints: [WayPoint] = .init()
     @Published var shareRoute : Bool = false
     var shareItems : [Any] = .init()
@@ -30,7 +30,7 @@ class TernModel : NSObject, CLLocationManagerDelegate, ObservableObject, MKMapVi
     var airspaces : [String:Airspaces] = .init()
     var pgspots : [String:PGSpots] = .init()
     let units = MeasurementUnits.userDefaults
-    var screen : TernScreen = .planning
+    @Published var screen : TernScreen = .planning
 
     override init() {
         super.init()
@@ -906,4 +906,27 @@ extension TernModel {
         let coHi = CLLocationCoordinate2D(latitude: hx, longitude: hy)
         return [coLow, coHi]
     }*/
+
+    func onScreenChange() {
+        switch screen {
+            case TernScreen.planning:
+                self.showAirspaces = UserDefaults.standard.bool(forKey: "showAirspaces")
+                self.showPGSpots = UserDefaults.standard.bool(forKey: "showPGSpots")
+                self.showHotspots = UserDefaults.standard.bool(forKey: "showHotspots")
+                mapView.mapType = .hybrid
+                mapView.camera.pitch = 0
+                mapView.updateConstraints()
+                break
+            case TernScreen.flightDeck:
+                self.showAirspaces = true
+                self.showPGSpots = false
+                self.showHotspots = true //override the values so that we dont show pg spots anymore.
+                mapView.mapType = .hybridFlyover
+                mapView.camera.pitch = 70
+                mapView.setUserTrackingMode(.followWithHeading, animated: true)
+                mapView.camera.centerCoordinateDistance = 35000
+                mapView.updateConstraints()
+                break
+        }
+    }
 }
