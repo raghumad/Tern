@@ -407,6 +407,7 @@
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "App needs location for everything to work.";
 				INFOPLIST_KEY_NSMotionUsageDescription = "Tern uses information from accelerometer, barometer, gyroscope and other available sensors to provide variometer gauges and functionality. btw, apart from creating flight logs that you can store on the device I dont steal any of this data.";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UIRequiredDeviceCapabilities = "location-services gps magnetometer";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
@@ -442,6 +443,7 @@
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "App needs location for everything to work.";
 				INFOPLIST_KEY_NSMotionUsageDescription = "Tern uses information from accelerometer, barometer, gyroscope and other available sensors to provide variometer gauges and functionality. btw, apart from creating flight logs that you can store on the device I dont steal any of this data.";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UIRequiredDeviceCapabilities = "location-services gps magnetometer";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
