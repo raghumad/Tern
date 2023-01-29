@@ -8,7 +8,6 @@
 import SwiftUI
 import Charts
 import CoreLocation
-import SwiftyJSON
 
 struct PGSpotForecast: View {
     let pgSpot : PGSpotAnnotation
@@ -160,13 +159,3 @@ struct PGSpotForecast: View {
         }
     }
 }
-
-//struct PGSpotForecast_Previews: PreviewProvider {
-//    static var previews: some View {
-//        let coordinate = CLLocationCoordinate2D(latitude: 40.2530073213, longitude: -105.609067564)
-//        let pgSpot = PGSpotAnnotation(coordinate: coordinate, title: "Hi", subtitle: "Big Hi", properties: JSON(""))
-//        PGSpotForecast(pgSpot: pgSpot).task {
-//            await pgSpot.getForecast()
-//        }
-//    }
-//}
