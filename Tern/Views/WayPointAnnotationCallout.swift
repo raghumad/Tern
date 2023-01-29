@@ -17,20 +17,20 @@ struct WayPointAnnotationCallout : View {
 
     var body : some View {
         VStack{
-            if waypoint.weatherForecast.winddirection_80m.count > 0 {
+            if ((waypoint.forecast?.current_weather.winddirection) != nil) {
                 HStack {
-                    WindGauge(label: "Wind", windSpeed: waypoint.weatherForecast.windspeed80m[0], windDirection: waypoint.weatherForecast.winddirection_80m[0])
-                    WindGauge(label: "Gust", windSpeed: waypoint.weatherForecast.windgusts_10m[0])
+                    WindGauge(label: "Wind", windSpeed: (waypoint.forecast?.current_weather.windspeed.converted(to: units.speed))!, windDirection: waypoint.forecast?.current_weather.winddirection.converted(to: .degrees))
+                    WindGauge(label: "Gust", windSpeed: (waypoint.forecast?.hourly.windgusts_10m[0].converted(to: units.speed))!)
                 }
                 HStack {
-                    if waypoint.weatherForecast.relativehumidity_2m.count > 0 {
-                        Gauge(value: Double(waypoint.weatherForecast.relativehumidity_2m[0].description) ?? 0, in: 0...100) {
+                    if (waypoint.forecast?.hourly.relativehumidity_2m.count)! > 0 {
+                        Gauge(value: Double((waypoint.forecast?.hourly.relativehumidity_2m[0].description)!) ?? 0, in: 0...100) {
                             Text("Humidity")
                                 .foregroundColor(.primary)
                                 .font(.custom("Gruppo", size: 8).monospaced())
                         }
                         .gaugeStyle(.accessoryLinearCapacity)
-                        Gauge(value: Double(waypoint.weatherForecast.cloudcover[0].description) ?? 0, in: 0...100) {
+                        Gauge(value: Double((waypoint.forecast?.hourly.cloudcover[0].description)!) ?? 0, in: 0...100) {
                             Text("Cloud Cover")
                                 .font(.custom("Gruppo", size: 8).monospaced())
                                 .foregroundColor(.primary)

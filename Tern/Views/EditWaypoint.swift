@@ -96,33 +96,39 @@ struct EditWaypoint: View {
                     Text("Gustspeed").fontWeight(.ultraLight).foregroundColor(.red)
                         .font(.custom("Gruppo", size: 12))
                 }
-                Chart (waypoint.weatherForecast.weatherdata) { item in
+                Chart ((waypoint.forecast?.hourly.weatherdata)!) { item in
                     LineMark(x: .value("Time", item.time),
                              y: .value("WindGust", item.windgusts_10m))
                 }
                 .foregroundStyle(.red)
-                Chart (waypoint.weatherForecast.weatherdata) { item in
+                Chart ((waypoint.forecast?.hourly.weatherdata)!) { item in
                     LineMark(x: .value("Time", item.time),
                              y: .value("WindSpeed", item.windspeed80m))
                 }
                 .foregroundStyle(.cyan)
-            }
-            ZStack{
-                Text("Wind Direction").fontWeight(.ultraLight).foregroundColor(.red)
-                    .font(.custom("Gruppo", size: 12))
-                Chart (waypoint.weatherForecast.weatherdata) { item in
-                    PointMark(
-                        x: .value("Time", item.time),
-                        y: .value("WindDirection", item.winddirection_80m)
-                    )
-                    .symbol {
-                        Image(systemName: "arrow.up")
-                            .resizable()
-                            .frame(width: 5.0, height: 10.0)
-                            .rotationEffect(.degrees(item.winddirection_80m))
+                VStack{
+                    Spacer()
+                    Text("Wind Direction")
+                        .fontWeight(.ultraLight)
+                        .foregroundColor(.green)
+                        .font(.custom("Gruppo", size: 12))
+                    Chart ((waypoint.forecast?.hourly.weatherdata)!) { item in
+                        PointMark(
+                            x: .value("Time", item.time)//,
+                            //y: .value("WindDirection", item.winddirection_80m)
+                        )
+                        .symbol {
+                            Image(systemName: "arrow.up")
+                                .resizable()
+                                .frame(width: 5.0, height: 10.0)
+                                .rotationEffect(.degrees(item.winddirection_80m))
+                        }
                     }
+                    .chartXAxis(content: {
+                    })
+                    .frame(height: 35)
+                    .foregroundStyle(.green)
                 }
-                .foregroundStyle(.red)
             }
             ZStack {
                 HStack {
@@ -131,7 +137,7 @@ struct EditWaypoint: View {
                     Text("Due Point").fontWeight(.ultraLight).foregroundColor(.blue)
                         .font(.custom("Gruppo", size: 12))
                 }
-                Chart (waypoint.weatherForecast.weatherdata) { item in
+                Chart ((waypoint.forecast?.hourly.weatherdata)!) { item in
                     LineMark(x: .value("Time", item.time),
                              y: .value("Temp", item.temperature_2m))
                     .foregroundStyle(.orange)

@@ -8,25 +8,14 @@
 import Foundation
 import CoreLocation
 
-class OpenMeteoSession {
-    static let defaultSession = OpenMeteoSession()
-
-    private var session : URLSession {
-        get {
-            let config = URLSessionConfiguration.default
-            config.httpAdditionalHeaders = ["User-Agent": "(https://tern.madanala.com/, tern@madanala.com) Tern Paragliding"]
-            let session = URLSession(configuration: config)
-            return session
-        }
-    }
-
-    private init() {
-    }
-
-    func getOpenMeteoForecast(for coordinate: CLLocationCoordinate2D) async throws -> OpenMeteoForecast {
-        let (data, _) = try await session.data(for: URLRequest(url: URL(string: "https://api.open-meteo.com/v1/forecast?latitude=\(coordinate.latitude)&longitude=\(coordinate.longitude)&hourly=temperature_2m,relativehumidity_2m,dewpoint_2m,weathercode,pressure_msl,surface_pressure,cloudcover,windspeed_80m,winddirection_80m,windgusts_10m&current_weather=true&temperature_unit=fahrenheit&windspeed_unit=mph&precipitation_unit=inch&timezone=auto&past_days=0&timeformat=unixtime&models=best_match")!))
-        return try JSONDecoder().decode(OpenMeteoForecast.self, from: data)
-    }
+struct WeatherForecastData: Identifiable {
+    var id = UUID()
+    var windspeed80m : Double
+    var winddirection_80m : Double
+    var windgusts_10m : Double
+    var temperature_2m : Double
+    var dewpoint_2m : Double
+    var time : String
 }
 
 struct OpenMeteoForecast : Codable {
@@ -63,17 +52,6 @@ struct OpenMeteoForecast : Codable {
         case current_weather = "current_weather"
         //case hourly_units = "hourly_units"
         case hourly = "hourly"
-    }
-
-//    init(coordinate: CLLocationCoordinate2D) {
-//        self.latitude = coordinate.latitude
-//        self.longitude = coordinate.longitude
-//    }
-
-    func getForecast() {
-        Task(priority: .high) {
-            try await OpenMeteoSession.defaultSession.getOpenMeteoForecast(for: CLLocationCoordinate2D(latitude: self.latitude, longitude: self.longitude))
-        }
     }
 }
 
@@ -122,6 +100,7 @@ struct hourly : Codable {
     let windspeed_80m : [Measurement<UnitSpeed>]
     let winddirection_80m : [Measurement<UnitAngle>]
     let windgusts_10m : [Measurement<UnitSpeed>]
+    private let units = MeasurementUnits.userDefaults
 
     /*
      hourly
@@ -164,5 +143,15 @@ struct hourly : Codable {
         self.windspeed_80m = try values.decode([Double].self, forKey: CodingKeys.windspeed_80m).map { Measurement(value: $0, unit: .milesPerHour) }
         self.winddirection_80m = try values.decode([Double].self, forKey: CodingKeys.winddirection_80m).map { Measurement(value: $0 , unit: .degrees) }
         self.windgusts_10m = try values.decode([Double].self, forKey: CodingKeys.windgusts_10m).map{ Measurement(value: $0, unit: .milesPerHour) }
+    }
+
+    var weatherdata : [WeatherForecastData] {
+        get {
+            var weatherdata = [WeatherForecastData]()
+            for i in Calendar.current.component(.hour, from: Date())...(Calendar.current.component(.hour, from: Date())+23) {
+                weatherdata.append(WeatherForecastData(windspeed80m: windspeed_80m[i].converted(to: units.speed).value, winddirection_80m: winddirection_80m[i].value, windgusts_10m: windgusts_10m[i].converted(to: units.speed).value, temperature_2m: temperature_2m[i].converted(to: units.temperature).value, dewpoint_2m: dewpoint_2m[i].value, time: "\(Calendar.current.component(.hour, from: time[i] as Date))"))
+            }
+            return weatherdata
+        }
     }
 }

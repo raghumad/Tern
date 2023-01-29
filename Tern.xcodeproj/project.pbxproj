@@ -11,7 +11,6 @@
 		EF1A6C0C295FAFBF00FE9FDB /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1A6C0B295FAFBF00FE9FDB /* ContentView.swift */; };
 		EF1A6C0E295FAFC000FE9FDB /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = EF1A6C0D295FAFC000FE9FDB /* Assets.xcassets */; };
 		EF1A6C11295FAFC000FE9FDB /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = EF1A6C10295FAFC000FE9FDB /* Preview Assets.xcassets */; };
-		EF1A6C25295FB25E00FE9FDB /* WeatherForecast.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1A6C19295FB25E00FE9FDB /* WeatherForecast.swift */; };
 		EF1A6C26295FB25E00FE9FDB /* PGSpots.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1A6C1A295FB25E00FE9FDB /* PGSpots.swift */; };
 		EF1A6C27295FB25E00FE9FDB /* RoutePlannerMapViewHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1A6C1B295FB25E00FE9FDB /* RoutePlannerMapViewHelper.swift */; };
 		EF1A6C28295FB25E00FE9FDB /* PGSpotAnnotation.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1A6C1C295FB25E00FE9FDB /* PGSpotAnnotation.swift */; };
@@ -47,7 +46,6 @@
 		EF1A6C0B295FAFBF00FE9FDB /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		EF1A6C0D295FAFC000FE9FDB /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		EF1A6C10295FAFC000FE9FDB /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
-		EF1A6C19295FB25E00FE9FDB /* WeatherForecast.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = WeatherForecast.swift; sourceTree = "<group>"; };
 		EF1A6C1A295FB25E00FE9FDB /* PGSpots.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PGSpots.swift; sourceTree = "<group>"; };
 		EF1A6C1B295FB25E00FE9FDB /* RoutePlannerMapViewHelper.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RoutePlannerMapViewHelper.swift; sourceTree = "<group>"; };
 		EF1A6C1C295FB25E00FE9FDB /* PGSpotAnnotation.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PGSpotAnnotation.swift; sourceTree = "<group>"; };
@@ -161,7 +159,6 @@
 				EF1A6C21295FB25E00FE9FDB /* TernCache.swift */,
 				EF1A6C1F295FB25E00FE9FDB /* TextAnnotation.swift */,
 				EF1A6C22295FB25E00FE9FDB /* WayPoint.swift */,
-				EF1A6C19295FB25E00FE9FDB /* WeatherForecast.swift */,
 				EFFF76782981D1B400A12D49 /* NWSWeatherForecast.swift */,
 				EFD768E72986123C00731CD0 /* OpenMeteoForecast.swift */,
 			);
@@ -254,7 +251,6 @@
 				EF1A6C26295FB25E00FE9FDB /* PGSpots.swift in Sources */,
 				EF1A6C2A295FB25E00FE9FDB /* Hotspot.swift in Sources */,
 				EF1A6C2C295FB25E00FE9FDB /* MeasurementUnits.swift in Sources */,
-				EF1A6C25295FB25E00FE9FDB /* WeatherForecast.swift in Sources */,
 				EF1A6C3E295FB26B00FE9FDB /* WayPointAnnotationCallout.swift in Sources */,
 				EFD768E82986123C00731CD0 /* OpenMeteoForecast.swift in Sources */,
 				EFFF76792981D1B400A12D49 /* NWSWeatherForecast.swift in Sources */,
