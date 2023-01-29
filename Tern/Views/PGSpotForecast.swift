@@ -86,8 +86,8 @@ struct PGSpotForecast: View {
                         Spacer()
                     }
                     HStack{
-                        Text("Windspeed").font(.custom("Gruppo", size: 12)).foregroundColor(.cyan)
-                        Text("Gustspeed").font(.custom("Gruppo", size: 12)).foregroundColor(.red)
+                        Text("Windspeed \(units.speed.symbol)").font(.custom("Gruppo", size: 12)).foregroundColor(.cyan)
+                        Text("Gustspeed \(units.speed.symbol)").font(.custom("Gruppo", size: 12)).foregroundColor(.red)
                     }
                     Chart (pgSpot.forecast.weatherdata) { item in
                         LineMark(x: .value("Time", item.time),
@@ -103,17 +103,23 @@ struct PGSpotForecast: View {
                 ZStack{
                     Text("Wind Direction").font(.custom("Gruppo", size: 12)).foregroundColor(.red)
                     Chart (pgSpot.forecast.weatherdata) { item in
-                        RectangleMark(
+                        PointMark(
                             x: .value("Time", item.time),
-                            y: .value("WindDirection", item.winddirection_80m),
-                            width:5, height: 2)
+                            y: .value("WindDirection", item.winddirection_80m)
+                        )
+                        .symbol {
+                            Image(systemName: "arrow.up")
+                                .resizable()
+                                .frame(width: 5.0, height: 10.0)
+                                .rotationEffect(.degrees(item.winddirection_80m))
+                        }
                     }
                     .foregroundStyle(.red)
                 }
                 ZStack {
                     HStack {
-                        Text("Temperature").font(.custom("Gruppo", size: 12)).foregroundColor(.orange)
-                        Text("Due Point").font(.custom("Gruppo", size: 12)).foregroundColor(.blue)
+                        Text("Temperature \(units.temperature.symbol)").font(.custom("Gruppo", size: 12)).foregroundColor(.orange)
+                        Text("Due Point \(units.temperature.symbol)").font(.custom("Gruppo", size: 12)).foregroundColor(.blue)
                     }
                     Chart (pgSpot.forecast.weatherdata) { item in
                         LineMark(x: .value("Time", item.time),

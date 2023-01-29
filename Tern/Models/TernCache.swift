@@ -40,6 +40,7 @@ class TernCache {
     lazy var session: URLSession = {
         let config = URLSessionConfiguration.default
         config.urlCache = cache
+        config.httpAdditionalHeaders = ["User-Agent": "(https://tern.madanala.com/, tern@madanala.com) Tern Paragliding"]
         return URLSession(configuration: config)
     }()
 

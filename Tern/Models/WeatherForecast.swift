@@ -92,7 +92,7 @@ class WeatherForecast {
             var weatherdata = [WeatherForecastData]()
             for i in time.indices {
                 let hour = (Calendar.current.component(.hour, from: Date()) + Calendar.current.component(.hour, from: time[i] as Date)) % 24
-                weatherdata.append(WeatherForecastData(windspeed80m: windspeed80m[i].value, winddirection_80m: winddirection_80m[i].value, windgusts_10m: windgusts_10m[i].value, temperature_2m: temperature_2m[i].value, dewpoint_2m: dewpoint_2m[i].value, time: "\(hour)"))
+                weatherdata.append(WeatherForecastData(windspeed80m: windspeed80m[i].converted(to: units.speed).value, winddirection_80m: winddirection_80m[i].value, windgusts_10m: windgusts_10m[i].converted(to: units.speed).value, temperature_2m: temperature_2m[i].converted(to: units.temperature).value, dewpoint_2m: dewpoint_2m[i].value, time: "\(hour)"))
             }
             return weatherdata
         }
@@ -110,11 +110,11 @@ class WeatherForecast {
             
             do {
                 let (data, _) = try await URLSession.shared.data(from: url)
-                //print(url)
+                print(url)
                 DispatchQueue.main.async {
                     self.weatherForecast = try! JSON(data: data)
                 }
-                //print(self.weather)
+                print(self.weatherForecast)
             } catch {
                 print("Open mateo fails.")
             }

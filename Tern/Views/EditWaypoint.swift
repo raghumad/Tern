@@ -111,10 +111,16 @@ struct EditWaypoint: View {
                 Text("Wind Direction").fontWeight(.ultraLight).foregroundColor(.red)
                     .font(.custom("Gruppo", size: 12))
                 Chart (waypoint.weatherForecast.weatherdata) { item in
-                    RectangleMark(
+                    PointMark(
                         x: .value("Time", item.time),
-                        y: .value("WindDirection", item.winddirection_80m),
-                        width:5, height: 2)
+                        y: .value("WindDirection", item.winddirection_80m)
+                    )
+                    .symbol {
+                        Image(systemName: "arrow.up")
+                            .resizable()
+                            .frame(width: 5.0, height: 10.0)
+                            .rotationEffect(.degrees(item.winddirection_80m))
+                    }
                 }
                 .foregroundStyle(.red)
             }
