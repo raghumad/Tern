@@ -197,10 +197,10 @@ extension TernModel {
         return MKAnnotationView()
     }
 
-    @MainActor func renderWindGauge(forecast: WeatherForecast) -> UIImage? {
+    @MainActor func renderWindGauge(forecast: OpenMeteoForecast?) -> UIImage? {
         let renderer : ImageRenderer<WindGauge>
-        if forecast.windspeed80m.count > 0 {
-            renderer = .init(content: WindGauge(label: "Wind", windSpeed: forecast.windspeed80m[0], windDirection: forecast.winddirection_80m[0]))
+        if (forecast != nil) {
+            renderer = .init(content: WindGauge(label: "Wind", windSpeed: (forecast?.current_weather.windspeed)!, windDirection: forecast?.current_weather.winddirection))
             return renderer.uiImage
         }
         return UIImage(named: "Kjartan Birgisson")
@@ -337,14 +337,13 @@ extension TernModel {
 
     func mapView(_ mapView: MKMapView, didSelect view: MKAnnotationView) {
         if view.annotation is PGSpotAnnotation {
-            (view.annotation as! PGSpotAnnotation).forecast.getForecast() //Also update forecast
             (view as! MKMarkerAnnotationView).glyphImage = renderWindGauge(forecast: (view.annotation as! PGSpotAnnotation).forecast)
             let callout = UIHostingController(rootView: PGSpotForecast(pgSpot: view.annotation as! PGSpotAnnotation))
             callout.loadView()
             view.detailCalloutAccessoryView = callout.viewIfLoaded
         }
         if view.annotation is WayPoint {
-            (view.annotation as! WayPoint).weatherForecast.getForecast() // update forecast
+            (view.annotation as! WayPoint).getForecast() // update forecast
             let callout = UIHostingController(rootView: WayPointAnnotationCallout(waypoint: view.annotation as! WayPoint).environmentObject(self))
             callout.loadView()
             view.detailCalloutAccessoryView = callout.viewIfLoaded
@@ -395,7 +394,6 @@ extension TernModel {
     func addWaypoint(coordinate: CLLocationCoordinate2D){
         let newWaypoint = WayPoint(coordinate: coordinate)
         if (!waypoints.contains(where: {$0.isNear(newPt: newWaypoint)})) {//dont instert waypoints are kissing
-            //newWaypoint.weatherForecast.getForecast() //fire off weather while other stuff is done.
             newWaypoint.getElevation()
 
             newWaypoint.title = "WP\(waypoints.count + 1)"
