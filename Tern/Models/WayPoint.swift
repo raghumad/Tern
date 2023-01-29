@@ -17,8 +17,8 @@ class WayPoint : NSObject, MKAnnotation, Codable {
     var cylinderRadius: Measurement<UnitLength> = .init(value: 100, unit: .meters)
     var title: String?
     var subtitle: String?
-    var weatherForecast : WeatherForecast
-    
+    var forecast : OpenMeteoForecast?
+
     private enum CodingKeys : String, CodingKey {
         //case id = "id"
         case coordinate = "coordinate"
@@ -30,7 +30,9 @@ class WayPoint : NSObject, MKAnnotation, Codable {
 
     init(coordinate: CLLocationCoordinate2D = CLLocationCoordinate2D()) {
         self.coordinate = coordinate
-        self.weatherForecast = WeatherForecast(coordinate: coordinate)
+        super.init()
+        self.getForecast()
+        self.getElevation()
     }
 
     private init(coordinate: CLLocationCoordinate2D, elevation: Measurement<UnitLength>, cylinderRadius: Measurement<UnitLength>, title: String, subtitle: String)
@@ -41,9 +43,11 @@ class WayPoint : NSObject, MKAnnotation, Codable {
         self.cylinderRadius = cylinderRadius
         self.title = title
         self.subtitle = subtitle
-        self.weatherForecast = WeatherForecast(coordinate: coordinate)
+        super.init()
+        self.getForecast()
+        self.getElevation()
     }
-    
+
     required convenience init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let coordinate = try container.decode(CLLocationCoordinate2D.self, forKey: WayPoint.CodingKeys.coordinate)
@@ -53,6 +57,8 @@ class WayPoint : NSObject, MKAnnotation, Codable {
         let subtitle = try container.decode(String.self, forKey: WayPoint.CodingKeys.subtitle)
         //let id  = try container.decode(Double.self, forKey: WayPoint.CodingKeys.id)
         self.init(coordinate: coordinate, elevation: Measurement<UnitLength>(value: elevattion, unit: .meters), cylinderRadius: Measurement<UnitLength>(value: cylinderRadius, unit: .meters), title: title, subtitle: subtitle)
+        self.getForecast()
+        self.getElevation()
     }
 
     func encode(to encoder: Encoder) throws {
@@ -79,8 +85,9 @@ class WayPoint : NSObject, MKAnnotation, Codable {
 
     func update()
     {
-        weatherForecast.coordinate = self.coordinate
+        //weatherForecast.coordinate = self.coordinate
         //weatherForecast.getForecast()
+        getForecast()
         getElevation()
     }
 
@@ -103,6 +110,25 @@ class WayPoint : NSObject, MKAnnotation, Codable {
                 //print(self.weather)
             } catch {
                 print("Open mateo fails.")
+            }
+        }
+    }
+
+    func getForecast() {
+        Task(priority: .high) {
+            do {
+                guard let url = URL(string: "https://api.open-meteo.com/v1/forecast?latitude=\(self.coordinate.latitude)&longitude=\(self.coordinate.longitude)&hourly=temperature_2m,relativehumidity_2m,dewpoint_2m,weathercode,pressure_msl,surface_pressure,cloudcover,windspeed_80m,winddirection_80m,windgusts_10m&current_weather=true&temperature_unit=fahrenheit&windspeed_unit=mph&precipitation_unit=inch&timezone=auto&past_days=0&timeformat=unixtime&models=best_match") else {
+                    print ("Invalid openmeteo url.\n")
+                    return
+                }
+                let config = URLSessionConfiguration.default
+                config.httpAdditionalHeaders = ["User-Agent": "(https://tern.madanala.com/, tern@madanala.com) Tern Paragliding"]
+                let session = URLSession(configuration: config)
+                let (data, _) = try await session.data(for: URLRequest(url: url))
+                self.forecast = try JSONDecoder().decode(OpenMeteoForecast.self, from: data)
+                //print("\(self.title):\(self.forecast?.latitude),\(self.forecast?.longitude)")
+            } catch {
+                print(error)
             }
         }
     }

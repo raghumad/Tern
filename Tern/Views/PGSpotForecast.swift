@@ -8,7 +8,6 @@
 import SwiftUI
 import Charts
 import CoreLocation
-import SwiftyJSON
 
 struct PGSpotForecast: View {
     let pgSpot : PGSpotAnnotation
@@ -17,7 +16,7 @@ struct PGSpotForecast: View {
     
     init(pgSpot: PGSpotAnnotation) {
         self.pgSpot = pgSpot
-        pgSpot.forecast.getForecast()
+        pgSpot.getForecast()
     }
     var body: some View {
         VStack {
@@ -48,19 +47,19 @@ struct PGSpotForecast: View {
                 .background(Color.blue)
                 .cornerRadius(3, antialiased: true)
             }
-            if pgSpot.forecast.winddirection_80m.count > 0 {
+            if pgSpot.forecast?.current_weather != nil {
                 HStack{
-                    WindGauge(label: "Wind", windSpeed: pgSpot.forecast.windspeed80m[0], windDirection: pgSpot.forecast.winddirection_80m[0])
-                    WindGauge(label: "Gust", windSpeed: pgSpot.forecast.windgusts_10m[0])
+                    WindGauge(label: "Wind", windSpeed: (pgSpot.forecast?.current_weather.windspeed.converted(to: units.speed))!, windDirection: pgSpot.forecast?.current_weather.winddirection.converted(to: .degrees))
+                    WindGauge(label: "Gust", windSpeed: (pgSpot.forecast?.hourly.windgusts_10m[0].converted(to: units.speed))!)
                 }
                 HStack{
-                    Gauge(value: Double(pgSpot.forecast.relativehumidity_2m[0].description) ?? 0, in: 0...100) {
+                    Gauge(value: Double((pgSpot.forecast?.hourly.relativehumidity_2m[0].description)!) ?? 0, in: 0...100) {
                         Text("Humidity")
                             .foregroundColor(.primary)
                             .font(.custom("Gruppo", size: 8).monospaced())
                     }
                     .gaugeStyle(.accessoryLinearCapacity)
-                    Gauge(value: Double(pgSpot.forecast.cloudcover[0].description) ?? 0, in: 0...100) {
+                    Gauge(value: Double((pgSpot.forecast?.hourly.cloudcover[0].description)!) ?? 0, in: 0...100) {
                         Text("Cloud Cover")
                             .font(.custom("Gruppo", size: 8).monospaced())
                             .foregroundColor(.primary)
@@ -86,36 +85,50 @@ struct PGSpotForecast: View {
                         Spacer()
                     }
                     HStack{
-                        Text("Windspeed").font(.custom("Gruppo", size: 12)).foregroundColor(.cyan)
-                        Text("Gustspeed").font(.custom("Gruppo", size: 12)).foregroundColor(.red)
+                        Text("Windspeed \(units.speed.symbol)").font(.custom("Gruppo", size: 12)).foregroundColor(.cyan)
+                        Text("Gustspeed \(units.speed.symbol)").font(.custom("Gruppo", size: 12)).foregroundColor(.red)
                     }
-                    Chart (pgSpot.forecast.weatherdata) { item in
+                    Chart ((pgSpot.forecast?.hourly.weatherdata)!) { item in
                         LineMark(x: .value("Time", item.time),
                                  y: .value("WindGust", item.windgusts_10m))
                     }
                     .foregroundStyle(.red)
-                    Chart (pgSpot.forecast.weatherdata) { item in
+                    Chart ((pgSpot.forecast?.hourly.weatherdata)!) { item in
                         LineMark(x: .value("Time", item.time),
                                  y: .value("WindSpeed", item.windspeed80m))
                     }
+                    .chartXAxis(content: {
+                    })
                     .foregroundStyle(.cyan)
-                }
-                ZStack{
-                    Text("Wind Direction").font(.custom("Gruppo", size: 12)).foregroundColor(.red)
-                    Chart (pgSpot.forecast.weatherdata) { item in
-                        RectangleMark(
-                            x: .value("Time", item.time),
-                            y: .value("WindDirection", item.winddirection_80m),
-                            width:5, height: 2)
+                    VStack{
+                        Spacer()
+                        Text("Wind Direction")
+                            .font(.custom("Gruppo", size: 12))
+                            .foregroundColor(.green)
+                        Chart ((pgSpot.forecast?.hourly.weatherdata)!) { item in
+                            PointMark(
+                                x: .value("Time", item.time)//,
+                                //y: .value("WindDirection", item.winddirection_80m)
+                            )
+                            .symbol {
+                                Image(systemName: "arrow.up")
+                                    .resizable()
+                                    .frame(width: 5.0, height: 10.0)
+                                    .rotationEffect(.degrees(item.winddirection_80m))
+                            }
+                        }
+                        .chartXAxis(content: {
+                        })
+                        .foregroundStyle(.green)
+                        .frame(height: 35)
                     }
-                    .foregroundStyle(.red)
                 }
                 ZStack {
                     HStack {
-                        Text("Temperature").font(.custom("Gruppo", size: 12)).foregroundColor(.orange)
-                        Text("Due Point").font(.custom("Gruppo", size: 12)).foregroundColor(.blue)
+                        Text("Temperature \(units.temperature.symbol)").font(.custom("Gruppo", size: 12)).foregroundColor(.orange)
+                        Text("Due Point \(units.temperature.symbol)").font(.custom("Gruppo", size: 12)).foregroundColor(.blue)
                     }
-                    Chart (pgSpot.forecast.weatherdata) { item in
+                    Chart ((pgSpot.forecast?.hourly.weatherdata)!) { item in
                         LineMark(x: .value("Time", item.time),
                                  y: .value("Temp", item.temperature_2m))
                         .foregroundStyle(.orange)
@@ -137,22 +150,12 @@ struct PGSpotForecast: View {
                     Link("Weather data by Open-Meteo.com", destination: URL(string: "https://open-meteo.com/")!).font(.custom("Gruppo", size: 12).monospaced())
                 }
             }
-            .presentationDetents([.fraction(0.8)])
+            .presentationDetents([.fraction(0.6)])
             .presentationDragIndicator(.visible)
             
         }
         .onDisappear{
             isSheet.toggle()
-        }
-    }
-}
-
-struct PGSpotForecast_Previews: PreviewProvider {
-    static var previews: some View {
-        let coordinate = CLLocationCoordinate2D(latitude: 40.2530073213, longitude: -105.609067564)
-        let pgSpot = PGSpotAnnotation(coordinate: coordinate, title: "Hi", subtitle: "Big Hi", properties: JSON(""))
-        PGSpotForecast(pgSpot: pgSpot).onAppear {
-            pgSpot.forecast.getForecast()
         }
     }
 }
