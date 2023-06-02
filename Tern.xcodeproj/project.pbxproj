@@ -68,6 +68,7 @@
 		EF1A6C4B295FB75400FE9FDB /* README.md */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		EF1A6C4E295FB79300FE9FDB /* Gruppo-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Gruppo-Regular.ttf"; sourceTree = "<group>"; };
 		EF1A6C50295FB90200FE9FDB /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		EF9788E52A2A51C700C74B1D /* CREDITS.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = CREDITS.md; sourceTree = "<group>"; };
 		EFBC5570295FDAA000D606A8 /* Tern.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Tern.entitlements; sourceTree = "<group>"; };
 		EFBC55712960223D00D606A8 /* WindGauge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindGauge.swift; sourceTree = "<group>"; };
 		EFD768E72986123C00731CD0 /* OpenMeteoForecast.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenMeteoForecast.swift; sourceTree = "<group>"; };
@@ -94,6 +95,7 @@
 				EF1A6C4E295FB79300FE9FDB /* Gruppo-Regular.ttf */,
 				EF1A6C4A295FB75400FE9FDB /* LICENSE */,
 				EF1A6C4B295FB75400FE9FDB /* README.md */,
+				EF9788E52A2A51C700C74B1D /* CREDITS.md */,
 				EF1A6C08295FAFBF00FE9FDB /* Tern */,
 				EF1A6C07295FAFBF00FE9FDB /* Products */,
 			);
