@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    
+    <!-- Simple tern silhouette placeholder -->
+    <path
+        android:fillColor="#2196F3"
+        android:pathData="M54,20 L70,40 L70,60 L54,80 L38,60 L38,40 Z"/>
+    
+    <!-- Tern body -->
+    <path
+        android:fillColor="#1976D2"
+        android:pathData="M54,30 L58,50 L58,70 L54,90 L50,70 L50,50 Z"/>
+</vector>
