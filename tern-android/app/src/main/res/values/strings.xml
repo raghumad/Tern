@@ -1,4 +1,13 @@
 <resources>
     <string name="app_name">Tern</string>
-    <string name="welcome_message">Welcome to Tern!</string>
+    <string name="menu_save_text">Save</string>
+    <string name="menu_share_xctsk">Share .xctsk File</string>
+    <string name="menu_share_qrcode">Share QR Code</string>
+    <string name="menu_share_cup">Share .cup File</string>
+    <string name="menu_share_wpt">Share .wpt (CompeGPS)</string>
+    <string name="content_desc_settings_button">Settings</string>
+    <string name="content_desc_add_waypoint_button">Add Waypoint</string>
+    <string name="content_desc_share_menu_button">Share Menu</string>
+    <string name="content_desc_welcome_image">Welcome Image</string>
+    <string name="tern_paragliding">Tern Paragliding</string>
 </resources>
