@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/menu_save"
+        android:title="Save"
+        android:icon="@drawable/file_save_24" />
+    <item
+        android:id="@+id/menu_share_xctsk"
+        android:title="Share .xctsk File"
+        android:icon="@drawable/outbox_alt_24" />
+    <item
+        android:id="@+id/menu_share_qrcode"
+        android:title="Share QR Code"
+        android:icon="@drawable/qr_code_2_24" />
+    <item
+        android:id="@+id/menu_share_cup"
+        android:title="Share .cup File"
+        android:icon="@drawable/local_cafe_24" />
+    <item
+        android:id="@+id/menu_share_wpt"
+        android:title="Share .wpt (CompeGPS)"
+        android:icon="@drawable/route_24" />
+</menu>
