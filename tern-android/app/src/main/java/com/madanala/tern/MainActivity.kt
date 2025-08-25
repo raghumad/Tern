@@ -75,9 +75,7 @@ class MainActivity : AppCompatActivity() {
 
         // 5. Settings Button Click Listener
         binding.settingsButton.setOnClickListener {
-            // For now, just a Toast. Implementing a slide-up menu is a larger task.
-            Toast.makeText(this, "Settings button clicked", Toast.LENGTH_SHORT).show()
-            // TODO: Implement settings menu (e.g., BottomSheetDialogFragment)
+            SettingsBottomSheetFragment.newInstance().show(supportFragmentManager, SettingsBottomSheetFragment.TAG)
         }
 
         // 6. Bottom Controls Click Listeners
