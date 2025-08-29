@@ -7,12 +7,12 @@ plugins {
 
 android {
     namespace = "com.madanala.tern"
-    compileSdk = 36
+    compileSdk = 34
 
     defaultConfig {
         applicationId = "com.madanala.tern"
-        minSdk = 36
-        targetSdk = 36
+        minSdk = 24
+        targetSdk = 34
         versionCode = 1
         versionName = "1.0"
 
@@ -53,12 +53,12 @@ android {
 }
 
 dependencies {
-    implementation("androidx.core:core-ktx:1.17.0")
-    implementation("androidx.appcompat:appcompat:1.7.1")
-    implementation("com.google.android.material:material:1.12.0")
+    implementation("androidx.core:core-ktx:1.12.0")
+    implementation("androidx.appcompat:appcompat:1.6.1")
+    implementation("com.google.android.material:material:1.11.0")
     implementation("org.jetbrains.kotlin:kotlin-stdlib:2.2.10")
-    implementation("org.osmdroid:osmdroid-android:6.1.20")
-    implementation("com.google.android.gms:play-services-location:21.3.0")
+    implementation("org.osmdroid:osmdroid-android:6.1.18")
+    implementation("com.google.android.gms:play-services-location:21.0.0")
 
     // Kotlinx Serialization
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
