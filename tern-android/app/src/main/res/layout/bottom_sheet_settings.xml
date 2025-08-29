@@ -48,6 +48,8 @@
             android:id="@+id/switch_airspaces"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            app:trackTint="@color/settings_switch_track_tint"
+            app:thumbTint="@color/settings_switch_thumb_tint"
             android:checked="true"/>
     </LinearLayout>
 
@@ -67,7 +69,9 @@
         <com.google.android.material.switchmaterial.SwitchMaterial
             android:id="@+id/switch_hotspots"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"/>
+            android:layout_height="wrap_content"
+            app:trackTint="@color/settings_switch_track_tint"
+            app:thumbTint="@color/settings_switch_thumb_tint"/>
     </LinearLayout>
 
     <!-- PG Launches Toggle -->
@@ -86,7 +90,9 @@
         <com.google.android.material.switchmaterial.SwitchMaterial
             android:id="@+id/switch_pglaunches"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"/>
+            android:layout_height="wrap_content"
+            app:trackTint="@color/settings_switch_track_tint"
+            app:thumbTint="@color/settings_switch_thumb_tint"/>
     </LinearLayout>
 
     <View
