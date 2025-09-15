@@ -41,5 +41,5 @@ class OfflineMapView @JvmOverloads constructor(
 
     // Methods like onResume, onPause, setLocation, addAirspaceOverlays
     // are now inherited from the MapView class.
-    // MainActivity can call them directly on an OfflineMapView instance.
+    // TernParaglidingActivity can call them directly on an OfflineMapView instance.
 }

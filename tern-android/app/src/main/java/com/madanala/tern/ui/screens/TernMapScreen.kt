@@ -38,8 +38,7 @@ fun TernMapScreen(
     Box(modifier = modifier.fillMaxSize()) {
         MapViewContainer(
             modifier = Modifier.fillMaxSize(),
-            mapStyle = mapStyle,
-            updateMapStyle = updateMapStyle
+            mapStyle = mapStyle
         )
         Column(
             modifier = Modifier
