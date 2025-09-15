@@ -3,11 +3,14 @@ package com.madanala.tern.ui.components
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
-import android.graphics.BitmapFactory
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.drawable.Drawable
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.content.res.AppCompatResources
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -19,14 +22,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.madanala.tern.CustomCompassOverlay
 import com.madanala.tern.LocationService
+import com.madanala.tern.R
 import com.madanala.tern.ui.screens.MAP_VIEW_SATELLITE
 import org.osmdroid.tileprovider.tilesource.ITileSource
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
+import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.CopyrightOverlay
 import org.osmdroid.views.overlay.ScaleBarOverlay
@@ -38,7 +44,7 @@ import java.util.Locale
 
 private const val INITIAL_DEFAULT_ZOOM = 5.0
 private const val USER_LOCATION_ZOOM = 7.0
-private val TAG = "MapViewContainer"
+private const val TAG = "MapViewContainer"
 
 class MapState(
     val mapView: MapView,
@@ -69,10 +75,10 @@ class MapState(
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
             Log.d(TAG, "requestLocationUpdates called.")
             myLocationOverlay?.enableMyLocation()
-            myLocationOverlay?.enableFollowLocation()
-            locationService.startLocationUpdates { _ ->
+            locationService.startLocationUpdates { location ->
                 if (!initialZoomDone) {
-                    mapView.controller.setZoom(USER_LOCATION_ZOOM)
+                    val geoPoint = GeoPoint(location.latitude, location.longitude)
+                    mapView.controller.animateTo(geoPoint, USER_LOCATION_ZOOM, null)
                     initialZoomDone = true
                     Log.d(TAG, "Set user location zoom: $USER_LOCATION_ZOOM")
                 }
@@ -92,7 +98,7 @@ class MapState(
                     Log.d(TAG, "Found satellite source by name: $name")
                     return it
                 }
-            } catch (e: IllegalArgumentException) {
+            } catch (_: IllegalArgumentException) {
                 Log.d(TAG, "Tile source not found by name: $name")
             }
         }
@@ -108,6 +114,13 @@ class MapState(
 
         Log.d(TAG, "Using fallback satellite USGS_SAT for satellite preference.")
         return TileSourceFactory.USGS_SAT
+    }
+
+    private fun createHotspotBitmap(source: Bitmap): Bitmap {
+        val newBitmap = Bitmap.createBitmap(source.width, source.height * 2, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(newBitmap)
+        canvas.drawBitmap(source, 0f, 0f, null)
+        return newBitmap
     }
 
     private fun addMapOverlays() {
@@ -132,12 +145,12 @@ class MapState(
                 myLocationOverlay = MyLocationNewOverlay(GpsMyLocationProvider(context), mapView).apply {
                     isDrawAccuracyEnabled = true
                     try {
-                        val arrowBitmap = BitmapFactory.decodeResource(context.resources, android.R.drawable.arrow_up_float)
-                        if (arrowBitmap != null) {
-                            setPersonIcon(arrowBitmap)
-                            Log.d(TAG, "MyLocationNewOverlay initialized with consistent arrow icon.")
-                        } else {
-                            Log.w(TAG, "Could not load arrow drawable, using default icons.")
+                        val customIcon: Drawable? = AppCompatResources.getDrawable(context, R.drawable.paragliding_24)
+                        customIcon?.let {
+                            val originalBitmap = it.toBitmap()
+                            val hotspotBitmap = createHotspotBitmap(originalBitmap)
+                            setPersonIcon(hotspotBitmap)
+                            Log.d(TAG, "MyLocationNewOverlay initialized with custom paragliding icon and hotspot.")
                         }
                     } catch (e: Exception) {
                         Log.w(TAG, "Error setting custom icon: ${e.message}, using default icons.")
