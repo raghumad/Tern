@@ -88,6 +88,10 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.4")
     implementation("androidx.compose.animation:animation")
     debugImplementation("androidx.compose.ui:ui-tooling")
+    
+    // FlatBuffers and Hilbert Curve libraries
+    implementation("com.google.flatbuffers:flatbuffers-java:2.0.3")
+    implementation("com.github.davidmoten:hilbert-curve:0.2.2")
 
 
     testImplementation("junit:junit:4.13.2")
