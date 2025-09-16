@@ -1,7 +1,8 @@
+@file:Suppress("unused")
+
 package com.madanala.tern.network // Or your preferred package for network utilities
 
 import android.content.Context
-import android.content.SharedPreferences
 import androidx.preference.PreferenceManager // For easy SharedPreferences access
 import okhttp3.Cache
 import okhttp3.OkHttpClient

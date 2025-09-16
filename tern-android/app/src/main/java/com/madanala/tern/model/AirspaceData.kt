@@ -1,3 +1,5 @@
+@file:Suppress("unused")
+
 package com.madanala.tern.model
 
 import kotlinx.serialization.SerialName
