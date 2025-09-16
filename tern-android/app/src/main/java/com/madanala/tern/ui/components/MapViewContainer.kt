@@ -3,8 +3,6 @@ package com.madanala.tern.ui.components
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
-import android.graphics.Bitmap
-import android.graphics.Canvas
 import android.graphics.drawable.Drawable
 import android.util.Log
 import android.widget.Toast
@@ -17,7 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -141,13 +138,6 @@ class MapState(
         return TileSourceFactory.USGS_SAT
     }
 
-    private fun createHotspotBitmap(source: Bitmap): Bitmap {
-        val newBitmap = Bitmap.createBitmap(source.width, source.height * 2, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(newBitmap)
-        canvas.drawBitmap(source, 0f, 0f, null)
-        return newBitmap
-    }
-
     private fun addMapOverlays() {
         Log.d(TAG, "addMapOverlays called")
         with(mapView.overlays) {
@@ -168,9 +158,8 @@ class MapState(
                     try {
                         val customIcon: Drawable? = AppCompatResources.getDrawable(context, R.drawable.paragliding_24)
                         customIcon?.let {
-                            val originalBitmap = it.toBitmap()
-                            val hotspotBitmap = createHotspotBitmap(originalBitmap)
-                            setPersonIcon(hotspotBitmap)
+                            setPersonIcon(it.toBitmap())
+                            setDirectionIcon(it.toBitmap())
                             Log.d(TAG, "MyLocationNewOverlay initialized with custom paragliding icon and hotspot.")
                         }
                     } catch (e: Exception) {
@@ -272,7 +261,7 @@ fun MapViewContainer(
         AndroidView({ mapState.mapView }, modifier = Modifier.fillMaxSize())
 
         Compass(
-            rotation = -mapRotation, // We negate the rotation to make the compass point North
+            rotation = mapRotation,
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(16.dp)
