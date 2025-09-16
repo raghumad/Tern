@@ -1,9 +1,13 @@
+@file:Suppress("unused", "DEPRECATION")
+
 package com.madanala.tern.util
 
 import android.content.Context
 import android.location.Address
 import android.location.Geocoder
 import android.location.Location
+import android.os.Build
+import androidx.annotation.RequiresApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -13,7 +17,7 @@ import kotlin.coroutines.resume
 
 /**
  * Attempts to get the ISO 3166-1 alpha-2 country code from a given Location.
- * Assumes app's minSdk is 33 or higher (current project minSdk is 36).
+ * This function is backward-compatible.
  *
  * @param context The application context.
  * @param location The location from which to derive the country code.
@@ -28,50 +32,60 @@ suspend fun getCountryCodeFromLocation(context: Context, location: Location): St
     val geocoder = Geocoder(context, Locale.getDefault())
 
     try {
-        // API Level 33+ (Tiramisu and above) - GeocodeListener
-        return@withContext suspendCancellableCoroutine<String?> { continuation ->
-            geocoder.getFromLocation(
-                location.latitude,
-                location.longitude,
-                1, // maxResults
-                object : Geocoder.GeocodeListener {
-                    override fun onGeocode(addresses: MutableList<Address>) {
-                        val countryCode = if (addresses.isNotEmpty()) {
-                            addresses[0].countryCode
-                        } else {
-                            null
-                        }
-
-                        if (countryCode.isNullOrEmpty()) {
-                            println("Country code from geocoder (API 33+) was null or empty for location: $location")
-                            continuation.resume(null)
-                        } else {
-                            println("Successfully determined country code (API 33+): $countryCode for location: $location")
-                            continuation.resume(countryCode)
-                        }
-                    }
-
-                    override fun onError(errorMessage: String?) {
-                        println("Geocoder (API 33+) error: ${errorMessage ?: "Unknown error"}")
-                        continuation.resume(null)
-                    }
-                }
-            )
-            // Handle coroutine cancellation if the Geocoder API had a way to cancel its operation.
-            // For this API, cancellation of the coroutine primarily prevents resuming if it hasn't already.
-            continuation.invokeOnCancellation { 
-                // Log or handle cancellation if specific cleanup is needed
-            }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            // API Level 33+ (Tiramisu and above) - Use the modern GeocodeListener
+            getFromLocationApi33(geocoder, location)
+        } else {
+            // Older APIs - Use the deprecated synchronous method
+            getFromLocationLegacy(geocoder, location)
         }
     } catch (e: IOException) {
         // Typically a network error or no backend service available
         println("Geocoder IOException: Failed to get country code. ${e.message}")
+        null
     } catch (e: IllegalArgumentException) {
         // Invalid latitude or longitude
         println("Geocoder IllegalArgumentException: Invalid location provided. ${e.message}")
+        null
     } catch (e: Exception) {
         // Any other unexpected errors
         println("Geocoder generic error: ${e.message}")
+        null
     }
-    return@withContext null // Fallback if the outer try-catch is hit before or after suspendCancellableCoroutine completes with an exception
+}
+
+@RequiresApi(Build.VERSION_CODES.TIRAMISU)
+private suspend fun getFromLocationApi33(geocoder: Geocoder, location: Location): String? {
+    return suspendCancellableCoroutine { continuation ->
+        geocoder.getFromLocation(
+            location.latitude,
+            location.longitude,
+            1, // maxResults
+            object : Geocoder.GeocodeListener {
+                override fun onGeocode(addresses: MutableList<Address>) {
+                    val countryCode = addresses.firstOrNull()?.countryCode
+                    if (continuation.isActive) {
+                        continuation.resume(countryCode)
+                    }
+                }
+
+                override fun onError(errorMessage: String?) {
+                    println("Geocoder (API 33+) error: ${errorMessage ?: "Unknown error"}")
+                    if (continuation.isActive) {
+                        continuation.resume(null)
+                    }
+                }
+            }
+        )
+    }
+}
+
+private fun getFromLocationLegacy(geocoder: Geocoder, location: Location): String? {
+    return try {
+        val addresses = geocoder.getFromLocation(location.latitude, location.longitude, 1)
+        addresses?.firstOrNull()?.countryCode
+    } catch (e: IOException) {
+        println("Geocoder (Legacy) error: ${e.message}")
+        null
+    }
 }
