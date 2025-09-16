@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
@@ -18,8 +17,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.madanala.tern.ui.components.AddWaypointButton
 import com.madanala.tern.ui.components.MapViewContainer
+import com.madanala.tern.ui.components.MapViewModel
 import com.madanala.tern.ui.components.SettingsButton
 import com.madanala.tern.ui.components.SettingsSheet
 import com.madanala.tern.ui.components.ShareButton
@@ -32,9 +33,8 @@ const val MAP_VIEW_SATELLITE = 2
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TernMapScreen(
-    mapStyle: Int,
-    updateMapStyle: (Int) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    mapViewModel: MapViewModel = viewModel()
 ) {
     var showSettingsSheet by remember { mutableStateOf(false) }
     var showShareSheet by remember { mutableStateOf(false) }
@@ -47,7 +47,7 @@ fun TernMapScreen(
         Box(modifier = Modifier.fillMaxSize()) {
             MapViewContainer(
                 modifier = Modifier.fillMaxSize(),
-                mapStyle = mapStyle
+                mapViewModel = mapViewModel
             )
             Column(
                 modifier = Modifier
@@ -67,7 +67,7 @@ fun TernMapScreen(
     if (showSettingsSheet) {
         SettingsSheet(
             onDismiss = { showSettingsSheet = false },
-            onUpdateMapStyle = updateMapStyle
+            onUpdateMapStyle = { mapViewModel.updateMapStyle(it) }
         )
     }
 
