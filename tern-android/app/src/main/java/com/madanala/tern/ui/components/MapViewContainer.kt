@@ -11,32 +11,41 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.content.res.AppCompatResources
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.madanala.tern.CustomCompassOverlay
 import com.madanala.tern.LocationService
 import com.madanala.tern.R
 import com.madanala.tern.ui.screens.MAP_VIEW_SATELLITE
+import kotlinx.coroutines.flow.MutableStateFlow
+import org.osmdroid.events.MapListener
+import org.osmdroid.events.ScrollEvent
+import org.osmdroid.events.ZoomEvent
 import org.osmdroid.tileprovider.tilesource.ITileSource
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.CopyrightOverlay
 import org.osmdroid.views.overlay.ScaleBarOverlay
-import org.osmdroid.views.overlay.compass.CompassOverlay
 import org.osmdroid.views.overlay.gestures.RotationGestureOverlay
 import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider
 import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay
@@ -53,6 +62,22 @@ class MapState(
 ) {
     private var myLocationOverlay: MyLocationNewOverlay? = null
     private var initialZoomDone = false
+
+    val mapRotation = MutableStateFlow(mapView.mapOrientation)
+
+    init {
+        mapView.addMapListener(object : MapListener {
+            override fun onScroll(event: ScrollEvent?): Boolean {
+                mapRotation.value = mapView.mapOrientation
+                return false
+            }
+
+            override fun onZoom(event: ZoomEvent?): Boolean {
+                mapRotation.value = mapView.mapOrientation
+                return false
+            }
+        })
+    }
 
     fun setupMapView(style: Int) {
         Log.d(TAG, "setupMapView called with style: $style")
@@ -99,7 +124,7 @@ class MapState(
                     return it
                 }
             } catch (_: IllegalArgumentException) {
-                Log.d(TAG, "Tile source not found by name: $name")
+                // Ignore
             }
         }
 
@@ -126,7 +151,7 @@ class MapState(
     private fun addMapOverlays() {
         Log.d(TAG, "addMapOverlays called")
         with(mapView.overlays) {
-            removeAll { it is CopyrightOverlay || it is ScaleBarOverlay || it is CompassOverlay || it is RotationGestureOverlay }
+            removeAll { it is CopyrightOverlay || it is ScaleBarOverlay || it is RotationGestureOverlay }
             Log.d(TAG, "Cleared old cosmetic overlays. Current overlay count after clearing: $size")
 
             add(CopyrightOverlay(context))
@@ -134,10 +159,6 @@ class MapState(
                 setCentred(true)
                 setScaleBarOffset(context.resources.displayMetrics.widthPixels / 2, 10)
             })
-
-            val displayMetrics = context.resources.displayMetrics
-            add(CustomCompassOverlay(displayMetrics.widthPixels.toFloat(), displayMetrics.heightPixels.toFloat()))
-            Log.d(TAG, "Custom compass overlay created and added.")
 
             add(RotationGestureOverlay(mapView).apply { isEnabled = true })
 
@@ -207,6 +228,7 @@ fun MapViewContainer(
 ) {
     val context = LocalContext.current
     val mapState = rememberMapState()
+    val mapRotation by mapState.mapRotation.collectAsState()
 
     var hasLocationPermission by remember {
         mutableStateOf(
@@ -246,5 +268,14 @@ fun MapViewContainer(
         mapState.setupMapView(mapStyle)
     }
 
-    AndroidView({ mapState.mapView }, modifier = modifier)
+    Box(modifier = modifier.fillMaxSize()) {
+        AndroidView({ mapState.mapView }, modifier = Modifier.fillMaxSize())
+
+        Compass(
+            rotation = -mapRotation, // We negate the rotation to make the compass point North
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(16.dp)
+        )
+    }
 }
