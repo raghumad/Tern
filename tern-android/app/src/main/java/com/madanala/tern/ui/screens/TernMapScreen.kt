@@ -1,5 +1,8 @@
 package com.madanala.tern.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -25,6 +29,7 @@ import com.madanala.tern.ui.components.SettingsButton
 import com.madanala.tern.ui.components.SettingsSheet
 import com.madanala.tern.ui.components.ShareButton
 import com.madanala.tern.ui.components.ShareSheet
+import com.madanala.tern.ui.components.WelcomeScreen
 
 // Constants for map styles, moved from MainActivity for broader access
 const val MAP_VIEW_TERRAIN = 1
@@ -38,6 +43,7 @@ fun TernMapScreen(
 ) {
     var showSettingsSheet by remember { mutableStateOf(false) }
     var showShareSheet by remember { mutableStateOf(false) }
+    val isLocationReady by mapViewModel.isLocationReady.collectAsState()
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -59,6 +65,13 @@ fun TernMapScreen(
                 SettingsButton(onClick = { showSettingsSheet = true })
                 AddWaypointButton()
                 ShareButton(onClick = { showShareSheet = true })
+            }
+            AnimatedVisibility(
+                visible = !isLocationReady,
+                enter = fadeIn(),
+                exit = fadeOut()
+            ) {
+                WelcomeScreen()
             }
         }
     }

@@ -1,5 +1,6 @@
 package com.madanala.tern.ui.components
 
+import android.annotation.SuppressLint
 import android.app.Application
 import android.graphics.drawable.Drawable
 import androidx.appcompat.content.res.AppCompatResources
@@ -11,6 +12,8 @@ import androidx.lifecycle.AndroidViewModel
 import com.madanala.tern.R
 import com.madanala.tern.ui.screens.MAP_VIEW_SATELLITE
 import com.madanala.tern.ui.screens.MAP_VIEW_TERRAIN
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.CopyrightOverlay
@@ -22,11 +25,27 @@ import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay
 private const val USER_LOCATION_ZOOM = 7.0
 
 class MapViewModel(application: Application) : AndroidViewModel(application) {
+    // This is a deliberate architectural choice.
+    // The MapView is a complex, stateful UI component. To prevent it from being destroyed and
+    // recreated on configuration changes (like screen rotation), we hold its instance here in the
+    // ViewModel. This is considered a "leak" by the linter because the ViewModel should not
+    // traditionally hold a reference to a View.
+    //
+    // However, this is safe in our case for two reasons:
+    // 1. We are using the Application context, not an Activity context. The Application context
+    //    is a singleton that lives for the entire app lifecycle, so we are not leaking an Activity.
+    // 2. The alternative (saving and restoring all map state) is far more complex and could
+    //    lead to UI stutters on rotation. This approach provides a much smoother user experience.
+    @SuppressLint("StaticFieldLeak")
     val mapView: MapView
+
     private var myLocationOverlay: MyLocationNewOverlay? = null
     private var initialZoomDone = false
     var mapStyle by mutableStateOf(MAP_VIEW_TERRAIN)
         private set
+
+    private val _isLocationReady = MutableStateFlow(false)
+    val isLocationReady = _isLocationReady.asStateFlow()
 
     init {
         mapView = MapView(application).apply {
@@ -67,6 +86,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
                         mapView.controller.setZoom(USER_LOCATION_ZOOM)
                         mapView.controller.setCenter(myLocation)
                         initialZoomDone = true
+                        _isLocationReady.value = true
                     }
                 }
 
