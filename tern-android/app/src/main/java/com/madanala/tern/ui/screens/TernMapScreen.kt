@@ -80,7 +80,7 @@ fun TernMapScreen(
     if (showSettingsSheet) {
         SettingsSheet(
             onDismiss = { showSettingsSheet = false },
-            onUpdateMapStyle = { mapViewModel.updateMapStyle(it) }
+            mapViewModel = mapViewModel
         )
     }
 
