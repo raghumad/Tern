@@ -62,3 +62,4 @@ com_crashlytics_export_strings.xml
 /jdks/
 /native/
 /wrapper/
+/kotlin-profile/
