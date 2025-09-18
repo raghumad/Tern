@@ -43,6 +43,11 @@ fun SettingsSheet(
     mapViewModel: MapViewModel = viewModel(),
     settingsViewModel: SettingsViewModel = viewModel()
 ) {
+    // Notify map view model when airspace settings change
+    val showAirspaces by settingsViewModel::showAirspaces
+    androidx.compose.runtime.LaunchedEffect(showAirspaces) {
+        mapViewModel.setAirspacesEnabled(showAirspaces)
+    }
     ModalBottomSheet(onDismissRequest = onDismiss) {
         LazyColumn(modifier = Modifier.padding(horizontal = 16.dp)) {
             item {

@@ -1,0 +1,48 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-122.4194, 37.7749]
+      },
+      "properties": {
+        "name": "San Francisco",
+        "description": "A beautiful city"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-122.4194, 37.7749],
+          [-118.2437, 34.0522],
+          [-87.6298, 41.8781]
+        ]
+      },
+      "properties": {
+        "name": "West Coast Route",
+        "description": "From SF to Chicago"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-122.5, 37.7],
+          [-122.3, 37.7],
+          [-122.3, 37.8],
+          [-122.5, 37.8],
+          [-122.5, 37.7]
+        ]]
+      },
+      "properties": {
+        "name": "Bay Area",
+        "description": "San Francisco Bay Area"
+      }
+    }
+  ]
+}
