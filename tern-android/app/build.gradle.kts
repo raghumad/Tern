@@ -76,6 +76,11 @@ dependencies {
     // AndroidX Preference (for settings, used by HttpClientProvider)
     implementation("androidx.preference:preference-ktx:1.2.1")
 
+    // GeoJSON support
+    implementation("com.fasterxml.jackson.core:jackson-databind:2.15.2")
+    implementation("com.fasterxml.jackson.core:jackson-core:2.15.2")
+    implementation("com.fasterxml.jackson.core:jackson-annotations:2.15.2")
+
     // Jetpack Compose
     val composeBom = platform("androidx.compose:compose-bom:2025.09.00")
     implementation(composeBom)

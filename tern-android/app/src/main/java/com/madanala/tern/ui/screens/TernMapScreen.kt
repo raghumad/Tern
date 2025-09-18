@@ -22,6 +22,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Flight
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import com.madanala.tern.ui.components.AddWaypointButton
 import com.madanala.tern.ui.components.MapViewContainer
 import com.madanala.tern.ui.components.MapViewModel
@@ -64,6 +68,12 @@ fun TernMapScreen(
             ) {
                 SettingsButton(onClick = { showSettingsSheet = true })
                 AddWaypointButton()
+
+                // Temporary test button for airspace loading
+                IconButton(onClick = { mapViewModel.forceLoadAirspaceForCurrentLocation() }) {
+                    Icon(Icons.Default.Flight, contentDescription = "Load Airspace")
+                }
+
                 ShareButton(onClick = { showShareSheet = true })
             }
             AnimatedVisibility(
