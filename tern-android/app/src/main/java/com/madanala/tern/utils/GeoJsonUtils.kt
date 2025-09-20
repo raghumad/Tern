@@ -1,375 +1,256 @@
 package com.madanala.tern.utils
 
-import android.graphics.Color
-import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.module.kotlin.readValue
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
-import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polygon
-import org.osmdroid.views.overlay.Polyline
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
-import kotlin.coroutines.suspendCoroutine
+import org.osmdroid.views.overlay.Overlay
+import org.osmdroid.views.overlay.Marker
+import java.io.IOException
 
-/**
- * Utility class for handling GeoJSON data with osmdroid maps
- */
 object GeoJsonUtils {
 
-    private val objectMapper = ObjectMapper()
-    private val httpClient = OkHttpClient()
+    private val client = OkHttpClient()
+    private val mapper = jacksonObjectMapper()
 
     /**
-     * GeoJSON Feature Collection structure
+     * Download GeoJSON data from a URL
+     * @param url The URL to download from
+     * @return The GeoJSON data as a string, or null if download failed
      */
-    data class GeoJsonFeatureCollection(
-        val type: String,
-        val features: List<GeoJsonFeature>
-    )
-
-    /**
-     * GeoJSON Feature structure
-     */
-    data class GeoJsonFeature(
-        val type: String,
-        val geometry: GeoJsonGeometry,
-        val properties: Map<String, Any>? = null
-    )
-
-    /**
-     * GeoJSON Geometry structure
-     */
-    data class GeoJsonGeometry(
-        val type: String,
-        val coordinates: Any
-    )
-
-    /**
-     * Parse GeoJSON string and return FeatureCollection
-     */
-    fun parseGeoJson(jsonString: String): GeoJsonFeatureCollection? {
-        return try {
-            objectMapper.readValue(jsonString, GeoJsonFeatureCollection::class.java)
-        } catch (e: Exception) {
-            null
-        }
-    }
-
-    /**
-     * Add GeoJSON features to the map as overlays
-     */
-    fun addGeoJsonToMap(mapView: MapView, geoJsonString: String): List<Any> {
-        val overlays = mutableListOf<Any>()
-        val featureCollection = parseGeoJson(geoJsonString) ?: return overlays
-
-        for (feature in featureCollection.features) {
-            when (feature.geometry.type) {
-                "Point" -> {
-                    val pointOverlay = createPointOverlay(mapView, feature)
-                    pointOverlay?.let { overlays.add(it) }
-                }
-                "LineString" -> {
-                    val lineOverlay = createLineStringOverlay(mapView, feature)
-                    lineOverlay?.let { overlays.add(it) }
-                }
-                "Polygon" -> {
-                    val polygonOverlay = createPolygonOverlay(mapView, feature)
-                    polygonOverlay?.let { overlays.add(it) }
-                }
-                "MultiPoint" -> {
-                    val pointOverlays = createMultiPointOverlay(mapView, feature)
-                    overlays.addAll(pointOverlays)
-                }
-                "MultiLineString" -> {
-                    val lineOverlays = createMultiLineStringOverlay(mapView, feature)
-                    overlays.addAll(lineOverlays)
-                }
-                "MultiPolygon" -> {
-                    val polygonOverlays = createMultiPolygonOverlay(mapView, feature)
-                    overlays.addAll(polygonOverlays)
-                }
-            }
-        }
-
-        // Add all overlays to map
-        overlays.forEach { overlay ->
-            when (overlay) {
-                is Marker -> mapView.overlays.add(overlay)
-                is Polyline -> mapView.overlays.add(overlay)
-                is Polygon -> mapView.overlays.add(overlay)
-            }
-        }
-
-        mapView.invalidate()
-        return overlays
-    }
-
-    private fun createPointOverlay(mapView: MapView, feature: GeoJsonFeature): Marker? {
-        return try {
-            val coordinates = feature.geometry.coordinates as? List<Double> ?: return null
-            if (coordinates.size < 2) return null
-
-            val geoPoint = GeoPoint(coordinates[1], coordinates[0]) // GeoJSON is [lng, lat]
-            Marker(mapView).apply {
-                position = geoPoint
-                title = feature.properties?.get("name") as? String ?: "Point"
-                snippet = feature.properties?.get("description") as? String
-                setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-            }
-        } catch (e: Exception) {
-            null
-        }
-    }
-
-    private fun createLineStringOverlay(mapView: MapView, feature: GeoJsonFeature): Polyline? {
-        return try {
-            val coordinates = feature.geometry.coordinates as? List<List<Double>> ?: return null
-            val geoPoints = coordinates.mapNotNull { coord ->
-                if (coord.size >= 2) GeoPoint(coord[1], coord[0]) else null
-            }
-
-            if (geoPoints.size < 2) return null
-
-            Polyline(mapView).apply {
-                setPoints(geoPoints)
-                color = Color.BLUE
-                width = 5f
-            }
-        } catch (e: Exception) {
-            null
-        }
-    }
-
-    private fun createPolygonOverlay(mapView: MapView, feature: GeoJsonFeature): Polygon? {
-        return try {
-            val coordinates = feature.geometry.coordinates as? List<List<List<Double>>> ?: return null
-            if (coordinates.isEmpty()) return null
-
-            // Take the first ring (outer boundary)
-            val outerRing = coordinates[0]
-            val geoPoints = outerRing.mapNotNull { coord ->
-                if (coord.size >= 2) GeoPoint(coord[1], coord[0]) else null
-            }
-
-            if (geoPoints.size < 3) return null
-
-            Polygon(mapView).apply {
-                points = geoPoints
-                fillColor = Color.argb(100, 0, 255, 0) // Semi-transparent green
-                strokeColor = Color.GREEN
-                strokeWidth = 3f
-            }
-        } catch (e: Exception) {
-            null
-        }
-    }
-
-    private fun createMultiPointOverlay(mapView: MapView, feature: GeoJsonFeature): List<Marker> {
-        return try {
-            val coordinates = feature.geometry.coordinates as? List<List<Double>> ?: return emptyList()
-            coordinates.mapNotNull { coord ->
-                if (coord.size >= 2) {
-                    val geoPoint = GeoPoint(coord[1], coord[0])
-                    Marker(mapView).apply {
-                        position = geoPoint
-                        title = feature.properties?.get("name") as? String ?: "Point"
-                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                    }
-                } else null
-            }
-        } catch (e: Exception) {
-            emptyList()
-        }
-    }
-
-    private fun createMultiLineStringOverlay(mapView: MapView, feature: GeoJsonFeature): List<Polyline> {
-        return try {
-            val coordinates = feature.geometry.coordinates as? List<List<List<Double>>> ?: return emptyList()
-            coordinates.mapNotNull { lineCoords ->
-                val geoPoints = lineCoords.mapNotNull { coord ->
-                    if (coord.size >= 2) GeoPoint(coord[1], coord[0]) else null
-                }
-                if (geoPoints.size >= 2) {
-                    Polyline(mapView).apply {
-                        setPoints(geoPoints)
-                        color = Color.BLUE
-                        width = 5f
-                    }
-                } else null
-            }
-        } catch (e: Exception) {
-            emptyList()
-        }
-    }
-
-    private fun createMultiPolygonOverlay(mapView: MapView, feature: GeoJsonFeature): List<Polygon> {
-        return try {
-            val coordinates = feature.geometry.coordinates as? List<List<List<List<Double>>>> ?: return emptyList()
-            coordinates.mapNotNull { polygonCoords ->
-                if (polygonCoords.isNotEmpty()) {
-                    val outerRing = polygonCoords[0]
-                    val geoPoints = outerRing.mapNotNull { coord ->
-                        if (coord.size >= 2) GeoPoint(coord[1], coord[0]) else null
-                    }
-                    if (geoPoints.size >= 3) {
-                        Polygon(mapView).apply {
-                            points = geoPoints
-                            fillColor = Color.argb(100, 0, 255, 0)
-                            strokeColor = Color.GREEN
-                            strokeWidth = 3f
-                        }
-                    } else null
-                } else null
-            }
-        } catch (e: Exception) {
-            emptyList()
-        }
-    }
-
-    /**
-     * Parse NDGeoJSON (Newline Delimited GeoJSON) string
-     */
-    fun parseNdGeoJson(ndGeoJsonString: String): GeoJsonFeatureCollection {
-        val features = mutableListOf<GeoJsonFeature>()
-
-        // Split by newlines and parse each line as a separate GeoJSON feature
-        val lines = ndGeoJsonString.trim().split("\n").filter { it.isNotBlank() }
-
-        for (line in lines) {
+    suspend fun downloadGeoJson(url: String): String? {
+        return withContext(Dispatchers.IO) {
             try {
-                val feature = objectMapper.readValue(line, GeoJsonFeature::class.java)
-                features.add(feature)
-            } catch (e: Exception) {
-                // Skip malformed lines
-                continue
-            }
-        }
-
-        return GeoJsonFeatureCollection("FeatureCollection", features)
-    }
-
-    /**
-     * Download GeoJSON from URL
-     */
-    suspend fun downloadGeoJson(url: String): String = suspendCoroutine { continuation ->
-        try {
-            val request = Request.Builder()
-                .url(url)
-                .build()
-
-            httpClient.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    continuation.resumeWithException(Exception("HTTP ${response.code}: ${response.message}"))
-                    return@use
-                }
-
-                val body = response.body?.string()
-                if (body != null) {
-                    continuation.resume(body)
+                val request = Request.Builder().url(url).build()
+                val response = client.newCall(request).execute()
+                if (response.isSuccessful) {
+                    response.body.string()
                 } else {
-                    continuation.resumeWithException(Exception("Empty response body"))
+                    null
                 }
+            } catch (_: IOException) {
+                null
             }
-        } catch (e: Exception) {
-            continuation.resumeWithException(e)
         }
     }
 
-    /**
-     * Add NDGeoJSON features to the map as airspace overlays
-     */
-    fun addAirspaceToMap(mapView: MapView, ndGeoJsonString: String): List<Polygon> {
-        val polygons = mutableListOf<Polygon>()
-        val featureCollection = parseNdGeoJson(ndGeoJsonString)
 
-        for (feature in featureCollection.features) {
-            if (feature.geometry.type == "Polygon") {
-                val polygon = createAirspacePolygon(mapView, feature)
-                polygon?.let { polygons.add(it) }
+
+
+
+    /**
+     * Add airspace data to the map with distance filtering
+     * @param mapView The MapView to add the data to
+     * @param ndGeoJsonString The newline-delimited GeoJSON data
+     * @param centerPoint The center point to filter around
+     * @param maxDistanceMiles Maximum distance in miles from center point
+     * @return A list of Polygon overlays that were added
+     */
+    fun addAirspaceToMapFiltered(
+        mapView: MapView,
+        ndGeoJsonString: String,
+        centerPoint: GeoPoint,
+        maxDistanceMiles: Double = 300.0
+    ): List<Polygon> {
+        val polygons = mutableListOf<Polygon>()
+        val lines = ndGeoJsonString.lines()
+
+        lines.forEachIndexed { index, line ->
+            if (line.isNotBlank()) {
+                try {
+                    @Suppress("UNCHECKED_CAST")
+                    val feature = mapper.readValue<Map<String, Any>>(line)
+                    @Suppress("UNCHECKED_CAST")
+                    val geometry = feature["geometry"] as? Map<String, Any>
+                    if (geometry != null) {
+                        val overlay = createOverlayFromGeometry(mapView, geometry)
+                        if (overlay is Polygon) {
+                            // Check if polygon is within distance
+                            if (isPolygonWithinDistance(overlay, centerPoint, maxDistanceMiles)) {
+                                // Customize polygon appearance for airspaces
+                                overlay.fillPaint.color = 0x40FF0000 // Semi-transparent red
+                                overlay.outlinePaint.color = 0xFFFF0000.toInt()
+                                overlay.outlinePaint.strokeWidth = 2f
+                                mapView.overlays.add(overlay)
+                                polygons.add(overlay)
+                                @Suppress("DEPRECATION")
+                                val firstPoint = overlay.points?.firstOrNull()
+                                if (firstPoint != null) {
+                                    println("DEBUG: Added filtered polygon at ${firstPoint.latitude}, ${firstPoint.longitude}")
+                                }
+                            } else {
+                                @Suppress("DEPRECATION")
+                                val firstPoint = overlay.points?.firstOrNull()
+                                if (firstPoint != null) {
+                                    println("DEBUG: Filtered out polygon at ${firstPoint.latitude}, ${firstPoint.longitude} - too far from center")
+                                }
+                            }
+                        }
+                    }
+                } catch (_: Exception) {
+                    // Skip malformed lines
+                }
             }
         }
-
-        // Add all polygons to map
-        polygons.forEach { mapView.overlays.add(it) }
         mapView.invalidate()
-
         return polygons
     }
 
     /**
-     * Create airspace polygon with appropriate styling
+     * Check if a polygon is within a certain distance from a center point
+     * @param polygon The polygon to check
+     * @param centerPoint The center point
+     * @param maxDistanceMiles Maximum distance in miles
+     * @return true if any part of the polygon is within the distance
      */
-    private fun createAirspacePolygon(mapView: MapView, feature: GeoJsonFeature): Polygon? {
-        return try {
-            val coordinates = feature.geometry.coordinates as? List<List<List<Double>>> ?: return null
-            if (coordinates.isEmpty()) return null
-
-            // Take the first ring (outer boundary)
-            val outerRing = coordinates[0]
-            val geoPoints = outerRing.mapNotNull { coord ->
-                if (coord.size >= 2) GeoPoint(coord[1], coord[0]) else null
-            }
-
-            if (geoPoints.size < 3) return null
-
-            // Get airspace class from properties to determine color
-            val airspaceClass = feature.properties?.get("class") as? String ?: "UNKNOWN"
-            val (fillColor, strokeColor) = getAirspaceColors(airspaceClass)
-
-            Polygon(mapView).apply {
-                points = geoPoints
-                this.fillColor = fillColor
-                this.strokeColor = strokeColor
-                strokeWidth = 2f
-                title = feature.properties?.get("name") as? String ?: airspaceClass
-                snippet = buildAirspaceInfo(feature.properties)
-            }
-        } catch (e: Exception) {
-            null
-        }
+    @Suppress("DEPRECATION")
+    private fun isPolygonWithinDistance(
+        polygon: Polygon,
+        centerPoint: GeoPoint,
+        maxDistanceMiles: Double
+    ): Boolean {
+        // Check if any vertex of the polygon is within the distance
+        // For better performance, we could check the centroid or bounding box
+        val maxDistanceMeters = maxDistanceMiles * 1609.34 // Convert miles to meters
+        return polygon.points?.any { point ->
+            point != null && centerPoint.distanceToAsDouble(point) <= maxDistanceMeters
+        } ?: false
     }
 
     /**
-     * Get appropriate colors for different airspace classes
+     * Check if a polygon is within the map viewport
+     * @param polygon The polygon to check
+     * @param boundingBox The map's bounding box
+     * @return true if any part of the polygon is visible in the viewport
      */
-    private fun getAirspaceColors(airspaceClass: String): Pair<Int, Int> {
-        return when (airspaceClass.uppercase()) {
-            "A" -> Color.argb(60, 255, 0, 0) to Color.RED        // Class A - Red
-            "B" -> Color.argb(60, 255, 165, 0) to Color.rgb(255, 140, 0)  // Class B - Orange
-            "C" -> Color.argb(60, 255, 255, 0) to Color.YELLOW   // Class C - Yellow
-            "D" -> Color.argb(60, 0, 255, 0) to Color.GREEN      // Class D - Green
-            "E" -> Color.argb(60, 0, 0, 255) to Color.BLUE       // Class E - Blue
-            "G" -> Color.argb(60, 128, 128, 128) to Color.GRAY  // Class G - Gray
-            "RESTRICTED", "PROHIBITED", "DANGER" -> Color.argb(80, 255, 0, 0) to Color.RED
-            else -> Color.argb(40, 128, 128, 128) to Color.DKGRAY // Unknown - Gray
-        }
+    @Suppress("DEPRECATION")
+    private fun isPolygonInViewport(polygon: Polygon, boundingBox: org.osmdroid.util.BoundingBox): Boolean {
+        // Check if any vertex of the polygon is within the viewport
+        return polygon.points?.any { point ->
+            point != null && boundingBox.contains(point)
+        } ?: false
     }
 
     /**
-     * Build airspace information string from properties
+     * Create an osmdroid Overlay from a GeoJSON geometry
+     * @param mapView The MapView (needed for Marker context)
+     * @param geometry The GeoJSON geometry object
+     * @return An Overlay (Polygon or Marker), or null if geometry type is unsupported
      */
-    private fun buildAirspaceInfo(properties: Map<String, Any>?): String? {
-        if (properties == null) return null
+    private fun createOverlayFromGeometry(mapView: MapView, geometry: Map<String, Any>): Overlay? {
+        val type = geometry["type"] as? String
+        val coordinates = geometry["coordinates"] as? List<*>
 
-        val info = StringBuilder()
-        properties["class"]?.let { info.append("Class: $it\n") }
-        properties["name"]?.let { info.append("Name: $it\n") }
-        properties["lower"]?.let { info.append("Lower: $it\n") }
-        properties["upper"]?.let { info.append("Upper: $it") }
+        return when (type) {
+            "Polygon" -> {
+                val polygon = Polygon(mapView)
+                val outerRing = coordinates?.get(0) as? List<*>
+                val points: List<GeoPoint> = outerRing?.mapNotNull { coord ->
+                    try {
+                        val lonLat = coord as List<*>
+                        if (lonLat.size >= 2) {
+                            // GeoJSON is [longitude, latitude], GeoPoint is (latitude, longitude)
+                            GeoPoint(lonLat[1] as Double, lonLat[0] as Double)
+                        } else null
+                } catch (_: Exception) {
+                    null
+                }
+                } ?: emptyList()
 
-        return if (info.isNotEmpty()) info.toString() else null
+                @Suppress("KotlinConstantConditions")
+                if (points.size >= 3) {
+                    @Suppress("DEPRECATION")
+                    polygon.points = points
+                    // Set default styling for polygons
+                    polygon.fillPaint.color = 0x40FF0000 // Semi-transparent red
+                    polygon.outlinePaint.color = 0xFFFF0000.toInt()
+                    polygon.outlinePaint.strokeWidth = 2f
+                    val firstPoint = points.firstOrNull()
+                    if (firstPoint != null) {
+                        println("DEBUG: Created polygon with ${points.size} points, center at ${firstPoint.latitude}, ${firstPoint.longitude}")
+                    }
+                    polygon
+                } else {
+                    println("DEBUG: Failed to create polygon - points: ${points.size}, valid: ${points.size >= 3}")
+                    null
+                }
+            }
+            "Point" -> {
+                val marker = Marker(mapView)
+                try {
+                    val lonLat = coordinates as List<*>
+                    if (lonLat.size >= 2) {
+                        marker.position = GeoPoint(lonLat[1] as Double, lonLat[0] as Double)
+                        marker
+                    } else null
+                } catch (_: Exception) {
+                    null
+                }
+            }
+            // Add support for other geometry types like LineString, MultiPolygon etc. as needed
+            else -> null
+        }
     }
 
     /**
      * Clear all GeoJSON overlays from the map
+     * @param mapView The MapView to clear
      */
     fun clearGeoJsonOverlays(mapView: MapView) {
-        mapView.overlays.removeAll { overlay ->
-            overlay is Marker || overlay is Polyline || overlay is Polygon
-        }
+        // A bit of a hack: We identify our overlays by their type.
+        // This could be improved by using a custom Overlay subclass.
+        mapView.overlays.removeAll { it is Polygon || it is Marker }
         mapView.invalidate()
+    }
+
+    /**
+     * Remove airspaces that are outside the current map viewport
+     * @param mapView The MapView to filter
+     * @return Number of polygons removed
+     */
+    fun removeAirspacesOutsideViewport(mapView: MapView): Int {
+        val boundingBox = mapView.boundingBox ?: return 0
+
+        val polygonsToRemove = mapView.overlays.filter { overlay ->
+            overlay is Polygon && !isPolygonInViewport(overlay, boundingBox)
+        }
+
+        mapView.overlays.removeAll(polygonsToRemove)
+        if (polygonsToRemove.isNotEmpty()) {
+            mapView.invalidate()
+            println("DEBUG: Removed ${polygonsToRemove.size} polygons outside viewport")
+        }
+
+        return polygonsToRemove.size
+    }
+
+    /**
+     * Remove airspaces that are outside the specified distance from center
+     * @param mapView The MapView to filter
+     * @param centerPoint The center point to measure distance from
+     * @param maxDistanceMiles Maximum distance in miles from center point
+     * @return Number of polygons removed
+     */
+    fun removeAirspacesOutsideRadius(
+        mapView: MapView,
+        centerPoint: GeoPoint,
+        maxDistanceMiles: Double
+    ): Int {
+        val polygonsToRemove = mapView.overlays.filter { overlay ->
+            overlay is Polygon && !isPolygonWithinDistance(overlay, centerPoint, maxDistanceMiles)
+        }
+
+        mapView.overlays.removeAll(polygonsToRemove)
+        if (polygonsToRemove.isNotEmpty()) {
+            mapView.invalidate()
+            println("DEBUG: Removed ${polygonsToRemove.size} polygons outside ${maxDistanceMiles} mile radius")
+        }
+
+        return polygonsToRemove.size
     }
 }
