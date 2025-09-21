@@ -82,6 +82,9 @@ dependencies {
     implementation("com.fasterxml.jackson.core:jackson-annotations:2.17.2")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.17.2")
 
+    // FlatBuffers for FlexBuffers
+    implementation("com.google.flatbuffers:flatbuffers-java:24.3.25")
+
 
     // Jetpack Compose
     val composeBom = platform("androidx.compose:compose-bom:2025.09.00")

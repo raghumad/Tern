@@ -102,6 +102,40 @@ object GeoJsonUtils {
     }
 
     /**
+     * Add airspace features to the map
+     * @param mapView The MapView to add the data to
+     * @param features List of AirspaceFeature to add
+     * @return A list of Polygon overlays that were added
+     */
+    fun addAirspaceFeaturesToMap(
+        mapView: MapView,
+        features: List<MapOverlayCacheUtils.OverlayFeature>
+    ): List<Polygon> {
+        val polygons = mutableListOf<Polygon>()
+
+        features.forEach { feature ->
+            try {
+                val geometry = feature.feature["geometry"] as? Map<String, Any>
+                if (geometry != null) {
+                    val overlay = createOverlayFromGeometry(mapView, geometry)
+                    if (overlay is Polygon) {
+                        // Customize polygon appearance for airspaces
+                        overlay.fillPaint.color = 0x40FF0000 // Semi-transparent red
+                        overlay.outlinePaint.color = 0xFFFF0000.toInt()
+                        overlay.outlinePaint.strokeWidth = 2f
+                        mapView.overlays.add(overlay)
+                        polygons.add(overlay)
+                    }
+                }
+            } catch (_: Exception) {
+                // Skip malformed features
+            }
+        }
+        mapView.invalidate()
+        return polygons
+    }
+
+    /**
      * Check if a polygon is within a certain distance from a center point
      * @param polygon The polygon to check
      * @param centerPoint The center point
