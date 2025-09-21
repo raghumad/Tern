@@ -25,6 +25,7 @@ object CountryUtils {
     ): String? {
         return try {
             val geocoder = Geocoder(context, Locale.getDefault())
+            @Suppress("DEPRECATION")
             val addresses: List<Address> = geocoder.getFromLocation(latitude, longitude, 1)
                 ?: return null
 
@@ -93,6 +94,7 @@ object CountryUtils {
                 val sampleLat = latitude + latOffset
                 val sampleLon = longitude + lonOffset
 
+                @Suppress("DEPRECATION")
                 val addresses: List<Address> = geocoder.getFromLocation(sampleLat, sampleLon, 1)
                     ?: continue
 

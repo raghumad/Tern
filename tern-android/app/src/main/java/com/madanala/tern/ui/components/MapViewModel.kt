@@ -205,22 +205,15 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
         val center = mapView.mapCenter as GeoPoint
         val context = getApplication<Application>().applicationContext
 
-        Log.d(TAG, "Performing debounced airspace check at: ${center.latitude}, ${center.longitude}")
-
         // Check if we've moved far enough to warrant a reload
         lastAirspaceCheckLocation?.let { lastLocation ->
             val distance = lastLocation.distanceToAsDouble(center)
             val distanceKm = distance / 1000.0
 
-            Log.d(TAG, "Distance moved: ${distanceKm}km, threshold: ${AIRSPACE_CHECK_DISTANCE_KM}km")
-
             if (distanceKm < AIRSPACE_CHECK_DISTANCE_KM) {
-                Log.d(TAG, "Not moved far enough, skipping reload")
                 return // Not moved far enough
             }
         }
-
-        Log.d(TAG, "Triggering airspace reload for new location")
 
         // Cancel any existing loading job
         airspaceLoadingJob?.cancel()
@@ -236,64 +229,47 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
      */
     private suspend fun loadAirspaceForCurrentLocation(context: Context, center: GeoPoint) {
         try {
-            Log.d(TAG, "Loading airspaces for location: ${center.latitude}, ${center.longitude}")
-
             // Check if airspaces are enabled in settings
             if (!showAirspacesEnabled) {
-                Log.d(TAG, "Airspaces are disabled in settings")
                 return
             }
 
             // Get country code for current location
             val countryCode = CountryUtils.getCountryCodeFromGeoPoint(context, center)
-            Log.d(TAG, "Country code for location: $countryCode")
 
             if (countryCode == null) {
-                Log.d(TAG, "Could not determine country code for location: ${center.latitude}, ${center.longitude}")
                 return
             }
 
             // Check if we already have this country's data loaded
             if (countryCode == currentCountryCode) {
-                Log.d(TAG, "Already have airspace data for $countryCode")
-
                 // Even if we have the country's data, we need to check if we've moved far enough
                 // to warrant re-filtering the airspaces around the new center
                 lastAirspaceCheckLocation?.let { lastLocation ->
                     val distance = lastLocation.distanceToAsDouble(center)
                     val distanceKm = distance / 1000.0
 
-                    Log.d(TAG, "Distance from last airspace load: ${distanceKm}km")
-
                     // If we've moved more than 50 miles (~80km), re-filter the airspaces
                     // This ensures significant location changes trigger re-filtering
                     if (distanceKm > 80.0) {
-                        Log.d(TAG, "Re-filtering airspaces around new center: ${center.latitude}, ${center.longitude}")
-
                         // Clear existing overlays and re-add with new filtering
                         clearGeoJsonOverlays()
 
                         // Query nearby features using Hilbert index
                         val nearbyFeatures = airspaceCache.queryNearbyFeatures(countryCode, center, AIRSPACE_FILTER_RADIUS_MILES)
-                        Log.d(TAG, "Queried ${nearbyFeatures.size} nearby features for $countryCode")
                         if (nearbyFeatures.isNotEmpty()) {
                             val polygons = GeoJsonUtils.addAirspaceFeaturesToMap(mapView, nearbyFeatures)
-                            Log.d(TAG, "Re-filtered ${polygons.size} airspace polygons for $countryCode around new center")
-                        } else {
-                            Log.d(TAG, "No nearby features found for re-filtering")
                         }
 
                         // Update the last check location
                         lastAirspaceCheckLocation = center
                         return
                     } else {
-                        Log.d(TAG, "Not moved far enough to re-filter airspaces")
                         return
                     }
                 }
 
                 // If we don't have a last location, something went wrong, so reload
-                Log.d(TAG, "No last airspace location recorded, will reload")
             }
 
             // Try to load from cache first (airspaces cached for 30 days)
@@ -301,7 +277,6 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
 
             if (features == null) {
                 // Download from OpenAIP
-                Log.d(TAG, "Downloading airspace data for $countryCode")
                 val url = "https://storage.googleapis.com/29f98e10-a489-4c82-ae5e-489dbcd4912f/${countryCode}_asp.ndgeojson"
                 val ndGeoJsonString = GeoJsonUtils.downloadGeoJson(url)
 
@@ -309,18 +284,14 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
                     // Cache the downloaded data
                     airspaceCache.cacheData(countryCode, ndGeoJsonString)
                     features = airspaceCache.getCachedFeatures(countryCode)
-                    Log.d(TAG, "Downloaded and cached airspace data for $countryCode")
                 } else {
                     Log.w(TAG, "Failed to download airspace data for $countryCode")
                 }
-            } else {
-                Log.d(TAG, "Loading airspace data for $countryCode from cache")
             }
 
             if (features != null) {
                 // Clear existing airspace overlays
                 clearGeoJsonOverlays()
-                Log.d(TAG, "Cleared existing airspace overlays")
 
                 // Query nearby features and add to map
                 val nearbyFeatures = airspaceCache.queryNearbyFeatures(countryCode, center, AIRSPACE_FILTER_RADIUS_MILES)
@@ -330,7 +301,6 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
                 currentCountryCode = countryCode
                 lastAirspaceCheckLocation = center
 
-                Log.d(TAG, "Loaded ${polygons.size} airspace polygons for $countryCode (filtered within $AIRSPACE_FILTER_RADIUS_MILES miles)")
             } else {
                 Log.w(TAG, "No airspace data available for $countryCode")
             }
@@ -351,7 +321,6 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
         airspaceCache.clearCache()
         currentCountryCode = null
         lastAirspaceCheckLocation = null // Force reload
-        Log.d(TAG, "Manually triggering airspace reload with cache clear for: ${center.latitude}, ${center.longitude}")
 
         airspaceLoadingJob?.cancel()
         airspaceLoadingJob = viewModelScope.launch {
@@ -371,11 +340,9 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
             // Clear existing airspace overlays if disabled
             clearGeoJsonOverlays()
             currentCountryCode = null
-            Log.d(TAG, "Airspaces disabled, cleared overlays")
         } else {
             // Reload airspace for current location if enabled
             reloadAirspaceForCurrentLocation()
-            Log.d(TAG, "Airspaces enabled, reloading for current location")
         }
     }
 

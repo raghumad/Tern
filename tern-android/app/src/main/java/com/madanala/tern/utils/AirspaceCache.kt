@@ -91,8 +91,8 @@ class AirspaceCache(private val context: Context) {
      */
     fun cacheData(countryCode: String, ndGeoJsonString: String) {
         try {
-            // Parse to features (with geographic filtering for US)
-            val features = MapOverlayCacheUtils.parseNdGeoJsonToFeatures(ndGeoJsonString, countryCode)
+            // Parse to features
+            val features = MapOverlayCacheUtils.parseNdGeoJsonToFeatures(ndGeoJsonString)
             if (features.isNotEmpty()) {
                 // Create spatial index and serialize features with byte offsets
                 val (spatialIndex, data) = MapOverlayCacheUtils.createSpatialIndexAndSerialize(features)
@@ -154,14 +154,12 @@ class AirspaceCache(private val context: Context) {
 
             // Find relevant index entries
             val relevantEntries = spatialIndex.findNearbyIndices(centerIndex, range)
-            Log.d(TAG, "Found ${relevantEntries.size} candidate entries in Hilbert range for $countryCode")
 
             // Read and deserialize only the relevant features using memory-mapped buffer
             var processedCount = 0
             val nearbyFeatures = relevantEntries.mapNotNull { entry ->
                 try {
                     processedCount++
-                    Log.d(TAG, "Processing entry ${processedCount}/${relevantEntries.size} at offset ${entry.byteOffset}, length ${entry.byteLength}")
 
                     // Read the specific byte range for this feature from memory-mapped buffer
                     val featureBytes = ByteArray(entry.byteLength)
@@ -171,14 +169,16 @@ class AirspaceCache(private val context: Context) {
                     }
 
                     val featureJson = String(featureBytes, Charsets.UTF_8)
-                    Log.d(TAG, "Feature JSON length: ${featureJson.length}")
-                    Log.d(TAG, "Feature JSON: ${featureJson.take(200)}...")
 
                     val featureData: Map<String, Any> = objectMapper.readValue(featureJson, object : TypeReference<Map<String, Any>>() {})
 
                     // Check if this is the new format (with "feature" key) or old format (raw feature)
+                    @Suppress("UNCHECKED_CAST")
                     val feature = featureData["feature"] as? Map<String, Any> ?: featureData
+                    @Suppress("UNCHECKED_CAST")
                     var centroidData = featureData["centroid"] as? Map<String, Any>
+                    @Suppress("UNCHECKED_CAST")
+                    val properties = feature["properties"] as? Map<String, Any> ?: emptyMap()
                     var latitude = centroidData?.get("latitude") as? Double ?: featureData["lat"] as? Double
                     var longitude = centroidData?.get("longitude") as? Double ?: featureData["lon"] as? Double
                     var hilbertIndex = featureData["hilbertIndex"] as? Long ?: featureData["hilbert"] as? Long
@@ -196,16 +196,18 @@ class AirspaceCache(private val context: Context) {
                                 )
                                 latitude = computedCentroid.latitude
                                 longitude = computedCentroid.longitude
-                                Log.d(TAG, "Computed missing centroid for feature")
                             }
                         }
+                    } else if (centroidData != null) {
+                        // Use existing centroid data
+                        latitude = centroidData["latitude"] as? Double
+                        longitude = centroidData["longitude"] as? Double
                     }
 
                     // Compute hilbert index if missing (regardless of whether centroid was computed or already present)
                     if (hilbertIndex == null && latitude != null && longitude != null) {
                         val centroidPoint = GeoPoint(latitude, longitude)
                         hilbertIndex = MapOverlayCacheUtils.computeHilbertIndex(centroidPoint, spatialIndex.bits)
-                        Log.d(TAG, "Computed missing hilbert index for feature")
                     }
 
                     if (feature == null || centroidData == null || latitude == null || longitude == null || hilbertIndex == null) {
@@ -218,21 +220,13 @@ class AirspaceCache(private val context: Context) {
 
                     // Final distance check (Hilbert is approximate)
                     val distance = center.distanceToAsDouble(centroid)
-                    val withinDistance = distance <= maxDistanceMeters
-
-                    // Debug logging for first few features
-                    if (processedCount <= 5) {
-                        Log.d(TAG, "Feature ${processedCount} at ${centroid.latitude}, ${centroid.longitude} - distance: ${distance/1000}km, withinDistance: $withinDistance")
-                    }
-
-                    if (withinDistance) overlayFeature else null
+                    if (distance <= maxDistanceMeters) overlayFeature else null
                 } catch (e: Exception) {
                     Log.w(TAG, "Error reading feature at offset ${entry.byteOffset}: ${e.message}", e)
                     null
                 }
             }
 
-            Log.d(TAG, "Found ${nearbyFeatures.size} nearby features for $countryCode after distance filtering")
             return nearbyFeatures
 
         } catch (e: Exception) {
@@ -283,7 +277,6 @@ class AirspaceCache(private val context: Context) {
             val buffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, 0, dataFile.length())
 
             memoryMappedBuffers[countryCode] = buffer
-            Log.d(TAG, "Created memory-mapped buffer for $countryCode (${dataFile.length()} bytes)")
             buffer
         } catch (e: Exception) {
             Log.e(TAG, "Error creating memory-mapped buffer for $countryCode", e)
