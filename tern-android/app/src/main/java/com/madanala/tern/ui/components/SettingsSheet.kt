@@ -15,7 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AirplanemodeActive
 import androidx.compose.material.icons.filled.Tornado
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -77,7 +77,7 @@ fun SettingsSheet(
                         modifier = Modifier.size(24.dp)
                     )
                 }
-                Divider(modifier = Modifier.padding(vertical = 16.dp))
+                HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
             }
 
             item {

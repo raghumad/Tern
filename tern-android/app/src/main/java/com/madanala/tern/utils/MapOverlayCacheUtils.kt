@@ -56,7 +56,7 @@ object MapOverlayCacheUtils {
     /**
      * Parse NDGeoJSON string to list of OverlayFeature
      */
-    fun parseNdGeoJsonToFeatures(ndGeoJsonString: String, countryCode: String = ""): List<OverlayFeature> {
+    fun parseNdGeoJsonToFeatures(ndGeoJsonString: String): List<OverlayFeature> {
         val features = mutableListOf<OverlayFeature>()
         val lines = ndGeoJsonString.lines()
 
@@ -64,6 +64,7 @@ object MapOverlayCacheUtils {
             if (line.isNotBlank()) {
                 try {
                     val feature: Map<String, Any> = mapper.readValue(line)
+                    @Suppress("UNCHECKED_CAST")
                     val geometry = feature["geometry"] as? Map<String, Any>
                     if (geometry != null) {
                         val centroid = computeCentroid(geometry)
@@ -72,7 +73,7 @@ object MapOverlayCacheUtils {
                             features.add(OverlayFeature(feature, centroid, hilbertIndex))
                         }
                     }
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     // Skip malformed lines
                 }
             }
@@ -91,12 +92,14 @@ object MapOverlayCacheUtils {
 
         return when (type) {
             "Polygon" -> {
-                val outerRing = coordinates?.get(0) as? List<*>
+                @Suppress("UNCHECKED_CAST")
+                val outerRing = coordinates?.get(0) as? List<Double>
                 val points = outerRing?.mapNotNull { coord ->
                     try {
+                        @Suppress("UNCHECKED_CAST")
                         val lonLat = coord as List<Double>
                         GeoPoint(lonLat[1], lonLat[0]) // lat, lon
-                    } catch (e: Exception) {
+                    } catch (_: Exception) {
                         null
                     }
                 } ?: emptyList()
@@ -111,7 +114,7 @@ object MapOverlayCacheUtils {
                 try {
                     val lonLat = coordinates as List<Double>
                     GeoPoint(lonLat[1], lonLat[0])
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     null
                 }
             }
@@ -214,9 +217,12 @@ object MapOverlayCacheUtils {
      */
     fun deserializeFlexBuffersToFeatures(data: ByteArray): List<OverlayFeature> {
         return try {
+            @Suppress("UNCHECKED_CAST")
             val serializableFeatures: List<Map<String, Any>> = mapper.readValue(data)
             serializableFeatures.mapNotNull { item ->
+                @Suppress("UNCHECKED_CAST")
                 val feature = item["feature"] as? Map<String, Any> ?: return@mapNotNull null
+                @Suppress("UNCHECKED_CAST")
                 val centroidData = item["centroid"] as? Map<String, Any> ?: return@mapNotNull null
                 val latitude = centroidData["latitude"] as? Double ?: return@mapNotNull null
                 val longitude = centroidData["longitude"] as? Double ?: return@mapNotNull null
@@ -226,40 +232,10 @@ object MapOverlayCacheUtils {
                 val centroid = GeoPoint(latitude, longitude)
                 OverlayFeature(feature, centroid, hilbertIndex, overlayType)
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             emptyList()
         }
     }
 
-    /**
-     * Query nearby features using Hilbert index
-     * @param features List of features
-     * @param center Center point
-     * @param maxDistanceMiles Max distance in miles
-     * @param bits Precision bits
-     */
-    fun queryNearbyFeatures(
-        features: List<OverlayFeature>,
-        center: GeoPoint,
-        maxDistanceMiles: Double,
-        bits: Int = 16
-    ): List<OverlayFeature> {
-        val centerIndex = computeHilbertIndex(center, bits)
-        val maxDistanceMeters = maxDistanceMiles * 1609.34
 
-        println("DEBUG: Querying ${features.size} features around ${center.latitude}, ${center.longitude}")
-        println("DEBUG: Using distance-only filtering (Hilbert curve disabled for global territories)")
-
-        val nearbyFeatures = features.filter { feature ->
-            val distance = center.distanceToAsDouble(feature.centroid)
-            val withinDistance = distance <= maxDistanceMeters
-
-            println("DEBUG: Feature at ${feature.centroid.latitude}, ${feature.centroid.longitude} - distance: ${distance/1000}km, withinDistance: $withinDistance")
-
-            withinDistance
-        }
-
-        println("DEBUG: Found ${nearbyFeatures.size} features within range")
-        return nearbyFeatures
-    }
 }
