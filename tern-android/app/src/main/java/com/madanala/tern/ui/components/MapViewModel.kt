@@ -11,6 +11,7 @@ import androidx.appcompat.content.res.AppCompatResources
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -561,21 +562,24 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
 
                 marker.snippet = if (snippetParts.isNotEmpty()) snippetParts.joinToString(" • ") else "Paragliding Location"
 
-                // Set custom icon (use app launcher icon like iOS version)
+                // Set custom icon (use app launcher icon like iOS version, scaled to 1/4 size)
                 try {
-                    val customIcon = android.graphics.BitmapFactory.decodeResource(context.resources, android.R.mipmap.sym_def_app_icon)
-                    if (customIcon != null) {
-                        marker.icon = android.graphics.drawable.BitmapDrawable(context.resources, customIcon)
+                    val drawable = ContextCompat.getDrawable(context, R.mipmap.ic_launcher)
+                    drawable?.let {
+                        val originalBitmap = it.toBitmap()
+                        // Scale to 1/4 size for better visual balance
+                        val scaledWidth = originalBitmap.width / 4
+                        val scaledHeight = originalBitmap.height / 4
+                        val scaledBitmap = android.graphics.Bitmap.createScaledBitmap(
+                            originalBitmap,
+                            scaledWidth,
+                            scaledHeight,
+                            true // Use bilinear filtering
+                        )
+                        marker.icon = android.graphics.drawable.BitmapDrawable(context.resources, scaledBitmap)
                     }
                 } catch (_: Exception) {
-                    try {
-                        val launcherIcon = android.graphics.BitmapFactory.decodeResource(context.resources, R.mipmap.ic_launcher)
-                        if (launcherIcon != null) {
-                            marker.icon = android.graphics.drawable.BitmapDrawable(context.resources, launcherIcon)
-                        }
-                    } catch (_: Exception) {
-                        // Use default marker icon
-                    }
+                    // Use default marker icon if launcher icon fails
                 }
 
                 // Store feature reference for identification
