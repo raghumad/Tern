@@ -20,6 +20,7 @@ import com.madanala.tern.ui.screens.MAP_VIEW_TERRAIN
 import com.madanala.tern.utils.AirspaceCache
 import com.madanala.tern.utils.CountryUtils
 import com.madanala.tern.utils.GeoJsonUtils
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -39,7 +40,7 @@ import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay
 private const val USER_LOCATION_ZOOM = 7.0
 private const val AIRSPACE_CHECK_DISTANCE_KM = 5.0 // Minimum distance to trigger airspace reload (further reduced)
 private const val AIRSPACE_FILTER_RADIUS_MILES = 300.0 // Configurable radius for airspace filtering
-private const val MAP_MOVE_DEBOUNCE_MS = 1000L // Debounce map movement checks by 1 second
+private const val MAP_MOVE_DEBOUNCE_MS = 500L // Debounce map movement checks by 0.5 seconds (optimized for better responsiveness)
 private const val TAG = "MapViewModel"
 
 class MapViewModel(application: Application) : AndroidViewModel(application) {
@@ -73,6 +74,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
     private var showAirspacesEnabled = true // Default to enabled
     private val mainHandler = Handler(Looper.getMainLooper())
     private var pendingAirspaceCheck: Runnable? = null
+    private var pendingCleanup: Runnable? = null
 
     init {
         mapView = MapView(application).apply {
@@ -169,14 +171,37 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
         mapView.addMapListener(object : MapListener {
             override fun onScroll(event: ScrollEvent?): Boolean {
                 checkAirspaceReloadNeeded()
+                scheduleCleanupCheck()
                 return true
             }
 
             override fun onZoom(event: ZoomEvent?): Boolean {
                 checkAirspaceReloadNeeded()
+                scheduleCleanupCheck()
                 return true
             }
         })
+    }
+
+    /**
+     * Schedule cleanup of out-of-view overlays (debounced, runs less frequently)
+     */
+    private fun scheduleCleanupCheck() {
+        pendingCleanup?.let { mainHandler.removeCallbacks(it) }
+        pendingCleanup = Runnable {
+            performCleanup()
+        }
+        mainHandler.postDelayed(pendingCleanup!!, 3000L) // Cleanup every 3 seconds instead of constantly
+    }
+
+    /**
+     * Perform cleanup of overlays outside viewport and radius
+     */
+    private fun performCleanup() {
+        GeoJsonUtils.removeAirspacesOutsideViewport(mapView)
+        val center = mapView.mapCenter as GeoPoint
+        GeoJsonUtils.removeAirspacesOutsideRadius(mapView, center, AIRSPACE_FILTER_RADIUS_MILES)
+        mapView.invalidate()
     }
 
     /**
@@ -189,11 +214,6 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
         // Schedule a new check after debounce delay
         pendingAirspaceCheck = Runnable {
             performAirspaceCheck()
-            // Also clean up airspaces outside viewport and radius for better performance
-            GeoJsonUtils.removeAirspacesOutsideViewport(mapView)
-            // Remove airspaces outside the 300-mile radius from current center
-            val center = mapView.mapCenter as GeoPoint
-            GeoJsonUtils.removeAirspacesOutsideRadius(mapView, center, AIRSPACE_FILTER_RADIUS_MILES)
         }
         mainHandler.postDelayed(pendingAirspaceCheck!!, MAP_MOVE_DEBOUNCE_MS)
     }
@@ -258,7 +278,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
                         // Query nearby features using Hilbert index
                         val nearbyFeatures = airspaceCache.queryNearbyFeatures(countryCode, center, AIRSPACE_FILTER_RADIUS_MILES)
                         if (nearbyFeatures.isNotEmpty()) {
-                            val polygons = GeoJsonUtils.addAirspaceFeaturesToMap(mapView, nearbyFeatures)
+                            GeoJsonUtils.addAirspaceFeaturesToMap(mapView, nearbyFeatures)
                         }
 
                         // Update the last check location
@@ -295,7 +315,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
 
                 // Query nearby features and add to map
                 val nearbyFeatures = airspaceCache.queryNearbyFeatures(countryCode, center, AIRSPACE_FILTER_RADIUS_MILES)
-                val polygons = GeoJsonUtils.addAirspaceFeaturesToMap(mapView, nearbyFeatures)
+                GeoJsonUtils.addAirspaceFeaturesToMap(mapView, nearbyFeatures)
 
                 // Update current country and last location
                 currentCountryCode = countryCode
@@ -305,6 +325,9 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
                 Log.w(TAG, "No airspace data available for $countryCode")
             }
 
+        } catch (e: CancellationException) {
+            // Expected behavior when cancelling old requests due to debounce - don't log as error
+            Log.d(TAG, "Airspace loading cancelled due to user interaction")
         } catch (e: Exception) {
             Log.e(TAG, "Error loading airspace data", e)
         }
@@ -350,8 +373,9 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
         // Cancel any ongoing loading job
         airspaceLoadingJob?.cancel()
 
-        // Cancel any pending airspace check
+        // Cancel any pending map movement checks
         pendingAirspaceCheck?.let { mainHandler.removeCallbacks(it) }
+        pendingCleanup?.let { mainHandler.removeCallbacks(it) }
 
         // Important to release map resources
         mapView.onDetach()
