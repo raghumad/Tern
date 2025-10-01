@@ -72,8 +72,8 @@ object GeoJsonUtils {
                         if (overlay is Polygon) {
                             // Check if polygon is within distance
                             if (isPolygonWithinDistance(overlay, centerPoint, maxDistanceMiles)) {
-                                // Customize polygon appearance for airspaces
-                                overlay.fillPaint.color = 0x40FF0000 // Semi-transparent red
+                                // Customize polygon appearance for airspaces - made more translucent
+                                overlay.fillPaint.color = 0x20FF0000 // More translucent red (12.5% opacity)
                                 overlay.outlinePaint.color = 0xFFFF0000.toInt()
                                 overlay.outlinePaint.strokeWidth = 2f
                                 mapView.overlays.add(overlay)
@@ -195,37 +195,38 @@ object GeoJsonUtils {
         }
 
         // Standard ICAO airspace colors for airspaces paragliders need to avoid
+        // Using more translucent alpha (0x40 = 25% opacity instead of 0x80 = 50%)
         when (finalAirspaceClass.uppercase()) {
             // Controlled airspace (Classes A-E): Bright Blue
             "A", "B", "C", "D", "E", "CLASS_A", "CLASS_B", "CLASS_C", "CLASS_D", "CLASS_E" -> {
-                polygon.fillPaint.color = 0x800000FF.toInt() // Semi-transparent bright blue
+                polygon.fillPaint.color = 0x400000FF.toInt() // More translucent bright blue
                 polygon.outlinePaint.color = 0xFF0000FF.toInt() // Bright blue outline
                 polygon.outlinePaint.strokeWidth = 3f
             }
             // Special use airspace: Yellow
             "RESTRICTED", "R", "RESTRICTED_AREA" -> {
-                polygon.fillPaint.color = 0x80FFFF00.toInt() // Semi-transparent yellow
+                polygon.fillPaint.color = 0x40FFFF00.toInt() // More translucent yellow
                 polygon.outlinePaint.color = 0xFFFFFF00.toInt() // Yellow outline
                 polygon.outlinePaint.strokeWidth = 3f
             }
             "PROHIBITED", "P", "PROHIBITED_AREA" -> {
-                polygon.fillPaint.color = 0x80FF8000.toInt() // Semi-transparent orange
+                polygon.fillPaint.color = 0x40FF8000.toInt() // More translucent orange
                 polygon.outlinePaint.color = 0xFFFF8000.toInt() // Orange outline
                 polygon.outlinePaint.strokeWidth = 4f
             }
             "DANGER", "D", "DANGER_AREA" -> {
-                polygon.fillPaint.color = 0x80FF00FF.toInt() // Semi-transparent magenta
+                polygon.fillPaint.color = 0x40FF00FF.toInt() // More translucent magenta
                 polygon.outlinePaint.color = 0xFFFF00FF.toInt() // Magenta outline
                 polygon.outlinePaint.strokeWidth = 3f
             }
             "MILITARY", "M", "MILITARY_AREA" -> {
-                polygon.fillPaint.color = 0x808000FF.toInt() // Semi-transparent purple
+                polygon.fillPaint.color = 0x408000FF.toInt() // More translucent purple
                 polygon.outlinePaint.color = 0xFF8000FF.toInt() // Purple outline
                 polygon.outlinePaint.strokeWidth = 3f
             }
             // Default/fallback: Bright Red (different from original red)
             else -> {
-                polygon.fillPaint.color = 0x80FF0000.toInt() // Bright red fill
+                polygon.fillPaint.color = 0x40FF0000.toInt() // More translucent bright red fill
                 polygon.outlinePaint.color = 0xFFFF0000.toInt() // Bright red outline
                 polygon.outlinePaint.strokeWidth = 5f // Thick outline to make it obvious
             }
@@ -299,8 +300,8 @@ object GeoJsonUtils {
                 if (points.size >= 3) {
                     @Suppress("DEPRECATION")
                     polygon.points = points
-                    // Set default styling for polygons
-                    polygon.fillPaint.color = 0x40FF0000 // Semi-transparent red
+                    // Set default styling for polygons - made more translucent for consistency
+                    polygon.fillPaint.color = 0x20FF0000 // More translucent red (12.5% opacity)
                     polygon.outlinePaint.color = 0xFFFF0000.toInt()
                     polygon.outlinePaint.strokeWidth = 2f
                     polygon
