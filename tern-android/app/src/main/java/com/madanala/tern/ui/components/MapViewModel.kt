@@ -20,6 +20,8 @@ import com.madanala.tern.ui.screens.MAP_VIEW_TERRAIN
 import com.madanala.tern.utils.AirspaceCache
 import com.madanala.tern.utils.CountryUtils
 import com.madanala.tern.utils.GeoJsonUtils
+import com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature
+import com.madanala.tern.utils.PGSpotsCache
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -72,8 +74,17 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
     private var lastAirspaceCheckLocation: GeoPoint? = null
     private var airspaceLoadingJob: Job? = null
     private var showAirspacesEnabled = true // Default to enabled
+
+    // PG Spots management
+    private val pgSpotsCache = PGSpotsCache(application)
+    private var currentPGSpotsCountryCode: String? = null
+    private var lastPGSpotsCheckLocation: GeoPoint? = null
+    private var pgSpotsLoadingJob: Job? = null
+    private var showPGSpotsEnabled = true // Default to enabled
+
     private val mainHandler = Handler(Looper.getMainLooper())
     private var pendingAirspaceCheck: Runnable? = null
+    private var pendingPGSpotsCheck: Runnable? = null
     private var pendingCleanup: Runnable? = null
 
     init {
@@ -127,6 +138,14 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
                                 myLocation
                             )
                         }
+
+                        // Load initial PG spots data when location is ready
+                        viewModelScope.launch {
+                            loadPGSpotsForCurrentLocation(
+                                getApplication<Application>().applicationContext,
+                                myLocation
+                            )
+                        }
                     }
                 }
 
@@ -156,6 +175,20 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun clearGeoJsonOverlays() {
         GeoJsonUtils.clearGeoJsonOverlays(mapView)
+        clearPGSpotsOverlays()
+    }
+
+    /**
+     * Clear all PG spots overlays from the map
+     */
+    fun clearPGSpotsOverlays() {
+        // Remove PG spots markers (they have overlayType = "pgspot")
+        mapView.overlays.removeAll { overlay ->
+            overlay is org.osmdroid.views.overlay.Marker &&
+            (overlay as? org.osmdroid.views.overlay.Marker)?.relatedObject is OverlayFeature &&
+            ((overlay as? org.osmdroid.views.overlay.Marker)?.relatedObject as? OverlayFeature)?.overlayType == "pgspot"
+        }
+        mapView.invalidate()
     }
 
 
@@ -165,18 +198,20 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
 
 
     /**
-     * Setup map listeners for automatic airspace loading
+     * Setup map listeners for automatic airspace and PG spots loading
      */
     private fun setupMapListeners() {
         mapView.addMapListener(object : MapListener {
             override fun onScroll(event: ScrollEvent?): Boolean {
                 checkAirspaceReloadNeeded()
+                checkPGSpotsReloadNeeded()
                 scheduleCleanupCheck()
                 return true
             }
 
             override fun onZoom(event: ZoomEvent?): Boolean {
                 checkAirspaceReloadNeeded()
+                checkPGSpotsReloadNeeded()
                 scheduleCleanupCheck()
                 return true
             }
@@ -369,12 +404,245 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * Check if PG spots data needs to be reloaded based on map center (debounced)
+     */
+    private fun checkPGSpotsReloadNeeded() {
+        // Cancel any pending check
+        pendingPGSpotsCheck?.let { mainHandler.removeCallbacks(it) }
+
+        // Schedule a new check after debounce delay
+        pendingPGSpotsCheck = Runnable {
+            performPGSpotsCheck()
+        }
+        mainHandler.postDelayed(pendingPGSpotsCheck!!, MAP_MOVE_DEBOUNCE_MS)
+    }
+
+    /**
+     * Perform the actual PG spots check after debounce delay
+     */
+    private fun performPGSpotsCheck() {
+        val center = mapView.mapCenter as GeoPoint
+        val context = getApplication<Application>().applicationContext
+
+        // Check if we've moved far enough to warrant a reload (use same distance as airspaces)
+        lastPGSpotsCheckLocation?.let { lastLocation ->
+            val distance = lastLocation.distanceToAsDouble(center)
+            val distanceKm = distance / 1000.0
+
+            if (distanceKm < AIRSPACE_CHECK_DISTANCE_KM) {
+                return // Not moved far enough
+            }
+        }
+
+        // Cancel any existing loading job
+        pgSpotsLoadingJob?.cancel()
+
+        // Start new loading job
+        pgSpotsLoadingJob = viewModelScope.launch {
+            loadPGSpotsForCurrentLocation(context, center)
+        }
+    }
+
+    /**
+     * Load PG spots data for the current map center location
+     */
+    private suspend fun loadPGSpotsForCurrentLocation(context: Context, center: GeoPoint) {
+        try {
+            // Check if PG spots are enabled in settings
+            if (!showPGSpotsEnabled) {
+                return
+            }
+
+            // Get country code for current location
+            val countryCode = CountryUtils.getCountryCodeFromGeoPoint(context, center)
+
+            if (countryCode == null) {
+                return
+            }
+
+            // Check if we already have this country's data loaded
+            if (countryCode == currentPGSpotsCountryCode) {
+                // Even if we have the country's data, we need to check if we've moved far enough
+                // to warrant re-filtering the PG spots around the new center
+                lastPGSpotsCheckLocation?.let { lastLocation ->
+                    val distance = lastLocation.distanceToAsDouble(center)
+                    val distanceKm = distance / 1000.0
+
+                    // If we've moved more than 50 miles (~80km), re-filter the PG spots
+                    if (distanceKm > 80.0) {
+                        // Clear existing PG spots and re-add with new filtering
+                        clearPGSpotsOverlays()
+
+                        // Query nearby PG spots
+                        val nearbyFeatures = pgSpotsCache.queryNearbyFeatures(countryCode, center, AIRSPACE_FILTER_RADIUS_MILES)
+                        if (nearbyFeatures.isNotEmpty()) {
+                            addPGSpotsToMap(mapView, nearbyFeatures)
+                        }
+
+                        // Update the last check location
+                        lastPGSpotsCheckLocation = center
+                        return
+                    } else {
+                        return
+                    }
+                }
+
+                // If we don't have a last location, something went wrong, so reload
+            }
+
+            // Try to load from cache first (PG spots cached for 7 days)
+            var features = pgSpotsCache.getCachedFeatures(countryCode)
+
+            if (features == null) {
+                // Download from ParaglidingEarth API
+                features = pgSpotsCache.downloadAndCacheData(countryCode)
+            }
+
+            if (features != null && features.isNotEmpty()) {
+                // Clear existing PG spots overlays
+                clearPGSpotsOverlays()
+
+                // Query nearby features and add to map
+                val nearbyFeatures = pgSpotsCache.queryNearbyFeatures(countryCode, center, AIRSPACE_FILTER_RADIUS_MILES)
+                addPGSpotsToMap(mapView, nearbyFeatures)
+
+                // Update current country and last location
+                currentPGSpotsCountryCode = countryCode
+                lastPGSpotsCheckLocation = center
+
+            } else {
+                Log.w(TAG, "No PG spots data available for $countryCode")
+            }
+
+        } catch (e: CancellationException) {
+            // Expected behavior when cancelling old requests due to debounce - don't log as error
+            Log.d(TAG, "PG spots loading cancelled due to user interaction")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error loading PG spots data", e)
+        }
+    }
+
+    /**
+     * Add PG spots to the map as markers
+     * @param mapView The MapView to add the markers to
+     * @param features List of PG spot features to add
+     */
+    private fun addPGSpotsToMap(mapView: MapView, features: List<OverlayFeature>) {
+        val context = getApplication<Application>().applicationContext
+
+        features.forEach { feature ->
+            try {
+                // Create marker for PG spot
+                val marker = org.osmdroid.views.overlay.Marker(mapView)
+
+                // Set position
+                marker.position = feature.centroid
+
+                // Try to get spot name from properties
+                @Suppress("UNCHECKED_CAST")
+                val properties = feature.feature["properties"] as? Map<String, Any>
+                val spotName = properties?.get("name") as? String ?:
+                              properties?.get("siteName") as? String ?:
+                              properties?.get("loc_name") as? String ?: "PG Spot"
+
+                marker.title = spotName
+
+                // Add more details to snippet if available
+                val snippetParts = mutableListOf<String>()
+
+                // Try to get location/elevation info
+                properties?.get("elevation")?.let { elevation ->
+                    snippetParts.add("$elevation ft")
+                }
+                properties?.get("country")?.let { country ->
+                    snippetParts.add(country as String)
+                }
+
+                marker.snippet = if (snippetParts.isNotEmpty()) snippetParts.joinToString(" • ") else "Paragliding Location"
+
+                // Set custom icon (use app launcher icon like iOS version)
+                try {
+                    val customIcon = android.graphics.BitmapFactory.decodeResource(context.resources, android.R.mipmap.sym_def_app_icon)
+                    if (customIcon != null) {
+                        marker.icon = android.graphics.drawable.BitmapDrawable(context.resources, customIcon)
+                    }
+                } catch (_: Exception) {
+                    try {
+                        val launcherIcon = android.graphics.BitmapFactory.decodeResource(context.resources, R.mipmap.ic_launcher)
+                        if (launcherIcon != null) {
+                            marker.icon = android.graphics.drawable.BitmapDrawable(context.resources, launcherIcon)
+                        }
+                    } catch (_: Exception) {
+                        // Use default marker icon
+                    }
+                }
+
+                // Store feature reference for identification
+                marker.relatedObject = feature
+
+                // Set anchor point for the icon
+                marker.setAnchor(org.osmdroid.views.overlay.Marker.ANCHOR_CENTER, org.osmdroid.views.overlay.Marker.ANCHOR_BOTTOM)
+
+                // Add click listener to show info
+                marker.setOnMarkerClickListener { clickedMarker, mapView ->
+                    clickedMarker.showInfoWindow()
+                    true // Consume the click
+                }
+
+                // Add marker to map
+                mapView.overlays.add(marker)
+
+            } catch (e: Exception) {
+                Log.w(TAG, "Error creating marker for PG spot", e)
+            }
+        }
+
+        mapView.invalidate()
+    }
+
+    /**
+     * Manually trigger PG spots reload for current map center
+     */
+    fun reloadPGSpotsForCurrentLocation() {
+        val center = mapView.mapCenter as GeoPoint
+        val context = getApplication<Application>().applicationContext
+
+        // Clear existing cache to force re-download
+        pgSpotsCache.clearCache()
+        currentPGSpotsCountryCode = null
+        lastPGSpotsCheckLocation = null // Force reload
+
+        pgSpotsLoadingJob?.cancel()
+        pgSpotsLoadingJob = viewModelScope.launch {
+            loadPGSpotsForCurrentLocation(context, center)
+        }
+    }
+
+    /**
+     * Update PG spots enabled state
+     * @param enabled Whether PG spots should be displayed
+     */
+    fun setPGSpotsEnabled(enabled: Boolean) {
+        showPGSpotsEnabled = enabled
+        if (!enabled) {
+            // Clear existing PG spots overlays if disabled
+            clearPGSpotsOverlays()
+            currentPGSpotsCountryCode = null
+        } else {
+            // Reload PG spots for current location if enabled
+            reloadPGSpotsForCurrentLocation()
+        }
+    }
+
     override fun onCleared() {
-        // Cancel any ongoing loading job
+        // Cancel any ongoing loading jobs
         airspaceLoadingJob?.cancel()
+        pgSpotsLoadingJob?.cancel()
 
         // Cancel any pending map movement checks
         pendingAirspaceCheck?.let { mainHandler.removeCallbacks(it) }
+        pendingPGSpotsCheck?.let { mainHandler.removeCallbacks(it) }
         pendingCleanup?.let { mainHandler.removeCallbacks(it) }
 
         // Important to release map resources
