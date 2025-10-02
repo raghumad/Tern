@@ -42,6 +42,7 @@ import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay
 
 private const val USER_LOCATION_ZOOM = 7.0
 private const val AIRSPACE_CHECK_DISTANCE_KM = 5.0 // Minimum distance to trigger airspace reload (further reduced)
+private const val AIRSPACE_MAJOR_MOVE_KM = 200.0 // Major move threshold - clear and reload everything
 private const val AIRSPACE_FILTER_RADIUS_MILES = 300.0 // Configurable radius for airspace filtering
 private const val MAP_MOVE_DEBOUNCE_MS = 500L // Debounce map movement checks by 0.5 seconds (optimized for better responsiveness)
 private const val TAG = "MapViewModel"
@@ -82,6 +83,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
     private var lastAirspaceCheckLocation: GeoPoint? = null
     private var airspaceLoadingJob: Job? = null
     private var showAirspacesEnabled = true // Default to enabled
+    private val currentlyRenderedAirspaceIds = mutableSetOf<String>() // Track rendered airspace IDs to prevent duplicates
 
     // PG Spots management - Commented out for Phase 1
     // private val pgSpotsCache = PGSpotsCache(application)
@@ -188,6 +190,26 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
     fun clearGeoJsonOverlays() {
         GeoJsonUtils.clearGeoJsonOverlays(mapView)
         clearPGSpotsOverlays()
+        currentlyRenderedAirspaceIds.clear() // Clear tracking when all airspaces are removed
+    }
+
+    /**
+     * Force reload airspaces for current map center
+     * Used when viewport has changed significantly and cache needs refresh
+     */
+    fun forceAirspaceReload() {
+        Log.d(TAG, "Forcing airspace reload for current location")
+        val center = mapView.mapCenter as GeoPoint
+        val context = getApplication<Application>().applicationContext
+
+        airspaceLoadingJob?.cancel()
+        airspaceLoadingJob = viewModelScope.launch {
+            // Force a clean reload by temporarily clearing country
+            val originalCountry = currentCountryCode
+            currentCountryCode = null // Force fresh load
+            loadAirspaceForCurrentLocation(context, center)
+            // Note: country will be set again in loadAirspaceForCurrentLocation
+        }
     }
 
     /**
@@ -237,24 +259,100 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Schedule cleanup of out-of-view overlays (debounced, runs less frequently)
+     * Schedule out-of-view cleanup (viewport-as-truth principle)
+     * Airspaces are managed based on actual viewport visibility, not artificial radius limits
      */
     private fun scheduleCleanupCheck() {
         pendingCleanup?.let { mainHandler.removeCallbacks(it) }
         pendingCleanup = Runnable {
             performCleanup()
         }
-        mainHandler.postDelayed(pendingCleanup!!, 3000L) // Cleanup every 3 seconds instead of constantly
+        // Configurable delay - viewport cleanup triggers after map movement settles
+        // This ensures airspaces are truly visible before cleanup happens
+        mainHandler.postDelayed(pendingCleanup!!, VIEWPORT_CLEANUP_DELAY_MS)
+    }
+
+    companion object {
+        // Configurable: Time to wait after map movement before viewport cleanup
+        // Longer delays = more accurate but less responsive
+        // Shorter delays = more responsive but may trigger cleanup during movement
+        private const val VIEWPORT_CLEANUP_DELAY_MS = 1000L // 1 second delay - adjustable
+
+        // Configurable: Maximum airspaces to keep rendered for resource management
+        const val MAX_VISIBLE_AIRSPACES = 100 // Adjustable based on device performance
     }
 
     /**
-     * Perform cleanup of overlays outside viewport and radius
+     * Perform cleanup of overlays outside viewport
+     * Note: We don't do radius-based cleanup anymore since airspaces should stay
+     * loaded until scrolled out of view, not removed at artificial distance limits
      */
     private fun performCleanup() {
         GeoJsonUtils.removeAirspacesOutsideViewport(mapView)
-        val center = mapView.mapCenter as GeoPoint
-        GeoJsonUtils.removeAirspacesOutsideRadius(mapView, center, AIRSPACE_FILTER_RADIUS_MILES)
+        // Don't do radius-based cleanup - airspaces stay loaded until actually out of view
         mapView.invalidate()
+        Log.d(TAG, "Performed viewport cleanup (removed out-of-view airspaces)")
+    }
+
+    /**
+     * Perform viewport-only cleanup without radius filtering
+     * Used for small map movements to preserve on-screen airspaces
+     */
+    private fun performViewportCleanupOnly() {
+        // Only remove airspaces that are scrolled out of the current viewport
+        // Keep airspaces that are still visible on screen
+        GeoJsonUtils.removeAirspacesOutsideViewport(mapView)
+        // Don't do radius-based cleanup - let airspaces stay until actually out of view
+        mapView.invalidate()
+        Log.d(TAG, "Performed viewport-only cleanup (small movement)")
+    }
+
+    /**
+     * Generate a unique identifier for an airspace feature
+     */
+    private fun generateAirspaceId(feature: OverlayFeature): String {
+        // Try to use airspace name first
+        val properties = feature.feature["properties"] as? Map<*, *>
+        val name = properties?.get("name") as? String ?: properties?.get("Name") as? String
+
+        if (!name.isNullOrBlank()) {
+            return "airspace_$name"
+        }
+
+        // Fallback: coordinate-based ID
+        val geometry = feature.feature["geometry"] as? Map<*, *>
+        val coordinates = geometry?.get("coordinates") as? List<*>
+        val outerRing = coordinates?.get(0) as? List<List<Double>>
+
+        return if (outerRing != null && outerRing.isNotEmpty()) {
+            val firstCoord = outerRing[0]
+            String.format("airspace_coord_%.6f_%.6f", firstCoord[1], firstCoord[0])
+        } else {
+            // Fallback to hash-based ID for edge cases
+            "airspace_hash_${feature.hashCode()}"
+        }
+    }
+
+    /**
+     * Add airspace features to map, filtering out duplicates
+     */
+    private fun addAirspaceFeaturesDeduped(mapView: MapView, features: List<OverlayFeature>) {
+        val newFeatures = features.filter { feature ->
+            val airspaceId = generateAirspaceId(feature)
+            if (currentlyRenderedAirspaceIds.contains(airspaceId)) {
+                false // Already rendered, skip
+            } else {
+                currentlyRenderedAirspaceIds.add(airspaceId)
+                true // Not rendered yet, add it
+            }
+        }
+
+        if (newFeatures.isNotEmpty()) {
+            Log.d(TAG, "Adding ${newFeatures.size} new airspaces (${features.size - newFeatures.size} duplicates skipped)")
+            GeoJsonUtils.addAirspaceFeaturesToMap(mapView, newFeatures)
+        } else {
+            Log.d(TAG, "All ${features.size} airspaces already rendered")
+        }
     }
 
     /**
@@ -278,13 +376,13 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
         val center = mapView.mapCenter as GeoPoint
         val context = getApplication<Application>().applicationContext
 
-        // Check if we've moved far enough to warrant a reload
+        // Check distance moved
         lastAirspaceCheckLocation?.let { lastLocation ->
             val distance = lastLocation.distanceToAsDouble(center)
             val distanceKm = distance / 1000.0
 
             if (distanceKm < AIRSPACE_CHECK_DISTANCE_KM) {
-                return // Not moved far enough
+                return // Not moved far enough (<5km)
             }
         }
 
@@ -314,35 +412,16 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
                 return
             }
 
-            // Check if we already have this country's data loaded
-            if (countryCode == currentCountryCode) {
-                // Even if we have the country's data, we need to check if we've moved far enough
-                // to warrant re-filtering the airspaces around the new center
-                lastAirspaceCheckLocation?.let { lastLocation ->
-                    val distance = lastLocation.distanceToAsDouble(center)
-                    val distanceKm = distance / 1000.0
+            // Check if we've moved very far (>200km) - clear and reload everything
+            val isMajorMove = lastAirspaceCheckLocation?.let { lastLocation ->
+                val distance = lastLocation.distanceToAsDouble(center)
+                val distanceKm = distance / 1000.0
+                distanceKm > AIRSPACE_MAJOR_MOVE_KM
+            } ?: false
 
-                    // If we've moved more than 50 miles (~80km), re-filter the airspaces
-                    // This ensures significant location changes trigger re-filtering
-                    if (distanceKm > 80.0) {
-                        // Clear existing overlays and re-add with new filtering
-                        clearGeoJsonOverlays()
-
-                        // Query nearby features using Hilbert index
-                        val nearbyFeatures = airspaceCache.queryNearbyFeatures(countryCode, center, AIRSPACE_FILTER_RADIUS_MILES)
-                        if (nearbyFeatures.isNotEmpty()) {
-                            GeoJsonUtils.addAirspaceFeaturesToMap(mapView, nearbyFeatures)
-                        }
-
-                        // Update the last check location
-                        lastAirspaceCheckLocation = center
-                        return
-                    } else {
-                        return
-                    }
-                }
-
-                // If we don't have a last location, something went wrong, so reload
+            if (isMajorMove) {
+                Log.d(TAG, "Major move detected (>200km) - clearing all airspaces for fresh start")
+                clearGeoJsonOverlays()
             }
 
             // Try to load from cache first (airspaces cached for 30 days)
@@ -363,12 +442,32 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             if (features != null) {
-                // Clear existing airspace overlays
-                clearGeoJsonOverlays()
-
-                // Query nearby features and add to map
+                // Query nearby features - will be handled incrementally if moving within same country
                 val nearbyFeatures = airspaceCache.queryNearbyFeatures(countryCode, center, AIRSPACE_FILTER_RADIUS_MILES)
-                GeoJsonUtils.addAirspaceFeaturesToMap(mapView, nearbyFeatures)
+
+                // For same country moves, use incremental updates instead of clearing everything
+                if (countryCode == currentCountryCode && !nearbyFeatures.isEmpty()) {
+                    // Add new airspaces incrementally - don't clear existing ones
+                    // The viewport cleanup will handle removing out-of-view airspaces over time
+                    Log.d(TAG, "Same country move - adding ${nearbyFeatures.size} airspaces incrementally")
+                    val existingCount = mapView.overlays.count { overlay ->
+                        overlay is org.osmdroid.views.overlay.Polygon
+                    }
+                    addAirspaceFeaturesDeduped(mapView, nearbyFeatures)
+                    Log.d(TAG, "Added airspaces: $existingCount → ${mapView.overlays.count { overlay ->
+                        overlay is org.osmdroid.views.overlay.Polygon
+                    }} total (${nearbyFeatures.size} features processed)")
+                } else {
+                    // Country change or initial load - clear and load fresh
+                    clearGeoJsonOverlays()
+                    GeoJsonUtils.addAirspaceFeaturesToMap(mapView, nearbyFeatures)
+
+                    // After adding, update tracking for the new airspaces
+                    nearbyFeatures.forEach { feature ->
+                        val airspaceId = generateAirspaceId(feature)
+                        currentlyRenderedAirspaceIds.add(airspaceId)
+                    }
+                }
 
                 // Update current country and last location
                 currentCountryCode = countryCode
