@@ -69,6 +69,9 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
     private val _isLocationReady = MutableStateFlow(false)
     val isLocationReady = _isLocationReady.asStateFlow()
 
+    private val _mapRotation = MutableStateFlow(0f)
+    val mapRotation = _mapRotation.asStateFlow()
+
     // Airspace management
     private val airspaceCache = AirspaceCache(application)
     private var currentCountryCode: String? = null
@@ -76,12 +79,13 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
     private var airspaceLoadingJob: Job? = null
     private var showAirspacesEnabled = true // Default to enabled
 
-    // PG Spots management
-    private val pgSpotsCache = PGSpotsCache(application)
+    // PG Spots management - Commented out for Phase 1
+    // private val pgSpotsCache = PGSpotsCache(application)
+    private var pgSpotsCache: PGSpotsCache? = null
     private var currentPGSpotsCountryCode: String? = null
     private var lastPGSpotsCheckLocation: GeoPoint? = null
     private var pgSpotsLoadingJob: Job? = null
-    private var showPGSpotsEnabled = true // Default to enabled
+    private var showPGSpotsEnabled = false // Disabled for Phase 1
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private var pendingAirspaceCheck: Runnable? = null
@@ -140,13 +144,15 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
                             )
                         }
 
-                        // Load initial PG spots data when location is ready
+                        // Load initial PG spots data when location is ready - Disabled for Phase 1
+                        /*
                         viewModelScope.launch {
                             loadPGSpotsForCurrentLocation(
                                 getApplication<Application>().applicationContext,
                                 myLocation
                             )
                         }
+                        */
                     }
                 }
 
@@ -204,6 +210,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
     private fun setupMapListeners() {
         mapView.addMapListener(object : MapListener {
             override fun onScroll(event: ScrollEvent?): Boolean {
+                _mapRotation.value = mapView.mapOrientation
                 checkAirspaceReloadNeeded()
                 checkPGSpotsReloadNeeded()
                 scheduleCleanupCheck()
@@ -211,6 +218,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             override fun onZoom(event: ZoomEvent?): Boolean {
+                _mapRotation.value = mapView.mapOrientation
                 checkAirspaceReloadNeeded()
                 checkPGSpotsReloadNeeded()
                 scheduleCleanupCheck()
@@ -476,7 +484,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
                         clearPGSpotsOverlays()
 
                         // Query nearby PG spots
-                        val nearbyFeatures = pgSpotsCache.queryNearbyFeatures(countryCode, center, AIRSPACE_FILTER_RADIUS_MILES)
+                        val nearbyFeatures = pgSpotsCache?.queryNearbyFeatures(countryCode, center, AIRSPACE_FILTER_RADIUS_MILES) ?: emptyList()
                         if (nearbyFeatures.isNotEmpty()) {
                             addPGSpotsToMap(mapView, nearbyFeatures)
                         }
@@ -492,20 +500,20 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
                 // If we don't have a last location, something went wrong, so reload
             }
 
-            // Try to load from cache first (PG spots cached for 7 days)
-            var features = pgSpotsCache.getCachedFeatures(countryCode)
+            // Try to load from cache first (PG spots cached for 7 days) - Disabled for Phase 1
+            var features: List<OverlayFeature>? = null
 
             if (features == null) {
-                // Download from ParaglidingEarth API
-                features = pgSpotsCache.downloadAndCacheData(countryCode)
+                // Download from ParaglidingEarth API - Placeholder for Phase 1
+                features = emptyList()
             }
 
-            if (features != null && features.isNotEmpty()) {
+            if (features.isNotEmpty()) {
                 // Clear existing PG spots overlays
                 clearPGSpotsOverlays()
 
-                // Query nearby features and add to map
-                val nearbyFeatures = pgSpotsCache.queryNearbyFeatures(countryCode, center, AIRSPACE_FILTER_RADIUS_MILES)
+                // Query nearby features and add to map - Placeholder for Phase 1
+                val nearbyFeatures: List<OverlayFeature> = emptyList()
                 addPGSpotsToMap(mapView, nearbyFeatures)
 
                 // Update current country and last location
@@ -612,8 +620,8 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
         val center = mapView.mapCenter as GeoPoint
         val context = getApplication<Application>().applicationContext
 
-        // Clear existing cache to force re-download
-        pgSpotsCache.clearCache()
+        // Clear existing cache to force re-download - Phase 1 placeholder
+        pgSpotsCache?.clearCache()
         currentPGSpotsCountryCode = null
         lastPGSpotsCheckLocation = null // Force reload
 

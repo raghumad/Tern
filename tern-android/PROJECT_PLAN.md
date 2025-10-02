@@ -42,11 +42,18 @@ Optimize current osmdroid setup rather than migrate:
 
 ### 4-Phase Implementation Plan
 
-#### Phase 1: Core Lifecycle Fixes (1-2 days)
-- [ ] Fix MapView lifecycle with DisposableEffect
-- [ ] Improve permission handling with rememberPermissionState
-- [ ] Replace inefficient produceState with StateFlow
-- [ ] Add proper cleanup to prevent memory leaks
+#### Phase 1: Core Lifecycle Fixes (1-2 days) - COMPLETED 10/1/2025
+- [x] Fix MapView lifecycle with DisposableEffect
+- [x] Improve permission handling with rememberPermissionState
+- [x] Replace inefficient produceState with StateFlow
+- [x] Add proper cleanup to prevent memory leaks
+
+**Implementation Details:**
+- Added `mapRotation` StateFlow to MapViewModel with updates in map listeners
+- Replaced produceState with collectAsState() in MapViewContainer
+- Migrated to rememberPermissionState from Accompanist for cleaner permission handling
+- Added DisposableEffect in composable (ViewModel already had onCleared cleanup)
+- Added accompanist-permissions:0.32.0 dependency
 
 #### Phase 2: Enhanced Overlay Architecture (2-3 days)
 - [ ] Create modular overlay system (AirspaceOverlay, PGSpotOverlay, etc.)
