@@ -19,7 +19,10 @@ data class MapState(
     val hasLocationPermission: Boolean = false,
     val permissionRequested: Boolean = false,
 
-    // Overlay state
+    // Overlay state - modular overlay management
+    val overlayState: OverlayState = OverlayState(),
+
+    // Legacy overlay state (for migration - will be removed in later chunks)
     val airspacesEnabled: Boolean = true,
     val pgSpotsEnabled: Boolean = false,
     val showOverlays: Boolean = true,
