@@ -3,6 +3,7 @@ package com.madanala.tern.overlays
 import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
+import com.madanala.tern.redux.MapState
 import com.madanala.tern.redux.OverlayConfig
 import com.madanala.tern.redux.OverlayType
 
@@ -11,6 +12,11 @@ import com.madanala.tern.redux.OverlayType
  */
 interface OverlayManager {
     val overlayType: OverlayType
+
+    /**
+     * Initialize the overlay manager
+     */
+    fun initialize(mapView: MapView)
 
     /**
      * Called when the overlay is attached to a map view
@@ -23,9 +29,19 @@ interface OverlayManager {
     fun onDetach()
 
     /**
-     * Called when the map is scrolled or zoomed
+     * Called when map movement occurs - for data loading
      */
-    fun onMapMove(center: GeoPoint, zoom: Double)
+    fun performMapMove(center: GeoPoint, zoom: Double)
+
+    /**
+     * Called when viewport changes - for view management
+     */
+    fun onViewportChanged(viewport: BoundingBox)
+
+    /**
+     * Clear all overlays for this manager type
+     */
+    fun clearOverlays()
 
     /**
      * Update the enabled state of this overlay
@@ -38,7 +54,17 @@ interface OverlayManager {
     fun updateConfig(config: OverlayConfig)
 
     /**
-     * Called when the map viewport changes
+     * Get current configuration
      */
-    fun onViewportChanged(viewport: BoundingBox)
+    fun getCurrentConfig(): OverlayConfig?
+
+    /**
+     * Handle Redux state changes
+     */
+    fun onReduxStateChanged(state: MapState)
+
+    /**
+     * Get performance statistics
+     */
+    fun getPerformanceStats(): Map<String, Any>
 }
