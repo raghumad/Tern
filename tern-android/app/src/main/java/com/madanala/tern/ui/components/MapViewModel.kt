@@ -47,6 +47,10 @@ private const val MAP_MOVE_DEBOUNCE_MS = 500L // Debounce map movement checks by
 private const val TAG = "MapViewModel"
 
 class MapViewModel(application: Application) : AndroidViewModel(application) {
+    // Callbacks for Redux updates (Phase 1 Redux migration)
+    var rotationCallback: ((Float) -> Unit)? = null
+    var locationReadyCallback: ((Boolean) -> Unit)? = null
+
     // This is a deliberate architectural choice.
     // The MapView is a complex, stateful UI component. To prevent it from being destroyed and
     // recreated on configuration changes (like screen rotation), we hold its instance here in the
@@ -56,7 +60,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
     // However, this is safe in our case for two reasons:
     // 1. We are using the Application context, not an Activity context. The Application context
     //    is a singleton that lives for the entire app lifecycle, so we are not leaking an Activity.
-    // 2. The alternative (saving and restoring all map state) is far more complex and could
+    //  2. The alternative (saving and restoring all map state) is far more complex and could
     //    lead to UI stutters on rotation. This approach provides a much smoother user experience.
     @SuppressLint("StaticFieldLeak")
     val mapView: MapView
@@ -135,6 +139,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
                         mapView.controller.setCenter(myLocation)
                         initialZoomDone = true
                         _isLocationReady.value = true
+                        locationReadyCallback?.invoke(true) // Redux migration
 
                         // Load initial airspace data when location is ready
                         viewModelScope.launch {
@@ -210,7 +215,9 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
     private fun setupMapListeners() {
         mapView.addMapListener(object : MapListener {
             override fun onScroll(event: ScrollEvent?): Boolean {
-                _mapRotation.value = mapView.mapOrientation
+                val rotation = mapView.mapOrientation
+                _mapRotation.value = rotation
+                rotationCallback?.invoke(rotation) // Redux migration
                 checkAirspaceReloadNeeded()
                 checkPGSpotsReloadNeeded()
                 scheduleCleanupCheck()
@@ -218,7 +225,9 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             override fun onZoom(event: ZoomEvent?): Boolean {
-                _mapRotation.value = mapView.mapOrientation
+                val rotation = mapView.mapOrientation
+                _mapRotation.value = rotation
+                rotationCallback?.invoke(rotation) // Redux migration
                 checkAirspaceReloadNeeded()
                 checkPGSpotsReloadNeeded()
                 scheduleCleanupCheck()

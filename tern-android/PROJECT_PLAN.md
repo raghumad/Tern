@@ -42,11 +42,15 @@ Optimize current osmdroid setup rather than migrate:
 
 ### 4-Phase Implementation Plan
 
-#### Phase 1: Core Lifecycle Fixes (1-2 days) - COMPLETED 10/1/2025
+#### Phase 1: Redux Architecture & Core Lifecycle Fixes (2-3 days)
 - [x] Fix MapView lifecycle with DisposableEffect
 - [x] Improve permission handling with rememberPermissionState
 - [x] Replace inefficient produceState with StateFlow
 - [x] Add proper cleanup to prevent memory leaks
+- [x] Set up Redux Store for global map state (rotation, overlays, location)
+- [x] Migrate ViewModel state to Redux actions/reducers
+- [x] Update composables to observe Redux store instead of ViewModel
+- [x] Implement reusable Redux middleware for Combine flows
 
 **Implementation Details:**
 - Added `mapRotation` StateFlow to MapViewModel with updates in map listeners
@@ -80,6 +84,7 @@ Optimize current osmdroid setup rather than migrate:
 - **Preserve caching**: FlexBuffers + Hilbert indexing is superior
 - **Compose-first**: All new UI components use Jetpack Compose
 - **Sensor fusion**: Combine GPS, accelerometer, compass for accuracy
+- **Redux architecture**: Global store for predictable state management, enabling complex overlay interactions and sensor fusion from Phase 1
 
 ### Implementation Approach
 - **Incremental**: Each phase testable independently
