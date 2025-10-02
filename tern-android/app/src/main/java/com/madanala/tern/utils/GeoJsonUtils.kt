@@ -29,11 +29,23 @@ object GeoJsonUtils {
                 val request = Request.Builder().url(url).build()
                 val response = client.newCall(request).execute()
                 if (response.isSuccessful) {
-                    response.body.string()
+                    val data = response.body.string()
+                    android.util.Log.d("GeoJsonUtils", "Downloaded ${data.length} bytes from $url")
+                    // Log first few lines to see format
+                    val lines = data.lines()
+                    if (lines.size > 3) {
+                        android.util.Log.d("GeoJsonUtils", "First 3 lines of data:")
+                        lines.take(3).forEach { line ->
+                            android.util.Log.d("GeoJsonUtils", "  $line")
+                        }
+                    }
+                    data
                 } else {
+                    android.util.Log.w("GeoJsonUtils", "Failed to download from $url: ${response.code} ${response.message}")
                     null
                 }
-            } catch (_: IOException) {
+            } catch (e: IOException) {
+                android.util.Log.w("GeoJsonUtils", "IOException downloading $url: ${e.message}")
                 null
             }
         }
