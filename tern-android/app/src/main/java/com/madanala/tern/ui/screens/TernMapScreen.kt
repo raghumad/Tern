@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 
+import com.madanala.tern.redux.MapStore
 import com.madanala.tern.ui.components.AddWaypointButton
 import com.madanala.tern.ui.components.MapViewContainer
 import com.madanala.tern.ui.components.MapViewModel
@@ -40,11 +41,13 @@ const val MAP_VIEW_SATELLITE = 2
 @Composable
 fun TernMapScreen(
     modifier: Modifier = Modifier,
-    mapViewModel: MapViewModel = viewModel()
+    store: MapStore = viewModel()
 ) {
     var showSettingsSheet by remember { mutableStateOf(false) }
     var showShareSheet by remember { mutableStateOf(false) }
-    val isLocationReady by mapViewModel.isLocationReady.collectAsState()
+    val state by store.state.collectAsState()
+    val isLocationReady = state.isLocationReady
+    val mapViewModel = viewModel<MapViewModel>()
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -54,7 +57,7 @@ fun TernMapScreen(
         Box(modifier = Modifier.fillMaxSize()) {
             MapViewContainer(
                 modifier = Modifier.fillMaxSize(),
-                mapViewModel = mapViewModel
+                store = store
             )
             Column(
                 modifier = Modifier
