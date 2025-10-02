@@ -66,11 +66,15 @@ Optimize current osmdroid setup rather than migrate:
 - [x] Update reducers to handle overlay state
 - [x] Verify Redux state updates work correctly
 
-##### Chunk 2: Overlay Manager Interface
-- [ ] Create OverlayManager interface with lifecycle methods
-- [ ] Define OverlayType enum (AIRSPACE, PG_SPOTS, SENSORS, TERRAIN)
-- [ ] Create BaseOverlayManager with common functionality
-- [ ] Test interface compiles and can be implemented
+##### Chunk 2: Overlay Manager Interface ✅
+- [x] Create OverlayManager interface with lifecycle methods
+- [x] Define OverlayType enum (AIRSPACE, PG_SPOTS, SENSORS, TERRAIN)
+- [x] Create BaseOverlayManager with common functionality
+- [x] Test interface compiles and can be implemented
+- [x] Created overlays package with:
+  - OverlayManager.kt - Interface defining overlay lifecycle methods
+  - BaseOverlayManager.kt - Abstract base class with Redux integration, debouncing, and common functionality
+  - StubOverlayManager.kt - Implementation for testing compilation
 
 ##### Chunk 3: AirspaceOverlayManager MVP
 - [ ] Create AirspaceOverlayManager composable

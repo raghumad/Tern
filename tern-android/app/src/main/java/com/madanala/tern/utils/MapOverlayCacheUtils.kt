@@ -60,7 +60,16 @@ object MapOverlayCacheUtils {
         val features = mutableListOf<OverlayFeature>()
         val lines = ndGeoJsonString.lines()
 
+        android.util.Log.d("MapOverlayCacheUtils", "Parsing ${lines.size} lines of NDGeoJSON")
+
+        var processedCount = 0
+        var skippedEmpty = 0
+        var skippedMalformed = 0
+        var skippedNoGeometry = 0
+        var skippedNoCentroid = 0
+
         lines.forEach { line ->
+            processedCount++
             if (line.isNotBlank()) {
                 try {
                     val feature: Map<String, Any> = mapper.readValue(line)
@@ -71,13 +80,25 @@ object MapOverlayCacheUtils {
                         if (centroid != null) {
                             val hilbertIndex = computeHilbertIndex(centroid, 16) // 16-bit precision
                             features.add(OverlayFeature(feature, centroid, hilbertIndex))
+                        } else {
+                            skippedNoCentroid++
                         }
+                    } else {
+                        skippedNoGeometry++
                     }
-                } catch (_: Exception) {
-                    // Skip malformed lines
+                } catch (e: Exception) {
+                    skippedMalformed++
+                    if (processedCount <= 3) { // Log first few malformed lines
+                        android.util.Log.w("MapOverlayCacheUtils", "Malformed line $processedCount: ${e.message}, line: '$line'")
+                    }
                 }
+            } else {
+                skippedEmpty++
             }
         }
+
+        android.util.Log.d("MapOverlayCacheUtils", "Parsed ${features.size} features. Skipped: empty=$skippedEmpty, malformed=$skippedMalformed, noGeometry=$skippedNoGeometry, noCentroid=$skippedNoCentroid")
+
         return features
     }
 
@@ -92,13 +113,14 @@ object MapOverlayCacheUtils {
 
         return when (type) {
             "Polygon" -> {
+                // For Polygon: [[[lon1,lat1], [lon2,lat2], ...]]
                 @Suppress("UNCHECKED_CAST")
-                val outerRing = coordinates?.get(0) as? List<Double>
-                val points = outerRing?.mapNotNull { coord ->
+                val outerRing = coordinates?.get(0) as? List<List<Double>>
+                val points = outerRing?.mapNotNull { lonLat ->
                     try {
-                        @Suppress("UNCHECKED_CAST")
-                        val lonLat = coord as List<Double>
-                        GeoPoint(lonLat[1], lonLat[0]) // lat, lon
+                        if (lonLat.size >= 2) {
+                            GeoPoint(lonLat[1], lonLat[0]) // lat, lon
+                        } else null
                     } catch (_: Exception) {
                         null
                     }
@@ -111,9 +133,12 @@ object MapOverlayCacheUtils {
                 } else null
             }
             "Point" -> {
+                // For Point: [lon, lat]
                 try {
                     val lonLat = coordinates as List<Double>
-                    GeoPoint(lonLat[1], lonLat[0])
+                    if (lonLat.size >= 2) {
+                        GeoPoint(lonLat[1], lonLat[0])
+                    } else null
                 } catch (_: Exception) {
                     null
                 }
