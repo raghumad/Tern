@@ -59,11 +59,42 @@ Optimize current osmdroid setup rather than migrate:
 - Added DisposableEffect in composable (ViewModel already had onCleared cleanup)
 - Added accompanist-permissions:0.32.0 dependency
 
-#### Phase 2: Enhanced Overlay Architecture (2-3 days)
-- [ ] Create modular overlay system (AirspaceOverlay, PGSpotOverlay, etc.)
-- [ ] Improve overlay state management
-- [ ] Better Compose integration for dynamic overlays
-- [ ] Performance optimizations for multiple overlay types
+#### Phase 2: Enhanced Overlay Architecture
+##### Chunk 1: Overlay State Foundation
+- [x] Add OverlayState and OverlayConfig to Redux state
+- [x] Add overlay-related actions (SetOverlayEnabled, UpdateOverlayConfig)
+- [x] Update reducers to handle overlay state
+- [x] Verify Redux state updates work correctly
+
+##### Chunk 2: Overlay Manager Interface
+- [ ] Create OverlayManager interface with lifecycle methods
+- [ ] Define OverlayType enum (AIRSPACE, PG_SPOTS, SENSORS, TERRAIN)
+- [ ] Create BaseOverlayManager with common functionality
+- [ ] Test interface compiles and can be implemented
+
+##### Chunk 3: AirspaceOverlayManager MVP
+- [ ] Create AirspaceOverlayManager composable
+- [ ] Extract airspace logic from MapViewModel to manager
+- [ ] Connect to Redux for visibility toggle
+- [ ] Test airspace overlays work with Redux toggle
+
+##### Chunk 4: PGSpotOverlayManager
+- [ ] Create PGSpotOverlayManager composable
+- [ ] Extract PG spot logic from MapViewModel
+- [ ] Connect to Redux state
+- [ ] Test both overlay types work independently
+
+##### Chunk 5: Overlay Coordinator Integration
+- [ ] Create OverlayCoordinator composable to manage all overlays
+- [ ] Update MapViewContainer to use coordinator instead of direct ViewModel calls
+- [ ] Remove overlay logic from MapViewModel
+- [ ] Test all overlays work through Redux state
+
+##### Chunk 6: Performance Optimization
+- [ ] Add viewport-based lazy loading
+- [ ] Implement overlay batching for map updates
+- [ ] Add memory management for off-screen overlays
+- [ ] Test performance with multiple overlay types enabled
 
 #### Phase 3: Advanced Features (3-4 days)
 - [ ] Sensor integration (accelerometer, compass, GPS)

@@ -31,7 +31,27 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
         state.copy(zoom = action.zoom)
     }
 
-    // Overlay control actions
+    // Overlay control actions - new modular system
+    is MapAction.SetOverlayEnabled -> {
+        val newOverlayState = when (action.type) {
+            OverlayType.AIRSPACE -> state.overlayState.copy(airspaces = state.overlayState.airspaces.copy(enabled = action.enabled))
+            OverlayType.PG_SPOTS -> state.overlayState.copy(pgSpots = state.overlayState.pgSpots.copy(enabled = action.enabled))
+            OverlayType.SENSORS -> state.overlayState.copy(sensors = state.overlayState.sensors.copy(enabled = action.enabled))
+            OverlayType.TERRAIN -> state.overlayState.copy(terrain = state.overlayState.terrain.copy(enabled = action.enabled))
+        }
+        state.copy(overlayState = newOverlayState)
+    }
+    is MapAction.UpdateOverlayConfig -> {
+        val newOverlayState = when (action.type) {
+            OverlayType.AIRSPACE -> state.overlayState.copy(airspaces = action.config)
+            OverlayType.PG_SPOTS -> state.overlayState.copy(pgSpots = action.config)
+            OverlayType.SENSORS -> state.overlayState.copy(sensors = action.config)
+            OverlayType.TERRAIN -> state.overlayState.copy(terrain = action.config)
+        }
+        state.copy(overlayState = newOverlayState)
+    }
+
+    // Legacy overlay actions (for migration - will be removed in later chunks)
     is MapAction.SetAirspacesEnabled -> {
         state.copy(airspacesEnabled = action.enabled)
     }
