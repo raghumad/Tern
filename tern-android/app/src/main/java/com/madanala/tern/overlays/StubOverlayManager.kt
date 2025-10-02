@@ -39,11 +39,15 @@ class StubOverlayManager(
         Log.d(TAG, "Stub viewport changed: $viewport")
     }
 
+    override fun onViewportChanged(viewport: BoundingBox) {
+        Log.d(TAG, "StubOverlayManager onViewportChanged: $viewport")
+    }
+
     override fun onReduxStateChanged(state: MapState) {
-        Log.d(TAG, "Stub Redux state changed: enabled=${isEnabled()}")
+        Log.d(TAG, "StubOverlayManager onReduxStateChanged")
     }
 
     override fun clearOverlays() {
-        Log.d(TAG, "Stub clearing overlays")
+        Log.d(TAG, "StubOverlayManager clearOverlays")
     }
 }

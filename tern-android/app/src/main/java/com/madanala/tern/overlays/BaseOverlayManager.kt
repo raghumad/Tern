@@ -26,7 +26,7 @@ import org.osmdroid.views.MapView
 abstract class BaseOverlayManager(
     final override val overlayType: OverlayType,
     protected val mapStore: MapStore
-) : OverlayManager, LifecycleObserver {
+) : OverlayManager {
 
     protected val TAG = "OverlayManager-${overlayType.name}"
     protected var mapView: MapView? = null
@@ -61,6 +61,10 @@ abstract class BaseOverlayManager(
         onOverlayAttached()
     }
 
+    override fun initialize(mapView: MapView) {
+        onAttach(mapView)
+    }
+
     override fun onDetach() {
         if (!isAttached) {
             Log.w(TAG, "Overlay not attached")
@@ -87,15 +91,22 @@ abstract class BaseOverlayManager(
         coroutineScope.cancel()
     }
 
-    override fun onMapMove(center: GeoPoint, zoom: Double) {
-        if (!isAttached) return
+    override fun updateConfig(config: OverlayConfig) {
+        Log.d(TAG, "updateConfig: $config")
+        // Implement in concrete subclasses if needed
+    }
 
-        // Debounce map movement like the original ViewModel
-        pendingMapMove?.let { mainHandler.removeCallbacks(it) }
-        pendingMapMove = Runnable {
-            performMapMove(center, zoom)
-        }
-        mainHandler.postDelayed(pendingMapMove!!, mapMoveDebounceMs)
+    override fun setEnabled(enabled: Boolean) {
+        Log.d(TAG, "setEnabled: $enabled")
+        // Implement in concrete subclasses if needed
+    }
+
+    override fun getPerformanceStats(): Map<String, Any> {
+        return mapOf(
+            "overlay_type" to overlayType.name,
+            "attached" to isAttached,
+            "has_pending_move" to (pendingMapMove != null)
+        )
     }
 
     override fun onViewportChanged(viewport: BoundingBox) {
@@ -103,10 +114,7 @@ abstract class BaseOverlayManager(
         onViewportChangedInternal(viewport)
     }
 
-    /**
-     * Get the current overlay configuration from Redux state
-     */
-    protected fun getCurrentConfig(): OverlayConfig {
+    override fun getCurrentConfig(): OverlayConfig? {
         val state = mapStore.state.value
         return when (overlayType) {
             OverlayType.AIRSPACE -> state.overlayState.airspaces
@@ -119,7 +127,7 @@ abstract class BaseOverlayManager(
     /**
      * Check if this overlay is currently enabled
      */
-    protected fun isEnabled(): Boolean = getCurrentConfig().enabled
+    fun isEnabled(): Boolean = getCurrentConfig()?.enabled ?: false
 
     /**
      * Start subscribing to Redux state changes
@@ -153,7 +161,7 @@ abstract class BaseOverlayManager(
     /**
      * Perform the actual map move logic after debouncing
      */
-    protected abstract fun performMapMove(center: GeoPoint, zoom: Double)
+    public abstract override fun performMapMove(center: GeoPoint, zoom: Double)
 
     /**
      * Handle viewport changes (for performance optimization)
@@ -163,10 +171,10 @@ abstract class BaseOverlayManager(
     /**
      * Called when Redux state changes - override to react to state updates
      */
-    protected abstract fun onReduxStateChanged(state: MapState)
+    public abstract override fun onReduxStateChanged(state: MapState)
 
     /**
      * Clear overlays specific to this manager
      */
-    protected abstract fun clearOverlays()
+    public abstract override fun clearOverlays()
 }

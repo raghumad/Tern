@@ -90,8 +90,13 @@ class AirspaceOverlayManager(
         checkAndLoadAirspaceData(center)
     }
 
-    override fun onViewportChangedInternal(viewport: BoundingBox) {
+    override fun onViewportChanged(viewport: BoundingBox) {
         Log.d(TAG, "Viewport changed: $viewport")
+        onViewportChangedInternal(viewport)
+    }
+
+    override fun onViewportChangedInternal(viewport: BoundingBox) {
+        Log.d(TAG, "Viewport changed internal: $viewport")
         manageViewportAirspaces(viewport)
     }
 
