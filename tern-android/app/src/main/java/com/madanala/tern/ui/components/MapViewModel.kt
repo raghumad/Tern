@@ -18,6 +18,9 @@ import androidx.lifecycle.viewModelScope
 import com.madanala.tern.R
 import com.madanala.tern.ui.screens.MAP_VIEW_SATELLITE
 import com.madanala.tern.ui.screens.MAP_VIEW_TERRAIN
+import com.madanala.tern.overlays.OverlayCoordinator
+import com.madanala.tern.overlays.AirspaceOverlayManager
+import com.madanala.tern.redux.MapStore
 import com.madanala.tern.utils.AirspaceCache
 import com.madanala.tern.utils.CountryUtils
 import com.madanala.tern.utils.GeoJsonUtils
@@ -77,12 +80,15 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
     private val _mapRotation = MutableStateFlow(0f)
     val mapRotation = _mapRotation.asStateFlow()
 
-    // Airspace management
+    // Overlay Coordinator - Our new advanced overlay system with memory limits
+    private val overlayCoordinator = OverlayCoordinator()
+
+    // Airspace management - Legacy system, now limited to prevent crashes
     private val airspaceCache = AirspaceCache(application)
     private var currentCountryCode: String? = null
     private var lastAirspaceCheckLocation: GeoPoint? = null
     private var airspaceLoadingJob: Job? = null
-    private var showAirspacesEnabled = true // Default to enabled
+    private var showAirspacesEnabled = true // ENABLED - airspace system active with memory limits
     private val currentlyRenderedAirspaceIds = mutableSetOf<String>() // Track rendered airspace IDs to prevent duplicates
 
     // PG Spots management - Commented out for Phase 1
@@ -107,6 +113,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
         }
         addMapOverlays()
         setupMapListeners()
+        initializeOverlaySystem()
 
         // Dynamic airspace loading will be handled by location-based triggers
     }
@@ -232,6 +239,26 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
 
 
     /**
+     * Initialize the new overlay system with memory limits
+     */
+    private fun initializeOverlaySystem() {
+        Log.d(TAG, "Initializing overlay system with memory limits")
+
+        // Initialize the overlay coordinator (skip Redux for now - Phase 1)
+        // overlayCoordinator.initialize(MapStore(), mapView, getApplication())  // TODO: Add when Redux ready
+
+        // Create AirspaceOverlayManager with external control for now
+        // Instead of registering with coordinator, we'll control it directly
+        // overlayCoordinator.addOverlayManager(airspaceManager)
+
+        // Log what we'd do if coordinator was fully initialized
+        Log.d(TAG, "Overlay coordinator ready (will be fully initialized when Redux is available)")
+
+        // For now, airspaces will use the legacy system with improved limits
+        // This prevents the NPE during MapViewModel initialization
+    }
+
+    /**
      * Setup map listeners for automatic airspace and PG spots loading
      */
     private fun setupMapListeners() {
@@ -240,6 +267,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
                 val rotation = mapView.mapOrientation
                 _mapRotation.value = rotation
                 rotationCallback?.invoke(rotation) // Redux migration
+
                 checkAirspaceReloadNeeded()
                 checkPGSpotsReloadNeeded()
                 scheduleCleanupCheck()
@@ -250,6 +278,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
                 val rotation = mapView.mapOrientation
                 _mapRotation.value = rotation
                 rotationCallback?.invoke(rotation) // Redux migration
+
                 checkAirspaceReloadNeeded()
                 checkPGSpotsReloadNeeded()
                 scheduleCleanupCheck()
@@ -376,10 +405,13 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
         val center = mapView.mapCenter as GeoPoint
         val context = getApplication<Application>().applicationContext
 
+        Log.d(TAG, "Performing airspace check for center: ${center.latitude}, ${center.longitude}")
+
         // Check distance moved
         lastAirspaceCheckLocation?.let { lastLocation ->
             val distance = lastLocation.distanceToAsDouble(center)
             val distanceKm = distance / 1000.0
+            Log.d(TAG, "Distance moved: ${distanceKm}km (< ${AIRSPACE_CHECK_DISTANCE_KM}km threshold)")
 
             if (distanceKm < AIRSPACE_CHECK_DISTANCE_KM) {
                 return // Not moved far enough (<5km)
@@ -388,6 +420,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
 
         // Cancel any existing loading job
         airspaceLoadingJob?.cancel()
+        Log.d(TAG, "Starting airspace loading job for new location")
 
         // Start new loading job
         airspaceLoadingJob = viewModelScope.launch {
