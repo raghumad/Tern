@@ -98,3 +98,93 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
     }
     else -> state
 }
+
+/**
+ * Weather reducers for aviation weather functionality
+ */
+fun weatherReducer(state: MapState, action: WeatherActions): MapState = when (action) {
+    // Weather data fetching and caching
+    is WeatherActions.FetchWeatherForPGSpot -> {
+        val newFetchingSpots = state.weatherState.fetchingSpots + action.pgSpotId
+        val newWeatherState = state.weatherState.copy(fetchingSpots = newFetchingSpots)
+        state.copy(weatherState = newWeatherState)
+    }
+
+    is WeatherActions.WeatherFetched -> {
+        val newSpotWeathers = if (action.forecast != null) {
+            state.weatherState.spotWeathers + (action.pgSpotId to action.forecast)
+        } else {
+            state.weatherState.spotWeathers // Keep existing data if null returned
+        }
+        val newFetchingSpots = state.weatherState.fetchingSpots - action.pgSpotId
+        val newWeatherState = state.weatherState.copy(
+            spotWeathers = newSpotWeathers,
+            fetchingSpots = newFetchingSpots,
+            errors = state.weatherState.errors - action.pgSpotId // Clear any previous errors
+        )
+        state.copy(weatherState = newWeatherState)
+    }
+
+    is WeatherActions.WeatherFetchError -> {
+        val newFetchingSpots = state.weatherState.fetchingSpots - action.pgSpotId
+        val newErrors = state.weatherState.errors + (action.pgSpotId to action.error)
+        val newWeatherState = state.weatherState.copy(
+            fetchingSpots = newFetchingSpots,
+            errors = newErrors
+        )
+        state.copy(weatherState = newWeatherState)
+    }
+
+    // Weather display controls
+    is WeatherActions.SetWeatherGaugeEnabled -> {
+        val newWeatherState = state.weatherState.copy(showWeatherGauges = action.enabled)
+        state.copy(weatherState = newWeatherState)
+    }
+
+    is WeatherActions.SetWeatherDetailsEnabled -> {
+        val newWeatherState = state.weatherState.copy(showWeatherDetails = action.enabled)
+        state.copy(weatherState = newWeatherState)
+    }
+
+    // Cache management
+    is WeatherActions.ClearWeatherCache -> {
+        android.util.Log.d("WeatherReducers", "Clearing weather cache from Redux state")
+        val newWeatherState = state.weatherState.copy(
+            spotWeathers = emptyMap(),
+            errors = emptyMap(),
+            cacheSize = 0,
+            cacheHits = 0,
+            cacheMisses = 0,
+            lastCacheCleanup = System.currentTimeMillis()
+        )
+        state.copy(weatherState = newWeatherState)
+    }
+
+    is WeatherActions.WeatherCacheCleared -> {
+        android.util.Log.d("WeatherReducers", "Weather cache cleared - ${action.freedEntries} entries freed")
+        val newWeatherState = state.weatherState.copy(
+            cacheSize = state.weatherState.cacheSize - action.freedEntries,
+            lastCacheCleanup = System.currentTimeMillis()
+        )
+        state.copy(weatherState = newWeatherState)
+    }
+
+    // API availability monitoring
+    is WeatherActions.WeatherAPIStatus -> {
+        val newWeatherState = state.weatherState.copy(
+            weatherAPIOnline = action.apiAvailable,
+            lastAPIStatusCheck = System.currentTimeMillis()
+        )
+        state.copy(weatherState = newWeatherState)
+    }
+}
+
+/**
+ * Combined reducer for all map-related state (Map + Weather)
+ * Aviation-grade state management for comprehensive feature integration
+ */
+fun combinedMapReducer(state: MapState, action: Any): MapState = when (action) {
+    is MapAction -> mapReducer(state, action)
+    is WeatherActions -> weatherReducer(state, action)
+    else -> state // Unknown actions pass through unchanged
+}

@@ -23,3 +23,30 @@ data class OverlayState(
     val sensors: OverlayConfig = OverlayConfig(enabled = false),  // Future use
     val terrain: OverlayConfig = OverlayConfig(enabled = false)   // Future use
 )
+
+/**
+ * Weather state for dynamic PG spot weather overlays
+ * Aviation-grade weather data management through Redux
+ */
+data class WeatherState(
+    // Weather data for PG spots
+    val spotWeathers: Map<String, com.madanala.tern.utils.WeatherForecast> = emptyMap(),
+
+    // Fetch states and errors
+    val fetchingSpots: Set<String> = emptySet(),
+    val errors: Map<String, Throwable> = emptyMap(),
+
+    // Display controls
+    val showWeatherGauges: Boolean = true,
+    val showWeatherDetails: Boolean = true,
+
+    // API and cache status
+    val weatherAPIOnline: Boolean = true,
+    val cacheSize: Int = 0,
+    val cacheHits: Int = 0,
+    val cacheMisses: Int = 0,
+
+    // Last update tracking
+    val lastCacheCleanup: Long = 0L,
+    val lastAPIStatusCheck: Long = 0L
+)

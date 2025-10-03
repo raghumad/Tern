@@ -1,0 +1,315 @@
+package com.madanala.tern.utils
+
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.module.kotlin.readValue
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import java.io.IOException
+
+// Create shared mapper instance
+private val mapper = jacksonObjectMapper()
+
+/**
+ * Consolidated Weather API Data Classes
+ */
+data class WindData(
+    val speed: Double, // knots
+    val direction: Double // degrees (0-360)
+)
+
+data class WeatherData(
+    val wind: WindData,
+    val temperature: Double, // Celsius
+    val humidity: Double,
+    val visibility: Double,
+    val pressure: Double,
+    val timestamp: Long // UTC timestamp
+)
+
+data class ForecastPeriod(
+    val startTime: Long, // UTC timestamp
+    val endTime: Long,
+    val weather: WeatherData,
+    val shortForecast: String
+)
+
+data class WeatherForecast(
+    val current: WeatherData?,
+    val daily: List<ForecastPeriod>,
+    val hourly: List<ForecastPeriod>
+)
+
+/**
+ * WeatherAPI Interface - Supports multiple weather data sources
+ * Aviation-grade with graceful failure handling
+ */
+interface WeatherAPI {
+    suspend fun fetchForecast(lat: Double, lng: Double): WeatherForecast?
+    suspend fun isAvailable(): Boolean
+
+    companion object {
+        // Constants for aviation-specific data transformation
+        const val KNOTS_TO_MS = 0.514444 // Aviation standard conversion
+        const val MS_TO_KNOTS = 1.94384 // Aviation standard conversion
+        const val F_TO_C = -17.2222 // Temperature conversion offset
+        const val MB_TO_INHG = 0.02953 // Pressure conversion
+    }
+}
+
+/**
+ * OpenMeteo Weather API - European Data Source
+ * Based on iOS implementation reference
+ */
+class OpenMeteoWeatherAPI : WeatherAPI {
+
+    // OpenMeteo client with aviation-optimized timeouts
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS) // Faster than general API limits
+        .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)    // Handle large forecast responses
+        .writeTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+        .retryOnConnectionFailure(true)
+        .build()
+
+    companion object {
+        // OpenMeteo API configuration
+        private const val BASE_URL = "https://api.open-meteo.com/v1/forecast"
+        private const val HOURLY_PARAMS = "temperature_2m,relative_humidity_2m,precipitation_probability,pressure_msl,wind_speed_10m,wind_direction_10m"
+        private const val DAILY_PARAMS = "temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max,wind_direction_10m_dominant,sunrise,sunset"
+        private const val FORECAST_DAYS = 7
+        private const val FORECAST_HOURS = 48 // Two days of hourly data
+    }
+
+    override suspend fun isAvailable(): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val testRequest = Request.Builder()
+                .url("$BASE_URL?latitude=51.5&longitude=-0.1&hourly=temperature_2m&forecast_days=1")
+                .build()
+
+            client.newCall(testRequest).execute().use { response ->
+                response.isSuccessful
+            }
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    override suspend fun fetchForecast(lat: Double, lng: Double): WeatherForecast? = withContext(Dispatchers.IO) {
+        try {
+            val url = buildUrl(lat, lng)
+            val request = Request.Builder().url(url).build()
+
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext null
+
+                val body = response.body?.string() ?: return@withContext null
+                parseForecast(body, lat, lng)
+            }
+        } catch (e: IOException) {
+            // Aviation-grade - fail gracefully without breaking app
+            android.util.Log.w("OpenMeteoWeatherAPI", "Network error fetching forecast", e)
+            null
+        } catch (e: Exception) {
+            // Any parsing/other errors - fail gracefully
+            android.util.Log.w("OpenMeteoWeatherAPI", "Error parsing forecast data", e)
+            null
+        }
+    }
+
+    private fun buildUrl(lat: Double, lng: Double): String {
+        return "$BASE_URL?latitude=$lat&longitude=$lng" +
+               "&hourly=$HOURLY_PARAMS" +
+               "&daily=$DAILY_PARAMS" +
+               "&forecast_days=$FORECAST_DAYS" +
+               "&timezone=auto" +
+               "&windspeed_unit=kn" // Crucial for aviation - knots standard
+    }
+
+    private fun parseForecast(jsonString: String, lat: Double, lng: Double): WeatherForecast? {
+        try {
+            @Suppress("UNCHECKED_CAST")
+            val jsonData = mapper.readValue<Map<String, Any>>(jsonString)
+
+            val current = extractCurrentWeather(jsonData, lat, lng)
+            val hourly = extractHourlyForecast(jsonData)
+            val daily = extractDailyForecast(jsonData)
+
+            return WeatherForecast(
+                current = current,
+                daily = daily,
+                hourly = hourly
+            )
+        } catch (e: Exception) {
+            android.util.Log.w("OpenMeteoWeatherAPI", "Failed to parse forecast JSON", e)
+            return null
+        }
+    }
+
+    private fun extractCurrentWeather(jsonData: Map<String, Any>, lat: Double, lng: Double): WeatherData? {
+        try {
+            @Suppress("UNCHECKED_CAST")
+            val hourly = jsonData["hourly"] as? Map<String, Any> ?: return null
+
+            // Get first (current) hour data
+            @Suppress("UNCHECKED_CAST")
+            val temperatures = hourly["temperature_2m"] as? List<Number> ?: return null
+            @Suppress("UNCHECKED_CAST")
+            val humidities = hourly["relative_humidity_2m"] as? List<Number> ?: return null
+            @Suppress("UNCHECKED_CAST")
+            val windSpeeds = hourly["wind_speed_10m"] as? List<Number> ?: return null
+            @Suppress("UNCHECKED_CAST")
+            val windDirections = hourly["wind_direction_10m"] as? List<Number> ?: return null
+            @Suppress("UNCHECKED_CAST")
+            val pressures = hourly["pressure_msl"] as? List<Number> ?: return null
+
+            if (temperatures.isEmpty()) return null
+
+            return WeatherData(
+                wind = WindData(
+                    speed = windSpeeds.firstOrNull()?.toDouble() ?: 0.0,
+                    direction = windDirections.firstOrNull()?.toDouble() ?: 0.0
+                ),
+                temperature = temperatures.first().toDouble(),
+                humidity = humidities.firstOrNull()?.toDouble() ?: 0.0,
+                visibility = 10.0, // OpenMeteo doesn't provide visibility directly
+                pressure = pressures.firstOrNull()?.toDouble() ?: 1013.25,
+                timestamp = System.currentTimeMillis() / 1000
+            )
+        } catch (e: Exception) {
+            android.util.Log.w("OpenMeteoWeatherAPI", "Failed to extract current weather", e)
+            return null
+        }
+    }
+
+    private fun extractHourlyForecast(jsonData: Map<String, Any>): List<ForecastPeriod> {
+        val periods = mutableListOf<ForecastPeriod>()
+        try {
+            @Suppress("UNCHECKED_CAST")
+            val hourly = jsonData["hourly"] as? Map<String, Any> ?: return emptyList()
+
+            @Suppress("UNCHECKED_CAST")
+            val times = hourly["time"] as? List<String> ?: return emptyList()
+            @Suppress("UNCHECKED_CAST")
+            val temperatures = hourly["temperature_2m"] as? List<Number> ?: return emptyList()
+            @Suppress("UNCHECKED_CAST")
+            val humidities = hourly["relative_humidity_2m"] as? List<Number> ?: return emptyList()
+            @Suppress("UNCHECKED_CAST")
+            val windSpeeds = hourly["wind_speed_10m"] as? List<Number> ?: return emptyList()
+            @Suppress("UNCHECKED_CAST")
+            val windDirections = hourly["wind_direction_10m"] as? List<Number> ?: return emptyList()
+            @Suppress("UNCHECKED_CAST")
+            val pressures = hourly["pressure_msl"] as? List<Number> ?: return emptyList()
+
+            val maxPeriods = minOf(times.size, FORECAST_HOURS, temperatures.size)
+
+            for (i in 0 until maxPeriods) {
+                try {
+                    // Parse time (format: 2025-10-02T13:00)
+                    val timeString = times[i]
+                    val startTime = parseTimeString(timeString) ?: continue
+
+                    val weather = WeatherData(
+                        wind = WindData(
+                            speed = windSpeeds.getOrNull(i)?.toDouble() ?: 0.0,
+                            direction = windDirections.getOrNull(i)?.toDouble() ?: 0.0
+                        ),
+                        temperature = temperatures[i].toDouble(),
+                        humidity = humidities.getOrNull(i)?.toDouble() ?: 0.0,
+                        visibility = 10.0,
+                        pressure = pressures.getOrNull(i)?.toDouble() ?: 1013.25,
+                        timestamp = startTime
+                    )
+
+                    periods.add(ForecastPeriod(
+                        startTime = startTime,
+                        endTime = startTime + 3600, // 1 hour later
+                        weather = weather,
+                        shortForecast = "Hourly forecast"
+                    ))
+                } catch (e: Exception) {
+                    // Skip malformed periods but continue processing others
+                    android.util.Log.w("OpenMeteoWeatherAPI", "Skipping malformed hourly period $i", e)
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("OpenMeteoWeatherAPI", "Failed to extract hourly forecast", e)
+        }
+        return periods
+    }
+
+    private fun extractDailyForecast(jsonData: Map<String, Any>): List<ForecastPeriod> {
+        val periods = mutableListOf<ForecastPeriod>()
+        try {
+            @Suppress("UNCHECKED_CAST")
+            val daily = jsonData["daily"] as? Map<String, Any> ?: return emptyList()
+
+            @Suppress("UNCHECKED_CAST")
+            val times = daily["time"] as? List<String> ?: return emptyList()
+            @Suppress("UNCHECKED_CAST")
+            val maxTemps = daily["temperature_2m_max"] as? List<Number> ?: return emptyList()
+            @Suppress("UNCHECKED_CAST")
+            val minTemps = daily["temperature_2m_min"] as? List<Number> ?: return emptyList()
+            @Suppress("UNCHECKED_CAST")
+            val windSpeeds = daily["wind_speed_10m_max"] as? List<Number> ?: return emptyList()
+            @Suppress("UNCHECKED_CAST")
+            val windDirections = daily["wind_direction_10m_dominant"] as? List<Number> ?: return emptyList()
+
+            val maxPeriods = minOf(times.size, FORECAST_DAYS, maxTemps.size)
+
+            for (i in 0 until maxPeriods) {
+                try {
+                    val timeString = times[i]
+                    val startTime = parseTimeString(timeString) ?: continue
+
+                    // Use max temp as representative temperature
+                    val maxTempValue = maxTemps[i].toDouble()
+                    val minTempValue = minTemps.getOrNull(i)?.toDouble()
+                    val avgTemp = if (minTempValue != null) {
+                        (maxTempValue + minTempValue) / 2.0
+                    } else {
+                        maxTempValue
+                    }
+
+                    val weather = WeatherData(
+                        wind = WindData(
+                            speed = windSpeeds.getOrNull(i)?.toDouble() ?: 0.0,
+                            direction = windDirections.getOrNull(i)?.toDouble() ?: 0.0
+                        ),
+                        temperature = avgTemp,
+                        humidity = 50.0, // Approximate
+                        visibility = 10.0,
+                        pressure = 1013.25, // Approximate
+                        timestamp = startTime
+                    )
+
+                    periods.add(ForecastPeriod(
+                        startTime = startTime,
+                        endTime = startTime + 86400, // 24 hours later
+                        weather = weather,
+                        shortForecast = "Daily forecast"
+                    ))
+                } catch (e: Exception) {
+                    android.util.Log.w("OpenMeteoWeatherAPI", "Skipping malformed daily period $i", e)
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("OpenMeteoWeatherAPI", "Failed to extract daily forecast", e)
+        }
+        return periods
+    }
+
+    private fun parseTimeString(timeString: String): Long? {
+        return try {
+            // Format: 2025-10-02T13:00
+            val formatter = java.time.format.DateTimeFormatter.ISO_LOCAL_DATE_TIME
+            val dateTime = java.time.LocalDateTime.parse(timeString, formatter)
+            val zoneOffset = java.time.ZoneOffset.UTC
+            val zoned = dateTime.atOffset(zoneOffset)
+            zoned.toEpochSecond()
+        } catch (e: Exception) {
+            android.util.Log.w("OpenMeteoWeatherAPI", "Failed to parse time: $timeString", e)
+            null
+        }
+    }
+}
