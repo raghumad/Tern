@@ -8,7 +8,7 @@ import kotlinx.coroutines.launch
 import org.osmdroid.util.GeoPoint
 
 /**
- * Redux store for map functionality
+ * Redux store for map functionality - Map + Weather state management
  */
 class MapStore : ViewModel() {
 
@@ -22,9 +22,15 @@ class MapStore : ViewModel() {
         }
     }
 
-    fun dispatch(actions: List<MapAction>) {
-        actions.forEach(::dispatch)
+    fun dispatch(action: WeatherActions) {
+        viewModelScope.launch {
+            val newState = weatherReducer(_state.value, action)
+            _state.value = newState
+        }
     }
+
+    // Removed list dispatch methods due to JVM signature conflicts
+    // Single action dispatch is sufficient for our use cases
 
     // Helper methods for common actions
     fun updateRotation(rotation: Float) = dispatch(MapAction.UpdateRotation(rotation))

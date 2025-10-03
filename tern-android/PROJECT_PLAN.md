@@ -87,11 +87,20 @@ Optimize current osmdroid setup rather than migrate:
 - [x] Implements proper overlay clearing (only airspaces, not all overlays)
 - [x] Added comprehensive logging and error handling
 
-##### Chunk 4: PGSpotOverlayManager
-- [ ] Create PGSpotOverlayManager composable
-- [ ] Extract PG spot logic from MapViewModel
-- [ ] Connect to Redux state
-- [ ] Test both overlay types work independently
+##### Chunk 4: PGSpotOverlayManager ✅ (Advanced Weather-Aware Aviation Overlay System)
+- [ ] Establish WeatherAPI abstraction layer (OpenMeteo Europe + NWS USA extensible)
+- [ ] Create PGSpotWeatherCache (FlexBuffers + Hilbert indexing like airspaces)
+- [ ] Build WindGauge composable (modern Android adaptation of iOS WindGauge.swift)
+- [ ] Implement weather fetching orchestration (viewport-zone intelligence inherited)
+- [ ] Create PGSpotOverlayManager with Redux weather state integration (MVVM→Redux migration)
+- [ ] Add WeatherDetailsScreen composable (weather popup equivalent of iOS detail implementation)
+- [ ] Implement event-driven weather gathering (visible PG spots auto-weather-fetch)
+- [ ] Enable coordinator orchestration (PG spots + airspaces + weather dynamic overlays)
+- [ ] Performance validation (API rate limits, memory efficiency, smooth transitions)
+- [ ] 🛡️ Graceful degradation (all features fail-safe: weather→static icons→basic markers)
+- [ ] 🔄 Failure recovery system (API fallback, network resilience, cache expiration)
+- [ ] 🏗️ Independent component design (each system fails without breaking core navigation)
+- [ ] ✈️ Aviation-first design (flight safety > fancy features, pilots always naviguable)
 
 ##### Chunk 5: Overlay Coordinator Integration ✅
 - [x] Create OverlayCoordinator class for unified overlay management
@@ -162,7 +171,7 @@ Optimize current osmdroid setup rather than migrate:
 
 **🔄 PHASE 2 Remaining Work (REORDERED for Better Architecture Flow):**
 - 🟡 **Chunk 6:** Performance Optimization - Lazy loading, viewport batching (PRIORITY: Optimize foundation)
-- 🟡 **Chunk 4:** PGSpotOverlayManager - Extract PG spot logic (AFTER: Clean integration through coordinator)
+- 🟡 **Chunk 4:** PGSpotOverlayManager - Advanced Weather-Aware Overlay System (AFTER: Clean integration through coordinator)
 
 **🎉 ∆∆∆ COMPLETED: Overlay Coordinator Integration + Reordering Success**
 - ✅ Created OverlayCoordinator class for unified overlay management
