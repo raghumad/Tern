@@ -463,9 +463,12 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
             if (features == null) {
                 // Download from OpenAIP
                 val url = "https://storage.googleapis.com/29f98e10-a489-4c82-ae5e-489dbcd4912f/${countryCode}_asp.ndgeojson"
+                Log.d(TAG, "Downloading airspace data from: $url")
+
                 val ndGeoJsonString = GeoJsonUtils.downloadGeoJson(url)
 
                 if (ndGeoJsonString != null) {
+                    Log.d(TAG, "Successfully downloaded ${ndGeoJsonString.length} bytes of airspace data")
                     // Cache the downloaded data
                     airspaceCache.cacheData(countryCode, ndGeoJsonString)
                     features = airspaceCache.getCachedFeatures(countryCode)

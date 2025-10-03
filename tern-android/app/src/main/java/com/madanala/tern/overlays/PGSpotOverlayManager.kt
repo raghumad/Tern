@@ -12,14 +12,17 @@ import com.madanala.tern.redux.OverlayType
 import com.madanala.tern.redux.WeatherActions
 import com.madanala.tern.utils.AirspaceCache
 import com.madanala.tern.utils.GeoJsonUtils
+import com.madanala.tern.utils.PGSpotCache
 import com.madanala.tern.utils.PGSpotWeatherCache
 import com.madanala.tern.utils.WeatherAPI
 import com.madanala.tern.utils.OpenMeteoWeatherAPI
 import com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
@@ -50,8 +53,8 @@ class PGSpotOverlayManager(
         private const val WEATHER_FETCH_DEBOUNCE_MS = 1000L // Debounce rapid viewport changes
     }
 
-    // Aviation-grade weather infrastructure
-    private val pgSpotCache = AirspaceCache(applicationContext) // Reusing robust cache for PG spots
+    // Aviation-grade weather infrastructure - specialized caches for each data type
+    private val pgSpotCache = PGSpotCache(applicationContext) // Dedicated PG spots cache with FlexBuffers + Hilbert
     private val weatherCache = PGSpotWeatherCache(applicationContext)
     private val weatherAPI: WeatherAPI = OpenMeteoWeatherAPI() // Extensible to multiple APIs
 
@@ -353,41 +356,42 @@ class PGSpotOverlayManager(
                 clearOverlays()
             }
 
-            // Load from robust caching system (reuse airspace patterns)
-            var features = pgSpotCache.getCachedFeatures(countryCode)
+            // 🗺️ FlexBuffers + Hilbert Caching Architecture for PG Spots
+            var nearbyFeatures: List<OverlayFeature>
 
-            if (features == null) {
-                // Download PG spots data (placeholder - your actual data source)
-                val url = "https://storage.googleapis.com/YOUR_PG_SPOTS_ENDPOINT/${countryCode}_pg_spots.ndgeojson"
-                val ndGeoJsonString = GeoJsonUtils.downloadGeoJson(url)
+            if (!pgSpotCache.isCached(countryCode)) {
+                // DOWNLOAD + PARSE + CACHE as FlexBuffers with Hilbert spatial index
+                Log.d(TAG, "No cached PG spots for $countryCode, downloading fresh data")
+                val downloadedFeatures = withContext(Dispatchers.IO) {
+                    pgSpotCache.cachePGSpotsData(countryCode)
+                }
 
-                if (ndGeoJsonString != null) {
-                    Log.d(TAG, "Downloaded PG spots data for $countryCode (${ndGeoJsonString.length} bytes)")
-                    pgSpotCache.cacheData(countryCode, ndGeoJsonString)
-                    features = pgSpotCache.getCachedFeatures(countryCode)
+                if (downloadedFeatures != null) {
+                    Log.d(TAG, "Downloaded and cached ${downloadedFeatures.size} PG spots for $countryCode")
+                    // Now perform spatial query on the newly cached data
+                    nearbyFeatures = pgSpotCache.queryNearbyPGSpots(countryCode, center, 50.0)
                 } else {
                     Log.w(TAG, "Failed to download PG spots data for $countryCode")
                     return // Graceful degradation - weather works without PG spots
                 }
             } else {
-                Log.d(TAG, "Loaded cached PG spots for $countryCode (${features.size} features)")
+                // CACHED: Use Hilbert spatial query for nearby features only
+                Log.d(TAG, "Using cached PG spots for $countryCode, performing spatial query")
+                nearbyFeatures = pgSpotCache.queryNearbyPGSpots(countryCode, center, 50.0)
             }
 
-            if (features != null && features.isNotEmpty()) {
-            // Aviation intelligence: Load the right PG spots for current activity
-            val nearbyFeatures = loadPGSpotsZoneSpecific(countryCode, center, features)
+            Log.d(TAG, "Spacial query returned ${nearbyFeatures.size} PG spots within 50 miles")
 
             if (nearbyFeatures.isNotEmpty()) {
                 renderPGSpotFeaturesWithWeather(nearbyFeatures)
 
                 // Initial weather orchestration for loaded PG spots
                 launchWeatherFetchingForVisiblePGSpots()
-            }
 
                 currentCountryCode = countryCode
                 lastCheckLocation = center
             } else {
-                Log.w(TAG, "No PG spots data available for $countryCode - weather system remains available")
+                Log.d(TAG, "No PG spots found within 50 miles of $center")
             }
 
         } catch (e: CancellationException) {
@@ -471,11 +475,7 @@ class PGSpotOverlayManager(
     private fun initiateWeatherSystem() { /* Weather system startup */ }
     private fun shutdownWeatherSystem() { /* Weather system cleanup */ }
 
-    // Zone-based loading (inherited from airspace system)
-    private fun loadPGSpotsZoneSpecific(countryCode: String, center: GeoPoint, features: List<OverlayFeature>): List<OverlayFeature> {
-        // Simplified implementation - in production, use same zone logic as airspaces
-        return features.take(maxPGSpots) // Limit for performance
-    }
+
 
     private fun generatePGSpotId(feature: OverlayFeature): String {
         // Generate unique ID for PG spot tracking
