@@ -102,6 +102,56 @@ object MapOverlayCacheUtils {
         return features
     }
 
+    /**
+     * Parse standard GeoJSON FeatureCollection to list of OverlayFeature
+     */
+    fun parseGeoJsonToFeatures(geoJsonString: String, overlayType: String): List<OverlayFeature> {
+        val features = mutableListOf<OverlayFeature>()
+
+        android.util.Log.d("MapOverlayCacheUtils", "Parsing GeoJSON FeatureCollection")
+
+        try {
+            val geoJson: Map<String, Any> = mapper.readValue(geoJsonString)
+
+            val type = geoJson["type"] as? String
+            if (type != "FeatureCollection") {
+                android.util.Log.w("MapOverlayCacheUtils", "Expected FeatureCollection, got $type")
+                return emptyList()
+            }
+
+            @Suppress("UNCHECKED_CAST")
+            val featureList = geoJson["features"] as? List<Map<String, Any>> ?: emptyList()
+
+            android.util.Log.d("MapOverlayCacheUtils", "Parsing ${featureList.size} GeoJSON features for type: $overlayType")
+
+            var skippedNoGeometry = 0
+            var skippedNoCentroid = 0
+
+            featureList.forEach { feature ->
+                @Suppress("UNCHECKED_CAST")
+                val geometry = feature["geometry"] as? Map<String, Any>
+                if (geometry != null) {
+                    val centroid = computeCentroid(geometry)
+                    if (centroid != null) {
+                        val hilbertIndex = computeHilbertIndex(centroid, 16) // 16-bit precision
+                        features.add(OverlayFeature(feature, centroid, hilbertIndex, overlayType))
+                    } else {
+                        skippedNoCentroid++
+                    }
+                } else {
+                    skippedNoGeometry++
+                }
+            }
+
+            android.util.Log.d("MapOverlayCacheUtils", "Parsed ${features.size} features. Skipped: noGeometry=$skippedNoGeometry, noCentroid=$skippedNoCentroid")
+
+        } catch (e: Exception) {
+            android.util.Log.e("MapOverlayCacheUtils", "Error parsing GeoJSON", e)
+        }
+
+        return features
+    }
+
 
 
     /**

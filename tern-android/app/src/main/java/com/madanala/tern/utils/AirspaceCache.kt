@@ -267,17 +267,23 @@ class AirspaceCache(private val context: Context) {
         // Check in-memory cache first
         memoryMappedBuffers[countryCode]?.let { return it }
 
-        // Create memory-mapped buffer
+        // Create memory-mapped buffer with proper resource management
         return try {
             val dataFile = File(cacheDir, "${countryCode}_airspace.flex")
             if (!dataFile.exists()) return null
 
-            val randomAccessFile = RandomAccessFile(dataFile, "r")
-            val fileChannel = randomAccessFile.channel
-            val buffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, 0, dataFile.length())
+            // Use proper resource management - RandomAccessFile and FileChannel will be auto-closed
+            RandomAccessFile(dataFile, "r").use { randomAccessFile ->
+                randomAccessFile.channel.use { fileChannel ->
+                    val buffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, 0, dataFile.length())
 
-            memoryMappedBuffers[countryCode] = buffer
-            buffer
+                    // Cache the memory-mapped buffer for fast access
+                    memoryMappedBuffers[countryCode] = buffer
+
+                    Log.v(TAG, "✅ Created memory-mapped buffer for airspaces $countryCode (${dataFile.length()} bytes)")
+                    buffer
+                }
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Error creating memory-mapped buffer for $countryCode", e)
             null

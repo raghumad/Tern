@@ -88,19 +88,35 @@ Optimize current osmdroid setup rather than migrate:
 - [x] Added comprehensive logging and error handling
 
 ##### Chunk 4: PGSpotOverlayManager ✅ (Advanced Weather-Aware Aviation Overlay System)
-- [ ] Establish WeatherAPI abstraction layer (OpenMeteo Europe + NWS USA extensible)
-- [ ] Create PGSpotWeatherCache (FlexBuffers + Hilbert indexing like airspaces)
-- [ ] Build WindGauge composable (modern Android adaptation of iOS WindGauge.swift)
-- [ ] Implement weather fetching orchestration (viewport-zone intelligence inherited)
-- [ ] Create PGSpotOverlayManager with Redux weather state integration (MVVM→Redux migration)
-- [ ] Add WeatherDetailsScreen composable (weather popup equivalent of iOS detail implementation)
-- [ ] Implement event-driven weather gathering (visible PG spots auto-weather-fetch)
-- [ ] Enable coordinator orchestration (PG spots + airspaces + weather dynamic overlays)
-- [ ] Performance validation (API rate limits, memory efficiency, smooth transitions)
-- [ ] 🛡️ Graceful degradation (all features fail-safe: weather→static icons→basic markers)
-- [ ] 🔄 Failure recovery system (API fallback, network resilience, cache expiration)
-- [ ] 🏗️ Independent component design (each system fails without breaking core navigation)
-- [ ] ✈️ Aviation-first design (flight safety > fancy features, pilots always naviguable)
+- [x] Establish WeatherAPI abstraction layer (OpenMeteo Europe + NWS USA extensible) - **WeatherAPI.kt & OpenMeteoWeatherAPI.kt**
+- [x] Create PGSpotWeatherCache (FlexBuffers + Hilbert indexing like airspaces) - **PGSpotWeatherCache.kt**
+- [x] Build WindGauge composable (modern Android adaptation of iOS WindGauge) - **Implemented in PGSpotOverlayManager.kt**
+- [x] Implement weather fetching orchestration (viewport-zone intelligence inherited) - **Redux WeatherActions & state**
+- [x] Create PGSpotOverlayManager with Redux weather state integration (MVVM→Redux migration)
+- [ ] Add WeatherDetailsScreen composable (weather popup equivalent of iOS detail implementation) - **Placeholder method exists, composable needs implementation**
+- [ ] Implement event-driven weather gathering (visible PG spots auto-weather-fetch) - *Needs PGSpotOverlayManager integration*
+- [ ] Enable coordinator orchestration (PG spots + airspaces + weather dynamic overlays) - *Needs coordinator integration*
+- [ ] Performance validation (API rate limits, memory efficiency, smooth transitions) - *Needs full coordinator performance testing*
+- [x] 🛡️ Graceful degradation (any feature fails without breaking core navigation)
+- [ ] 🔄 Failure recovery system (API fallback, network resilience, cache expiration) - *Basic error handling implemented*
+- [x] 🏗️ Independent component design (each system fails without breaking core navigation) - **Aviation-grade resilience achieved**
+- [x] ✈️ Aviation-first design (flight safety > fancy features, pilots never stranded)
+
+**📋 Chunk 4 Uncommitted Changes:**
+- **NEW:** `PGSpotCache.kt` - Aviation-grade PG spot caching with FlexBuffers/Hilbert (separate from AirspaceCache)
+- **MODIFIED:** `PGSpotOverlayManager.kt` - Weather-integrated PG spot display system
+- **MODIFIED:** `MapOverlayCacheUtils.kt` - Added `parseGeoJsonToFeatures()` for standard GeoJSON handling
+- **MODIFIED:** `AirspaceCache.kt` - Fixed resource leak in `getMemoryMappedBuffer()` using `.use {}` pattern
+- **MODIFIED:** `MapViewModel.kt` - Enhanced logging for airspace checking
+
+**🎯 Chunk 4 Delivery Status:**
+- ✅ **Weather API Layer:** Production-ready OpenMeteo integration with aviation units (knots, hPa)
+- ✅ **Weather Caching:** Separate PGSpotWeatherCache with FlexBuffers/Hilbert indexing
+- ✅ **Weather Integration:** PG spots show wind gauges on marker titles, Redux weather state management
+- ✅ **Resource Management:** Fixed file/resource leaks, proper OkHttp `.use {}` everywhere
+- ✅ **Aviation Standards:** Weather failures degrade gracefully to static markers (pilots always navigable)
+- ✅ **Architecture:** Separate caches prevent contamination (PG weather bugs ≠ airspace safety failures)
+- 🟡 **WeatherDetailsScreen:** Placeholder method exists, composable needs implementation
 
 ##### Chunk 5: Overlay Coordinator Integration ✅
 - [x] Create OverlayCoordinator class for unified overlay management
