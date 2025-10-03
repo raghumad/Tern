@@ -38,8 +38,21 @@ class AirspaceOverlayManager(
 
     // Thresholds for loading (from MapViewModel constants)
     private val checkDistanceKm = 5.0
-    private val filterRadiusMiles = 300.0
     private val reFilterDistanceKm = 80.0
+
+    // Intelligent limits to prevent memory pressure crashes
+    private val maxTotalAirspaces = 150       // Hard limit to prevent ANR
+    private val maxAirspacesPerZone = 50      // Limit per zone loading
+    private val maxViewportAirspaces = 100    // Most critical - what's actually visible
+
+    // More conservative zone-to-radius mapping
+    // Reduced radii and added proper limits to prevent memory explosion
+    private val zoneFilterRadii = mapOf(
+        ViewportLoadingManager.LoadingZone.VIEWPORT_VISIBLE to 15.0,   // Even smaller for memory safety
+        ViewportLoadingManager.LoadingZone.NEAR_VIEWPORT to 50.0,      // Reduced - still good for panning
+        ViewportLoadingManager.LoadingZone.FAR_VIEWPORT to 100.0,      // Reduced - cache farther away opportunistically
+        ViewportLoadingManager.LoadingZone.OFFSCREEN to 0.0            // Never load
+    )
 
     // Performance limits for resource management - configurable value imported
 
@@ -151,7 +164,7 @@ class AirspaceOverlayManager(
     }
 
     /**
-     * Load airspace data for a specific location (extracted from MapViewModel)
+     * Load airspace data for a specific location using viewport-zone intelligence
      */
     private suspend fun loadAirspaceForLocation(context: Context, center: GeoPoint) {
         try {
@@ -165,40 +178,6 @@ class AirspaceOverlayManager(
             }
 
             Log.d(TAG, "Country code: $countryCode")
-
-            // Check if we already have this country's data loaded
-            if (countryCode == currentCountryCode) {
-                // Check if we've moved far enough to warrant re-filtering
-                lastCheckLocation?.let { lastLocation ->
-                    val distance = lastLocation.distanceToAsDouble(center)
-                    val distanceKm = distance / 1000.0
-
-                    if (distanceKm > reFilterDistanceKm) {
-                        Log.d(TAG, String.format("Moved far enough (%.1f km > %.1f km), re-filtering airspaces",
-                            distanceKm, reFilterDistanceKm))
-
-                        // Query nearby features using Hilbert index
-                        val nearbyFeatures = airspaceCache.queryNearbyFeatures(countryCode, center, filterRadiusMiles)
-                        if (nearbyFeatures.isNotEmpty()) {
-                            renderAirspaceFeatures(nearbyFeatures)
-                        } else {
-                            Log.d(TAG, "No nearby airspaces after re-filtering")
-                        }
-
-                        // Update the last check location
-                        lastCheckLocation = center
-                        return
-                    } else {
-                        Log.d(TAG, "Still within same airspace area, no reload needed")
-                        return
-                    }
-                }
-            }
-
-            Log.d(TAG, "Loading airspaces for new country: $countryCode")
-
-            // Clear all rendered airspaces when switching countries
-            currentlyRenderedAirspaces.clear()
 
             // Try to load from cache first (airspaces cached for 30 days)
             var features = airspaceCache.getCachedFeatures(countryCode)
@@ -222,9 +201,8 @@ class AirspaceOverlayManager(
             }
 
             if (features != null && features.isNotEmpty()) {
-                // Query nearby features and render them
-                val nearbyFeatures = airspaceCache.queryNearbyFeatures(countryCode, center, filterRadiusMiles)
-                Log.d(TAG, "Filtered ${nearbyFeatures.size} nearby airspaces out of ${features.size} total")
+                // Use viewport-zone intelligence to load the right amount of data
+                val nearbyFeatures = loadZoneSpecificFeatures(countryCode, center, features)
 
                 if (nearbyFeatures.isNotEmpty()) {
                     renderAirspaceFeatures(nearbyFeatures)
@@ -244,6 +222,86 @@ class AirspaceOverlayManager(
         } catch (e: Exception) {
             Log.e(TAG, "Error loading airspace data", e)
         }
+    }
+
+    /**
+     * Load airspace features using viewport-zone intelligence instead of fixed radius
+     * ENFORCES HARD MEMORY LIMITS to prevent ANR crashes
+     */
+    private fun loadZoneSpecificFeatures(countryCode: String, center: GeoPoint, allFeatures: List<OverlayFeature>): List<OverlayFeature> {
+        // Determine current viewport for zone calculations
+        val viewport = mapView?.boundingBox ?: return emptyList()
+
+        // Calculate which zones we need to query
+        val activeZones = determineActiveLoadingZones(viewport)
+
+        // Query data for each active zone with appropriate radius, enforcing per-zone limits
+        val allZoneFeatures = mutableListOf<OverlayFeature>()
+        var totalAdded = 0
+
+        for (zone in activeZones) {
+            val radius = zoneFilterRadii[zone] ?: continue
+            if (radius <= 0.0) continue // Skip off-screen zones
+
+            Log.d(TAG, "Querying zone $zone with radius ${radius}mi from center (limit: $maxAirspacesPerZone)")
+            val zoneFeatures = airspaceCache.queryNearbyFeatures(countryCode, center, radius)
+
+            // Enforce per-zone limit to prevent memory explosion
+            val limitedZoneFeatures = if (zoneFeatures.size > maxAirspacesPerZone) {
+                Log.w(TAG, "Zone $zone exceeded limit (${zoneFeatures.size} > $maxAirspacesPerZone), trimming")
+                zoneFeatures.take(maxAirspacesPerZone)
+            } else {
+                zoneFeatures
+            }
+
+            // Check if adding these would exceed total limit
+            if (totalAdded + limitedZoneFeatures.size > maxTotalAirspaces) {
+                val remainingSlots = maxTotalAirspaces - totalAdded
+                if (remainingSlots <= 0) break // No more room
+
+                Log.w(TAG, "Zone $zone would exceed total limit (${limitedZoneFeatures.size} would make ${totalAdded + limitedZoneFeatures.size} > $maxTotalAirspaces), taking $remainingSlots")
+                allZoneFeatures.addAll(limitedZoneFeatures.take(remainingSlots))
+                totalAdded += remainingSlots
+                break // Stop loading more zones
+            } else {
+                allZoneFeatures.addAll(limitedZoneFeatures)
+                totalAdded += limitedZoneFeatures.size
+            }
+
+            Log.d(TAG, "Zone $zone contributed ${limitedZoneFeatures.size} features (total so far: $totalAdded)")
+        }
+
+        // Remove duplicates within the allocated limit
+        val deduplicatedFeatures = allZoneFeatures.distinctBy { generateAirspaceId(it) }
+
+        // Final hard limit enforcement
+        val finalFeatures = if (deduplicatedFeatures.size > maxTotalAirspaces) {
+            Log.w(TAG, "Hard limit exceeded (${deduplicatedFeatures.size} > $maxTotalAirspaces), enforcing limit")
+            deduplicatedFeatures.take(maxTotalAirspaces)
+        } else {
+            deduplicatedFeatures
+        }
+
+        Log.d(TAG, "Final airspace load: ${finalFeatures.size} features (total airspace limit: $maxTotalAirspaces)")
+
+        if (finalFeatures.size >= maxTotalAirspaces) {
+            Log.w(TAG, "⚠️ WARNING: Reached maximum airspace capacity (${maxTotalAirspaces}). Consider zooming in to reduce airspace count.")
+        }
+
+        return finalFeatures
+    }
+
+    /**
+     * Determine which loading zones should be active based on current state
+     */
+    private fun determineActiveLoadingZones(viewport: BoundingBox): List<ViewportLoadingManager.LoadingZone> {
+        // For initial implementation, load from all zones except OFFSCREEN
+        // This ensures complete coverage while building toward more intelligent zone selection
+        return listOf(
+            ViewportLoadingManager.LoadingZone.VIEWPORT_VISIBLE,
+            ViewportLoadingManager.LoadingZone.NEAR_VIEWPORT,
+            ViewportLoadingManager.LoadingZone.FAR_VIEWPORT
+        )
     }
 
     /**
@@ -361,20 +419,41 @@ class AirspaceOverlayManager(
             }
         }
 
-        // If we still have too many airspaces, remove the farthest from center
-        if (currentlyRenderedAirspaces.size - airspacesToRemove.size > MAX_VISIBLE_AIRSPACES) {
-            val remainingAirspaces = currentlyRenderedAirspaces.keys - airspacesToRemove
-            if (remainingAirspaces.size > MAX_VISIBLE_AIRSPACES) {
-                val center = mapView?.mapCenter as? GeoPoint ?: return
-                val airspacesByDistance = remainingAirspaces.sortedBy { airspaceId ->
-                    val polygon = currentlyRenderedAirspaces[airspaceId] ?: return@sortedBy Double.MAX_VALUE
-                    getDistanceFromCenter(polygon, center)
-                }
+        // ENFORCE HARD MEMORY LIMITS to prevent ANR crashes
+        val predictedFinalCount = currentlyRenderedAirspaces.size - airspacesToRemove.size
 
-                // Keep only the closest MAX_VISIBLE_AIRSPACES
-                val extraToRemove = airspacesByDistance.drop(MAX_VISIBLE_AIRSPACES)
-                airspacesToRemove.addAll(extraToRemove)
+        // If we would still exceed the hard limit after viewport cleanup, remove more aggressively
+        if (predictedFinalCount > maxTotalAirspaces) {
+            Log.w(TAG, "Memory pressure detected: ${predictedFinalCount} > ${maxTotalAirspaces} (hard limit)")
+            val remainingAirspaces = currentlyRenderedAirspaces.keys - airspacesToRemove
+            val center = mapView?.mapCenter as? GeoPoint ?: return
+
+            // Sort by distance from center and keep only the closest ones within limit
+            val airspacesByDistance = remainingAirspaces.sortedBy { airspaceId ->
+                val polygon = currentlyRenderedAirspaces[airspaceId] ?: return@sortedBy Double.MAX_VALUE
+                getDistanceFromCenter(polygon, center)
             }
+
+            // Keep only the closest maxTotalAirspaces (hard limit)
+            val extraToRemove = airspacesByDistance.drop(maxTotalAirspaces)
+            airspacesToRemove.addAll(extraToRemove)
+            Log.w(TAG, "Aggressive cleanup: removed ${extraToRemove.size} airspaces to reach ${maxTotalAirspaces} limit")
+        }
+        // Check for viewport-specific limits too
+        else if (predictedFinalCount > maxViewportAirspaces) {
+            val remainingAirspaces = currentlyRenderedAirspaces.keys - airspacesToRemove
+            val center = mapView?.mapCenter as? GeoPoint ?: return
+
+            // Enforce viewport limit by removing farthest airspaces
+            val airspacesByDistance = remainingAirspaces.sortedBy { airspaceId ->
+                val polygon = currentlyRenderedAirspaces[airspaceId] ?: return@sortedBy Double.MAX_VALUE
+                getDistanceFromCenter(polygon, center)
+            }
+
+            // Keep only the maxViewportAirspaces closest ones
+            val viewportToRemove = airspacesByDistance.drop(maxViewportAirspaces)
+            airspacesToRemove.addAll(viewportToRemove)
+            Log.d(TAG, "Viewport limit enforcement: kept ${maxViewportAirspaces} closest airspaces")
         }
 
         // Remove the determined airspaces
@@ -401,16 +480,81 @@ class AirspaceOverlayManager(
 
     /**
      * Check if a polygon is visible in the current viewport
+     * Improved algorithm that considers polygon-to-viewport relationships more robustly
      */
     private fun isPolygonInViewport(polygon: org.osmdroid.views.overlay.Polygon, viewport: BoundingBox): Boolean {
-        // Check if any vertex of the polygon is within the viewport
         @Suppress("DEPRECATION")
-        polygon.points?.forEach { point ->
-            if (point != null && viewport.contains(point)) {
+        val points = polygon.points ?: return false
+
+        // Count vertices inside viewport for better accuracy
+        var verticesInside = 0
+        var totalVertices = 0
+
+        points.forEach { point ->
+            if (point != null) {
+                totalVertices++
+                if (viewport.contains(point)) {
+                    verticesInside++
+                }
+            }
+        }
+
+        // Consider partially visible if:
+        // 1. Any vertex is inside viewport (intersection)
+        if (verticesInside > 0) return true
+
+        // 2. Polygon spans viewport boundaries (viewport is completely inside polygon)
+        // 3. Check viewport corners to see if they fall inside polygon
+        val viewportCorners = listOf(
+            GeoPoint(viewport.latNorth, viewport.lonWest),   // Top-left
+            GeoPoint(viewport.latNorth, viewport.lonEast),   // Top-right
+            GeoPoint(viewport.latSouth, viewport.lonEast),   // Bottom-right
+            GeoPoint(viewport.latSouth, viewport.lonWest)    // Bottom-left
+        )
+
+        // If any viewport corner is inside polygon, it's visible
+        for (corner in viewportCorners) {
+            if (isPointInPolygon(corner, points)) {
                 return true
             }
         }
+
+        // For complex polygons, check viewport center as fallback
+        val viewportCenter = GeoPoint(
+            (viewport.latNorth + viewport.latSouth) / 2.0,
+            (viewport.lonEast + viewport.lonWest) / 2.0
+        )
+        if (isPointInPolygon(viewportCenter, points)) {
+            return true
+        }
+
         return false
+    }
+
+    /**
+     * Check if a point is inside a polygon using ray casting algorithm
+     */
+    private fun isPointInPolygon(point: GeoPoint, polygonPoints: List<GeoPoint>): Boolean {
+        // Ray casting algorithm: count how many times a ray from point intersects polygon edges
+        var inside = false
+        val x = point.longitude
+        val y = point.latitude
+
+        var j = polygonPoints.lastIndex
+        for (i in polygonPoints.indices) {
+            val xi = polygonPoints[i].longitude
+            val yi = polygonPoints[i].latitude
+            val xj = polygonPoints[j].longitude
+            val yj = polygonPoints[j].latitude
+
+            // Check if point crosses edge
+            if (((yi > y) != (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) {
+                inside = !inside
+            }
+            j = i
+        }
+
+        return inside
     }
 
     /**

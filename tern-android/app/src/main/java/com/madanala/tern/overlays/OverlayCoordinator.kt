@@ -1,10 +1,12 @@
 package com.madanala.tern.overlays
 
+import android.content.Context
 import android.util.Log
 import com.madanala.tern.redux.MapState
 import com.madanala.tern.redux.MapStore
 import com.madanala.tern.redux.OverlayConfig
 import com.madanala.tern.redux.OverlayType
+import com.madanala.tern.utils.AirspaceCache
 import org.osmdroid.util.BoundingBox
 import org.osmdroid.views.MapView
 
@@ -28,13 +30,20 @@ class OverlayCoordinator {
     // Store reference for cleanup
     private var mapView: MapView? = null
 
+    // Viewport loading manager for intelligent loading zones
+    private var viewportLoadingManager: ViewportLoadingManager? = null
+
     /**
      * Initialize coordinator with Redux store
      */
-    fun initialize(mapStore: MapStore, mapView: MapView) {
+    fun initialize(mapStore: MapStore, mapView: MapView, context: Context) {
         this.mapStore = mapStore
         this.mapView = mapView
         Log.d(TAG, "OverlayCoordinator initialized")
+
+        // Initialize viewport loading manager for intelligent data loading
+        val airspaceCache = AirspaceCache(context.applicationContext)
+        viewportLoadingManager = ViewportLoadingManager(airspaceCache)
 
         // Start observing Redux state
         startStateObservation()
@@ -105,6 +114,10 @@ class OverlayCoordinator {
      * Notify all overlays of viewport changes for view management
      */
     fun onViewportChanged(viewport: BoundingBox) {
+        // Update viewport loading manager priorities first
+        viewportLoadingManager?.updateViewport(viewport)
+
+        // Then notify all overlay managers
         activeManagers.values.forEach { manager ->
             manager.onViewportChanged(viewport)
         }
@@ -138,7 +151,7 @@ class OverlayCoordinator {
     }
 
     /**
-     * Get performance statistics from all overlays
+     * Get performance statistics from all overlays and viewport loading manager
      */
     fun getPerformanceStats(): Map<String, Any> {
         val stats = mutableMapOf<String, Any>()
@@ -146,7 +159,51 @@ class OverlayCoordinator {
             stats[type.name] = manager.getPerformanceStats()
         }
         stats["total_active_managers"] = activeManagers.size
+
+        // Include viewport loading manager stats
+        viewportLoadingManager?.getLoadingStats()?.let { viewportStats ->
+            stats["viewport_loading"] = viewportStats
+        }
+
         return stats
+    }
+
+    /**
+     * Register a feature as loaded in the viewport loading system
+     */
+    fun registerLoadedFeature(featureId: String, centroid: org.osmdroid.util.GeoPoint,
+                              loadingZone: ViewportLoadingManager.LoadingZone, loadCost: Int = 1) {
+        viewportLoadingManager?.registerLoadedFeature(featureId, centroid, loadingZone, loadCost)
+    }
+
+    /**
+     * Unregister features from the viewport loading system
+     */
+    fun unregisterLoadedFeatures(featureIds: List<String>) {
+        viewportLoadingManager?.unregisterFeatures(featureIds)
+    }
+
+    /**
+     * Get loading zone for a point (viewport intelligence)
+     */
+    fun getLoadingZone(point: org.osmdroid.util.GeoPoint, viewport: BoundingBox): ViewportLoadingManager.LoadingZone? {
+        val center = mapView?.mapCenter as? org.osmdroid.util.GeoPoint ?: return null
+        val buffer = org.osmdroid.util.BoundingBox(
+            center.latitude + 0.1,
+            center.longitude + 0.1,
+            center.latitude - 0.1,
+            center.longitude - 0.1
+        )
+        // Note: This is a simplified implementation - in practice we'd use the current viewport
+        return viewportLoadingManager?.getLoadingZone(point, buffer)
+    }
+
+    /**
+     * Force viewport loading manager to refresh its priorities
+     */
+    fun refreshViewportPriorities(viewport: BoundingBox) {
+        viewportLoadingManager?.updateViewport(viewport)
+        Log.d(TAG, "Refreshed viewport loading priorities")
     }
 
     /**
