@@ -3,15 +3,12 @@ package com.madanala.tern.overlays
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import androidx.lifecycle.LifecycleObserver
-import androidx.lifecycle.OnLifecycleEvent
 import com.madanala.tern.redux.MapState
 import com.madanala.tern.redux.MapStore
 import com.madanala.tern.redux.OverlayConfig
 import com.madanala.tern.redux.OverlayType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.collectLatest
@@ -25,7 +22,7 @@ import org.osmdroid.views.MapView
  */
 abstract class BaseOverlayManager(
     final override val overlayType: OverlayType,
-    protected val mapStore: MapStore
+    protected val mapStore: MapStore?
 ) : OverlayManager {
 
     protected val TAG = "OverlayManager-${overlayType.name}"
@@ -115,29 +112,36 @@ abstract class BaseOverlayManager(
     }
 
     override fun getCurrentConfig(): OverlayConfig? {
-        val state = mapStore.state.value
-        return when (overlayType) {
-            OverlayType.AIRSPACE -> state.overlayState.airspaces
-            OverlayType.PG_SPOTS -> state.overlayState.pgSpots
-            OverlayType.SENSORS -> state.overlayState.sensors
-            OverlayType.TERRAIN -> state.overlayState.terrain
+        // Return default config if no Redux store available (Phase 1)
+        mapStore?.let { store ->
+            val state = store.state.value
+            return when (overlayType) {
+                OverlayType.AIRSPACE -> state.overlayState.airspaces
+                OverlayType.PG_SPOTS -> state.overlayState.pgSpots
+                OverlayType.SENSORS -> state.overlayState.sensors
+                OverlayType.TERRAIN -> state.overlayState.terrain
+            }
         }
+        // Default config when no Redux store (all enabled for stability)
+        return OverlayConfig(enabled = true)
     }
 
     /**
      * Check if this overlay is currently enabled
      */
-    fun isEnabled(): Boolean = getCurrentConfig()?.enabled ?: false
+    fun isEnabled(): Boolean = getCurrentConfig()?.enabled ?: true
 
     /**
      * Start subscribing to Redux state changes
      */
     private fun startReduxSubscription() {
-        stateJob = coroutineScope.launch {
-            mapStore.state.collectLatest { state ->
-                onReduxStateChanged(state)
+        mapStore?.let { store ->
+            stateJob = coroutineScope.launch {
+                store.state.collectLatest { state ->
+                    onReduxStateChanged(state)
+                }
             }
-        }
+        } ?: Log.d(TAG, "No Redux store available - skipping state subscription")
     }
 
     /**
@@ -161,7 +165,7 @@ abstract class BaseOverlayManager(
     /**
      * Perform the actual map move logic after debouncing
      */
-    public abstract override fun performMapMove(center: GeoPoint, zoom: Double)
+    abstract override fun performMapMove(center: GeoPoint, zoom: Double)
 
     /**
      * Handle viewport changes (for performance optimization)
@@ -171,10 +175,10 @@ abstract class BaseOverlayManager(
     /**
      * Called when Redux state changes - override to react to state updates
      */
-    public abstract override fun onReduxStateChanged(state: MapState)
+    abstract override fun onReduxStateChanged(state: MapState)
 
     /**
      * Clear overlays specific to this manager
      */
-    public abstract override fun clearOverlays()
+    abstract override fun clearOverlays()
 }

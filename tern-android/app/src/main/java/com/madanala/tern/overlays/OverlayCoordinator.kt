@@ -36,7 +36,7 @@ class OverlayCoordinator {
     /**
      * Initialize coordinator with Redux store
      */
-    fun initialize(mapStore: MapStore, mapView: MapView, context: Context) {
+    fun initialize(mapStore: MapStore?, mapView: MapView, context: Context) {
         this.mapStore = mapStore
         this.mapView = mapView
         Log.d(TAG, "OverlayCoordinator initialized")
@@ -45,8 +45,12 @@ class OverlayCoordinator {
         val airspaceCache = AirspaceCache(context.applicationContext)
         viewportLoadingManager = ViewportLoadingManager(airspaceCache)
 
-        // Start observing Redux state
-        startStateObservation()
+        // Start observing Redux state if available
+        if (mapStore == null) {
+            Log.d(TAG, "No Redux store - overlay managers will use default configuration")
+        } else {
+            startStateObservation()
+        }
     }
 
     /**
@@ -188,7 +192,7 @@ class OverlayCoordinator {
      */
     fun getLoadingZone(point: org.osmdroid.util.GeoPoint, viewport: BoundingBox): ViewportLoadingManager.LoadingZone? {
         val center = mapView?.mapCenter as? org.osmdroid.util.GeoPoint ?: return null
-        val buffer = org.osmdroid.util.BoundingBox(
+        val buffer = BoundingBox(
             center.latitude + 0.1,
             center.longitude + 0.1,
             center.latitude - 0.1,

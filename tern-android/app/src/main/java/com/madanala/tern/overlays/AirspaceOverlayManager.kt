@@ -5,7 +5,6 @@ import android.util.Log
 import com.madanala.tern.redux.MapState
 import com.madanala.tern.redux.MapStore
 import com.madanala.tern.redux.OverlayType
-import com.madanala.tern.ui.components.MapViewModel.Companion.MAX_VISIBLE_AIRSPACES
 import com.madanala.tern.utils.AirspaceCache
 import com.madanala.tern.utils.CountryUtils
 import com.madanala.tern.utils.GeoJsonUtils
@@ -23,7 +22,7 @@ import org.osmdroid.views.MapView
  */
 class AirspaceOverlayManager(
     private val applicationContext: Context,
-    mapStore: MapStore
+    mapStore: MapStore?
 ) : BaseOverlayManager(OverlayType.AIRSPACE, mapStore) {
 
     private val airspaceCache = AirspaceCache(applicationContext)
@@ -524,11 +523,7 @@ class AirspaceOverlayManager(
             (viewport.latNorth + viewport.latSouth) / 2.0,
             (viewport.lonEast + viewport.lonWest) / 2.0
         )
-        if (isPointInPolygon(viewportCenter, points)) {
-            return true
-        }
-
-        return false
+        return isPointInPolygon(viewportCenter, points)
     }
 
     /**
