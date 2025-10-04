@@ -2,21 +2,16 @@ package com.madanala.tern.overlays
 
 import android.content.Context
 import android.util.Log
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
 import com.madanala.tern.redux.MapState
 import com.madanala.tern.redux.MapStore
 import com.madanala.tern.redux.OverlayConfig
 import com.madanala.tern.redux.OverlayType
 import com.madanala.tern.redux.WeatherActions
-import com.madanala.tern.utils.AirspaceCache
-import com.madanala.tern.utils.GeoJsonUtils
+import com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature
+import com.madanala.tern.utils.OpenMeteoWeatherAPI
 import com.madanala.tern.utils.PGSpotCache
 import com.madanala.tern.utils.PGSpotWeatherCache
 import com.madanala.tern.utils.WeatherAPI
-import com.madanala.tern.utils.OpenMeteoWeatherAPI
-import com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -25,9 +20,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
-import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
-import kotlin.math.pow
 import kotlin.math.roundToInt
 
 /**
@@ -43,7 +36,7 @@ import kotlin.math.roundToInt
  */
 class PGSpotOverlayManager(
     private val applicationContext: Context,
-    mapStore: MapStore
+    mapStore: MapStore?
 ) : BaseOverlayManager(OverlayType.PG_SPOTS, mapStore) {
 
     companion object {
@@ -118,6 +111,18 @@ class PGSpotOverlayManager(
     override fun performMapMove(center: GeoPoint, zoom: Double) {
         if (!isEnabled()) {
             Log.d(TAG, "PG spots disabled, skipping weather-aware map move handling")
+            return
+        }
+
+        // Aviation safety: Validate coordinates to prevent invalid operations during app startup
+        if (center.latitude == 0.0 && center.longitude == 0.0) {
+            Log.w(TAG, "Invalid coordinates (0.0, 0.0) - skipping PG spot loading to prevent 'country not found' operations")
+            return
+        }
+
+        // Additional validation for reasonable coordinate ranges
+        if (center.latitude !in -90.0..90.0 || center.longitude !in -180.0..180.0) {
+            Log.w(TAG, "Coordinates out of valid range: lat=${center.latitude}, lon=${center.longitude}")
             return
         }
 
@@ -216,7 +221,7 @@ class PGSpotOverlayManager(
         pgSpotIds.forEach { pgSpotId ->
             val marker = currentlyRenderedPGSpots[pgSpotId]
             if (marker != null) {
-                mapStore.dispatch(WeatherActions.FetchWeatherForPGSpot(
+                mapStore?.dispatch(WeatherActions.FetchWeatherForPGSpot(
                     pgSpotId, marker.center.latitude, marker.center.longitude
                 ))
             }
@@ -252,11 +257,11 @@ class PGSpotOverlayManager(
 
                         // Update Redux state with fetched weather
                         if (weatherForecast != null) {
-                            mapStore.dispatch(WeatherActions.WeatherFetched(pgSpotId, weatherForecast))
+                            mapStore?.dispatch(WeatherActions.WeatherFetched(pgSpotId, weatherForecast))
                             updatePGSpotWithWindGauge(pgSpotId, weatherForecast)
                             Log.d(TAG, "Successfully fetched weather for PG spot: $pgSpotId")
                         } else {
-                            mapStore.dispatch(WeatherActions.WeatherFetchError(
+                            mapStore?.dispatch(WeatherActions.WeatherFetchError(
                                 pgSpotId,
                                 Exception("Weather fetch returned null")
                             ))
@@ -266,7 +271,7 @@ class PGSpotOverlayManager(
                     } catch (e: Exception) {
                         // Aviation resilience - single PG spot weather failure doesn't break system
                         Log.w(TAG, "Failed to fetch weather for PG spot $pgSpotId", e)
-                        mapStore.dispatch(WeatherActions.WeatherFetchError(pgSpotId, e))
+                        mapStore?.dispatch(WeatherActions.WeatherFetchError(pgSpotId, e))
                     }
 
                     // Respect API rate limits between requests (aviation professional behavior)
