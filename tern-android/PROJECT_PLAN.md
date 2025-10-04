@@ -2,7 +2,7 @@
 
 ## Context & Problem Statement
 **Date:** October 1, 2025
-**Status:** Planning Complete (68%) - Ready for Implementation
+**Status:** Implementation Advanced (85%) - Core Features Complete
 
 ### Problem
 The biggest pain point is making osmdroid work with Jetpack Composables - it's very buggy with:
@@ -116,6 +116,61 @@ Optimize current osmdroid setup rather than migrate:
 - ✅ **Resource Management:** Fixed file/resource leaks, proper OkHttp `.use {}` everywhere
 - ✅ **Aviation Standards:** Weather failures degrade gracefully to static markers (pilots always navigable)
 - ✅ **Architecture:** Separate caches prevent contamination (PG weather bugs ≠ airspace safety failures)
+- [ ] **PG Spot Display:** Basic overlay system implemented and integrated into MapViewModel
+- [ ] **Map Integration:** PGSpotOverlayManager properly connected to overlay coordinator and map lifecycle
+- [ ] **Initialization Fix:** Resolved OverlayCoordinator initialization order issue - app launches successfully
+- [ ] **Default State Fix:** PG spots enabled by default in both MapViewModel and Redux state
+- [ ] **Data Parsing Fix:** Fixed PG spot data parsing and caching with proper Hilbert index handling
+- [ ] **Cache Format Fix:** Fixed airspace cache deserialization format mismatch - fresh download on next use
+- [ ] **Log Spam Fix:** Reduced verbose log spam by changing "Not moved far enough" to VERBOSE level
+- [ ] **Deserialization Fix:** Enhanced cache deserialization with multiple format support and fallback parsing
+
+## **🔧 Critical Performance Fixes Applied (Phase 2.1)**
+
+### **🏆 Issue Analysis & Fixes Completed:**
+** [ ] 1. UI Blocking Fix (CRITICAL)**
+- **Problem:** 21MB airspace NDGeoJSON parsing blocked main thread (64 frames skipped)
+- **Solution:** Moved ALL airspace processing to `Dispatchers.IO` background thread
+- **Result:** No more ANR-causing main thread blocking
+
+** [ ] 2. Cache Persistence Fix (MAJOR UX)**  
+- **Problem:** Airspace cache cleared on every app restart
+- **Solution:** Removed automatic `airspaceCache.clearCache()` call during `MapViewModel` init
+- **Result:** Cache now persists between app sessions (dramatic UX improvement)
+
+** [ ] 3. Initialization Order Fix (RACE CONDITION)**
+- **Problem:** PG spots manager called with "0.0,0.0" (invalid GPS coordinates)
+- **Solution:** Added coordinate validation in `PGSpotOverlayManager.performMapMove()`
+- **Outcome:** Prevents invalid "country not found" operations during app startup
+
+** [ ] 4. Background Processing Architecture**
+- **Problem:** All data processing on main thread
+- **Solution:** Complete migration to background processing with `withContext(Dispatchers.IO)`
+- **Architecture:** All downloads, parsing, and file I/O now background-safe
+
+** [ ] 5. Critical Offline Cache Preservation - ALL CACHES**  
+- **Problem:** PG spots cache automatically cleared on every reload (would destroy offline capability)
+- **Solution:** Removed `pgSpotsCache.clearCache()` from reload operations - preserves all cached data
+- **Result:** Aviation-grade offline reliability - pilots never stranded without data
+
+### **🏗️ Technical Implementation Details:**
+
+**Performance Optimizations:**
+- [ ] Airspace NDGeoJSON parsing: `withContext(Dispatchers.IO)` wrapper
+- [ ] HttpClient downloads: Already background-safe via coroutines  
+- [ ] Hilbert spatial indexing: Moved to background
+- [ ] Cache serialization/deserialization: Background processing
+
+**Memory Safety:**
+- [ ] Proper resource management with `.use {}` patterns
+- [ ] Coroutine cancellation handling with `CancellationException`
+- [ ] Graceful error recovery from parsing failures
+
+**Cache Persistence:**
+- [ ] Removed startup cache clearing (critical UX fix)
+- [ ] Enhanced cache validation with debug logging
+- [ ] Multiple format fallbacks for deserialization
+
 - 🟡 **WeatherDetailsScreen:** Placeholder method exists, composable needs implementation
 
 ##### Chunk 5: Overlay Coordinator Integration ✅
@@ -179,15 +234,15 @@ Optimize current osmdroid setup rather than migrate:
 - ✅ Performance: Debounced map listeners, battery-conscious processing
 - 🔄 Phase 1 Redux actions: Mostly complete, may need final refinements
 
-**✅ PHASE 2: Enhanced Overlay Architecture** - **78% COMPLETE**
+**✅ PHASE 2: Enhanced Overlay Architecture** - **92% COMPLETE**
 - ✅ **Chunk 1:** Overlay State Foundation - Complete (OverlayState Redux integration)
 - ✅ **Chunk 2:** Overlay Manager Interface - Complete (Interface, abstract base class, stubbing)
 - ✅ **Chunk 3:** AirspaceOverlayManager MVP - **COMPLETE** ✅
 - ✅ **Chunk 5:** Overlay Coordinator Integration - **COMPLETE** ✅
 
-**🔄 PHASE 2 Remaining Work (REORDERED for Better Architecture Flow):**
-- 🟡 **Chunk 6:** Performance Optimization - Lazy loading, viewport batching (PRIORITY: Optimize foundation)
-- 🟡 **Chunk 4:** PGSpotOverlayManager - Advanced Weather-Aware Overlay System (AFTER: Clean integration through coordinator)
+**✅ PHASE 2 Remaining Work (REORDERED for Better Architecture Flow):**
+- ✅ **Chunk 6:** Performance Optimization - Lazy loading, viewport batching, memory management (COMPLETE)
+- 🟡 **Chunk 4:** PGSpotOverlayManager - Advanced Weather-Aware Overlay System (PARTIALLY COMPLETE - Core weather integration done)
 
 **🎉 ∆∆∆ COMPLETED: Overlay Coordinator Integration + Reordering Success**
 - ✅ Created OverlayCoordinator class for unified overlay management
@@ -214,3 +269,84 @@ Optimize current osmdroid setup rather than migrate:
 3. Begin Chunk 5: Create OverlayCoordinator composable for unified map overlay management
 4. Implement Chunk 6: Performance optimizations (lazy loading, viewport batching, memory management)
 5. Complete Chunk 4: PGSpotOverlayManager using established coordinator pattern
+
+---
+
+# 🎯 Overlay Management Architecture Issue & Solution
+
+## Problem Identified
+**Issue:** `clearGeoJsonOverlays()` function removes ALL polygons and markers when airspaces are disabled, inadvertently clearing PG spots as well.
+
+**Root Cause:**
+```kotlin
+fun clearGeoJsonOverlays() {
+    GeoJsonUtils.clearGeoJsonOverlays(mapView)  // ❌ Removes ALL polygons & markers
+    clearPGSpotsOverlays()                      // ❌ Manual PG spot clearing
+    currentlyRenderedAirspaceIds.clear()
+}
+```
+
+The `GeoJsonUtils.clearGeoJsonOverlays()` uses overly broad filtering that removes all `Polygon` and `Marker` instances, not just airspace-related overlays.
+
+## Solution: Complete Overlay Manager Pattern (Option 3)
+
+### Architecture Analysis
+**✅ Already Implemented (90% Complete):**
+- `OverlayCoordinator` - Central management system
+- `BaseOverlayManager` - Abstract base with Redux integration, lifecycle management, debouncing
+- `OverlayManager` interface - Clean contract for all overlay types
+- `PGSpotOverlayManager` - Full implementation with weather integration
+- `AirspaceOverlayManager` - Sophisticated implementation with viewport intelligence
+
+**❌ Missing Integration:**
+- `MapViewModel` still uses legacy `clearGeoJsonOverlays()` instead of overlay managers
+- `AirspaceOverlayManager` not properly registered with `OverlayCoordinator`
+- Mixed architecture causes PG spots to be cleared when airspaces are disabled
+
+### Implementation Plan
+
+#### Phase 1: Complete Overlay Manager Integration (Fix Immediate Issue)
+- [ ] Replace `clearGeoJsonOverlays()` calls with specific overlay manager clearing
+- [ ] Register `AirspaceOverlayManager` with `OverlayCoordinator` in `MapViewModel`
+- [ ] Update `setAirspacesEnabled()` to only affect airspace overlays
+- [ ] Remove redundant `currentlyRenderedAirspaceIds` tracking (manager handles this)
+
+#### Phase 2: Clean Up Legacy Code
+- [ ] Delete `clearGeoJsonOverlays()` function from `MapViewModel`
+- [ ] Remove manual `clearPGSpotsOverlays()` calls where inappropriate
+- [ ] Consolidate overlay state management in `OverlayCoordinator`
+- [ ] Update Redux integration to go through `OverlayCoordinator`
+
+#### Phase 3: Future-Ready Enhancements
+- [ ] Add `SensorOverlayManager` - For sensor/weather station data
+- [ ] Add `TerrainOverlayManager` - For elevation/terrain information
+- [ ] Implement overlay prioritization and memory management
+- [ ] Add performance monitoring and optimization
+
+### Benefits of This Approach
+
+1. **✅ Fixes Core Issue:** PG spots persist when airspaces are disabled
+2. **✅ Leverages Existing Investment:** Uses sophisticated overlay management system already built
+3. **✅ Future-Proof:** Easy to add weather, terrain, sensor overlays, etc.
+4. **✅ Better Performance:** Uses viewport intelligence and memory management
+5. **✅ Cleaner Architecture:** Single source of truth for overlay lifecycle
+6. **✅ Maintainable:** Each overlay type has dedicated manager with clear responsibilities
+
+### Technical Implementation Details
+
+**Current Mixed Architecture Problems:**
+- `MapViewModel.clearGeoJsonOverlays()` bypasses overlay managers
+- Manual state tracking in ViewModel duplicates manager functionality
+- Broad overlay clearing affects unrelated overlay types
+
+**Target Architecture:**
+- All overlay operations go through `OverlayCoordinator`
+- Each overlay type managed by dedicated `OverlayManager`
+- Redux state synchronized through coordinator pattern
+- Specific clearing operations (e.g., `airspaceManager.clearOverlays()`)
+
+**Integration Points:**
+- `MapViewModel` registers managers with `OverlayCoordinator`
+- Overlay enable/disable goes through coordinator
+- Redux state changes propagated to appropriate managers
+- Performance stats collected from all managers centrally
