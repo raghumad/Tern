@@ -19,7 +19,7 @@ data class OverlayConfig(
 
 data class OverlayState(
     val airspaces: OverlayConfig = OverlayConfig(enabled = true), // Default enabled
-    val pgSpots: OverlayConfig = OverlayConfig(enabled = false),  // Disabled by default
+    val pgSpots: OverlayConfig = OverlayConfig(enabled = true),  // Enabled for weather features
     val sensors: OverlayConfig = OverlayConfig(enabled = false),  // Future use
     val terrain: OverlayConfig = OverlayConfig(enabled = false)   // Future use
 )
@@ -39,6 +39,7 @@ data class WeatherState(
     // Display controls
     val showWeatherGauges: Boolean = true,
     val showWeatherDetails: Boolean = true,
+    val showingWeatherDialog: Pair<String, com.madanala.tern.utils.WeatherForecast>? = null,
 
     // API and cache status
     val weatherAPIOnline: Boolean = true,

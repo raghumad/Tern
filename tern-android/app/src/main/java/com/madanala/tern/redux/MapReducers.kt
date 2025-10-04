@@ -169,6 +169,19 @@ fun weatherReducer(state: MapState, action: WeatherActions): MapState = when (ac
         state.copy(weatherState = newWeatherState)
     }
 
+    // UI controls for weather details
+    is WeatherActions.ShowWeatherDetails -> {
+        val newWeatherState = state.weatherState.copy(
+            showingWeatherDialog = action.forecast?.let { Pair(action.pgSpotId, it) }
+        )
+        state.copy(weatherState = newWeatherState)
+    }
+
+    is WeatherActions.DismissWeatherDetails -> {
+        val newWeatherState = state.weatherState.copy(showingWeatherDialog = null)
+        state.copy(weatherState = newWeatherState)
+    }
+
     // API availability monitoring
     is WeatherActions.WeatherAPIStatus -> {
         val newWeatherState = state.weatherState.copy(

@@ -22,8 +22,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-
 import com.madanala.tern.redux.MapStore
+import com.madanala.tern.redux.WeatherActions
 import com.madanala.tern.ui.components.AddWaypointButton
 import com.madanala.tern.ui.components.MapViewContainer
 import com.madanala.tern.ui.components.MapViewModel
@@ -90,5 +90,16 @@ fun TernMapScreen(
 
     if (showShareSheet) {
         ShareSheet(onDismiss = { showShareSheet = false })
+    }
+
+    // Show weather details dialog when PG spot is tapped
+    state.weatherState.showingWeatherDialog?.let { (pgSpotId, forecast) ->
+        WeatherDetailsScreen(
+            forecast = forecast,
+            spotName = pgSpotId,
+            onDismiss = {
+                store.dispatch(WeatherActions.DismissWeatherDetails)
+            }
+        )
     }
 }
