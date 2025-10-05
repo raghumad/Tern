@@ -38,14 +38,6 @@ object GeoJsonUtils {
                         if (body != null) {
                             val data = body.string()
                             android.util.Log.d("GeoJsonUtils", "Downloaded ${data.length} bytes from $url")
-                            // Log first few lines to see format
-                            val lines = data.lines()
-                            if (lines.size > 3) {
-                                android.util.Log.d("GeoJsonUtils", "First 3 lines of data:")
-                                lines.take(3).forEach { line ->
-                                    android.util.Log.d("GeoJsonUtils", "  $line")
-                                }
-                            }
                             data
                         } else {
                             android.util.Log.w("GeoJsonUtils", "Response body is null for $url")
