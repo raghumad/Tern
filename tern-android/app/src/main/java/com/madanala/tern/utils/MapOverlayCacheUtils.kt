@@ -292,21 +292,34 @@ object MapOverlayCacheUtils {
      */
     fun deserializeFlexBuffersToFeatures(data: ByteArray): List<OverlayFeature> {
         return try {
-            @Suppress("UNCHECKED_CAST")
-            val serializableFeatures: List<Map<String, Any>> = mapper.readValue(data)
-            serializableFeatures.mapNotNull { item ->
-                @Suppress("UNCHECKED_CAST")
-                val feature = item["feature"] as? Map<String, Any> ?: return@mapNotNull null
-                @Suppress("UNCHECKED_CAST")
-                val centroidData = item["centroid"] as? Map<String, Any> ?: return@mapNotNull null
-                val latitude = centroidData["latitude"] as? Double ?: return@mapNotNull null
-                val longitude = centroidData["longitude"] as? Double ?: return@mapNotNull null
-                val hilbertIndex = item["hilbertIndex"] as? Long ?: return@mapNotNull null
-                val overlayType = item["overlayType"] as? String ?: "generic"
+            // Parse as concatenated JSON objects, not as JSON array
+            val jsonString = String(data, Charsets.UTF_8)
+            val features = mutableListOf<OverlayFeature>()
 
-                val centroid = GeoPoint(latitude, longitude)
-                OverlayFeature(feature, centroid, hilbertIndex, overlayType)
+            // Split by newlines and parse each feature individually
+            val lines = jsonString.lines()
+            lines.forEach { line ->
+                if (line.isNotBlank()) {
+                    try {
+                        val item: Map<String, Any> = mapper.readValue(line)
+                        @Suppress("UNCHECKED_CAST")
+                        val feature = item["feature"] as? Map<String, Any> ?: return@forEach
+                        @Suppress("UNCHECKED_CAST")
+                        val centroidData = item["centroid"] as? Map<String, Any> ?: return@forEach
+                        val latitude = centroidData["latitude"] as? Double ?: return@forEach
+                        val longitude = centroidData["longitude"] as? Double ?: return@forEach
+                        val hilbertIndex = item["hilbertIndex"] as? Long ?: return@forEach
+                        val overlayType = item["overlayType"] as? String ?: "generic"
+
+                        val centroid = GeoPoint(latitude, longitude)
+                        features.add(OverlayFeature(feature, centroid, hilbertIndex, overlayType))
+                    } catch (e: Exception) {
+                        // Skip malformed lines
+                    }
+                }
             }
+
+            features
         } catch (_: Exception) {
             emptyList()
         }
