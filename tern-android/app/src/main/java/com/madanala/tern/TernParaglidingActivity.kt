@@ -10,6 +10,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import com.madanala.tern.ui.screens.TernMapScreen
 import com.madanala.tern.ui.theme.TernTheme
+import com.madanala.tern.utils.CacheManager
 import org.osmdroid.config.Configuration
 
 class TernParaglidingActivity : ComponentActivity() {
@@ -21,6 +22,10 @@ class TernParaglidingActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // Initialize singleton cache manager for aviation-grade resilience
+        CacheManager.initialize(applicationContext)
+
         Configuration.getInstance().load(applicationContext, getSharedPreferences(PREFS_NAME, MODE_PRIVATE))
         Configuration.getInstance().userAgentValue = packageName
 

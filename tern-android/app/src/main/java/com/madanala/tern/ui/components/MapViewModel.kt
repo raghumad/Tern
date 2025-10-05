@@ -21,11 +21,10 @@ import com.madanala.tern.overlays.OverlayCoordinator
 import com.madanala.tern.overlays.PGSpotOverlayManager
 import com.madanala.tern.ui.screens.MAP_VIEW_SATELLITE
 import com.madanala.tern.ui.screens.MAP_VIEW_TERRAIN
-import com.madanala.tern.utils.AirspaceCache
+import com.madanala.tern.utils.CacheManager
 import com.madanala.tern.utils.CountryUtils
 import com.madanala.tern.utils.GeoJsonUtils
 import com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature
-import com.madanala.tern.utils.PGSpotsCache
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -85,21 +84,20 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
     // Overlay Coordinator - Our new advanced overlay system with memory limits
     private val overlayCoordinator = OverlayCoordinator()
 
-    // Airspace management - Legacy system, now limited to prevent crashes
-    private val airspaceCache = AirspaceCache(application)
+    // Airspace management - Use singleton cache to prevent duplicate downloads
+    private val airspaceCache = CacheManager.airspaceCache
     private var currentCountryCode: String? = null
     private var lastAirspaceCheckLocation: GeoPoint? = null
     private var airspaceLoadingJob: Job? = null
     private var showAirspacesEnabled = true // ENABLED - airspace system active with memory limits
     private val currentlyRenderedAirspaceIds = mutableSetOf<String>() // Track rendered airspace IDs to prevent duplicates
 
-    // PG Spots management - Commented out for Phase 1
-    // private val pgSpotsCache = PGSpotsCache(application)
-    private var pgSpotsCache: PGSpotsCache? = null
+    // PG Spots management - Use singleton cache to prevent duplicate downloads
+    private val pgSpotsCache = CacheManager.pgSpotCache
     private var currentPGSpotsCountryCode: String? = null
     private var lastPGSpotsCheckLocation: GeoPoint? = null
     private var pgSpotsLoadingJob: Job? = null
-    private var showPGSpotsEnabled = false // Disabled for Phase 1
+    private var showPGSpotsEnabled = true // Enabled by default for aviation navigation
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private var pendingAirspaceCheck: Runnable? = null
@@ -152,23 +150,11 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
                         _isLocationReady.value = true
                         locationReadyCallback?.invoke(true) // Redux migration
 
-                        // Load initial airspace data when location is ready
-                        viewModelScope.launch {
-                            loadAirspaceForCurrentLocation(
-                                getApplication<Application>().applicationContext,
-                                myLocation
-                            )
-                        }
+                        // Notify overlay managers that GPS fix is now available
+                        overlayCoordinator.getOverlayManager(com.madanala.tern.redux.OverlayType.AIRSPACE)?.updateGPSFixStatus(true)
+                        overlayCoordinator.getOverlayManager(com.madanala.tern.redux.OverlayType.PG_SPOTS)?.updateGPSFixStatus(true)
 
-                        // Load initial PG spots data when location is ready - Disabled for Phase 1
-                        /*
-                        viewModelScope.launch {
-                            loadPGSpotsForCurrentLocation(
-                                getApplication<Application>().applicationContext,
-                                myLocation
-                            )
-                        }
-                        */
+                        // Note: Overlay managers handle data loading - no legacy loading calls needed
                     }
                 }
 
@@ -277,7 +263,8 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
                 _mapRotation.value = rotation
                 rotationCallback?.invoke(rotation) // Redux migration
 
-                checkAirspaceReloadNeeded()
+                // Overlay managers handle their own map-based loading now
+                // checkAirspaceReloadNeeded() // REMOVED: Overlay managers are single source of truth
                 checkPGSpotsReloadNeeded()
                 scheduleCleanupCheck()
                 return true
@@ -288,7 +275,8 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
                 _mapRotation.value = rotation
                 rotationCallback?.invoke(rotation) // Redux migration
 
-                checkAirspaceReloadNeeded()
+                // Overlay managers handle their own map-based loading now
+                // checkAirspaceReloadNeeded() // REMOVED: Overlay managers are single source of truth
                 checkPGSpotsReloadNeeded()
                 scheduleCleanupCheck()
                 return true
@@ -420,7 +408,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
         lastAirspaceCheckLocation?.let { lastLocation ->
             val distance = lastLocation.distanceToAsDouble(center)
             val distanceKm = distance / 1000.0
-            Log.d(TAG, "Distance moved: ${distanceKm}km (< ${AIRSPACE_CHECK_DISTANCE_KM}km threshold)")
+            Log.v(TAG, "Distance moved: ${distanceKm}km (< ${AIRSPACE_CHECK_DISTANCE_KM}km threshold)")
 
             if (distanceKm < AIRSPACE_CHECK_DISTANCE_KM) {
                 return // Not moved far enough (<5km)
@@ -681,7 +669,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
                         clearPGSpotsOverlays()
 
                         // Query nearby PG spots
-                        val nearbyFeatures = pgSpotsCache?.queryNearbyFeatures(countryCode, center, AIRSPACE_FILTER_RADIUS_MILES) ?: emptyList()
+                        val nearbyFeatures = pgSpotsCache.queryNearbyPGSpots(countryCode, center, AIRSPACE_FILTER_RADIUS_MILES)
                         if (nearbyFeatures.isNotEmpty()) {
                             addPGSpotsToMap(mapView, nearbyFeatures)
                         }
@@ -697,12 +685,17 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
                 // If we don't have a last location, something went wrong, so reload
             }
 
-            // Try to load from cache first (PG spots cached for 7 days) - Disabled for Phase 1
-            var features: List<OverlayFeature>? = null
+            // Try to load from cache first (PG spots cached for 7 days)
+            var features: List<OverlayFeature> = emptyList()
 
-            if (features == null) {
-                // Download from ParaglidingEarth API - Placeholder for Phase 1
-                features = emptyList()
+            if (!pgSpotsCache.isCached(countryCode)) {
+                // Download from ParaglidingEarth API and cache
+                withContext(Dispatchers.IO) {
+                    features = pgSpotsCache.cachePGSpotsData(countryCode) ?: emptyList()
+                }
+            } else {
+                // Query nearby features from cache
+                features = pgSpotsCache.queryNearbyPGSpots(countryCode, center, AIRSPACE_FILTER_RADIUS_MILES)
             }
 
             if (features.isNotEmpty()) {
@@ -842,6 +835,15 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
             // Reload PG spots for current location if enabled
             reloadPGSpotsForCurrentLocation()
         }
+    }
+
+    /**
+     * Set the Redux store for overlay managers (late initialization)
+     */
+    fun setMapStore(store: com.madanala.tern.redux.MapStore?) {
+        // Set store on overlay managers
+        overlayCoordinator.getOverlayManager(com.madanala.tern.redux.OverlayType.AIRSPACE)?.setReduxStore(store)
+        overlayCoordinator.getOverlayManager(com.madanala.tern.redux.OverlayType.PG_SPOTS)?.setReduxStore(store)
     }
 
     override fun onCleared() {

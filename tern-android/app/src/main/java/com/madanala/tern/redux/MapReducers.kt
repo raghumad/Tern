@@ -31,7 +31,6 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
         state.copy(zoom = action.zoom)
     }
 
-    // Overlay control actions - new modular system
     is MapAction.SetOverlayEnabled -> {
         val newOverlayState = when (action.type) {
             OverlayType.AIRSPACE -> state.overlayState.copy(airspaces = state.overlayState.airspaces.copy(enabled = action.enabled))
@@ -96,6 +95,28 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
     is MapAction.SetCompassVisible -> {
         state.copy(compassVisible = action.visible)
     }
+
+    // Settings actions
+    is MapAction.SetSettingsOverlayEnabled -> {
+        val newSettingsState = when (action.overlayType) {
+            "airspaces" -> state.settingsState.copy(showAirspaces = action.enabled)
+            "hotspots" -> state.settingsState.copy(showHotspots = action.enabled)
+            "pgspots" -> state.settingsState.copy(showPgSpots = action.enabled)
+            else -> state.settingsState
+        }
+        state.copy(settingsState = newSettingsState)
+    }
+    is MapAction.SetUnitPreference -> {
+        val newSettingsState = when (action.unitType) {
+            "temperature" -> state.settingsState.copy(temperatureUnit = action.unit)
+            "distance" -> state.settingsState.copy(distanceUnit = action.unit)
+            "speed" -> state.settingsState.copy(speedUnit = action.unit)
+            "altitude" -> state.settingsState.copy(altitudeUnit = action.unit)
+            else -> state.settingsState // Unknown unit type, keep current state
+        }
+        state.copy(settingsState = newSettingsState)
+    }
+
     else -> state
 }
 

@@ -5,7 +5,7 @@ import android.util.Log
 import com.madanala.tern.redux.MapState
 import com.madanala.tern.redux.MapStore
 import com.madanala.tern.redux.OverlayType
-import com.madanala.tern.utils.AirspaceCache
+import com.madanala.tern.utils.CacheManager
 import com.madanala.tern.utils.CountryUtils
 import com.madanala.tern.utils.GeoJsonUtils
 import com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature
@@ -25,7 +25,8 @@ class AirspaceOverlayManager(
     mapStore: MapStore?
 ) : BaseOverlayManager(OverlayType.AIRSPACE, mapStore) {
 
-    private val airspaceCache = AirspaceCache(applicationContext)
+    // Use singleton cache instance to prevent duplicate downloads
+    private val airspaceCache = CacheManager.airspaceCache
 
     // State management (extracted from MapViewModel)
     private var currentCountryCode: String? = null
@@ -41,17 +42,10 @@ class AirspaceOverlayManager(
 
     // Intelligent limits to prevent memory pressure crashes
     private val maxTotalAirspaces = 150       // Hard limit to prevent ANR
-    private val maxAirspacesPerZone = 50      // Limit per zone loading
     private val maxViewportAirspaces = 100    // Most critical - what's actually visible
 
-    // More conservative zone-to-radius mapping
-    // Reduced radii and added proper limits to prevent memory explosion
-    private val zoneFilterRadii = mapOf(
-        ViewportLoadingManager.LoadingZone.VIEWPORT_VISIBLE to 15.0,   // Even smaller for memory safety
-        ViewportLoadingManager.LoadingZone.NEAR_VIEWPORT to 50.0,      // Reduced - still good for panning
-        ViewportLoadingManager.LoadingZone.FAR_VIEWPORT to 100.0,      // Reduced - cache farther away opportunistically
-        ViewportLoadingManager.LoadingZone.OFFSCREEN to 0.0            // Never load
-    )
+    // Spatial-first architecture: always use spatial queries with configurable search radius
+    private val spatialQueryRadiusKm = 100.0  // Search radius for nearby airspaces (was FAR_VIEWPORT)
 
     // Performance limits for resource management - configurable value imported
 
@@ -86,13 +80,31 @@ class AirspaceOverlayManager(
             return
         }
 
+        // Postpone overlay operations until GPS fix is available
+        if (!hasValidGPSFix) {
+            Log.d(TAG, "No GPS fix yet, postponing airspace loading until GPS coordinates are available")
+            return
+        }
+
+        // Additional coordinate validation for safety
+        if (center.latitude < -90.0 || center.latitude > 90.0 || center.longitude < -180.0 || center.longitude > 180.0) {
+            Log.w(TAG, "Coordinates out of valid range: lat=${center.latitude}, lon=${center.longitude}")
+            return
+        }
+
+        // Additional validation for reasonable coordinate ranges
+        if (center.latitude < -90.0 || center.latitude > 90.0 || center.longitude < -180.0 || center.longitude > 180.0) {
+            Log.w(TAG, "Coordinates out of valid range: lat=${center.latitude}, lon=${center.longitude}")
+            return
+        }
+
         // Check if we've moved far enough to warrant a reload
         lastCheckLocation?.let { lastLocation ->
             val distance = lastLocation.distanceToAsDouble(center)
             val distanceKm = distance / 1000.0
 
             if (distanceKm < checkDistanceKm) {
-                Log.d(TAG, String.format("Not moved far enough (%.1f km < %.1f km), skipping reload",
+                Log.v(TAG, String.format("Not moved far enough (%.1f km < %.1f km), skipping reload",
                     distanceKm, checkDistanceKm))
                 return
             }
@@ -114,7 +126,7 @@ class AirspaceOverlayManager(
 
     override fun onReduxStateChanged(state: MapState) {
         val enabled = isEnabled()
-        Log.d(TAG, "Redux state changed, airspaces enabled: $enabled")
+        Log.v(TAG, "Redux state changed, airspaces enabled: $enabled")
 
         if (!enabled) {
             // Clear airspaces if disabled
@@ -122,6 +134,12 @@ class AirspaceOverlayManager(
             currentCountryCode = null
             lastCheckLocation = null
         } else if (mapView != null) {
+            // Postpone Redux-triggered overlay operations until GPS fix is available
+            if (!hasValidGPSFix) {
+                Log.d(TAG, "Postponing Redux-triggered airspace loading until GPS fix")
+                return
+            }
+
             // If enabled and we have a map view, trigger loading
             val center = mapView!!.mapCenter as GeoPoint
             checkAndLoadAirspaceData(center)
@@ -163,11 +181,12 @@ class AirspaceOverlayManager(
     }
 
     /**
-     * Load airspace data for a specific location using viewport-zone intelligence
+     * Load airspace data for a specific location using spatial-first architecture
+     * Always queries spatially indexed data - never loads entire countries
      */
     private suspend fun loadAirspaceForLocation(context: Context, center: GeoPoint) {
         try {
-            Log.d(TAG, "Loading airspaces for location: ${center.latitude}, ${center.longitude}")
+            Log.v(TAG, "Loading airspaces for location: ${center.latitude}, ${center.longitude}")
 
             // Get country code for current location
             val countryCode = CountryUtils.getCountryCodeFromGeoPoint(context, center)
@@ -176,43 +195,39 @@ class AirspaceOverlayManager(
                 return
             }
 
-            Log.d(TAG, "Country code: $countryCode")
+            Log.v(TAG, "Country code: $countryCode")
 
-            // Try to load from cache first (airspaces cached for 30 days)
-            var features = airspaceCache.getCachedFeatures(countryCode)
-
-            if (features == null) {
-                // Download from OpenAIP
+            // Check if country data is cached (spatial-first architecture)
+            if (!airspaceCache.isCached(countryCode)) {
+                // Download and cache using spatial indexing
                 val url = "https://storage.googleapis.com/29f98e10-a489-4c82-ae5e-489dbcd4912f/${countryCode}_asp.ndgeojson"
                 val ndGeoJsonString = GeoJsonUtils.downloadGeoJson(url)
 
                 if (ndGeoJsonString != null) {
                     Log.d(TAG, "Downloaded airspace data for $countryCode (${ndGeoJsonString.length} bytes)")
-                    // Cache the downloaded data
+                    // Cache with Hilbert spatial indexing
                     airspaceCache.cacheData(countryCode, ndGeoJsonString)
-                    features = airspaceCache.getCachedFeatures(countryCode)
                 } else {
                     Log.w(TAG, "Failed to download airspace data for $countryCode")
                     return
                 }
             } else {
-                Log.d(TAG, "Loaded cached airspaces for $countryCode (${features.size} features)")
+                Log.v(TAG, "Using cached airspace data for $countryCode")
             }
 
-            if (features != null && features.isNotEmpty()) {
-                // Use viewport-zone intelligence to load the right amount of data
-                val nearbyFeatures = loadZoneSpecificFeatures(countryCode, center, features)
+            // Always use spatial query - never load entire countries
+            val nearbyFeatures = airspaceCache.queryNearbyFeatures(countryCode, center, spatialQueryRadiusKm)
 
-                if (nearbyFeatures.isNotEmpty()) {
-                    renderAirspaceFeatures(nearbyFeatures)
-                }
+            if (nearbyFeatures.isNotEmpty()) {
+                renderAirspaceFeatures(nearbyFeatures)
 
                 // Update current country and last location
                 currentCountryCode = countryCode
                 lastCheckLocation = center
 
+                Log.v(TAG, "Rendered ${nearbyFeatures.size} nearby airspaces for $countryCode")
             } else {
-                Log.w(TAG, "No airspace data available for $countryCode")
+                Log.d(TAG, "No airspaces found near $center for $countryCode")
             }
 
         } catch (e: CancellationException) {
@@ -223,97 +238,19 @@ class AirspaceOverlayManager(
         }
     }
 
-    /**
-     * Load airspace features using viewport-zone intelligence instead of fixed radius
-     * ENFORCES HARD MEMORY LIMITS to prevent ANR crashes
-     */
-    private fun loadZoneSpecificFeatures(countryCode: String, center: GeoPoint, allFeatures: List<OverlayFeature>): List<OverlayFeature> {
-        // Determine current viewport for zone calculations
-        val viewport = mapView?.boundingBox ?: return emptyList()
 
-        // Calculate which zones we need to query
-        val activeZones = determineActiveLoadingZones(viewport)
-
-        // Query data for each active zone with appropriate radius, enforcing per-zone limits
-        val allZoneFeatures = mutableListOf<OverlayFeature>()
-        var totalAdded = 0
-
-        for (zone in activeZones) {
-            val radius = zoneFilterRadii[zone] ?: continue
-            if (radius <= 0.0) continue // Skip off-screen zones
-
-            Log.d(TAG, "Querying zone $zone with radius ${radius}mi from center (limit: $maxAirspacesPerZone)")
-            val zoneFeatures = airspaceCache.queryNearbyFeatures(countryCode, center, radius)
-
-            // Enforce per-zone limit to prevent memory explosion
-            val limitedZoneFeatures = if (zoneFeatures.size > maxAirspacesPerZone) {
-                Log.w(TAG, "Zone $zone exceeded limit (${zoneFeatures.size} > $maxAirspacesPerZone), trimming")
-                zoneFeatures.take(maxAirspacesPerZone)
-            } else {
-                zoneFeatures
-            }
-
-            // Check if adding these would exceed total limit
-            if (totalAdded + limitedZoneFeatures.size > maxTotalAirspaces) {
-                val remainingSlots = maxTotalAirspaces - totalAdded
-                if (remainingSlots <= 0) break // No more room
-
-                Log.w(TAG, "Zone $zone would exceed total limit (${limitedZoneFeatures.size} would make ${totalAdded + limitedZoneFeatures.size} > $maxTotalAirspaces), taking $remainingSlots")
-                allZoneFeatures.addAll(limitedZoneFeatures.take(remainingSlots))
-                totalAdded += remainingSlots
-                break // Stop loading more zones
-            } else {
-                allZoneFeatures.addAll(limitedZoneFeatures)
-                totalAdded += limitedZoneFeatures.size
-            }
-
-            Log.d(TAG, "Zone $zone contributed ${limitedZoneFeatures.size} features (total so far: $totalAdded)")
-        }
-
-        // Remove duplicates within the allocated limit
-        val deduplicatedFeatures = allZoneFeatures.distinctBy { generateAirspaceId(it) }
-
-        // Final hard limit enforcement
-        val finalFeatures = if (deduplicatedFeatures.size > maxTotalAirspaces) {
-            Log.w(TAG, "Hard limit exceeded (${deduplicatedFeatures.size} > $maxTotalAirspaces), enforcing limit")
-            deduplicatedFeatures.take(maxTotalAirspaces)
-        } else {
-            deduplicatedFeatures
-        }
-
-        Log.d(TAG, "Final airspace load: ${finalFeatures.size} features (total airspace limit: $maxTotalAirspaces)")
-
-        if (finalFeatures.size >= maxTotalAirspaces) {
-            Log.w(TAG, "⚠️ WARNING: Reached maximum airspace capacity (${maxTotalAirspaces}). Consider zooming in to reduce airspace count.")
-        }
-
-        return finalFeatures
-    }
-
-    /**
-     * Determine which loading zones should be active based on current state
-     */
-    private fun determineActiveLoadingZones(viewport: BoundingBox): List<ViewportLoadingManager.LoadingZone> {
-        // For initial implementation, load from all zones except OFFSCREEN
-        // This ensures complete coverage while building toward more intelligent zone selection
-        return listOf(
-            ViewportLoadingManager.LoadingZone.VIEWPORT_VISIBLE,
-            ViewportLoadingManager.LoadingZone.NEAR_VIEWPORT,
-            ViewportLoadingManager.LoadingZone.FAR_VIEWPORT
-        )
-    }
 
     /**
      * Render airspace features to the map (incremental updates)
      */
     private fun renderAirspaceFeatures(features: List<OverlayFeature>) {
         mapView?.let { map ->
-            Log.d(TAG, "Rendering ${features.size} airspace features (incremental update)")
+            Log.v(TAG, "Rendering ${features.size} airspace features (incremental update)")
 
             // Calculate incremental updates - add/remove only what's changed
             updateAirspaceOverlaysIncrementally(map, features)
 
-            Log.d(TAG, "Successfully updated airspaces incrementally")
+            Log.v(TAG, "Successfully updated airspaces incrementally")
         } ?: Log.w(TAG, "Cannot render airspaces - no map view available")
     }
 
@@ -326,7 +263,7 @@ class AirspaceOverlayManager(
             generateAirspaceId(feature) to feature
         }.toMap()
 
-        Log.d(TAG, "Desired airspaces: ${desiredAirspaceIds.size}, Currently rendered: ${currentlyRenderedAirspaces.size}")
+        Log.v(TAG, "Desired airspaces: ${desiredAirspaceIds.size}, Currently rendered: ${currentlyRenderedAirspaces.size}")
 
         // Find airspaces to remove (exist in current but not in desired)
         val airspacesToRemove = currentlyRenderedAirspaces.keys - desiredAirspaceIds.keys
@@ -358,9 +295,9 @@ class AirspaceOverlayManager(
 
         if (airspacesToRemove.isNotEmpty() || airspacesToAdd.isNotEmpty()) {
             map.invalidate()
-            Log.d(TAG, "Airspace update: +${airspacesToAdd.size} -${airspacesToRemove.size} =${currentlyRenderedAirspaces.size} total")
+            Log.v(TAG, "Airspace update: +${airspacesToAdd.size} -${airspacesToRemove.size} =${currentlyRenderedAirspaces.size} total")
         } else {
-            Log.d(TAG, "No airspace changes needed")
+            Log.v(TAG, "No airspace changes needed")
         }
     }
 

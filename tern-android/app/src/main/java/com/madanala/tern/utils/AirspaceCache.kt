@@ -4,6 +4,8 @@ import android.content.Context
 import android.util.Log
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature
+import org.osmdroid.util.GeoPoint
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -13,8 +15,6 @@ import java.io.RandomAccessFile
 import java.nio.MappedByteBuffer
 import java.nio.channels.FileChannel
 import java.util.concurrent.ConcurrentHashMap
-import com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature
-import org.osmdroid.util.GeoPoint
 
 /**
  * Cache manager for airspace data using FlexBuffers and Hilbert indexing
@@ -33,6 +33,7 @@ class AirspaceCache(private val context: Context) {
     private val cacheIndex = ConcurrentHashMap<String, Long>() // countryCode -> timestamp
     private val spatialIndexCache = ConcurrentHashMap<String, MapOverlayCacheUtils.SpatialIndex>() // countryCode -> spatial index
     private val memoryMappedBuffers = ConcurrentHashMap<String, MappedByteBuffer>() // countryCode -> memory mapped buffer
+    private val downloadInProgress = ConcurrentHashMap<String, Boolean>() // countryCode -> download flag
 
     private val objectMapper = ObjectMapper()
     private val TAG = "AirspaceCache"
@@ -63,19 +64,33 @@ class AirspaceCache(private val context: Context) {
     fun getCachedFeatures(countryCode: String): List<OverlayFeature>? {
         return try {
             val cacheFile = File(cacheDir, "${countryCode}_airspace.flex")
+            Log.d(TAG, "Checking for cached airspace file: ${cacheFile.absolutePath}")
+
             if (cacheFile.exists()) {
+                Log.d(TAG, "Cache file exists for $countryCode, size: ${cacheFile.length()} bytes")
+
                 val data = cacheFile.readBytes()
+                Log.d(TAG, "Read ${data.size} bytes from cache file")
+
                 val features = MapOverlayCacheUtils.deserializeFlexBuffersToFeatures(data)
 
-                // Update cache index if file exists (handles transition from old cache validity)
-                if (!isCached(countryCode)) {
-                    cacheIndex[countryCode] = System.currentTimeMillis()
-                    saveCacheIndex()
-                    Log.d(TAG, "Updated cache index for existing file: $countryCode")
-                }
+                if (features != null) {
+                    Log.d(TAG, "Successfully deserialized ${features.size} airspace features for $countryCode")
 
-                features
+                    // Update cache index if file exists (handles transition from old cache validity)
+                    if (!isCached(countryCode)) {
+                        cacheIndex[countryCode] = System.currentTimeMillis()
+                        saveCacheIndex()
+                        Log.d(TAG, "Updated cache index for existing file: $countryCode")
+                    }
+
+                    features
+                } else {
+                    Log.w(TAG, "Deserialization returned null for $countryCode")
+                    null
+                }
             } else {
+                Log.d(TAG, "No cache file found for $countryCode")
                 null
             }
         } catch (e: Exception) {
@@ -90,21 +105,39 @@ class AirspaceCache(private val context: Context) {
      * @param ndGeoJsonString The NDGeoJSON data to cache
      */
     fun cacheData(countryCode: String, ndGeoJsonString: String) {
+        Log.d(TAG, "Starting cacheData for $countryCode, input size: ${ndGeoJsonString.length}")
+
+        // Prevent duplicate caching operations
+        if (downloadInProgress.putIfAbsent(countryCode, true) == true) {
+            Log.d(TAG, "Caching already in progress for $countryCode, skipping duplicate")
+            return
+        }
+
         try {
+            Log.d(TAG, "Parsing NDGeoJSON for $countryCode")
             // Parse to features
             val features = MapOverlayCacheUtils.parseNdGeoJsonToFeatures(ndGeoJsonString)
+            Log.d(TAG, "Parsed ${features.size} features for $countryCode")
+
             if (features.isNotEmpty()) {
+                Log.d(TAG, "Creating spatial index and serializing ${features.size} features")
                 // Create spatial index and serialize features with byte offsets
                 val (spatialIndex, data) = MapOverlayCacheUtils.createSpatialIndexAndSerialize(features)
 
+                Log.d(TAG, "Serialization complete, data size: ${data.size} bytes")
+
                 // Save FlexBuffer data
                 val flexCacheFile = File(cacheDir, "${countryCode}_airspace.flex")
+                Log.d(TAG, "Writing FlexBuffer data to: ${flexCacheFile.absolutePath}")
                 flexCacheFile.writeBytes(data)
+                Log.d(TAG, "FlexBuffer file written successfully, size: ${flexCacheFile.length()}")
 
                 // Save spatial index
                 val indexFile = File(cacheDir, "${countryCode}_airspace.idx")
+                Log.d(TAG, "Writing spatial index to: ${indexFile.absolutePath}")
                 val indexData = objectMapper.writeValueAsBytes(spatialIndex)
                 indexFile.writeBytes(indexData)
+                Log.d(TAG, "Spatial index file written successfully, size: ${indexFile.length()}")
 
                 // Cache spatial index in memory
                 spatialIndexCache[countryCode] = spatialIndex
@@ -120,12 +153,16 @@ class AirspaceCache(private val context: Context) {
                     Log.d(TAG, "Removed old NDGeoJSON cache file for $countryCode")
                 }
 
-                Log.d(TAG, "Cached ${features.size} airspace features for $countryCode with Hilbert spatial index")
+                Log.d(TAG, "✅ Successfully cached ${features.size} airspace features for $countryCode")
             } else {
                 Log.w(TAG, "No valid airspace features found for $countryCode after filtering")
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error caching data for $countryCode", e)
+            Log.e(TAG, "❌ Error caching data for $countryCode", e)
+        } finally {
+            // Clear the download flag
+            downloadInProgress.remove(countryCode)
+            Log.d(TAG, "Cleared download flag for $countryCode")
         }
     }
 
@@ -177,8 +214,7 @@ class AirspaceCache(private val context: Context) {
                     val feature = featureData["feature"] as? Map<String, Any> ?: featureData
                     @Suppress("UNCHECKED_CAST")
                     var centroidData = featureData["centroid"] as? Map<String, Any>
-                    @Suppress("UNCHECKED_CAST")
-                    val properties = feature["properties"] as? Map<String, Any> ?: emptyMap()
+                    feature["properties"] as? Map<String, Any> ?: emptyMap()
                     var latitude = centroidData?.get("latitude") as? Double ?: featureData["lat"] as? Double
                     var longitude = centroidData?.get("longitude") as? Double ?: featureData["lon"] as? Double
                     var hilbertIndex = featureData["hilbertIndex"] as? Long ?: featureData["hilbert"] as? Long

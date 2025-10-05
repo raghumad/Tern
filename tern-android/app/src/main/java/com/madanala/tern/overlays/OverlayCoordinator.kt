@@ -6,7 +6,7 @@ import com.madanala.tern.redux.MapState
 import com.madanala.tern.redux.MapStore
 import com.madanala.tern.redux.OverlayConfig
 import com.madanala.tern.redux.OverlayType
-import com.madanala.tern.utils.AirspaceCache
+import com.madanala.tern.utils.CacheManager
 import org.osmdroid.util.BoundingBox
 import org.osmdroid.views.MapView
 
@@ -41,9 +41,8 @@ class OverlayCoordinator {
         this.mapView = mapView
         Log.d(TAG, "OverlayCoordinator initialized")
 
-        // Initialize viewport loading manager for intelligent data loading
-        val airspaceCache = AirspaceCache(context.applicationContext)
-        viewportLoadingManager = ViewportLoadingManager(airspaceCache)
+        // Initialize viewport loading manager for intelligent data loading - use singleton cache
+        viewportLoadingManager = ViewportLoadingManager(CacheManager.airspaceCache)
 
         // Start observing Redux state if available
         if (mapStore == null) {

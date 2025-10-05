@@ -22,12 +22,13 @@ import org.osmdroid.views.MapView
  */
 abstract class BaseOverlayManager(
     final override val overlayType: OverlayType,
-    protected val mapStore: MapStore?
+    protected var mapStore: MapStore?
 ) : OverlayManager {
 
     protected val TAG = "OverlayManager-${overlayType.name}"
     protected var mapView: MapView? = null
     protected var isAttached = false
+    protected var hasValidGPSFix = false
 
     // Debouncing for map movements
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -127,9 +128,34 @@ abstract class BaseOverlayManager(
     }
 
     /**
+     * Set the Redux store (for late initialization)
+     */
+    override fun setReduxStore(store: MapStore?) {
+        val wasNull = mapStore == null
+        mapStore = store
+        // If we just got a store and we're attached, start the subscription
+        if (wasNull && store != null && isAttached) {
+            startReduxSubscription()
+        }
+        // Trigger state change with current state
+        store?.state?.value?.let { onReduxStateChanged(it) }
+    }
+
+    /**
      * Check if this overlay is currently enabled
      */
     fun isEnabled(): Boolean = getCurrentConfig()?.enabled ?: true
+
+    /**
+     * Update GPS fix status - called when GPS receives valid coordinates
+     */
+    override fun updateGPSFixStatus(hasFix: Boolean) {
+        val changed = hasValidGPSFix != hasFix
+        hasValidGPSFix = hasFix
+        if (changed && hasFix) {
+            Log.d(TAG, "GPS fix acquired - overlay operations now enabled")
+        }
+    }
 
     /**
      * Start subscribing to Redux state changes

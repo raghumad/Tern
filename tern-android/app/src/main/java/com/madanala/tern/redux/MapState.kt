@@ -27,7 +27,7 @@ data class MapState(
 
     // Legacy overlay state (for migration - will be removed in later chunks)
     val airspacesEnabled: Boolean = true,
-    val pgSpotsEnabled: Boolean = false,
+    val pgSpotsEnabled: Boolean = true,
     val showOverlays: Boolean = true,
 
     // Loading state
@@ -43,5 +43,8 @@ data class MapState(
     val mapStyle: String = "terrain", // "satellite", "terrain", "topo"
 
     // UI state
-    val compassVisible: Boolean = true
+    val compassVisible: Boolean = true,
+
+    // Settings state - user preferences and configuration
+    val settingsState: SettingsState = SettingsState()
 )
