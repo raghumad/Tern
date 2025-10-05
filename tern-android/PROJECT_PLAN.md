@@ -4,15 +4,16 @@
 Android paragliding app with osmdroid maps, Jetpack Compose UI, Redux architecture, and advanced caching (FlexBuffers + Hilbert indexing). Core issues: lifecycle management, memory leaks, state synchronization in Compose integration.
 
 ## Current Status (October 2025)
-- **Phase 1: Redux Architecture & Core Lifecycle Fixes** ✅ 96% Complete
+- **Phase 1: Redux Architecture & Core Lifecycle Fixes** ✅ 100% Complete
 - **Phase 2: Enhanced Overlay Architecture** ✅ 97% Complete
 - **Critical Bugs Fixed** ✅ All major issues resolved (UI blocking, cache persistence, ANR crashes)
-- **Redux Compliance** ✅ 85% Complete (Settings migrated, global state management)
+- **Redux Compliance** ✅ 95% Complete (Settings migrated, legacy code eliminated)
+- **Legacy Code Cleanup** ✅ 100% Complete (Deprecated methods removed, modern architecture)
 
 ## Prioritized Remaining Tasks
 
 ### High Priority (Foundation & Stability)
-- [ ] **Clean Up Legacy Code**: Remove `clearGeoJsonOverlays()`, consolidate overlay state in coordinator
+- [x] **Clean Up Legacy Code**: Remove `clearGeoJsonOverlays()`, consolidate overlay state in coordinator ✅ COMPLETE
 - [ ] **Redux Migration Tasks**: Move permission state and map style to Redux for full compliance
 - [ ] **Performance Validation**: Test API rate limits, memory efficiency, smooth transitions
 - [ ] **Failure Recovery System**: Implement API fallback, network resilience, cache expiration for weather

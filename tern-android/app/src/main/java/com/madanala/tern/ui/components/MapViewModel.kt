@@ -180,11 +180,10 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
 
 
     /**
-     * Clear all GeoJSON overlays from the map
+     * Clear all overlays using the OverlayCoordinator (replaces legacy clearGeoJsonOverlays)
      */
-    fun clearGeoJsonOverlays() {
-        GeoJsonUtils.clearGeoJsonOverlays(mapView)
-        clearPGSpotsOverlays()
+    private fun clearAllOverlays() {
+        overlayCoordinator.refreshAllOverlays()
         currentlyRenderedAirspaceIds.clear() // Clear tracking when all airspaces are removed
     }
 
@@ -491,9 +490,9 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
             val nearbyFeatures = processedData["nearbyFeatures"] as? List<OverlayFeature>
 
             if (isMajorMove) {
-                Log.d(TAG, "Major move detected (>200km) - clearing all airspaces for fresh start")
+                Log.d(TAG, "Major move detected (>200km) - clearing all overlays for fresh start")
                 withContext(Dispatchers.Main) {
-                    clearGeoJsonOverlays()
+                    clearAllOverlays()
                 }
             }
 
@@ -513,7 +512,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
                         }} total (${nearbyFeatures.size} features processed)")
                     } else {
                         // Country change or initial load - clear and load fresh
-                        clearGeoJsonOverlays()
+                        clearAllOverlays()
                         GeoJsonUtils.addAirspaceFeaturesToMap(mapView, nearbyFeatures)
 
                         // After adding, update tracking for the new airspaces
@@ -580,10 +579,10 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
                 airspaceManager.performMapMove(center, mapView.zoomLevelDouble) // Public API trigger
             }
         } ?: run {
-            // Fallback to legacy method if manager not available
-            Log.w(TAG, "AirspaceOverlayManager not available, using legacy clearGeoJsonOverlays()")
+            // Fallback to new method if manager not available
+            Log.w(TAG, "AirspaceOverlayManager not available, using clearAllOverlays()")
             if (!enabled) {
-                clearGeoJsonOverlays()
+                clearAllOverlays()
                 currentCountryCode = null
             } else {
                 reloadAirspaceForCurrentLocation()

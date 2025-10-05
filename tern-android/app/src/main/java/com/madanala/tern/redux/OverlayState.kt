@@ -63,8 +63,4 @@ data class SettingsState(
     val speedUnit: String = "kn",
     val altitudeUnit: String = "ft",
 
-    // Legacy overlay toggles (for migration compatibility - will sync with overlayState)
-    val showAirspaces: Boolean = true,
-    val showHotspots: Boolean = true,
-    val showPgSpots: Boolean = true
 )

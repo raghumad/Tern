@@ -50,16 +50,6 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
         state.copy(overlayState = newOverlayState)
     }
 
-    // Legacy overlay actions (for migration - will be removed in later chunks)
-    is MapAction.SetAirspacesEnabled -> {
-        state.copy(airspacesEnabled = action.enabled)
-    }
-    is MapAction.SetPGSpotsEnabled -> {
-        state.copy(pgSpotsEnabled = action.enabled)
-    }
-    is MapAction.SetOverlaysVisible -> {
-        state.copy(showOverlays = action.visible)
-    }
 
     // Loading state actions
     is MapAction.SetLoadingAirspaces -> {
@@ -96,15 +86,15 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
         state.copy(compassVisible = action.visible)
     }
 
-    // Settings actions
+    // Settings actions - Update overlay state through Redux
     is MapAction.SetSettingsOverlayEnabled -> {
-        val newSettingsState = when (action.overlayType) {
-            "airspaces" -> state.settingsState.copy(showAirspaces = action.enabled)
-            "hotspots" -> state.settingsState.copy(showHotspots = action.enabled)
-            "pgspots" -> state.settingsState.copy(showPgSpots = action.enabled)
-            else -> state.settingsState
+        val newOverlayState = when (action.overlayType) {
+            "airspaces" -> state.overlayState.copy(airspaces = state.overlayState.airspaces.copy(enabled = action.enabled))
+            "hotspots" -> state.overlayState.copy(pgSpots = state.overlayState.pgSpots.copy(enabled = action.enabled)) // hotspots -> pgSpots
+            "pgspots" -> state.overlayState.copy(pgSpots = state.overlayState.pgSpots.copy(enabled = action.enabled))
+            else -> state.overlayState
         }
-        state.copy(settingsState = newSettingsState)
+        state.copy(overlayState = newOverlayState)
     }
     is MapAction.SetUnitPreference -> {
         val newSettingsState = when (action.unitType) {
@@ -112,7 +102,7 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
             "distance" -> state.settingsState.copy(distanceUnit = action.unit)
             "speed" -> state.settingsState.copy(speedUnit = action.unit)
             "altitude" -> state.settingsState.copy(altitudeUnit = action.unit)
-            else -> state.settingsState // Unknown unit type, keep current state
+            else -> state.settingsState // Fallback for unknown unit types
         }
         state.copy(settingsState = newSettingsState)
     }

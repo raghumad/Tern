@@ -130,9 +130,11 @@ object GeoJsonUtils {
 
         features.forEach { feature ->
             try {
-                val geometry = feature.feature["geometry"] as? Map<String, Any>
-                if (geometry != null) {
-                    val overlay = createOverlayFromGeometry(mapView, geometry)
+                val geometry = feature.feature["geometry"]
+                if (geometry is Map<*, *> && geometry.all { it.key is String && it.value is Any }) {
+                    @Suppress("UNCHECKED_CAST")
+                    val geometryMap = geometry as Map<String, Any>
+                    val overlay = createOverlayFromGeometry(mapView, geometryMap)
                     if (overlay is Polygon) {
                         // Apply color coding based on airspace class
                         // For paragliders, skip Class G airspaces entirely
@@ -350,16 +352,6 @@ object GeoJsonUtils {
         }
     }
 
-    /**
-     * Clear all GeoJSON overlays from the map
-     * @param mapView The MapView to clear
-     */
-    fun clearGeoJsonOverlays(mapView: MapView) {
-        // A bit of a hack: We identify our overlays by their type.
-        // This could be improved by using a custom Overlay subclass.
-        mapView.overlays.removeAll { it is Polygon || it is Marker }
-        mapView.invalidate()
-    }
 
     /**
      * Remove airspaces that are outside the current map viewport

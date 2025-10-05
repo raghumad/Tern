@@ -24,10 +24,6 @@ sealed class MapAction {
     data class SetOverlayEnabled(val type: OverlayType, val enabled: Boolean) : MapAction()
     data class UpdateOverlayConfig(val type: OverlayType, val config: OverlayConfig) : MapAction()
 
-    // Legacy overlay actions (for migration - will be removed in later chunks)
-    data class SetAirspacesEnabled(val enabled: Boolean) : MapAction()
-    data class SetPGSpotsEnabled(val enabled: Boolean) : MapAction()
-    data class SetOverlaysVisible(val visible: Boolean) : MapAction()
 
     // Loading state actions
     data class SetLoadingAirspaces(val loading: Boolean) : MapAction()

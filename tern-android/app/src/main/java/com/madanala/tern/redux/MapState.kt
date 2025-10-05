@@ -25,10 +25,6 @@ data class MapState(
     // Weather state for PG spots
     val weatherState: WeatherState = WeatherState(),
 
-    // Legacy overlay state (for migration - will be removed in later chunks)
-    val airspacesEnabled: Boolean = true,
-    val pgSpotsEnabled: Boolean = true,
-    val showOverlays: Boolean = true,
 
     // Loading state
     val isLoadingAirspaces: Boolean = false,
