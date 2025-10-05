@@ -1,11 +1,11 @@
 package com.madanala.tern.overlays
 
-import org.osmdroid.util.BoundingBox
-import org.osmdroid.util.GeoPoint
-import org.osmdroid.views.MapView
 import com.madanala.tern.redux.MapState
 import com.madanala.tern.redux.OverlayConfig
 import com.madanala.tern.redux.OverlayType
+import org.osmdroid.util.BoundingBox
+import org.osmdroid.util.GeoPoint
+import org.osmdroid.views.MapView
 
 /**
  * Interface for managing individual overlay types on the map
@@ -62,6 +62,16 @@ interface OverlayManager {
      * Handle Redux state changes
      */
     fun onReduxStateChanged(state: MapState)
+
+    /**
+     * Set the Redux store reference (for late initialization)
+     */
+    fun setReduxStore(store: com.madanala.tern.redux.MapStore?)
+
+    /**
+     * Update GPS fix status - called when GPS receives valid coordinates
+     */
+    fun updateGPSFixStatus(hasFix: Boolean)
 
     /**
      * Get performance statistics

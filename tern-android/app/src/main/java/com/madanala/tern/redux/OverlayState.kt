@@ -51,3 +51,20 @@ data class WeatherState(
     val lastCacheCleanup: Long = 0L,
     val lastAPIStatusCheck: Long = 0L
 )
+
+/**
+ * Settings state for user preferences and configuration
+ * Aviation app preferences including units, display options, and behavior settings
+ */
+data class SettingsState(
+    // Unit preferences
+    val temperatureUnit: String = "°F",
+    val distanceUnit: String = "km",
+    val speedUnit: String = "kn",
+    val altitudeUnit: String = "ft",
+
+    // Legacy overlay toggles (for migration compatibility - will sync with overlayState)
+    val showAirspaces: Boolean = true,
+    val showHotspots: Boolean = true,
+    val showPgSpots: Boolean = true
+)

@@ -7,9 +7,9 @@ import com.madanala.tern.redux.MapStore
 import com.madanala.tern.redux.OverlayConfig
 import com.madanala.tern.redux.OverlayType
 import com.madanala.tern.redux.WeatherActions
+import com.madanala.tern.utils.CacheManager
 import com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature
 import com.madanala.tern.utils.OpenMeteoWeatherAPI
-import com.madanala.tern.utils.PGSpotCache
 import com.madanala.tern.utils.PGSpotWeatherCache
 import com.madanala.tern.utils.WeatherAPI
 import kotlinx.coroutines.CancellationException
@@ -47,7 +47,7 @@ class PGSpotOverlayManager(
     }
 
     // Aviation-grade weather infrastructure - specialized caches for each data type
-    private val pgSpotCache = PGSpotCache(applicationContext) // Dedicated PG spots cache with FlexBuffers + Hilbert
+    private val pgSpotCache = CacheManager.pgSpotCache // Use singleton to prevent duplicate downloads
     private val weatherCache = PGSpotWeatherCache(applicationContext)
     private val weatherAPI: WeatherAPI = OpenMeteoWeatherAPI() // Extensible to multiple APIs
 
@@ -114,9 +114,15 @@ class PGSpotOverlayManager(
             return
         }
 
-        // Aviation safety: Validate coordinates to prevent invalid operations during app startup
-        if (center.latitude == 0.0 && center.longitude == 0.0) {
-            Log.w(TAG, "Invalid coordinates (0.0, 0.0) - skipping PG spot loading to prevent 'country not found' operations")
+        // Postpone overlay operations until GPS fix is available
+        if (!hasValidGPSFix) {
+            Log.d(TAG, "No GPS fix yet, postponing PG spot loading until GPS coordinates are available")
+            return
+        }
+
+        // Additional coordinate validation for safety
+        if (center.latitude < -90.0 || center.latitude > 90.0 || center.longitude < -180.0 || center.longitude > 180.0) {
+            Log.w(TAG, "Coordinates out of valid range: lat=${center.latitude}, lon=${center.longitude}")
             return
         }
 
@@ -133,7 +139,7 @@ class PGSpotOverlayManager(
             val distanceKm = Math.sqrt(latDiffKm * latDiffKm + lonDiffKm * lonDiffKm)
 
             if (distanceKm < checkDistanceKm) {
-                Log.d(TAG, "Not moved far enough (${String.format("%.1f km", distanceKm)} < $checkDistanceKm km), skipping PG spot reload")
+                Log.v(TAG, "Not moved far enough (${String.format("%.1f km", distanceKm)} < $checkDistanceKm km), skipping PG spot reload")
                 return
             }
         }
@@ -341,7 +347,7 @@ class PGSpotOverlayManager(
      */
     private suspend fun loadPGSpotsForLocation(context: Context, center: GeoPoint) {
         try {
-            Log.d(TAG, "Loading weather-integrated PG spots for location: ${center.latitude}, ${center.longitude}")
+            Log.v(TAG, "Loading weather-integrated PG spots for location: ${center.latitude}, ${center.longitude}")
 
             // Geographic determination (same as airspace system)
             val countryCode = com.madanala.tern.utils.CountryUtils.getCountryCodeFromGeoPoint(context, center)
@@ -354,7 +360,7 @@ class PGSpotOverlayManager(
             val isMajorMove = true // TODO: Implement proper distance check when osmdroid distanceTo is available
 
             if (isMajorMove) {
-                Log.d(TAG, "Major move detected - clearing PG spots for fresh weather-integrated load")
+                Log.v(TAG, "Major move detected - clearing PG spots for fresh weather-integrated load")
                 clearOverlays()
             }
 
@@ -378,11 +384,11 @@ class PGSpotOverlayManager(
                 }
             } else {
                 // CACHED: Use Hilbert spatial query for nearby features only
-                Log.d(TAG, "Using cached PG spots for $countryCode, performing spatial query")
+                Log.v(TAG, "Using cached PG spots for $countryCode, performing spatial query")
                 nearbyFeatures = pgSpotCache.queryNearbyPGSpots(countryCode, center, 50.0)
             }
 
-            Log.d(TAG, "Spacial query returned ${nearbyFeatures.size} PG spots within 50 miles")
+            Log.v(TAG, "Spatial query returned ${nearbyFeatures.size} PG spots within 50 miles")
 
             if (nearbyFeatures.isNotEmpty()) {
                 renderPGSpotFeaturesWithWeather(nearbyFeatures)
@@ -442,7 +448,7 @@ class PGSpotOverlayManager(
         }
 
         mapView?.invalidate()
-        Log.d(TAG, "Rendered ${features.size} weather-capable PG spots")
+        Log.v(TAG, "Rendered ${features.size} weather-capable PG spots")
     }
 
     // === UTILITY METHODS ===
@@ -595,6 +601,12 @@ class PGSpotOverlayManager(
             lastCheckLocation = null
             visiblePGSpots.clear()
         } else if (mapView != null) {
+            // Postpone Redux-triggered overlay operations until GPS fix is available
+            if (!hasValidGPSFix) {
+                Log.d(TAG, "Postponing Redux-triggered PG spot loading until GPS fix")
+                return
+            }
+
             val center = mapView!!.mapCenter as GeoPoint
             checkAndLoadPGSpots(center)
         }
@@ -607,6 +619,6 @@ class PGSpotOverlayManager(
         currentlyRenderedPGSpots.clear()
         visiblePGSpots.clear()
         mapView?.invalidate()
-        Log.d(TAG, "Cleared all weather-aware PG spot overlays")
+        Log.v(TAG, "Cleared all weather-aware PG spot overlays")
     }
 }

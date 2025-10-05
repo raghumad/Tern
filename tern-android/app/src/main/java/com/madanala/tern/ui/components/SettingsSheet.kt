@@ -2,21 +2,19 @@ package com.madanala.tern.ui.components
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AirplanemodeActive
 import androidx.compose.material.icons.filled.Tornado
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -24,6 +22,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -41,35 +41,42 @@ import com.madanala.tern.ui.screens.MAP_VIEW_TERRAIN
 fun SettingsSheet(
     onDismiss: () -> Unit,
     mapViewModel: MapViewModel = viewModel(),
-    settingsViewModel: SettingsViewModel = viewModel()
+    store: com.madanala.tern.redux.MapStore = viewModel()
 ) {
-    // Notify map view model when airspace settings change
-    val showAirspaces by settingsViewModel::showAirspaces
-    androidx.compose.runtime.LaunchedEffect(showAirspaces) {
-        mapViewModel.setAirspacesEnabled(showAirspaces)
-    }
+    val state by store.state.collectAsState()
+    val settingsState = state.settingsState
     ModalBottomSheet(onDismissRequest = onDismiss) {
         LazyColumn(modifier = Modifier.padding(horizontal = 16.dp)) {
             item {
-                Text("Map Layers", style = androidx.compose.material3.MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
+                Text("Map Layers", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
                 SettingsToggleRow(
                     text = "Airspaces",
-                    isChecked = settingsViewModel.showAirspaces,
-                    onCheckedChange = settingsViewModel::onShowAirspacesChanged
+                    isChecked = settingsState.showAirspaces,
+                    onCheckedChange = { enabled ->
+                        store.dispatch(com.madanala.tern.redux.MapAction.SetSettingsOverlayEnabled("airspaces", enabled))
+                        // Also sync with overlay manager for immediate effect
+                        mapViewModel.setAirspacesEnabled(enabled)
+                    }
                 ) {
                     Icon(Icons.Filled.AirplanemodeActive, contentDescription = "Airspaces")
                 }
                 SettingsToggleRow(
                     text = "Hotspots",
-                    isChecked = settingsViewModel.showHotspots,
-                    onCheckedChange = settingsViewModel::onShowHotspotsChanged
+                    isChecked = settingsState.showHotspots,
+                    onCheckedChange = { enabled ->
+                        store.dispatch(com.madanala.tern.redux.MapAction.SetSettingsOverlayEnabled("hotspots", enabled))
+                    }
                 ) {
                     Icon(Icons.Filled.Tornado, contentDescription = "Hotspots")
                 }
                 SettingsToggleRow(
                     text = "PGSpots",
-                    isChecked = settingsViewModel.showPgSpots,
-                    onCheckedChange = settingsViewModel::onShowPgSpotsChanged
+                    isChecked = settingsState.showPgSpots,
+                    onCheckedChange = { enabled ->
+                        store.dispatch(com.madanala.tern.redux.MapAction.SetSettingsOverlayEnabled("pgspots", enabled))
+                        // Also sync with overlay manager for immediate effect
+                        mapViewModel.setPGSpotsEnabled(enabled)
+                    }
                 ) {
                     Image(
                         painter = painterResource(id = R.drawable.kjartan_birgisson),
@@ -81,39 +88,50 @@ fun SettingsSheet(
             }
 
             item {
-                Text("Units", style = androidx.compose.material3.MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
+                Text("Units", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
                 SettingsPickerRow(
                     label = "Map Style",
                     items = listOf("Terrain", "Satellite"),
-                    selectedItem = if (mapViewModel.mapStyle == MAP_VIEW_TERRAIN) "Terrain" else "Satellite",
+                    selectedItem = if (state.mapStyle == "terrain") "Terrain" else "Satellite",
                     onItemSelected = {
-                        val newStyle = if (it == "Terrain") MAP_VIEW_TERRAIN else MAP_VIEW_SATELLITE
-                        mapViewModel.updateMapStyle(newStyle)
+                        val newStyle = if (it == "Terrain") "terrain" else "satellite"
+                        store.dispatch(com.madanala.tern.redux.MapAction.UpdateMapStyle(newStyle))
+                        // Also update MapView for immediate effect
+                        val styleInt = if (it == "Terrain") MAP_VIEW_TERRAIN else MAP_VIEW_SATELLITE
+                        mapViewModel.updateMapStyle(styleInt)
                     }
                 )
                 SettingsPickerRow(
                     label = "Temperature",
                     items = listOf("°F", "°C", "K"),
-                    selectedItem = settingsViewModel.temperatureUnit,
-                    onItemSelected = settingsViewModel::onTemperatureUnitChanged
+                    selectedItem = settingsState.temperatureUnit,
+                    onItemSelected = { unit ->
+                        store.dispatch(com.madanala.tern.redux.MapAction.SetUnitPreference("temperature", unit))
+                    }
                 )
                 SettingsPickerRow(
                     label = "Distance",
                     items = listOf("km", "mi", "fur"),
-                    selectedItem = settingsViewModel.distanceUnit,
-                    onItemSelected = settingsViewModel::onDistanceUnitChanged
+                    selectedItem = settingsState.distanceUnit,
+                    onItemSelected = { unit ->
+                        store.dispatch(com.madanala.tern.redux.MapAction.SetUnitPreference("distance", unit))
+                    }
                 )
                 SettingsPickerRow(
                     label = "Speed",
                     items = listOf("kn", "mph", "kph", "m/s"),
-                    selectedItem = settingsViewModel.speedUnit,
-                    onItemSelected = settingsViewModel::onSpeedUnitChanged
+                    selectedItem = settingsState.speedUnit,
+                    onItemSelected = { unit ->
+                        store.dispatch(com.madanala.tern.redux.MapAction.SetUnitPreference("speed", unit))
+                    }
                 )
                 SettingsPickerRow(
                     label = "Altitude",
                     items = listOf("ft", "m", "in"),
-                    selectedItem = settingsViewModel.altitudeUnit,
-                    onItemSelected = settingsViewModel::onAltitudeUnitChanged
+                    selectedItem = settingsState.altitudeUnit,
+                    onItemSelected = { unit ->
+                        store.dispatch(com.madanala.tern.redux.MapAction.SetUnitPreference("altitude", unit))
+                    }
                 )
                 Spacer(modifier = Modifier.height(16.dp))
             }

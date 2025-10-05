@@ -1,11 +1,11 @@
 package com.madanala.tern.utils
 
 import android.content.Context
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import android.util.Log
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature
+import org.osmdroid.util.GeoPoint
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -15,8 +15,6 @@ import java.io.RandomAccessFile
 import java.nio.MappedByteBuffer
 import java.nio.channels.FileChannel
 import java.util.concurrent.ConcurrentHashMap
-import com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature
-import org.osmdroid.util.GeoPoint
 
 /**
  * PG SPOT CACHE - FlexBuffers + Hilbert Spatial Indexing
@@ -41,6 +39,7 @@ class PGSpotCache(context: Context) {
     private val cacheIndex = ConcurrentHashMap<String, Long>() // countryCode -> timestamp
     private val spatialIndexCache = ConcurrentHashMap<String, MapOverlayCacheUtils.SpatialIndex>() // countryCode -> spatial index
     private val memoryMappedBuffers = ConcurrentHashMap<String, MappedByteBuffer>() // countryCode -> memory mapped buffer
+    private val downloadInProgress = ConcurrentHashMap<String, Boolean>() // countryCode -> download flag
 
     private val objectMapper = ObjectMapper()
 
@@ -92,6 +91,12 @@ class PGSpotCache(context: Context) {
      * Downloads from paraglidingearth.com, caches as FlexBuffers + Hilbert
      */
     suspend fun cachePGSpotsData(countryCode: String): List<OverlayFeature>? {
+        // Prevent duplicate downloads
+        if (downloadInProgress.putIfAbsent(countryCode, true) == true) {
+            Log.d(TAG, "Download already in progress for PG spots $countryCode, skipping duplicate")
+            return null
+        }
+
         try {
             val url = "https://www.paraglidingearth.com/api/geojson/getCountrySites.php?iso=${countryCode.lowercase()}&style=detailed"
             Log.d(TAG, "Downloading PG spots from: $url")
@@ -123,6 +128,9 @@ class PGSpotCache(context: Context) {
         } catch (e: Exception) {
             Log.e(TAG, "Error caching PG spots data for $countryCode", e)
             return null
+        } finally {
+            // Clear the download flag
+            downloadInProgress.remove(countryCode)
         }
     }
 
@@ -180,11 +188,12 @@ class PGSpotCache(context: Context) {
                     var centroidData = featureData["centroid"] as? Map<String, Any>
                     var latitude = centroidData?.get("latitude") as? Double ?: featureData["lat"] as? Double
                     var longitude = centroidData?.get("longitude") as? Double ?: featureData["lon"] as? Double
-                    var hilbertIndex = featureData["hilbertIndex"] as? Long ?: featureData["hilbert"] as? Long
+                    // Use hilbert index from spatial index entry (not from feature JSON)
+                    val hilbertIndex = entry.hilbertIndex
                     val overlayType = featureData["overlayType"] as? String ?: "pgspot"
 
                     // Build OverlayFeature with proper validation
-                    if (latitude != null && longitude != null && hilbertIndex != null) {
+                    if (latitude != null && longitude != null) {
                         val centroid = GeoPoint(latitude, longitude)
                         val overlayFeature = OverlayFeature(feature, centroid, hilbertIndex, overlayType)
 
@@ -192,7 +201,7 @@ class PGSpotCache(context: Context) {
                         val distance = center.distanceToAsDouble(centroid)
                         if (distance <= maxDistanceMeters) overlayFeature else null
                     } else {
-                        Log.w(TAG, "Invalid PG spot data: lat=$latitude, lon=$longitude, hilbert=$hilbertIndex")
+                        Log.w(TAG, "Invalid PG spot data: lat=$latitude, lon=$longitude")
                         null
                     }
 

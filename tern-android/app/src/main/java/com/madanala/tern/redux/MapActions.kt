@@ -45,4 +45,8 @@ sealed class MapAction {
 
     // UI actions
     data class SetCompassVisible(val visible: Boolean) : MapAction()
+
+    // Settings actions
+    data class SetSettingsOverlayEnabled(val overlayType: String, val enabled: Boolean) : MapAction()
+    data class SetUnitPreference(val unitType: String, val unit: String) : MapAction()
 }

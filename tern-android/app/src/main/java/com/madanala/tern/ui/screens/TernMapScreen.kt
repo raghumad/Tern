@@ -84,7 +84,8 @@ fun TernMapScreen(
     if (showSettingsSheet) {
         SettingsSheet(
             onDismiss = { showSettingsSheet = false },
-            mapViewModel = mapViewModel
+            mapViewModel = mapViewModel,
+            store = store
         )
     }
 
