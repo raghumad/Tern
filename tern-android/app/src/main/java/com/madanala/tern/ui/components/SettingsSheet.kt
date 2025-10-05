@@ -51,7 +51,7 @@ fun SettingsSheet(
                 Text("Map Layers", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
                 SettingsToggleRow(
                     text = "Airspaces",
-                    isChecked = settingsState.showAirspaces,
+                    isChecked = state.overlayState.airspaces.enabled,
                     onCheckedChange = { enabled ->
                         store.dispatch(com.madanala.tern.redux.MapAction.SetSettingsOverlayEnabled("airspaces", enabled))
                         // Also sync with overlay manager for immediate effect
@@ -62,7 +62,7 @@ fun SettingsSheet(
                 }
                 SettingsToggleRow(
                     text = "Hotspots",
-                    isChecked = settingsState.showHotspots,
+                    isChecked = state.overlayState.pgSpots.enabled,
                     onCheckedChange = { enabled ->
                         store.dispatch(com.madanala.tern.redux.MapAction.SetSettingsOverlayEnabled("hotspots", enabled))
                     }
@@ -71,7 +71,7 @@ fun SettingsSheet(
                 }
                 SettingsToggleRow(
                     text = "PGSpots",
-                    isChecked = settingsState.showPgSpots,
+                    isChecked = state.overlayState.pgSpots.enabled,
                     onCheckedChange = { enabled ->
                         store.dispatch(com.madanala.tern.redux.MapAction.SetSettingsOverlayEnabled("pgspots", enabled))
                         // Also sync with overlay manager for immediate effect
