@@ -1,7 +1,7 @@
 # Concise Project Plan: osmdroid + Compose Integration Fix
 
 ## Context
-Android paragliding app with osmdroid maps, Jetpack Compose UI, Redux architecture, and advanced caching (FlexBuffers + Hilbert indexing). Core issues: lifecycle management, memory leaks, state synchronization in Compose integration.
+Android paragliding app with osmdroid maps, Jetpack Compose UI, Redux architecture, and advanced caching (FlexBuffers + Hilbert indexing). **Critical Issue Identified**: Country border cache clearing causes dangerous visual discontinuities during flight, especially problematic in Europe and during competitions like Red Bull X-Alps.
 
 ## Current Status (October 2025)
 - **Phase 1: Redux Architecture & Core Lifecycle Fixes** ✅ 100% Complete
@@ -16,20 +16,141 @@ Android paragliding app with osmdroid maps, Jetpack Compose UI, Redux architectu
 - **Cancellation Exception Handling**: Fixed improper error logging of job cancellations in PGSpotCache - now re-throws CancellationException for proper propagation ✅
 - **Overlay Architecture Completion**: PG spots and airspaces now display correctly with optimized performance
 
-## Prioritized Remaining Tasks
+## 🚨 Critical Aviation Safety Issue Identified
+**Country Border Cache Clearing**: Current system clears entire country caches when crossing borders, causing:
+- **Visual discontinuity** during critical flight phases ❌
+- **Performance spikes** from full country reloads ❌
+- **Safety hazard** from jarring map changes ❌
+- **Poor UX** especially in dense border areas like Europe ❌
 
-### High Priority (Foundation & Stability)
-- [x] **Clean Up Legacy Code**: Remove `clearGeoJsonOverlays()`, consolidate overlay state in coordinator ✅ COMPLETE
-- [x] **Redux Migration Tasks**: Move permission state and map style to Redux for full compliance ✅ COMPLETE
-- [ ] **Performance Validation**: Test API rate limits, memory efficiency, smooth transitions
-- [ ] **Failure Recovery System**: Implement API fallback, network resilience, cache expiration for weather
+**Impact Assessment**: This affects aviation safety during competitions like Red Bull X-Alps where pilots cross multiple borders.
 
-### Medium Priority (Feature Completion)
-- [ ] **Complete WeatherDetailsScreen Implementation**: Implement composable for weather popup details (PGSpots/weather features)
-- [ ] **Phase 3: Advanced Features**: Sensor integration (accelerometer, compass, GPS), 3D terrain, sensor fusion, aviation features
+## Updated Priority System (Aviation Safety First)
 
-### Low Priority (Polish & Testing)
-- [ ] **Phase 4: Testing & Polish**: Device testing, performance profiling, bug fixes, documentation
+### PRIORITY 0: Critical Aviation Safety (Border Cache Issue) 🚨
+- [ ] **Smart Country Management**: Replace hard country clearing with intelligent multi-country caching
+- [ ] **Flight Path Prediction**: Preload countries along predicted flight path (X-Alps, cross-country)
+- [ ] **Spatial Query Optimization**: Query within countries using Hilbert indexing for performance
+- [ ] **Smooth Border Transitions**: Eliminate visual discontinuity when crossing borders
+
+### PRIORITY 1: Performance Validation & Optimization (Debug-Only)
+- [ ] **Debug Performance Monitor**: BuildConfig-gated performance validation system
+- [ ] **State Update Storm Fix**: Redux workflow optimization with batching
+- [ ] **Memory Leak Detection**: Proper cleanup and lifecycle management
+- [ ] **Request Deduplication**: Prevent duplicate network/spatial requests
+
+### PRIORITY 2: Enhanced Features & Polish
+- [ ] **WeatherDetailsScreen Implementation**: Complete weather popup details composable
+- [ ] **Advanced Aviation Features**: Sensor integration, 3D terrain, sensor fusion
+- [ ] **Testing & Documentation**: Device testing, performance profiling, user docs
+
+## Technical Solution Architecture
+
+### Universal Overlay Country Management
+**Problem**: Country border cache clearing affects ALL overlay types (airspaces, PG spots, weather), causing visual discontinuity during flight
+
+**Solution**: Universal country management system that serves ALL overlay managers with intelligent caching and smooth transitions
+
+#### Three-Layer Architecture
+
+**Layer 1: Universal Country Management** (Core Infrastructure)
+```kotlin
+UniversalCountryCacheManager {
+    // Single cache manager for ALL overlay types
+    - Manages country data universally
+    - Handles flight path prediction
+    - Coordinates all overlay managers
+    - Provides shared country state to Redux
+}
+```
+
+**Layer 2: Overlay-Specific Logic** (Specialized Processing)
+```kotlin
+// Each overlay manager focuses on its specific responsibility
+AirspaceOverlayManager {
+    // Uses universal country cache
+    // Specializes in airspace rendering & queries
+}
+
+PGSpotOverlayManager {
+    // Uses universal country cache
+    // Specializes in PG spot data & display
+}
+
+WeatherOverlayManager { // Future
+    // Uses universal country cache
+    // Specializes in weather data integration
+}
+```
+
+**Layer 3: Redux State Integration** (Unified State)
+```kotlin
+// Single Redux state for all overlay country management
+OverlayState {
+    activeCountries: Set<String>
+    cachedCountries: Map<String, CountryMetadata>
+    flightPath: FlightPath?
+    perOverlayTypeState: Map<OverlayType, TypeState>
+}
+```
+
+#### Universal Country Strategy
+- **Max cached countries**: 3-4 total (memory efficient across all overlay types)
+- **Flight path prediction**: Preload countries along predicted flight path (X-Alps, cross-country)
+- **Distance-based retention**: Keep recent countries, remove distant ones
+- **Spatial queries**: Use Hilbert indexing within countries for all overlay types
+- **Smooth transitions**: Universal transition management across all overlays
+
+#### Benefits for All Overlay Types
+
+**Airspace Overlays**:
+- ✅ Smooth border transitions with continuous airspace display
+- ✅ No airspace disappearance during critical flight phases
+- ✅ Intelligent preloading of adjacent country airspace
+
+**PG Spot Overlays**:
+- ✅ Continuous display of paragliding sites across borders
+- ✅ No loss of nearby PG spots during border crossing
+- ✅ Smart caching of popular cross-border PG areas
+
+**Weather Overlays** (Future):
+- ✅ Weather data continuity across borders
+- ✅ No weather information gaps during flight
+- ✅ Larger radius weather caching for aviation needs
+
+**Any Future Overlays**:
+- ✅ Automatic integration with country management system
+- ✅ Consistent behavior across all overlay types
+- ✅ Shared flight path prediction and caching logic
+
+#### Aviation Safety Compliance
+- **Visual Continuity**: No jarring transitions for any overlay type during flight
+- **Performance Predictability**: Consistent behavior across airspaces, PG spots, and weather
+- **Competition Ready**: Handle X-Alps route with <3 country downloads total for all overlay types
+- **Memory Efficiency**: Universal country management prevents duplicate caching across overlay types
+
+### Performance Validation System (Debug-Only)
+**Approach**: BuildConfig.DEBUG-gated monitoring with zero release impact
+
+**Priority Order**:
+1. State update storm → Redux batching optimization
+2. Memory leaks → Reference tracking and cleanup
+3. Duplicate loading → Request deduplication cache
+4. Memory pressure → Viewport-based cleanup
+5. Subscription overhead → State change batching
+6. Insufficient debouncing → Aviation-appropriate timing (1000ms+)
+7. API rate limiting → Background throttling
+
+## Risk Assessment
+- **High Risk**: Border cache issue impacts aviation safety ❌
+- **Medium Risk**: Performance issues affect user experience ❌
+- **Low Risk**: Feature completion can be incremental ✅
+
+## Success Metrics
+- **Aviation Safety**: Smooth border transitions, no visual discontinuity
+- **Performance**: <100 state updates/sec, <75% memory usage, <10 API calls/min
+- **User Experience**: No jarring transitions, predictable loading, responsive UI
+- **Competition Ready**: Handle X-Alps route with <3 country downloads total
 
 ## Lessons Learned: Critical Bugfixes (Do Not Repeat)
 
