@@ -85,23 +85,15 @@ fun MapViewContainer(
     // TODO: Integrate Redux with location updates when ViewModel state is migrated
     // This will be updated when we migrate location logic to Redux
 
-    // Phase 1: DisposableEffect for compose lifecycle
+    // MapViewModel - Redux integration handled via setMapStore
     val mapViewModel: MapViewModel = viewModel()
 
-    DisposableEffect(Unit) {
-        // Set up callbacks to Redux store (Phase 1 Redux migration)
-        mapViewModel.rotationCallback = { rotation ->
-            store.updateRotation(rotation)
-        }
-        mapViewModel.locationReadyCallback = { ready ->
-            store.dispatch(MapAction.SetLocationReady(ready))
-        }
-        // Set Redux store for overlay managers
+    DisposableEffect(store) {
+        // Connect MapViewModel to Redux store for state integration
         mapViewModel.setMapStore(store)
+
         onDispose {
-            // Redux store cleanup handled by ViewModel lifecycle
-            mapViewModel.rotationCallback = null
-            mapViewModel.locationReadyCallback = null
+            // Cleanup handled by MapViewModel lifecycle
         }
     }
 

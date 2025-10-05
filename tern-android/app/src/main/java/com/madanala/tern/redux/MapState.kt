@@ -20,7 +20,10 @@ data class MapState(
     val permissionRequested: Boolean = false,
 
     // Overlay state - modular overlay management
-    val overlayState: OverlayState = OverlayState(),
+    val overlayState: OverlayState = OverlayState(
+        airspaces = OverlayConfig(enabled = true),  // Airspaces enabled by default
+        pgSpots = OverlayConfig(enabled = true)     // PG spots enabled by default
+    ),
 
     // Weather state for PG spots
     val weatherState: WeatherState = WeatherState(),

@@ -48,13 +48,10 @@ private const val USER_LOCATION_ZOOM = 7.0
 private const val AIRSPACE_CHECK_DISTANCE_KM = 5.0 // Minimum distance to trigger airspace reload (further reduced)
 private const val AIRSPACE_MAJOR_MOVE_KM = 200.0 // Major move threshold - clear and reload everything
 private const val AIRSPACE_FILTER_RADIUS_MILES = 300.0 // Configurable radius for airspace filtering
-private const val MAP_MOVE_DEBOUNCE_MS = 500L // Debounce map movement checks by 0.5 seconds (optimized for better responsiveness)
+private const val MAP_MOVE_DEBOUNCE_MS = 1000L // Debounce map movement checks by 1 second (increased to reduce jitter)
 private const val TAG = "MapViewModel"
 
 class MapViewModel(application: Application) : AndroidViewModel(application) {
-    // Callbacks for Redux updates (Phase 1 Redux migration)
-    var rotationCallback: ((Float) -> Unit)? = null
-    var locationReadyCallback: ((Boolean) -> Unit)? = null
 
     // This is a deliberate architectural choice.
     // The MapView is a complex, stateful UI component. To prevent it from being destroyed and
@@ -75,6 +72,16 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
     var mapStyle by mutableStateOf(MAP_VIEW_TERRAIN)
         private set
 
+    // Redux state integration
+    private var reduxState: com.madanala.tern.redux.MapState = com.madanala.tern.redux.MapState()
+
+    // Redux store - can be set after construction for ViewModel compatibility
+    private var reduxStore: com.madanala.tern.redux.MapStore? = null
+
+    // Redux store accessor for external components
+    val mapStore: com.madanala.tern.redux.MapStore?
+        get() = reduxStore
+
     private val _isLocationReady = MutableStateFlow(false)
     val isLocationReady = _isLocationReady.asStateFlow()
 
@@ -89,7 +96,6 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
     private var currentCountryCode: String? = null
     private var lastAirspaceCheckLocation: GeoPoint? = null
     private var airspaceLoadingJob: Job? = null
-    private var showAirspacesEnabled = true // ENABLED - airspace system active with memory limits
     private val currentlyRenderedAirspaceIds = mutableSetOf<String>() // Track rendered airspace IDs to prevent duplicates
 
     // PG Spots management - Use singleton cache to prevent duplicate downloads
@@ -97,12 +103,19 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
     private var currentPGSpotsCountryCode: String? = null
     private var lastPGSpotsCheckLocation: GeoPoint? = null
     private var pgSpotsLoadingJob: Job? = null
-    private var showPGSpotsEnabled = true // Enabled by default for aviation navigation
+
+    // Redux state accessors
+    private val showAirspacesEnabled: Boolean
+        get() = reduxState.overlayState.airspaces.enabled
+
+    private val showPGSpotsEnabled: Boolean
+        get() = reduxState.overlayState.pgSpots.enabled
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private var pendingAirspaceCheck: Runnable? = null
     private var pendingPGSpotsCheck: Runnable? = null
     private var pendingCleanup: Runnable? = null
+    private var pendingReduxUpdate: Runnable? = null
 
     init {
         mapView = MapView(application).apply {
@@ -115,11 +128,17 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
         setupMapListeners()
         initializeOverlaySystem()
 
+        // Set up Redux state observation when store is connected via setMapStore()
         // Dynamic airspace loading will be handled by location-based triggers
     }
 
     fun updateMapStyle(style: Int) {
         mapStyle = style
+
+        // Dispatch Redux action for state management
+        val styleString = if (style == MAP_VIEW_SATELLITE) "satellite" else "terrain"
+        reduxStore?.dispatch(com.madanala.tern.redux.MapAction.UpdateMapStyle(styleString))
+
         val tileSource = if (style == MAP_VIEW_SATELLITE) {
             TileSourceFactory.USGS_SAT
         } else {
@@ -148,13 +167,16 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
                         mapView.controller.setCenter(myLocation)
                         initialZoomDone = true
                         _isLocationReady.value = true
-                        locationReadyCallback?.invoke(true) // Redux migration
+
+                        // Dispatch Redux actions for location state
+                        reduxStore?.dispatch(com.madanala.tern.redux.MapAction.SetLocationReady(true))
+                        reduxStore?.dispatch(com.madanala.tern.redux.MapAction.UpdateUserLocation(myLocation))
 
                         // Notify overlay managers that GPS fix is now available
                         overlayCoordinator.getOverlayManager(com.madanala.tern.redux.OverlayType.AIRSPACE)?.updateGPSFixStatus(true)
                         overlayCoordinator.getOverlayManager(com.madanala.tern.redux.OverlayType.PG_SPOTS)?.updateGPSFixStatus(true)
 
-                        // Note: Overlay managers handle data loading - no legacy loading calls needed
+                        // Note: Overlay managers handle data loading through Redux state
                     }
                 }
 
@@ -226,30 +248,59 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
 
 
     /**
-     * Initialize the new overlay system with overlay manager integration
+     * Set up Redux state observation for reactive updates
+     */
+    private fun setupReduxStateObservation() {
+        val store = reduxStore ?: return
+
+        // Launch coroutine to collect Redux state changes
+        viewModelScope.launch {
+            store.state.collect { newState ->
+                val oldState = reduxState
+                reduxState = newState
+
+                // Handle overlay state changes
+                if (oldState.overlayState.airspaces.enabled != newState.overlayState.airspaces.enabled) {
+                    setAirspacesEnabled(newState.overlayState.airspaces.enabled)
+                }
+                if (oldState.overlayState.pgSpots.enabled != newState.overlayState.pgSpots.enabled) {
+                    setPGSpotsEnabled(newState.overlayState.pgSpots.enabled)
+                }
+
+                // Handle map style changes
+                if (oldState.mapStyle != newState.mapStyle) {
+                    val styleInt = if (newState.mapStyle == "satellite") MAP_VIEW_SATELLITE else MAP_VIEW_TERRAIN
+                    updateMapStyle(styleInt)
+                }
+
+                // Handle permission changes
+                if (oldState.hasLocationPermission != newState.hasLocationPermission) {
+                    if (newState.hasLocationPermission) {
+                        startLocationUpdates()
+                    } else {
+                        myLocationOverlay?.disableMyLocation()
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Initialize the new overlay system (Redux store connected later)
      */
     private fun initializeOverlaySystem() {
-        Log.d(TAG, "Initializing overlay system with overlay manager integration")
+        Log.d(TAG, "Initializing overlay system - Redux store will be connected later")
 
-        // Initialize overlay coordinator (Redux integration for future use)
-        // Note: Full Redux integration deferred to Phase 3 for stability
+        // Initialize overlay coordinator without Redux store (will be connected later)
         overlayCoordinator.initialize(
-            mapStore = null, // TODO: Add MapStore when Redux is available
+            mapStore = null, // Will be set when Redux store is connected
             mapView = mapView,
             context = getApplication()
         )
 
-        // Create and register AirspaceOverlayManager for proper overlay lifecycle management
-        val airspaceManager = AirspaceOverlayManager(getApplication<Application>().applicationContext, null)
-        overlayCoordinator.addOverlayManager(airspaceManager)
+        Log.d(TAG, "Overlay coordinator initialized - waiting for Redux store connection")
 
-        // Create and register PGSpotOverlayManager
-        val pgSpotManager = PGSpotOverlayManager(getApplication<Application>().applicationContext, null)
-        overlayCoordinator.addOverlayManager(pgSpotManager)
-
-        Log.d(TAG, "Overlay managers registered with coordinator - legacy airspace tracking removed - proper overlay lifecycle achieved")
-
-        // Legacy system now replaced with overlay managers - this completes the integration
+        // Overlay managers will be created when Redux store is connected via setMapStore()
     }
 
     /**
@@ -259,11 +310,14 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
         mapView.addMapListener(object : MapListener {
             override fun onScroll(event: ScrollEvent?): Boolean {
                 val rotation = mapView.mapOrientation
+                val center = mapView.mapCenter
+
                 _mapRotation.value = rotation
-                rotationCallback?.invoke(rotation) // Redux migration
+
+                // Schedule debounced Redux state updates to prevent excessive recompositions
+                center?.let { scheduleReduxUpdate(rotation, it as GeoPoint, null) } ?: scheduleReduxUpdate(rotation, null, null)
 
                 // Overlay managers handle their own map-based loading now
-                // checkAirspaceReloadNeeded() // REMOVED: Overlay managers are single source of truth
                 checkPGSpotsReloadNeeded()
                 scheduleCleanupCheck()
                 return true
@@ -271,11 +325,15 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
 
             override fun onZoom(event: ZoomEvent?): Boolean {
                 val rotation = mapView.mapOrientation
+                val center = mapView.mapCenter
+                val zoom = mapView.zoomLevelDouble
+
                 _mapRotation.value = rotation
-                rotationCallback?.invoke(rotation) // Redux migration
+
+                // Schedule debounced Redux state updates to prevent excessive recompositions
+                center?.let { scheduleReduxUpdate(rotation, it as GeoPoint, zoom) } ?: scheduleReduxUpdate(rotation, null, zoom)
 
                 // Overlay managers handle their own map-based loading now
-                // checkAirspaceReloadNeeded() // REMOVED: Overlay managers are single source of truth
                 checkPGSpotsReloadNeeded()
                 scheduleCleanupCheck()
                 return true
@@ -285,8 +343,8 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * Schedule out-of-view cleanup (viewport-as-truth principle)
-     * Airspaces are managed based on actual viewport visibility, not artificial radius limits
-     */
+      * Airspaces are managed based on actual viewport visibility, not artificial radius limits
+      */
     private fun scheduleCleanupCheck() {
         pendingCleanup?.let { mainHandler.removeCallbacks(it) }
         pendingCleanup = Runnable {
@@ -297,11 +355,27 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
         mainHandler.postDelayed(pendingCleanup!!, VIEWPORT_CLEANUP_DELAY_MS)
     }
 
+    /**
+     * Schedule debounced Redux state updates to prevent excessive UI recompositions
+     */
+    private fun scheduleReduxUpdate(rotation: Float, center: GeoPoint?, zoom: Double?) {
+        pendingReduxUpdate?.let { mainHandler.removeCallbacks(it) }
+        pendingReduxUpdate = Runnable {
+            reduxStore?.dispatch(com.madanala.tern.redux.MapAction.UpdateRotation(rotation))
+            center?.let {
+                @Suppress("UNCHECKED_CAST")
+                reduxStore?.dispatch(com.madanala.tern.redux.MapAction.UpdateCenter(it as GeoPoint))
+            }
+            zoom?.let { reduxStore?.dispatch(com.madanala.tern.redux.MapAction.UpdateZoom(it)) }
+        }
+        mainHandler.postDelayed(pendingReduxUpdate!!, MAP_MOVE_DEBOUNCE_MS)
+    }
+
     companion object {
         // Configurable: Time to wait after map movement before viewport cleanup
         // Longer delays = more accurate but less responsive
         // Shorter delays = more responsive but may trigger cleanup during movement
-        private const val VIEWPORT_CLEANUP_DELAY_MS = 1000L // 1 second delay - adjustable
+        private const val VIEWPORT_CLEANUP_DELAY_MS = 2000L // 2 second delay - increased to reduce conflicts with overlay updates
 
         // Configurable: Maximum airspaces to keep rendered for resource management
         const val MAX_VISIBLE_AIRSPACES = 100 // Adjustable based on device performance
@@ -347,7 +421,9 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
         // Fallback: coordinate-based ID
         val geometry = feature.feature["geometry"] as? Map<*, *>
         val coordinates = geometry?.get("coordinates") as? List<*>
-        val outerRing = coordinates?.get(0) as? List<List<Double>>
+        val outerRing = if (coordinates is List<*> && coordinates.isNotEmpty()) {
+            coordinates[0] as? List<List<Double>>
+        } else null
 
         return if (outerRing != null && outerRing.isNotEmpty()) {
             val firstCoord = outerRing[0]
@@ -560,13 +636,17 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
 
 
     /**
-     * Update airspace enabled state
+     * Update airspace enabled state through Redux
      * @param enabled Whether airspaces should be displayed
      */
     fun setAirspacesEnabled(enabled: Boolean) {
-        showAirspacesEnabled = enabled
+        // Dispatch Redux action to update state
+        reduxStore?.dispatch(com.madanala.tern.redux.MapAction.SetOverlayEnabled(
+            com.madanala.tern.redux.OverlayType.AIRSPACE,
+            enabled
+        ))
 
-        // Use overlay manager for targeted airspace control (Phase 2 overlay integration)
+        // Also update overlay manager directly for immediate effect (will be synced via Redux)
         overlayCoordinator.getOverlayManager(com.madanala.tern.redux.OverlayType.AIRSPACE)?.let { airspaceManager ->
             if (!enabled) {
                 // Clear ONLY airspace overlays using manager (not all overlays)
@@ -574,12 +654,11 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
                 currentCountryCode = null // Clear legacy state tracking
             } else {
                 // Enable manager and trigger reload for current location
-                // Note: Manager will check its own enabled state
                 val center = mapView.mapCenter as GeoPoint
-                airspaceManager.performMapMove(center, mapView.zoomLevelDouble) // Public API trigger
+                airspaceManager.performMapMove(center, mapView.zoomLevelDouble)
             }
         } ?: run {
-            // Fallback to new method if manager not available
+            // Fallback if manager not available
             Log.w(TAG, "AirspaceOverlayManager not available, using clearAllOverlays()")
             if (!enabled) {
                 clearAllOverlays()
@@ -685,25 +764,22 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             // Try to load from cache first (PG spots cached for 7 days)
-            var features: List<OverlayFeature> = emptyList()
-
             if (!pgSpotsCache.isCached(countryCode)) {
                 // Download from ParaglidingEarth API and cache
                 withContext(Dispatchers.IO) {
-                    features = pgSpotsCache.cachePGSpotsData(countryCode) ?: emptyList()
+                    pgSpotsCache.cachePGSpotsData(countryCode)
                 }
-            } else {
-                // Query nearby features from cache
-                features = pgSpotsCache.queryNearbyPGSpots(countryCode, center, AIRSPACE_FILTER_RADIUS_MILES)
             }
+
+            // Query nearby features from cache (now available)
+            val features = pgSpotsCache.queryNearbyPGSpots(countryCode, center, AIRSPACE_FILTER_RADIUS_MILES)
 
             if (features.isNotEmpty()) {
                 // Clear existing PG spots overlays
                 clearPGSpotsOverlays()
 
-                // Query nearby features and add to map - Placeholder for Phase 1
-                val nearbyFeatures: List<OverlayFeature> = emptyList()
-                addPGSpotsToMap(mapView, nearbyFeatures)
+                // Add nearby features to map
+                addPGSpotsToMap(mapView, features)
 
                 // Update current country and last location
                 currentPGSpotsCountryCode = countryCode
@@ -821,11 +897,16 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Update PG spots enabled state
+     * Update PG spots enabled state through Redux
      * @param enabled Whether PG spots should be displayed
      */
     fun setPGSpotsEnabled(enabled: Boolean) {
-        showPGSpotsEnabled = enabled
+        // Dispatch Redux action to update state
+        reduxStore?.dispatch(com.madanala.tern.redux.MapAction.SetOverlayEnabled(
+            com.madanala.tern.redux.OverlayType.PG_SPOTS,
+            enabled
+        ))
+
         if (!enabled) {
             // Clear existing PG spots overlays if disabled
             clearPGSpotsOverlays()
@@ -837,12 +918,67 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Set the Redux store for overlay managers (late initialization)
+     * Set the Redux store for overlay managers (late initialization for ViewModel compatibility)
      */
     fun setMapStore(store: com.madanala.tern.redux.MapStore?) {
-        // Set store on overlay managers
-        overlayCoordinator.getOverlayManager(com.madanala.tern.redux.OverlayType.AIRSPACE)?.setReduxStore(store)
-        overlayCoordinator.getOverlayManager(com.madanala.tern.redux.OverlayType.PG_SPOTS)?.setReduxStore(store)
+        Log.d(TAG, "Setting Redux store: ${store != null}")
+        reduxStore = store
+
+        // Initialize Redux state when store is connected
+        reduxState = store?.state?.value ?: com.madanala.tern.redux.MapState()
+
+        // Log current Redux state for debugging
+        logReduxStatus()
+
+        // Re-initialize overlay system with Redux store now that it's available
+        if (store != null) {
+            initializeOverlaySystemWithRedux(store)
+        }
+
+        // Set up Redux state observation when store becomes available
+        setupReduxStateObservation()
+    }
+
+    /**
+     * Initialize overlay system with Redux store after it's connected
+     */
+    private fun initializeOverlaySystemWithRedux(store: com.madanala.tern.redux.MapStore) {
+        Log.d(TAG, "Re-initializing overlay system with Redux store")
+
+        // Initialize overlay coordinator with Redux store
+        overlayCoordinator.initialize(
+            mapStore = store,
+            mapView = mapView,
+            context = getApplication()
+        )
+
+        // Create and register AirspaceOverlayManager with Redux store
+        val airspaceManager = AirspaceOverlayManager(getApplication<Application>().applicationContext, store)
+        overlayCoordinator.addOverlayManager(airspaceManager)
+
+        // Create and register PGSpotOverlayManager with Redux store
+        val pgSpotManager = PGSpotOverlayManager(getApplication<Application>().applicationContext, store)
+        overlayCoordinator.addOverlayManager(pgSpotManager)
+
+        Log.d(TAG, "Overlay managers re-registered with Redux store")
+    }
+
+    /**
+     * Update Redux state (called when state changes externally)
+     */
+    fun updateReduxState(newState: com.madanala.tern.redux.MapState) {
+        reduxState = newState
+    }
+
+    /**
+     * Debug method to check Redux integration status
+     */
+    fun logReduxStatus() {
+        Log.d(TAG, "Redux Status - Store connected: ${reduxStore != null}")
+        Log.d(TAG, "Redux Status - Airspaces enabled: ${reduxState.overlayState.airspaces.enabled}")
+        Log.d(TAG, "Redux Status - PG spots enabled: ${reduxState.overlayState.pgSpots.enabled}")
+        Log.d(TAG, "Redux Status - Location ready: ${reduxState.isLocationReady}")
+        Log.d(TAG, "Redux Status - Has location permission: ${reduxState.hasLocationPermission}")
     }
 
     override fun onCleared() {
@@ -854,6 +990,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
         pendingAirspaceCheck?.let { mainHandler.removeCallbacks(it) }
         pendingPGSpotsCheck?.let { mainHandler.removeCallbacks(it) }
         pendingCleanup?.let { mainHandler.removeCallbacks(it) }
+        pendingReduxUpdate?.let { mainHandler.removeCallbacks(it) }
 
         // Important to release map resources
         mapView.onDetach()

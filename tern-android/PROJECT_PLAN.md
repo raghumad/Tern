@@ -5,16 +5,22 @@ Android paragliding app with osmdroid maps, Jetpack Compose UI, Redux architectu
 
 ## Current Status (October 2025)
 - **Phase 1: Redux Architecture & Core Lifecycle Fixes** ✅ 100% Complete
-- **Phase 2: Enhanced Overlay Architecture** ✅ 97% Complete
-- **Critical Bugs Fixed** ✅ All major issues resolved (UI blocking, cache persistence, ANR crashes)
-- **Redux Compliance** ✅ 95% Complete (Settings migrated, legacy code eliminated)
+- **Phase 2: Enhanced Overlay Architecture** ✅ 100% Complete
+- **Critical Bugs Fixed** ✅ All major issues resolved (UI blocking, cache persistence, ANR crashes, overlay display)
+- **Redux Compliance** ✅ 100% Complete (All state migrated: permissions, map style, overlays, settings)
 - **Legacy Code Cleanup** ✅ 100% Complete (Deprecated methods removed, modern architecture)
+
+## Recent Fixes (October 2025)
+- **PG Spots Display Bug**: Fixed hardcoded empty list in `loadPGSpotsForCurrentLocation()` - now properly queries and displays nearby paragliding sites ✅
+- **Map Jitter Reduction**: Increased debounce delays (map movement: 500ms→1000ms, cleanup: 1000ms→2000ms) and added debouncing to Redux state updates to prevent excessive UI recompositions ✅
+- **Cancellation Exception Handling**: Fixed improper error logging of job cancellations in PGSpotCache - now re-throws CancellationException for proper propagation ✅
+- **Overlay Architecture Completion**: PG spots and airspaces now display correctly with optimized performance
 
 ## Prioritized Remaining Tasks
 
 ### High Priority (Foundation & Stability)
 - [x] **Clean Up Legacy Code**: Remove `clearGeoJsonOverlays()`, consolidate overlay state in coordinator ✅ COMPLETE
-- [ ] **Redux Migration Tasks**: Move permission state and map style to Redux for full compliance
+- [x] **Redux Migration Tasks**: Move permission state and map style to Redux for full compliance ✅ COMPLETE
 - [ ] **Performance Validation**: Test API rate limits, memory efficiency, smooth transitions
 - [ ] **Failure Recovery System**: Implement API fallback, network resilience, cache expiration for weather
 

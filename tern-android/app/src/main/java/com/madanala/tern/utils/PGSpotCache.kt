@@ -125,6 +125,9 @@ class PGSpotCache(context: Context) {
 
             return null
 
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            // Re-throw cancellation to propagate properly
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "Error caching PG spots data for $countryCode", e)
             return null
