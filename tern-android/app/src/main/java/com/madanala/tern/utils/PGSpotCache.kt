@@ -99,13 +99,9 @@ class PGSpotCache(context: Context) {
 
         try {
             val url = "https://www.paraglidingearth.com/api/geojson/getCountrySites.php?iso=${countryCode.lowercase()}&style=detailed"
-            Log.d(TAG, "Downloading PG spots from: $url")
-
             val geoJsonString = GeoJsonUtils.downloadGeoJson(url)
 
             if (geoJsonString != null) {
-                Log.d(TAG, "Downloaded PG spots data for $countryCode (${geoJsonString.length} bytes)")
-
                 // Parse standard GeoJSON to features
                 val features = MapOverlayCacheUtils.parseGeoJsonToFeatures(geoJsonString, "pgspot")
                 Log.d(TAG, "Parsed ${features.size} PG spots for $countryCode")
@@ -113,11 +109,9 @@ class PGSpotCache(context: Context) {
                 if (features.isNotEmpty()) {
                     // Cache as FlexBuffers + Hilbert spatial indexing
                     cachePGSpotsFeatures(countryCode, features)
-
-                    Log.d(TAG, "✨ Cached PG spots for $countryCode using FlexBuffers + Hilbert indexing")
                     return features
                 } else {
-                    Log.w(TAG, "No valid PG spots found for $countryCode after parsing")
+                    Log.w(TAG, "No valid PG spots found for $countryCode")
                 }
             } else {
                 Log.w(TAG, "Failed to download PG spots data for $countryCode")
@@ -261,7 +255,7 @@ class PGSpotCache(context: Context) {
             cacheIndex[countryCode] = System.currentTimeMillis()
             saveCacheIndex()
 
-            Log.d(TAG, "✨ Successfully cached ${features.size} PG spot features with FlexBuffers + Hilbert indexing")
+            Log.d(TAG, "Cached ${features.size} PG spot features for $countryCode")
 
         } catch (e: Exception) {
             Log.e(TAG, "Error caching PG spot features for $countryCode", e)
