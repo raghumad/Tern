@@ -84,8 +84,16 @@ class OverlayCoordinator {
         if (manager is com.madanala.tern.overlays.AirspaceOverlayManager) {
             countryCacheManager?.let { countryCache ->
                 manager.setCountryCacheManager(countryCache)
-                Log.d(TAG, "Connected AirspaceOverlayManager to universal country cache")
-            }
+                Log.d(TAG, "✅ Connected AirspaceOverlayManager to universal country cache")
+            } ?: Log.w(TAG, "Country cache manager not available for AirspaceOverlayManager")
+        }
+
+        // Connect PG Spot manager to universal country cache (Priority 0 integration)
+        if (manager is com.madanala.tern.overlays.PGSpotOverlayManager) {
+            countryCacheManager?.let { countryCache ->
+                manager.setCountryCacheManager(countryCache)
+                Log.d(TAG, "✅ Connected PGSpotOverlayManager to universal country cache")
+            } ?: Log.w(TAG, "Country cache manager not available for PGSpotOverlayManager")
         }
 
         Log.d(TAG, "Added overlay manager: $overlayType, total managers: ${activeManagers.size}")

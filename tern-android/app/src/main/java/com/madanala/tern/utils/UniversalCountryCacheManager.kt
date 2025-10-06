@@ -2,6 +2,7 @@ package com.madanala.tern.utils
 
 import android.content.Context
 import android.util.Log
+import com.madanala.tern.utils.CacheManager
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -248,20 +249,50 @@ class UniversalCountryCacheManager(
         center: GeoPoint,
         radiusKm: Double
     ): List<com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature> {
-        // For now, return empty list as this would require full spatial index implementation
-        // In production, this would:
-        // 1. Query cached countries for features within radius
-        // 2. Use Hilbert spatial indexing for efficient queries
-        // 3. Return combined features from multiple countries
         Log.v(TAG, "Multi-country spatial query: center=$center, radius=$radiusKm km")
 
-        // TODO: Implement actual multi-country spatial querying
-        // This would involve:
-        // - Querying each cached country's spatial index
-        // - Combining and deduplicating results
-        // - Filtering by actual distance from center
+        return mutex.withLock {
+            val allFeatures = mutableListOf<com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature>()
 
-        return emptyList() // Placeholder implementation
+            // Query each cached country for relevant features
+            cachedCountries.forEach { countryCode ->
+                try {
+                    val features = queryCountryFeatures(center, countryCode, radiusKm)
+                    allFeatures.addAll(features)
+                    Log.v(TAG, "Found ${features.size} features in $countryCode")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error querying country $countryCode", e)
+                }
+            }
+
+            Log.d(TAG, "Total features from ${cachedCountries.size} countries: ${allFeatures.size}")
+            allFeatures
+        }
+    }
+
+    /**
+     * Query features from a specific country using existing cache infrastructure
+     */
+    private suspend fun queryCountryFeatures(
+        center: GeoPoint,
+        countryCode: String,
+        radiusKm: Double
+    ): List<com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature> {
+        return try {
+            // Use existing CacheManager to get country data
+            val cacheManager = com.madanala.tern.utils.CacheManager.airspaceCache
+
+            if (cacheManager.isCached(countryCode)) {
+                // Query features within radius using existing spatial indexing
+                cacheManager.queryNearbyFeatures(countryCode, center, radiusKm)
+            } else {
+                Log.v(TAG, "Country $countryCode not cached, skipping query")
+                emptyList()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error querying features for country $countryCode", e)
+            emptyList()
+        }
     }
 
     /**
