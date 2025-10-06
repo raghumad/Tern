@@ -1,4 +1,9 @@
 package com.madanala.tern.redux
+import com.madanala.tern.model.FlightData
+import com.madanala.tern.model.SensorState
+import com.madanala.tern.model.FlightComputerData
+import com.madanala.tern.model.FlightMetrics
+import org.osmdroid.util.GeoPoint
 
 /**
  * Redux reducers for map functionality
@@ -113,6 +118,63 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
             else -> state.settingsState // Fallback for unknown unit types
         }
         state.copy(settingsState = newSettingsState)
+    }
+
+    // Sensor actions - real-time flight data integration
+    is MapAction.UpdateSensorState -> {
+        state.copy(sensorState = action.sensorState)
+    }
+    is MapAction.UpdateFlightData -> {
+        state.copy(currentFlightData = action.flightData)
+    }
+    is MapAction.UpdateFlightComputerData -> {
+        state.copy(flightComputerData = action.flightComputerData)
+    }
+    is MapAction.UpdateFlightMetrics -> {
+        state.copy(flightMetrics = action.flightMetrics)
+    }
+
+    // Sensor control actions
+    is MapAction.StartSensors -> {
+        val newSensorState = state.sensorState.copy(
+            isActive = true,
+            flightMode = action.flightMode
+        )
+        state.copy(sensorState = newSensorState)
+    }
+    MapAction.StopSensors -> {
+        val newSensorState = state.sensorState.copy(isActive = false)
+        state.copy(sensorState = newSensorState)
+    }
+    is MapAction.SetSensorConfig -> {
+        // Sensor configuration is managed internally by SensorOverlayManager
+        state
+    }
+
+    // Flight session actions
+    is MapAction.StartFlightSession -> {
+        val newMetrics = FlightMetrics(
+            startTime = System.currentTimeMillis(),
+            duration = 0L,
+            distance = 0.0,
+            maxAltitude = 0.0,
+            altitudeGain = 0.0,
+            maxGroundSpeed = 0.0,
+            averageGroundSpeed = 0.0,
+            maxVerticalSpeed = 0.0,
+            maxSinkRate = 0.0,
+            thermalCount = 0,
+            averageGlideRatio = 0.0
+        )
+        state.copy(flightMetrics = newMetrics)
+    }
+    is MapAction.EndFlightSession -> {
+        // Keep the final metrics for analysis
+        state
+    }
+    is MapAction.UpdateFlightPath -> {
+        // Flight path tracking is managed by SensorOverlayManager
+        state
     }
 
     else -> state

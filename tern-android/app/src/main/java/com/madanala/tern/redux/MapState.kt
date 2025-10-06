@@ -1,6 +1,10 @@
 package com.madanala.tern.redux
 
 import org.osmdroid.util.GeoPoint
+import com.madanala.tern.model.FlightData
+import com.madanala.tern.model.SensorState
+import com.madanala.tern.model.FlightComputerData
+import com.madanala.tern.model.FlightMetrics
 
 /**
  * Global state for map functionality using Redux pattern
@@ -45,5 +49,17 @@ data class MapState(
     val compassVisible: Boolean = true,
 
     // Settings state - user preferences and configuration
-    val settingsState: SettingsState = SettingsState()
+    val settingsState: SettingsState = SettingsState(),
+
+    // Sensor state - real-time flight data and sensor fusion
+    val sensorState: SensorState = SensorState(),
+
+    // Current flight data - real-time sensor readings
+    val currentFlightData: FlightData? = null,
+
+    // Flight computer data - calculated aviation parameters
+    val flightComputerData: FlightComputerData? = null,
+
+    // Flight metrics - accumulated flight statistics
+    val flightMetrics: FlightMetrics? = null
 )
