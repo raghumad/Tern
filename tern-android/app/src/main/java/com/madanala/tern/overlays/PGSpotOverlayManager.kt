@@ -414,9 +414,9 @@ class PGSpotOverlayManager(
             }
 
         } catch (e: CancellationException) {
-            Log.d(TAG, "PG spots loading cancelled due to user interaction")
+            Log.v(TAG, "PG spots loading cancelled due to user interaction")
         } catch (e: Exception) {
-            Log.e(TAG, "Error loading PG spots data", e)
+            Log.e(TAG, "Error loading PG spots data: ${e.message}", e)
         }
     }
 
