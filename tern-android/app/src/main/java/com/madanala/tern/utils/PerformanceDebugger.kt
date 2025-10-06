@@ -63,7 +63,9 @@ object PerformanceDebugger {
 
     init {
         if (isEnabled) {
-            Log.d(TAG, "PerformanceDebugger initialized (DEBUG MODE)")
+            Log.d(TAG, "🚀 PerformanceDebugger initialized (DEBUG MODE)")
+            Log.d(TAG, "📊 Dashboard will appear every 30 seconds in logcat")
+            Log.d(TAG, "🎯 Trigger events: location changes, map moves, Redux updates")
             startPeriodicReporting()
         }
     }
@@ -178,6 +180,23 @@ object PerformanceDebugger {
     }
 
     // ==================== REPORTING & ANALYSIS ====================
+
+    /**
+     * Manual trigger for testing performance dashboard (development only)
+     */
+    fun triggerTestEvents() {
+        if (!isEnabled) return
+
+        Log.d(TAG, "🧪 MANUAL TEST: Triggering performance events for dashboard demo")
+
+        // Simulate some performance events
+        recordStateUpdate(5)
+        recordOverlayCreation("TestAirspace")
+        recordBorderCrossing("US", "CA")
+        recordSmoothTransition()
+
+        Log.d(TAG, "✅ Test events triggered - check logcat for dashboard")
+    }
 
     /**
      * Get comprehensive performance report
