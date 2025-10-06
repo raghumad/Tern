@@ -1,6 +1,10 @@
 package com.madanala.tern.redux
 
 import org.osmdroid.util.GeoPoint
+import com.madanala.tern.model.FlightData
+import com.madanala.tern.model.SensorState
+import com.madanala.tern.model.FlightComputerData
+import com.madanala.tern.model.FlightMetrics
 
 /**
  * Redux actions for map functionality
@@ -31,7 +35,6 @@ sealed class MapAction {
     data class SetOverlayEnabled(val type: OverlayType, val enabled: Boolean) : MapAction()
     data class UpdateOverlayConfig(val type: OverlayType, val config: OverlayConfig) : MapAction()
 
-
     // Loading state actions
     data class SetLoadingAirspaces(val loading: Boolean) : MapAction()
     data class SetLoadingPGSpots(val loading: Boolean) : MapAction()
@@ -52,4 +55,20 @@ sealed class MapAction {
     // Settings actions
     data class SetSettingsOverlayEnabled(val overlayType: String, val enabled: Boolean) : MapAction()
     data class SetUnitPreference(val unitType: String, val unit: String) : MapAction()
+
+    // Sensor actions - real-time flight data
+    data class UpdateSensorState(val sensorState: SensorState) : MapAction()
+    data class UpdateFlightData(val flightData: FlightData) : MapAction()
+    data class UpdateFlightComputerData(val flightComputerData: FlightComputerData) : MapAction()
+    data class UpdateFlightMetrics(val flightMetrics: FlightMetrics) : MapAction()
+
+    // Sensor control actions
+    data class StartSensors(val flightMode: com.madanala.tern.model.FlightMode = com.madanala.tern.model.FlightMode.FLIGHT) : MapAction()
+    object StopSensors : MapAction()
+    data class SetSensorConfig(val config: com.madanala.tern.model.SensorConfig) : MapAction()
+
+    // Flight session actions
+    object StartFlightSession : MapAction()
+    object EndFlightSession : MapAction()
+    data class UpdateFlightPath(val position: GeoPoint) : MapAction()
 }
