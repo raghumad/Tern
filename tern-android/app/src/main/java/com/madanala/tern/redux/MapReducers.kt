@@ -30,6 +30,14 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
     is MapAction.UpdateZoom -> {
         state.copy(zoom = action.zoom)
     }
+    is MapAction.UpdateMapMovement -> {
+        // Combined map movement update for performance optimization
+        state.copy(
+            rotation = action.rotation ?: state.rotation,
+            center = action.center ?: state.center,
+            zoom = action.zoom ?: state.zoom
+        )
+    }
 
     is MapAction.SetOverlayEnabled -> {
         val newOverlayState = when (action.type) {

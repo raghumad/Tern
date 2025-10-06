@@ -48,7 +48,7 @@ private const val USER_LOCATION_ZOOM = 7.0
 private const val AIRSPACE_CHECK_DISTANCE_KM = 5.0 // Minimum distance to trigger airspace reload (further reduced)
 private const val AIRSPACE_MAJOR_MOVE_KM = 200.0 // Major move threshold - clear and reload everything
 private const val AIRSPACE_FILTER_RADIUS_MILES = 300.0 // Configurable radius for airspace filtering
-private const val MAP_MOVE_DEBOUNCE_MS = 1000L // Debounce map movement checks by 1 second (increased to reduce jitter)
+private const val MAP_MOVE_DEBOUNCE_MS = 2000L // Aviation-optimized: 2 second debounce for smooth flight experience
 private const val TAG = "MapViewModel"
 
 class MapViewModel(application: Application) : AndroidViewModel(application) {
@@ -357,16 +357,17 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * Schedule debounced Redux state updates to prevent excessive UI recompositions
+     * Now uses combined MapMovement action for maximum performance (1 dispatch instead of 3)
      */
     private fun scheduleReduxUpdate(rotation: Float, center: GeoPoint?, zoom: Double?) {
         pendingReduxUpdate?.let { mainHandler.removeCallbacks(it) }
         pendingReduxUpdate = Runnable {
-            reduxStore?.dispatch(com.madanala.tern.redux.MapAction.UpdateRotation(rotation))
-            center?.let {
-                @Suppress("UNCHECKED_CAST")
-                reduxStore?.dispatch(com.madanala.tern.redux.MapAction.UpdateCenter(it as GeoPoint))
-            }
-            zoom?.let { reduxStore?.dispatch(com.madanala.tern.redux.MapAction.UpdateZoom(it)) }
+            // Use single combined action instead of 3 separate dispatches
+            reduxStore?.dispatch(com.madanala.tern.redux.MapAction.UpdateMapMovement(
+                rotation = rotation,
+                center = center,
+                zoom = zoom
+            ))
         }
         mainHandler.postDelayed(pendingReduxUpdate!!, MAP_MOVE_DEBOUNCE_MS)
     }
