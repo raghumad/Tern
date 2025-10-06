@@ -18,6 +18,7 @@ data class MapState(
     // Location state
     val isLocationReady: Boolean = false,
     val userLocation: GeoPoint? = null,
+    val gpsStatus: com.madanala.tern.redux.GpsStatus = com.madanala.tern.redux.GpsStatus.INITIAL,
 
     // Permission state
     val hasLocationPermission: Boolean = false,

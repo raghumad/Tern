@@ -47,6 +47,7 @@ fun TernMapScreen(
     var showShareSheet by remember { mutableStateOf(false) }
     val state by store.state.collectAsState()
     val isLocationReady = state.isLocationReady
+    val gpsStatus = state.gpsStatus
     val mapViewModel = viewModel<MapViewModel>()
 
     Scaffold(
@@ -75,7 +76,7 @@ fun TernMapScreen(
                 enter = fadeIn(),
                 exit = fadeOut()
             ) {
-                WelcomeScreen()
+                WelcomeScreen(gpsStatus = gpsStatus)
             }
         }
     }
