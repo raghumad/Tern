@@ -51,6 +51,13 @@ class OverlayCoordinator {
         countryCacheManager = com.madanala.tern.utils.UniversalCountryCacheManager(context)
         Log.d(TAG, "Universal country cache manager initialized for all overlay types")
 
+        // Trigger performance debugger initialization for development monitoring
+        try {
+            com.madanala.tern.utils.PerformanceDebugger.triggerTestEvents()
+        } catch (e: Exception) {
+            Log.d(TAG, "PerformanceDebugger not available in release build")
+        }
+
         // Start observing Redux state if available
         if (mapStore == null) {
             Log.d(TAG, "No Redux store - overlay managers will use default configuration")
@@ -174,6 +181,18 @@ class OverlayCoordinator {
      */
     fun getCachedCountries(): Set<String> {
         return countryCacheManager?.getCachedCountries() ?: emptySet()
+    }
+
+    /**
+     * Trigger performance dashboard for testing (development only)
+     */
+    fun triggerPerformanceDashboard() {
+        try {
+            com.madanala.tern.utils.PerformanceDebugger.triggerTestEvents()
+            Log.d(TAG, "Performance dashboard triggered for testing")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error triggering performance dashboard", e)
+        }
     }
 
     /**
