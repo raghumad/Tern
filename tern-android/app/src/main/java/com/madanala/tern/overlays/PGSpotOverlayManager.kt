@@ -59,6 +59,17 @@ class PGSpotOverlayManager(
     private var loadingJob: Job? = null
     private var weatherFetchJob: Job? = null
 
+    // Universal country cache manager for intelligent country management (Priority 0 fix)
+    private var countryCacheManager: com.madanala.tern.utils.UniversalCountryCacheManager? = null
+
+    /**
+     * Set the universal country cache manager (called by OverlayCoordinator)
+     */
+    fun setCountryCacheManager(countryCacheManager: com.madanala.tern.utils.UniversalCountryCacheManager) {
+        this.countryCacheManager = countryCacheManager
+        Log.d(TAG, "Universal country cache manager connected to PGSpotOverlayManager")
+    }
+
     // Track rendered PG spots and weather status for efficient updates
     private val currentlyRenderedPGSpots = mutableMapOf<String, PGSpotMarker>()
     private val visiblePGSpots = mutableSetOf<String>() // Currently visible in viewport

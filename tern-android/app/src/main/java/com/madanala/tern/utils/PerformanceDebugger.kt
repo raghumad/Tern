@@ -199,6 +199,39 @@ object PerformanceDebugger {
     }
 
     /**
+     * Performance validation system for testing hybrid implementation
+     * Validates that performance optimizations are working correctly
+     */
+    suspend fun validatePerformanceOptimizations(): ValidationResult {
+        if (!isEnabled) return ValidationResult(false, "PerformanceDebugger disabled")
+
+        val report = getPerformanceReport()
+        val issues = report["critical_issues"] as List<String>
+        val score = report["performance_score"] as Int
+
+        val isValid = issues.isEmpty() && score >= 80
+
+        return ValidationResult(
+            isValid = isValid,
+            message = if (isValid) {
+                "✅ Performance optimizations validated: Score $score/100, no critical issues"
+            } else {
+                "⚠️ Performance issues detected: Score $score/100, Issues: $issues"
+            },
+            details = report
+        )
+    }
+
+    /**
+     * Performance validation result
+     */
+    data class ValidationResult(
+        val isValid: Boolean,
+        val message: String,
+        val details: Map<String, Any>? = null
+    )
+
+    /**
      * Get comprehensive performance report
      */
     suspend fun getPerformanceReport(): Map<String, Any> {
