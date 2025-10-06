@@ -54,8 +54,6 @@ fun SettingsSheet(
                     isChecked = state.overlayState.airspaces.enabled,
                     onCheckedChange = { enabled ->
                         store.dispatch(com.madanala.tern.redux.MapAction.SetSettingsOverlayEnabled("airspaces", enabled))
-                        // Also sync with overlay manager for immediate effect
-                        mapViewModel.setAirspacesEnabled(enabled)
                     }
                 ) {
                     Icon(Icons.Filled.AirplanemodeActive, contentDescription = "Airspaces")
@@ -74,8 +72,6 @@ fun SettingsSheet(
                     isChecked = state.overlayState.pgSpots.enabled,
                     onCheckedChange = { enabled ->
                         store.dispatch(com.madanala.tern.redux.MapAction.SetSettingsOverlayEnabled("pgspots", enabled))
-                        // Also sync with overlay manager for immediate effect
-                        mapViewModel.setPGSpotsEnabled(enabled)
                     }
                 ) {
                     Image(
