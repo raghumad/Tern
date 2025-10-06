@@ -18,6 +18,8 @@ sealed class MapAction {
     // Location actions
     data class UpdateUserLocation(val location: GeoPoint?) : MapAction()
     data class SetLocationReady(val ready: Boolean) : MapAction()
+    data class UpdateGpsStatus(val status: com.madanala.tern.redux.GpsStatus) : MapAction()
+    object RetryGpsAcquisition : MapAction()
 
     // Map viewport actions
     data class UpdateRotation(val rotation: Float) : MapAction()

@@ -147,6 +147,9 @@ class MapStore : ViewModel() {
     fun updateRotation(rotation: Float) = dispatch(MapAction.UpdateRotation(rotation))
     fun updateUserLocation(location: org.osmdroid.util.GeoPoint?) = dispatch(MapAction.UpdateUserLocation(location))
     fun setLocationPermission(granted: Boolean) = dispatch(MapAction.UpdateLocationPermission(granted))
+    fun setLocationReady(ready: Boolean) = dispatch(MapAction.SetLocationReady(ready))
+    fun updateGpsStatus(status: com.madanala.tern.redux.GpsStatus) = dispatch(MapAction.UpdateGpsStatus(status))
+    fun retryGpsAcquisition() = dispatch(MapAction.RetryGpsAcquisition)
 
     // Overlay helper methods
     fun setOverlayEnabled(type: OverlayType, enabled: Boolean) = dispatch(MapAction.SetOverlayEnabled(type, enabled))

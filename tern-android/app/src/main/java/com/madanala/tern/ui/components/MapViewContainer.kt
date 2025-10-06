@@ -48,13 +48,14 @@ class ReduxLocationService(private val store: MapStore) {
     fun startLocationUpdates() {
         Log.d("ReduxLocationService", "Starting Redux-based location updates")
 
-        // Dispatch Redux action to indicate location service is starting
-        store.dispatch(MapAction.SetLocationReady(true))
+        // ✅ CORRECT: Set GPS status to acquiring, not location ready
+        store.updateGpsStatus(com.madanala.tern.redux.GpsStatus.ACQUIRING)
 
         // In a full implementation, this would:
         // 1. Initialize location manager
         // 2. Set up location callbacks that dispatch Redux actions
         // 3. Handle location updates through Redux state changes
+        // 4. Only set location ready when valid GPS fix is acquired
     }
 
     /**
@@ -69,9 +70,29 @@ class ReduxLocationService(private val store: MapStore) {
 
     /**
      * Update current location through Redux action
+     * Set location ready when we receive the first valid GPS fix
      */
     fun updateLocation(location: org.osmdroid.util.GeoPoint?) {
         store.dispatch(MapAction.UpdateUserLocation(location))
+
+        // Set location ready when we receive the first valid location
+        // This ensures welcome screen only disappears after GPS fix
+        if (location != null && isValidAviationLocation(location) && !store.state.value.isLocationReady) {
+            Log.d("ReduxLocationService", "Valid GPS fix received, setting location ready: $location")
+            store.setLocationReady(true)
+            store.updateGpsStatus(com.madanala.tern.redux.GpsStatus.ACTIVE)
+        }
+    }
+
+    /**
+     * Validate GPS location for aviation use
+     */
+    private fun isValidAviationLocation(location: org.osmdroid.util.GeoPoint): Boolean {
+        // Basic validation for aviation coordinates
+        return location.latitude.isFinite() &&
+               location.longitude.isFinite() &&
+               location.latitude in -90.0..90.0 &&
+               location.longitude in -180.0..180.0
     }
 }
 

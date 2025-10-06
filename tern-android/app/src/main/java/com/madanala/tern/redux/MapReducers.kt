@@ -24,6 +24,16 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
     is MapAction.SetLocationReady -> {
         state.copy(isLocationReady = action.ready)
     }
+    is MapAction.UpdateGpsStatus -> {
+        state.copy(gpsStatus = action.status)
+    }
+    MapAction.RetryGpsAcquisition -> {
+        state.copy(
+            gpsStatus = com.madanala.tern.redux.GpsStatus.ACQUIRING,
+            isLocationReady = false,
+            userLocation = null
+        )
+    }
 
     // Map viewport actions
     is MapAction.UpdateRotation -> {
