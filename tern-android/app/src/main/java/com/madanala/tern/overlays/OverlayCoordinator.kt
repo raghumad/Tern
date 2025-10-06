@@ -33,6 +33,9 @@ class OverlayCoordinator {
     // Viewport loading manager for intelligent loading zones
     private var viewportLoadingManager: ViewportLoadingManager? = null
 
+    // Universal country cache manager for all overlay types (Priority 0 fix)
+    private var countryCacheManager: com.madanala.tern.utils.UniversalCountryCacheManager? = null
+
     /**
      * Initialize coordinator with Redux store
      */
@@ -44,6 +47,10 @@ class OverlayCoordinator {
         // Initialize viewport loading manager for intelligent data loading - use singleton cache
         viewportLoadingManager = ViewportLoadingManager(CacheManager.airspaceCache)
 
+        // Initialize universal country cache manager for all overlay types (Priority 0 fix)
+        countryCacheManager = com.madanala.tern.utils.UniversalCountryCacheManager(context)
+        Log.d(TAG, "Universal country cache manager initialized for all overlay types")
+
         // Start observing Redux state if available
         if (mapStore == null) {
             Log.d(TAG, "No Redux store - overlay managers will use default configuration")
@@ -54,7 +61,7 @@ class OverlayCoordinator {
 
     /**
      * Add an overlay manager to the coordinator
-     * Managers are registered by their overlay type
+     * Managers are registered by their overlay type and connected to universal country cache
      */
     fun addOverlayManager(manager: OverlayManager) {
         val overlayType = manager.overlayType
@@ -65,6 +72,14 @@ class OverlayCoordinator {
 
         activeManagers[overlayType] = manager
         manager.initialize(mapView!!)
+
+        // Connect overlay manager to universal country cache manager (Priority 0 integration)
+        if (manager is com.madanala.tern.overlays.AirspaceOverlayManager) {
+            countryCacheManager?.let { countryCache ->
+                manager.setCountryCacheManager(countryCache)
+                Log.d(TAG, "Connected AirspaceOverlayManager to universal country cache")
+            }
+        }
 
         Log.d(TAG, "Added overlay manager: $overlayType, total managers: ${activeManagers.size}")
     }
@@ -103,13 +118,17 @@ class OverlayCoordinator {
 
     /**
      * Notify all overlays of map movement for data loading
+     * Now routes through UniversalCountryCacheManager for intelligent country management
      */
     fun onMapMoved(centerLat: Double, centerLng: Double, zoom: Double) {
+        val centerPoint = org.osmdroid.util.GeoPoint(centerLat, centerLng)
+
+        // Route through Universal Country Cache Manager for intelligent country management (Priority 0)
+        countryCacheManager?.onLocationChanged(centerPoint)
+
+        // Continue with existing overlay manager notifications
         activeManagers.values.forEach { manager ->
-            manager.performMapMove(
-                org.osmdroid.util.GeoPoint(centerLat, centerLng),
-                zoom
-            )
+            manager.performMapMove(centerPoint, zoom)
         }
     }
 
@@ -141,6 +160,20 @@ class OverlayCoordinator {
      */
     fun getOverlayConfig(overlayType: OverlayType): OverlayConfig? {
         return getOverlayManager(overlayType)?.getCurrentConfig()
+    }
+
+    /**
+     * Get universal country cache manager for overlay managers that need country data
+     */
+    fun getCountryCacheManager(): com.madanala.tern.utils.UniversalCountryCacheManager? {
+        return countryCacheManager
+    }
+
+    /**
+     * Get current cached countries for debugging
+     */
+    fun getCachedCountries(): Set<String> {
+        return countryCacheManager?.getCachedCountries() ?: emptySet()
     }
 
     /**
@@ -232,6 +265,10 @@ class OverlayCoordinator {
      */
     fun shutdown() {
         Log.d(TAG, "Shutting down OverlayCoordinator (${activeManagers.size} managers)")
+
+        // Shutdown universal country cache manager (Priority 0)
+        countryCacheManager?.shutdown()
+        countryCacheManager = null
 
         // Shutdown all managers
         activeManagers.values.forEach { manager ->
