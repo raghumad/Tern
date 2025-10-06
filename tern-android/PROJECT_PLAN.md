@@ -14,7 +14,11 @@ Android paragliding app with osmdroid maps, Jetpack Compose UI, Redux architectu
 - **PG Spots Display Bug**: Fixed hardcoded empty list in `loadPGSpotsForCurrentLocation()` - now properly queries and displays nearby paragliding sites ✅
 - **Map Jitter Reduction**: Increased debounce delays (map movement: 500ms→1000ms, cleanup: 1000ms→2000ms) and added debouncing to Redux state updates to prevent excessive UI recompositions ✅
 - **Cancellation Exception Handling**: Fixed improper error logging of job cancellations in PGSpotCache - now re-throws CancellationException for proper propagation ✅
-- **Overlay Architecture Completion**: PG spots and airspaces now display correctly with optimized performance
+- **Overlay Architecture Completion**: PG spots and airspaces now display correctly with optimized performance ✅
+- **Map Zoom Optimization**: Improved initial zoom level from 7.0 to 10.0 for better airspace and PG spot visibility ✅
+- **Query Radius Standardization**: Unified airspace (200km) and PG spot (200km) query radii for consistent coverage ✅
+- **Icon Size Consistency**: Fixed PG spot icon scaling inconsistency between initial load (1/4 size) and drag movements (1/2 size) ✅
+- **Touch-Friendly Icons**: Increased PG spot icon size to 1/2 scale for better touch interaction ✅
 
 ## 🚨 Critical Aviation Safety Issue Identified
 **Country Border Cache Clearing**: Current system clears entire country caches when crossing borders, causing:

@@ -44,7 +44,7 @@ import org.osmdroid.views.overlay.gestures.RotationGestureOverlay
 import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider
 import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay
 
-private const val USER_LOCATION_ZOOM = 7.0
+private const val USER_LOCATION_ZOOM = 10.0
 private const val AIRSPACE_CHECK_DISTANCE_KM = 5.0 // Minimum distance to trigger airspace reload (further reduced)
 private const val AIRSPACE_MAJOR_MOVE_KM = 200.0 // Major move threshold - clear and reload everything
 private const val AIRSPACE_FILTER_RADIUS_MILES = 300.0 // Configurable radius for airspace filtering
@@ -855,9 +855,9 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
                     val drawable = ContextCompat.getDrawable(context, R.mipmap.ic_launcher)
                     drawable?.let {
                         val originalBitmap = it.toBitmap()
-                        // Scale to 1/4 size for better visual balance
-                        val scaledWidth = originalBitmap.width / 4
-                        val scaledHeight = originalBitmap.height / 4
+                        // Scale to 1/2 size for better touch interaction (consistent with PGSpotOverlayManager)
+                        val scaledWidth = originalBitmap.width / 2
+                        val scaledHeight = originalBitmap.height / 2
                         val scaledBitmap = android.graphics.Bitmap.createScaledBitmap(
                             originalBitmap,
                             scaledWidth,
