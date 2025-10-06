@@ -19,6 +19,8 @@ Android paragliding app with osmdroid maps, Jetpack Compose UI, Redux architectu
 - **Query Radius Standardization**: Unified airspace (200km) and PG spot (200km) query radii for consistent coverage ✅
 - **Icon Size Consistency**: Fixed PG spot icon scaling inconsistency between initial load (1/4 size) and drag movements (1/2 size) ✅
 - **Touch-Friendly Icons**: Increased PG spot icon size to 1/2 scale for better touch interaction ✅
+- **Redux Architecture Completion**: ✅ 100% COMPLETE - Removed ALL legacy airspace and PG spot code from MapViewModel ✅
+- **Overlay System Restoration**: ✅ FIXED - Restored essential overlay manager initialization for proper airspace and PG spot rendering ✅
 
 ## 🚨 Critical Aviation Safety Issue Identified
 **Country Border Cache Clearing**: Current system clears entire country caches when crossing borders, causing:
@@ -208,6 +210,7 @@ OverlayState {
 - **Redux Compliance**: ✅ 100% Complete with performance optimizations
 - **Border Safety Issue**: ✅ RESOLVED with universal country management
 - **Performance Monitoring**: ✅ Active with real-time dashboard validation
+- **Legacy Code Cleanup**: ✅ 100% COMPLETE - Removed all legacy PG spot and airspace code from MapViewModel
 
 ## Lessons Learned: Critical Bugfixes (Do Not Repeat)
 
@@ -228,8 +231,24 @@ OverlayState {
 - **Cache Deserialization**: Support multiple format fallbacks for backward compatibility
 - **Duplicate Downloads**: Single source of truth per data type - overlay managers handle all loading
 
-### Future Guideline
-Aggressively clean up legacy/unused code to maintain code health and prevent accumulation of technical debt.
+### Redux-Only Architecture (MANDATORY For All Future Development)
+**🚨 CRITICAL: All new features, overlays, and functionality MUST use Redux pattern exclusively**
+
+**✅ DO (Redux Pattern):**
+- Create specialized overlay managers extending `BaseOverlayManager`
+- Use Redux actions for all state changes (`store.dispatch(Action)`)
+- Coordinate through `OverlayCoordinator` for overlay lifecycle
+- Follow single responsibility principle per overlay type
+- Use Redux state observation (`store.state.collect { }`)
+
+**❌ DO NOT (Legacy Patterns):**
+- ❌ Add methods to `MapViewModel` for overlay operations
+- ❌ Direct overlay manipulation outside overlay managers
+- ❌ Manual overlay lifecycle management in ViewModels
+- ❌ Duplicate overlay logic between ViewModel and overlay managers
+- ❌ Call overlay manager methods directly from UI components
+
+**Enforcement:** Any new overlay type (weather, terrain, sensors, etc.) must follow the established Redux overlay manager pattern. Legacy code in MapViewModel will be aggressively removed to maintain architecture consistency.
 
 ## Key Architecture Decisions
 - Keep osmdroid for offline aviation use
