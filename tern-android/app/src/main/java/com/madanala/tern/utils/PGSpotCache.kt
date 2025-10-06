@@ -91,17 +91,24 @@ class PGSpotCache(context: Context) {
      * Downloads from paraglidingearth.com, caches as FlexBuffers + Hilbert
      */
     suspend fun cachePGSpotsData(countryCode: String): List<OverlayFeature>? {
-        // Prevent duplicate downloads
-        if (downloadInProgress.putIfAbsent(countryCode, true) == true) {
+        // Prevent duplicate downloads with better error handling
+        if (downloadInProgress.containsKey(countryCode)) {
             Log.d(TAG, "Download already in progress for PG spots $countryCode, skipping duplicate")
             return null
         }
 
+        // Set download flag before starting
+        downloadInProgress[countryCode] = true
+
         try {
             val url = "https://www.paraglidingearth.com/api/geojson/getCountrySites.php?iso=${countryCode.lowercase()}&style=detailed"
+            Log.d(TAG, "Starting PG spots download for $countryCode from: $url")
+
             val geoJsonString = GeoJsonUtils.downloadGeoJson(url)
 
             if (geoJsonString != null) {
+                Log.d(TAG, "Downloaded ${geoJsonString.length} bytes of PG spots data for $countryCode")
+
                 // Parse standard GeoJSON to features
                 val features = MapOverlayCacheUtils.parseGeoJsonToFeatures(geoJsonString, "pgspot")
                 Log.d(TAG, "Parsed ${features.size} PG spots for $countryCode")
@@ -109,24 +116,26 @@ class PGSpotCache(context: Context) {
                 if (features.isNotEmpty()) {
                     // Cache as FlexBuffers + Hilbert spatial indexing
                     cachePGSpotsFeatures(countryCode, features)
+                    Log.d(TAG, "Successfully cached ${features.size} PG spots for $countryCode")
                     return features
                 } else {
-                    Log.w(TAG, "No valid PG spots found for $countryCode")
+                    Log.w(TAG, "No valid PG spots found for $countryCode (empty feature list)")
                 }
             } else {
-                Log.w(TAG, "Failed to download PG spots data for $countryCode")
+                Log.w(TAG, "PG spots download returned null/empty for $countryCode - API may not have data for this country")
             }
 
             return null
 
         } catch (e: kotlinx.coroutines.CancellationException) {
+            Log.d(TAG, "PG spots download cancelled for $countryCode")
             // Re-throw cancellation to propagate properly
             throw e
         } catch (e: Exception) {
-            Log.e(TAG, "Error caching PG spots data for $countryCode", e)
+            Log.e(TAG, "Error caching PG spots data for $countryCode: ${e.message}", e)
             return null
         } finally {
-            // Clear the download flag
+            // Always clear the download flag
             downloadInProgress.remove(countryCode)
         }
     }

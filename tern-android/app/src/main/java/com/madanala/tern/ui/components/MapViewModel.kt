@@ -610,7 +610,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
 
         } catch (e: CancellationException) {
             // Expected behavior when cancelling old requests due to debounce - don't log as error
-            Log.d(TAG, "Airspace loading cancelled due to user interaction")
+            Log.v(TAG, "Airspace loading cancelled due to user interaction")
         } catch (e: Exception) {
             Log.e(TAG, "Error loading airspace data", e)
         }
@@ -766,10 +766,24 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
 
             // Try to load from cache first (PG spots cached for 7 days)
             if (!pgSpotsCache.isCached(countryCode)) {
-                // Download from ParaglidingEarth API and cache
-                withContext(Dispatchers.IO) {
-                    pgSpotsCache.cachePGSpotsData(countryCode)
+                Log.d(TAG, "No cached PG spots for $countryCode, attempting download...")
+                try {
+                    // Download from ParaglidingEarth API and cache
+                    val downloadResult = withContext(Dispatchers.IO) {
+                        pgSpotsCache.cachePGSpotsData(countryCode)
+                    }
+
+                    if (downloadResult == null) {
+                        Log.w(TAG, "PG spots download failed or returned no data for $countryCode - this is normal if country has no PG spots")
+                    } else {
+                        Log.d(TAG, "Successfully downloaded ${downloadResult.size} PG spots for $countryCode")
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "PG spots download failed for $countryCode: ${e.message} - continuing without PG spots data")
+                    // Don't re-throw - PG spots are not critical for aviation safety
                 }
+            } else {
+                Log.v(TAG, "Using cached PG spots for $countryCode")
             }
 
             // Query nearby features from cache (now available)
@@ -792,9 +806,9 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
 
         } catch (e: CancellationException) {
             // Expected behavior when cancelling old requests due to debounce - don't log as error
-            Log.d(TAG, "PG spots loading cancelled due to user interaction")
+            Log.v(TAG, "PG spots loading cancelled due to user interaction")
         } catch (e: Exception) {
-            Log.e(TAG, "Error loading PG spots data", e)
+            Log.e(TAG, "Error loading PG spots data: ${e.message}", e)
         }
     }
 
