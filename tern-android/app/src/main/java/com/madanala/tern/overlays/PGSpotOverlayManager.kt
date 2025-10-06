@@ -2,6 +2,9 @@ package com.madanala.tern.overlays
 
 import android.content.Context
 import android.util.Log
+import androidx.core.content.ContextCompat
+import androidx.core.graphics.drawable.toBitmap
+import com.madanala.tern.R
 import com.madanala.tern.redux.MapState
 import com.madanala.tern.redux.MapStore
 import com.madanala.tern.redux.OverlayConfig
@@ -105,6 +108,28 @@ class PGSpotOverlayManager(
     override fun onOverlayAttached() {
         Log.d(TAG, "Weather-aware PG spots overlay manager attached")
         initiateWeatherSystem()
+
+        // Load PG spots for initial broader area to ensure they're visible on first load
+        loadPGSpotsForInitialArea()
+    }
+
+    /**
+      * LOAD PG SPOTS FOR INITIAL AREA
+      * Ensures PG spots are visible immediately when overlay manager is attached
+      */
+    private fun loadPGSpotsForInitialArea() {
+        if (mapView == null) {
+            Log.w(TAG, "No map view available for initial PG spot loading")
+            return
+        }
+
+        // Use a default center point (will be updated when GPS is available)
+        val defaultCenter = GeoPoint(40.0, -100.0) // Central USA as reasonable default
+
+        loadingJob?.cancel()
+        loadingJob = coroutineScope.launch {
+            loadPGSpotsForLocation(applicationContext, defaultCenter)
+        }
     }
 
     override fun onOverlayDetached() {
@@ -367,8 +392,11 @@ class PGSpotOverlayManager(
                 return
             }
 
-            // Major movement detection for efficient caching - always reload for compatibility
-            val isMajorMove = true // TODO: Implement proper distance check when osmdroid distanceTo is available
+            // Major movement detection for efficient caching - proper distance-based check
+            val isMajorMove = lastCheckLocation?.let { lastLocation ->
+                val distance = center.distanceToAsDouble(lastLocation) / 1000.0
+                distance > 50.0 // Only major move if >50km
+            } ?: true // First load is always "major"
 
             if (isMajorMove) {
                 Log.v(TAG, "Major move detected - clearing PG spots for fresh weather-integrated load")
@@ -388,7 +416,7 @@ class PGSpotOverlayManager(
                 if (downloadedFeatures != null) {
                     Log.d(TAG, "Downloaded and cached ${downloadedFeatures.size} PG spots for $countryCode")
                     // Now perform spatial query on the newly cached data
-                    nearbyFeatures = pgSpotCache.queryNearbyPGSpots(countryCode, center, 50.0)
+                        nearbyFeatures = pgSpotCache.queryNearbyPGSpots(countryCode, center, 200.0)
                 } else {
                     Log.w(TAG, "Failed to download PG spots data for $countryCode")
                     return // Graceful degradation - weather works without PG spots
@@ -396,10 +424,10 @@ class PGSpotOverlayManager(
             } else {
                 // CACHED: Use Hilbert spatial query for nearby features only
                 Log.v(TAG, "Using cached PG spots for $countryCode, performing spatial query")
-                nearbyFeatures = pgSpotCache.queryNearbyPGSpots(countryCode, center, 50.0)
+                nearbyFeatures = pgSpotCache.queryNearbyPGSpots(countryCode, center, 200.0)
             }
 
-            Log.v(TAG, "Spatial query returned ${nearbyFeatures.size} PG spots within 50 miles")
+            Log.v(TAG, "Spatial query returned ${nearbyFeatures.size} PG spots within 200 km")
 
             if (nearbyFeatures.isNotEmpty()) {
                 renderPGSpotFeaturesWithWeather(nearbyFeatures)
@@ -410,7 +438,7 @@ class PGSpotOverlayManager(
                 currentCountryCode = countryCode
                 lastCheckLocation = center
             } else {
-                Log.d(TAG, "No PG spots found within 50 miles of $center")
+                Log.d(TAG, "No PG spots found within 200 km of $center")
             }
 
         } catch (e: CancellationException) {
@@ -421,45 +449,62 @@ class PGSpotOverlayManager(
     }
 
     /**
-     * RENDER PG SPOTS WITH WEATHER CAPABILITY
-     * Initial static display with future dynamic weather integration
-     */
+      * RENDER PG SPOTS WITH WEATHER CAPABILITY
+      * Initial static display with future dynamic weather integration
+      */
     private fun renderPGSpotFeaturesWithWeather(features: List<OverlayFeature>) {
         features.forEach { feature ->
-            try {
-                // Create standard PG spot marker initially
-                val marker = createPGSpotMarker(feature)
-
-                // Calculate distance from user for prioritization
-                val center = feature.centroid
-                val distanceKm = calculateDistanceFromUser(center)
-
-                // Store marker with weather capability
-                val pgSpotMarker = PGSpotMarker(
-                    marker = marker,
-                    feature = feature,
-                    weatherLoaded = false,
-                    center = center,
-                    distanceFromUser = distanceKm
-                )
-
-                // Add to map and tracking
-                mapView?.overlays?.add(marker)
-                currentlyRenderedPGSpots[generatePGSpotId(feature)] = pgSpotMarker
-
-                // Add click handler for weather details (future: detailed weather screen)
-                marker.setOnMarkerClickListener { clickedMarker, _ ->
-                    showPGSpotWeatherDetails(feature)
-                    true
-                }
-
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed to render PG spot feature", e)
-            }
+            addPGSpotIfNotExists(feature)
         }
 
         mapView?.invalidate()
         Log.v(TAG, "Rendered ${features.size} weather-capable PG spots")
+    }
+
+    /**
+      * ADD PG SPOT ONLY IF NOT EXISTS (prevents duplicates)
+      */
+    private fun addPGSpotIfNotExists(feature: OverlayFeature) {
+        val spotId = generatePGSpotId(feature)
+
+        // Check if already exists to prevent duplicates
+        if (currentlyRenderedPGSpots.containsKey(spotId)) {
+            Log.v(TAG, "PG spot already exists, skipping: $spotId")
+            return
+        }
+
+        try {
+            // Create standard PG spot marker initially
+            val marker = createPGSpotMarker(feature)
+
+            // Calculate distance from user for prioritization
+            val center = feature.centroid
+            val distanceKm = calculateDistanceFromUser(center)
+
+            // Store marker with weather capability
+            val pgSpotMarker = PGSpotMarker(
+                marker = marker,
+                feature = feature,
+                weatherLoaded = false,
+                center = center,
+                distanceFromUser = distanceKm
+            )
+
+            // Add to map and tracking
+            mapView?.overlays?.add(marker)
+            currentlyRenderedPGSpots[spotId] = pgSpotMarker
+
+            // Add click handler for weather details (future: detailed weather screen)
+            marker.setOnMarkerClickListener { clickedMarker, _ ->
+                showPGSpotWeatherDetails(feature)
+                true
+            }
+
+            Log.v(TAG, "Added new PG spot: $spotId")
+
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to render PG spot feature", e)
+        }
     }
 
     // === UTILITY METHODS ===
@@ -472,11 +517,28 @@ class PGSpotOverlayManager(
             title = "PG Launch Site" // Will be updated with weather info
             snippet = "Tap for weather details"
 
-            // Placeholder icon - will be replaced with wind gauge when weather loads
+            // Set custom icon to replace default hand symbol
             setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
 
-            // In production: Use icon from your app resources
-            // icon = ContextCompat.getDrawable(context, R.drawable.pg_spot_default)
+            // Use app launcher icon from mipmap resources (same as used in MapViewModel)
+            try {
+                val drawable = ContextCompat.getDrawable(applicationContext, R.mipmap.ic_launcher)
+                drawable?.let {
+                    val originalBitmap = it.toBitmap()
+                    // Scale to 1/2 size for better touch interaction while maintaining visibility
+                    val scaledWidth = originalBitmap.width / 2
+                    val scaledHeight = originalBitmap.height / 2
+                    val scaledBitmap = android.graphics.Bitmap.createScaledBitmap(
+                        originalBitmap,
+                        scaledWidth,
+                        scaledHeight,
+                        true // Use bilinear filtering
+                    )
+                    icon = android.graphics.drawable.BitmapDrawable(applicationContext.resources, scaledBitmap)
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to set custom PG spot icon, using default", e)
+            }
         }
     }
 

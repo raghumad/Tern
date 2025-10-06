@@ -48,7 +48,7 @@ class AirspaceOverlayManager(
     private val maxViewportAirspaces = 100    // Most critical - what's actually visible
 
     // Spatial-first architecture: always use spatial queries with configurable search radius
-    private val spatialQueryRadiusKm = 100.0  // Search radius for nearby airspaces (was FAR_VIEWPORT)
+    private val spatialQueryRadiusKm = 200.0  // Search radius for nearby airspaces (increased for better visibility)
 
     override fun setEnabled(enabled: Boolean) {
         Log.d(TAG, "AirspaceOverlayManager setEnabled: $enabled")
