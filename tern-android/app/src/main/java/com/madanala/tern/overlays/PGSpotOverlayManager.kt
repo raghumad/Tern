@@ -82,12 +82,13 @@ class PGSpotOverlayManager(
     private val maxPGSpots = 50         // Reasonable limit for launch area visualization
 
     data class PGSpotMarker(
-        val marker: Marker,
-        val feature: OverlayFeature,
-        val weatherLoaded: Boolean = false,
-        val center: GeoPoint,
-        val distanceFromUser: Double = Double.MAX_VALUE
-    )
+         val marker: Marker,
+         val feature: OverlayFeature,
+         val weatherLoaded: Boolean = false,
+         val weatherLastUpdated: Long = 0L,
+         val center: GeoPoint,
+         val distanceFromUser: Double = Double.MAX_VALUE
+     )
 
     // === OVERLAY MANAGER LIFECYCLE ===
 
@@ -300,10 +301,11 @@ class PGSpotOverlayManager(
 
                         // Update Redux state with fetched weather
                         if (weatherForecast != null) {
-                            mapStore?.dispatch(WeatherActions.WeatherFetched(pgSpotId, weatherForecast))
-                            updatePGSpotWithWindGauge(pgSpotId, weatherForecast)
-                            Log.d(TAG, "Successfully fetched weather for PG spot: $pgSpotId")
-                        } else {
+                             mapStore?.dispatch(WeatherActions.WeatherFetched(pgSpotId, weatherForecast))
+                             updatePGSpotWithWindGauge(pgSpotId, weatherForecast)
+                             updateWeatherTimestamp(pgSpotId) // Mark weather as fresh
+                             Log.d(TAG, "Successfully fetched weather for PG spot: $pgSpotId")
+                         } else {
                             mapStore?.dispatch(WeatherActions.WeatherFetchError(
                                 pgSpotId,
                                 Exception("Weather fetch returned null")
@@ -481,11 +483,12 @@ class PGSpotOverlayManager(
             val center = feature.centroid
             val distanceKm = calculateDistanceFromUser(center)
 
-            // Store marker with weather capability
+            // Store marker with weather capability and initial timestamp
             val pgSpotMarker = PGSpotMarker(
                 marker = marker,
                 feature = feature,
                 weatherLoaded = false,
+                weatherLastUpdated = 0L, // Never updated initially
                 center = center,
                 distanceFromUser = distanceKm
             )
@@ -506,6 +509,33 @@ class PGSpotOverlayManager(
             Log.w(TAG, "Failed to render PG spot feature", e)
         }
     }
+
+    // === WEATHER TIMESTAMP MANAGEMENT ===
+
+    /**
+     * Check if weather data needs refreshing based on timestamp
+     */
+    private fun needsWeatherRefresh(pgSpotId: String): Boolean {
+         val marker = currentlyRenderedPGSpots[pgSpotId] ?: return true
+         val currentTime = System.currentTimeMillis()
+
+         // Refresh if never loaded OR if older than update interval
+         return !marker.weatherLoaded ||
+                (marker.weatherLastUpdated > 0 && currentTime - marker.weatherLastUpdated > WEATHER_UPDATE_INTERVAL_MS)
+     }
+
+    /**
+     * Update weather timestamp for a PG spot after successful fetch
+     */
+    private fun updateWeatherTimestamp(pgSpotId: String) {
+         currentlyRenderedPGSpots[pgSpotId]?.let { existingMarker ->
+             val updatedMarker = existingMarker.copy(
+                 weatherLoaded = true,
+                 weatherLastUpdated = System.currentTimeMillis()
+             )
+             currentlyRenderedPGSpots[pgSpotId] = updatedMarker
+         }
+     }
 
     // === UTILITY METHODS ===
 
@@ -608,9 +638,8 @@ class PGSpotOverlayManager(
                 delay(WEATHER_UPDATE_INTERVAL_MS) // Wait before refreshing
 
                 val refreshedIds = visibleSpots.filter { id ->
-                    currentlyRenderedPGSpots[id]?.weatherLoaded == false ||
-                    true // Always refresh for now - TODO: Implement proper timestamp check
-                }.toSet()
+                     needsWeatherRefresh(id)
+                 }.toSet()
 
                 if (refreshedIds.isNotEmpty()) {
                     // Note: This is simplified - in production, would fetch fresh data
