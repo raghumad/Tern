@@ -1,4 +1,4 @@
-package com.madanala.tern.overlays
+package com.madanala.tern.ui.overlays
 
 import android.util.Log
 import androidx.compose.foundation.layout.Column

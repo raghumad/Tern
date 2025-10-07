@@ -1,4 +1,4 @@
-package com.madanala.tern.overlays
+package com.madanala.tern.ui.overlays
 
 import android.content.Context
 import android.util.Log
@@ -16,6 +16,15 @@ import kotlinx.coroutines.launch
 import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
+
+/**
+ * Custom exception for invalid geographic coordinates
+ */
+class InvalidCoordinatesException(
+    message: String,
+    val latitude: Double,
+    val longitude: Double
+) : IllegalArgumentException("Invalid coordinates: lat=$latitude, lon=$longitude. $message")
 
 /**
  * Overlay manager for airspace data
@@ -50,6 +59,46 @@ class AirspaceOverlayManager(
 
     // Spatial-first architecture: always use spatial queries with configurable search radius
     private val spatialQueryRadiusKm = 200.0  // Search radius for nearby airspaces (increased for better visibility)
+
+    // Coordinate validation constants
+    private val MIN_LATITUDE = -90.0
+    private val MAX_LATITUDE = 90.0
+    private val MIN_LONGITUDE = -180.0
+    private val MAX_LONGITUDE = 180.0
+
+    /**
+     * Validates geographic coordinates for safety and correctness
+     * @param center The GeoPoint to validate
+     * @throws InvalidCoordinatesException if coordinates are invalid
+     */
+    private fun validateCoordinates(center: GeoPoint) {
+        // Check for NaN values first
+        if (center.latitude.isNaN() || center.longitude.isNaN()) {
+            throw InvalidCoordinatesException(
+                "Coordinates cannot be NaN",
+                center.latitude,
+                center.longitude
+            )
+        }
+
+        // Check latitude bounds
+        if (center.latitude < MIN_LATITUDE || center.latitude > MAX_LATITUDE) {
+            throw InvalidCoordinatesException(
+                "Latitude must be between $MIN_LATITUDE and $MAX_LATITUDE",
+                center.latitude,
+                center.longitude
+            )
+        }
+
+        // Check longitude bounds
+        if (center.longitude < MIN_LONGITUDE || center.longitude > MAX_LONGITUDE) {
+            throw InvalidCoordinatesException(
+                "Longitude must be between $MIN_LONGITUDE and $MAX_LONGITUDE",
+                center.latitude,
+                center.longitude
+            )
+        }
+    }
 
     override fun setEnabled(enabled: Boolean) {
         Log.d(TAG, "AirspaceOverlayManager setEnabled: $enabled")
@@ -100,15 +149,11 @@ class AirspaceOverlayManager(
             return
         }
 
-        // Additional coordinate validation for safety
-        if (center.latitude < -90.0 || center.latitude > 90.0 || center.longitude < -180.0 || center.longitude > 180.0) {
-            Log.w(TAG, "Coordinates out of valid range: lat=${center.latitude}, lon=${center.longitude}")
-            return
-        }
-
-        // Additional validation for reasonable coordinate ranges
-        if (center.latitude < -90.0 || center.latitude > 90.0 || center.longitude < -180.0 || center.longitude > 180.0) {
-            Log.w(TAG, "Coordinates out of valid range: lat=${center.latitude}, lon=${center.longitude}")
+        // Validate coordinates for safety and correctness
+        try {
+            validateCoordinates(center)
+        } catch (e: InvalidCoordinatesException) {
+            Log.w(TAG, "Invalid coordinates in map move: ${e.message}", e)
             return
         }
 
@@ -161,19 +206,35 @@ class AirspaceOverlayManager(
     }
 
     override fun clearOverlays() {
-        // Clear ONLY airspace overlays (not all GeoJSON)
-        mapView?.overlays?.removeAll { overlay ->
-            // Remove Polygon overlays that represent airspaces
-            // Note: This is a simplified approach - in production we'd add metadata
-            // to distinguish overlay types more reliably
-            overlay is org.osmdroid.views.overlay.Polygon
+        mapView?.let { map ->
+            // 🎨 Use animation manager for smooth clearing of all airspaces
+            val polygonsToRemove = currentlyRenderedAirspaces.values.toList()
+            polygonsToRemove.forEachIndexed { index, polygon ->
+                val airspaceId = currentlyRenderedAirspaces.entries.find { it.value == polygon }?.key ?: "airspace_$index"
+
+                animationManager?.animateOverlayRemoval(
+                    overlay = polygon,
+                    overlayId = airspaceId,
+                    mapView = map
+                ) {
+                    // Animation completed
+                } ?: run {
+                    // Fallback if no animation manager
+                    map.overlays.remove(polygon)
+                }
+            }
+
+            // Clear tracking after animations complete
+            currentlyRenderedAirspaces.clear()
+            // Don't call invalidate() - animation manager handles it internally
+            map.invalidate() // Still needed for final cleanup
+
+            Log.d(TAG, "Cleared ${polygonsToRemove.size} airspace overlays with smooth transitions")
+        } ?: run {
+            // No map view available
+            currentlyRenderedAirspaces.clear()
+            Log.d(TAG, "Cleared airspace tracking (no map view)")
         }
-        mapView?.invalidate()
-
-        // Clear tracking map
-        currentlyRenderedAirspaces.clear()
-
-        Log.d(TAG, "Cleared airspace overlays")
     }
 
     /**
@@ -208,12 +269,13 @@ class AirspaceOverlayManager(
                 val nearbyFeatures = countryCache.queryMultiCountryArea(center, spatialQueryRadiusKm)
 
                 if (nearbyFeatures.isNotEmpty()) {
-                    renderAirspaceFeatures(nearbyFeatures)
+                    mapView?.let { map ->
+                        Log.v(TAG, "Rendering ${nearbyFeatures.size} nearby airspaces from multiple countries")
+                        updateAirspaceOverlaysIncrementally(map, nearbyFeatures)
+                    } ?: Log.w(TAG, "Cannot render airspaces - no map view available")
 
                     // Update last location for movement tracking
                     lastCheckLocation = center
-
-                    Log.v(TAG, "Rendered ${nearbyFeatures.size} nearby airspaces from multiple countries")
                 } else {
                     Log.d(TAG, "No airspaces found near $center in cached countries")
 
@@ -270,13 +332,14 @@ class AirspaceOverlayManager(
             val nearbyFeatures = airspaceCache.queryNearbyFeatures(countryCode, center, spatialQueryRadiusKm)
 
             if (nearbyFeatures.isNotEmpty()) {
-                renderAirspaceFeatures(nearbyFeatures)
+                mapView?.let { map ->
+                    Log.v(TAG, "Rendering ${nearbyFeatures.size} nearby airspaces for $countryCode (fallback)")
+                    updateAirspaceOverlaysIncrementally(map, nearbyFeatures)
+                } ?: Log.w(TAG, "Cannot render airspaces - no map view available")
 
                 // Update current country and last location (original tracking)
                 currentCountryCode = countryCode
                 lastCheckLocation = center
-
-                Log.v(TAG, "Rendered ${nearbyFeatures.size} nearby airspaces for $countryCode (fallback)")
             } else {
                 Log.d(TAG, "No airspaces found near $center for $countryCode (fallback)")
             }
@@ -288,23 +351,10 @@ class AirspaceOverlayManager(
 
 
 
-    /**
-     * Render airspace features to the map (incremental updates)
-     */
-    private fun renderAirspaceFeatures(features: List<OverlayFeature>) {
-        mapView?.let { map ->
-            Log.v(TAG, "Rendering ${features.size} airspace features (incremental update)")
-
-            // Calculate incremental updates - add/remove only what's changed
-            updateAirspaceOverlaysIncrementally(map, features)
-
-            Log.v(TAG, "Successfully updated airspaces incrementally")
-        } ?: Log.w(TAG, "Cannot render airspaces - no map view available")
-    }
 
     /**
-     * Update airspace overlays incrementally instead of clearing everything
-     */
+      * Update airspace overlays incrementally instead of clearing everything
+      */
     private fun updateAirspaceOverlaysIncrementally(map: MapView, features: List<OverlayFeature>) {
         // Create a map of desired airspaces by ID
         val desiredAirspaceIds = features.mapNotNull { feature ->
@@ -315,26 +365,51 @@ class AirspaceOverlayManager(
 
         // Find airspaces to remove (exist in current but not in desired)
         val airspacesToRemove = currentlyRenderedAirspaces.keys - desiredAirspaceIds.keys
+
+        // 🎨 Use animation manager for smooth removal
         airspacesToRemove.forEach { airspaceId ->
             val polygon = currentlyRenderedAirspaces[airspaceId]
             if (polygon != null) {
-                map.overlays.remove(polygon)
-                currentlyRenderedAirspaces.remove(airspaceId)
-                Log.v(TAG, "Removed airspace: $airspaceId")
+                animationManager?.animateOverlayRemoval(polygon, airspaceId, map) {
+                    // Remove from tracking after animation completes
+                    currentlyRenderedAirspaces.remove(airspaceId)
+                    Log.v(TAG, "Animation completed, removed airspace: $airspaceId")
+                } ?: run {
+                    // Fallback if no animation manager
+                    map.overlays.remove(polygon)
+                    currentlyRenderedAirspaces.remove(airspaceId)
+                    // Removed airspace without animation
+                }
             }
         }
 
         // Find airspaces to add (exist in desired but not in current)
         val airspacesToAdd = desiredAirspaceIds.keys - currentlyRenderedAirspaces.keys
-        airspacesToAdd.forEach { airspaceId ->
+
+        // 🎨 Use animation manager for smooth addition with staggered timing
+        airspacesToAdd.forEachIndexed { index, airspaceId ->
             val feature = desiredAirspaceIds[airspaceId]
             if (feature != null) {
                 // Create overlay for single airspace
                 val overlays = GeoJsonUtils.addAirspaceFeaturesToMap(map, listOf(feature))
                 if (overlays.isNotEmpty()) {
-                    // Assume first overlay is the airspace polygon
-                    currentlyRenderedAirspaces[airspaceId] = overlays.first()
-                    Log.v(TAG, "Added airspace: $airspaceId")
+                    val polygon = overlays.first()
+
+                    // Add to tracking immediately
+                    currentlyRenderedAirspaces[airspaceId] = polygon
+
+                    // Use animation manager for smooth addition
+                    animationManager?.animateOverlayAddition(
+                        overlay = polygon,
+                        overlayId = airspaceId,
+                        mapView = map,
+                        staggerDelay = index * 100L // 100ms stagger for visual polish
+                    ) {
+                        // Animation completed
+                    } ?: run {
+                        // Fallback if no animation manager
+                        // Added airspace without animation
+                    }
                 }
             }
         }
@@ -342,8 +417,8 @@ class AirspaceOverlayManager(
         // Airspaces to keep (don't need any action)
 
         if (airspacesToRemove.isNotEmpty() || airspacesToAdd.isNotEmpty()) {
-            map.invalidate()
-            Log.v(TAG, "Airspace update: +${airspacesToAdd.size} -${airspacesToRemove.size} =${currentlyRenderedAirspaces.size} total")
+            // Don't call invalidate() here - animation manager handles it internally
+            Log.v(TAG, "Airspace update: +${airspacesToAdd.size} -${airspacesToRemove.size} =${currentlyRenderedAirspaces.size} total (animation managed)")
         } else {
             Log.v(TAG, "No airspace changes needed")
         }
@@ -440,15 +515,22 @@ class AirspaceOverlayManager(
             Log.d(TAG, "Viewport limit enforcement: kept ${maxViewportAirspaces} closest airspaces")
         }
 
-        // Remove the determined airspaces
+        // Remove the determined airspaces with smooth animation
         if (airspacesToRemove.isNotEmpty()) {
             mapView?.let { map ->
                 airspacesToRemove.forEach { airspaceId ->
                     val polygon = currentlyRenderedAirspaces[airspaceId]
                     if (polygon != null) {
-                        map.overlays.remove(polygon)
-                        currentlyRenderedAirspaces.remove(airspaceId)
-                        Log.v(TAG, "Removed out-of-view airspace: $airspaceId")
+                        // Use animation manager for smooth viewport cleanup
+                        animationManager?.animateOverlayRemoval(polygon, airspaceId, map) {
+                            currentlyRenderedAirspaces.remove(airspaceId)
+                            // Viewport animation completed
+                        } ?: run {
+                            // Fallback if no animation manager
+                            map.overlays.remove(polygon)
+                            currentlyRenderedAirspaces.remove(airspaceId)
+                        }
+                        // Scheduled viewport removal for airspace
                     }
                 }
 

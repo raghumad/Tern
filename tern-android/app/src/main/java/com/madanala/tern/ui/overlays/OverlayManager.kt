@@ -1,4 +1,4 @@
-package com.madanala.tern.overlays
+package com.madanala.tern.ui.overlays
 
 import com.madanala.tern.redux.MapState
 import com.madanala.tern.redux.OverlayConfig
