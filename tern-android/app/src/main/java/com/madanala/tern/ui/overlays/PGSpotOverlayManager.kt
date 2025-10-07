@@ -97,14 +97,11 @@ class PGSpotOverlayManager(
 
     // Aviation safety thresholds (inherited from airspace system with PG spot optimizations)
     private val checkDistanceKm = 2.0  // Smaller than airspace - PG spots are denser
-    private var maxPGSpots = 50         // Dynamic - will be updated by adaptive system
+    // private var maxPGSpots = 50         // ❌ REMOVED - now managed by BaseOverlayManager
 
-    // Clustering configuration for dense areas to prevent visual clutter
-    // TODO: Revisit clustering logic later
-    // private val clusteringEnabled = true
-    // private val clusterRadiusMeters = 1000.0  // 1km clustering radius
-    // private val maxClusterSpots = 5           // Maximum spots per cluster
-    // private val clusteringThreshold = 10     // Lower threshold to trigger clustering more aggressively
+    // ✅ REMOVED: Clustering configuration - may be obsolete with adaptive overlay system
+    // The adaptive system now handles overlay density through memory-based allocation
+    // and zone-based prioritization, potentially eliminating need for manual clustering
 
     data class PGSpotMarker(
          val marker: Marker,
@@ -484,8 +481,17 @@ class PGSpotOverlayManager(
             addPGSpotIfNotExists(feature)
         }
 
+        val center = mapView?.mapCenter
+        val centerStr = if (center != null) {
+            String.format("@ %.4f,%.4f", center.latitude, center.longitude)
+        } else "@ unknown"
+
         mapView?.invalidate()
-        Log.v(TAG, "Rendered ${features.size} weather-capable PG spots")
+        Log.d(TAG, String.format(
+            "PG spots rendered: %d total %s",
+            features.size,
+            centerStr
+        ))
     }
 
     /**
@@ -770,16 +776,25 @@ class PGSpotOverlayManager(
     }
 
     /**
-     * Handle overlay budget changes from adaptive system
+     * Handle overlay budget changes with PG spot-specific logging
      */
     override fun onOverlayBudgetChanged(budget: com.madanala.tern.utils.OverlayBudget) {
         super.onOverlayBudgetChanged(budget)
 
-        // Update dynamic PG spot limit based on memory conditions
-        // PG spots use NEAR zone allocation since they're location-based
-        maxPGSpots = budget.zoneBudgets[com.madanala.tern.utils.DistanceZone.NEAR] ?: 25
+        // Get current map center for geographic context
+        val center = mapView?.mapCenter
+        val centerStr = if (center != null) {
+            String.format("@ %.4f,%.4f", center.latitude, center.longitude)
+        } else {
+            "@ unknown location"
+        }
 
-        Log.d(TAG, "Updated PG spot limit: $maxPGSpots (memory: ${budget.memoryPressure.name})")
+        Log.d(TAG, String.format(
+            "PG Spot Budget: %d total (Currently rendered: %d spots %s)",
+            budget.totalOverlays,
+            currentlyRenderedPGSpots.size,
+            centerStr
+        ))
     }
 
     /**

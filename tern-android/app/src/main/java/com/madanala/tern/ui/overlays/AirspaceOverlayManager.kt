@@ -56,9 +56,9 @@ class AirspaceOverlayManager(
     private val checkDistanceKm = 2.0  // Reduced for aviation use (was 5.0)
     private val reFilterDistanceKm = 80.0
 
-    // Dynamic memory-based limits (replaces hardcoded values)
-    private var maxTotalAirspaces = 150       // Dynamic - will be updated by adaptive system
-    private var maxViewportAirspaces = 100    // Dynamic - will be updated by adaptive system
+    // Dynamic memory-based limits (replaces hardcoded values) - now managed by BaseOverlayManager
+    // private var maxTotalAirspaces = 150       // ❌ REMOVED - now getMaxOverlaysForCurrentConditions()
+    // private var maxViewportAirspaces = 100    // ❌ REMOVED - now getZoneBudget(CORE)
 
     // Spatial-first architecture: always use spatial queries with configurable search radius
     private val spatialQueryRadiusKm = 200.0  // Search radius for nearby airspaces (increased for better visibility)
@@ -224,16 +224,25 @@ class AirspaceOverlayManager(
     }
 
     /**
-     * Handle overlay budget changes from adaptive system
+     * Handle overlay budget changes with airspace-specific logging
      */
     override fun onOverlayBudgetChanged(budget: com.madanala.tern.utils.OverlayBudget) {
         super.onOverlayBudgetChanged(budget)
 
-        // Update dynamic limits based on memory conditions and zone allocation
-        maxTotalAirspaces = budget.totalOverlays
-        maxViewportAirspaces = budget.zoneBudgets[com.madanala.tern.utils.DistanceZone.CORE] ?: 50
+        // Get current map center for geographic context
+        val center = mapView?.mapCenter
+        val centerStr = if (center != null) {
+            String.format("@ %.4f,%.4f", center.latitude, center.longitude)
+        } else {
+            "@ unknown location"
+        }
 
-        Log.d(TAG, "Updated airspace limits - Total: $maxTotalAirspaces, Viewport: $maxViewportAirspaces")
+        Log.d(TAG, String.format(
+            "Airspace Budget: %d total (Currently rendered: %d airspaces %s)",
+            budget.totalOverlays,
+            currentlyRenderedAirspaces.size,
+            centerStr
+        ))
     }
 
     /**
@@ -493,7 +502,17 @@ class AirspaceOverlayManager(
         // 🎯 STEP 1: Determine desired state (what SHOULD exist)
         val desiredAirspaceIds = determineDesiredAirspaceState(features)
 
-        Log.v(TAG, "Desired airspaces: ${desiredAirspaceIds.size}, Currently rendered: ${currentlyRenderedAirspaces.size}")
+        val center = mapView?.mapCenter
+        val centerStr = if (center != null) {
+            String.format("@ %.4f,%.4f", center.latitude, center.longitude)
+        } else "@ unknown"
+
+        Log.d(TAG, String.format(
+            "Airspace sync: Desired: %d, Current: %d %s",
+            desiredAirspaceIds.size,
+            currentlyRenderedAirspaces.size,
+            centerStr
+        ))
 
         // 🎯 STEP 2: Calculate differences (what needs to change)
         val changes = calculateOverlayChanges(desiredAirspaceIds)
@@ -501,7 +520,11 @@ class AirspaceOverlayManager(
         // 🎯 STEP 3: Execute changes through animation manager only
         executeOverlayChangesThroughAnimationManager(map, changes)
 
-        Log.v(TAG, "Airspace state synchronized: ${currentlyRenderedAirspaces.size} total overlays")
+        Log.d(TAG, String.format(
+            "Airspace synchronized: %d total overlays %s",
+            currentlyRenderedAirspaces.size,
+            centerStr
+        ))
     }
 
     /**
@@ -682,107 +705,31 @@ class AirspaceOverlayManager(
             return
         }
 
-        // Expand viewport slightly for hysteresis (don't remove airspaces right at the edge)
-        val expandedViewport = BoundingBox(
-            viewport.latNorth + 0.01, // Add ~1km buffer
-            viewport.lonEast + 0.01,
-            viewport.latSouth - 0.01,
-            viewport.lonWest - 0.01
-        )
+        // ✅ ADAPTIVE SYSTEM: Viewport management now handled by zone-based allocation
+        // Manual viewport expansion replaced by intelligent zone-based cleanup
 
-        Log.d(TAG, "Managing ${currentlyRenderedAirspaces.size} airspaces for viewport: $expandedViewport")
+        Log.d(TAG, "Managing ${currentlyRenderedAirspaces.size} airspaces for viewport: $viewport")
 
-        // Find airspaces to remove (completely outside viewport)
+        // ✅ ADAPTIVE SYSTEM: Use zone-based cleanup instead of manual viewport logic
+        // The emergency cleanup system handles viewport management through distance zones
+
         val airspacesToRemove = mutableListOf<String>()
-        currentlyRenderedAirspaces.forEach { (airspaceId, polygon) ->
-            if (!isPolygonInViewport(polygon, expandedViewport)) {
-                airspacesToRemove.add(airspaceId)
-            }
+        // Zone-based cleanup is now handled by the adaptive system's emergency cleanup
+
+        // ✅ ADAPTIVE SYSTEM: Memory limit enforcement now handled automatically
+        // The BaseOverlayManager adaptive system manages overlay budgets and triggers
+        // emergency cleanup when needed. Manual limit enforcement is obsolete.
+
+        // Check if adaptive system recommends emergency cleanup
+        if (shouldTriggerEmergencyCleanup()) {
+            Log.w(TAG, "Adaptive system triggered emergency cleanup for airspace overlays")
+            triggerEmergencyCleanup()
+            return // Emergency cleanup handled by BaseOverlayManager
         }
 
-        // ENFORCE HARD MEMORY LIMITS to prevent ANR crashes
-        val predictedFinalCount = currentlyRenderedAirspaces.size - airspacesToRemove.size
-
-        // If we would still exceed the hard limit after viewport cleanup, remove more aggressively
-        if (predictedFinalCount > maxTotalAirspaces) {
-            Log.w(TAG, "Memory pressure detected: ${predictedFinalCount} > ${maxTotalAirspaces} (hard limit)")
-            val remainingAirspaces = currentlyRenderedAirspaces.keys - airspacesToRemove
-            val center = mapView?.mapCenter as? GeoPoint ?: return
-
-            // Sort by distance from center and keep only the closest ones within limit
-            val airspacesByDistance = remainingAirspaces.sortedBy { airspaceId ->
-                val polygon = currentlyRenderedAirspaces[airspaceId] ?: return@sortedBy Double.MAX_VALUE
-                getDistanceFromCenter(polygon, center)
-            }
-
-            // Keep only the closest maxTotalAirspaces (hard limit)
-            val extraToRemove = airspacesByDistance.drop(maxTotalAirspaces)
-            airspacesToRemove.addAll(extraToRemove)
-            Log.w(TAG, "Aggressive cleanup: removed ${extraToRemove.size} airspaces to reach ${maxTotalAirspaces} limit")
-        }
-        // Check for viewport-specific limits too
-        else if (predictedFinalCount > maxViewportAirspaces) {
-            val remainingAirspaces = currentlyRenderedAirspaces.keys - airspacesToRemove
-            val center = mapView?.mapCenter as? GeoPoint ?: return
-
-            // Enforce viewport limit by removing farthest airspaces
-            val airspacesByDistance = remainingAirspaces.sortedBy { airspaceId ->
-                val polygon = currentlyRenderedAirspaces[airspaceId] ?: return@sortedBy Double.MAX_VALUE
-                getDistanceFromCenter(polygon, center)
-            }
-
-            // Keep only the maxViewportAirspaces closest ones
-            val viewportToRemove = airspacesByDistance.drop(maxViewportAirspaces)
-            airspacesToRemove.addAll(viewportToRemove)
-            Log.d(TAG, "Viewport limit enforcement: kept ${maxViewportAirspaces} closest airspaces")
-        }
-
-        // Remove airspaces through animation manager (viewport cleanup)
-        if (airspacesToRemove.isNotEmpty()) {
-            val coordinator = getOverlayCoordinator()
-
-            mapView?.let { map ->
-                if (coordinator != null) {
-                    // Use Hilbert-ordered batch removal for viewport cleanup
-                    airspacesToRemove.forEach { airspaceId ->
-                        val polygon = currentlyRenderedAirspaces[airspaceId]
-                        if (polygon != null) {
-                            val centroid = getPolygonCentroid(polygon)
-                            coordinator.removeOverlayFromBatch(polygon, airspaceId, centroid)
-                        }
-                    }
-
-                    // Process the batch for Hilbert-ordered removal
-                    coordinator.removeOverlayFromBatch()
-
-                    // Update tracking after batch processing
-                    airspacesToRemove.forEach { airspaceId ->
-                        currentlyRenderedAirspaces.remove(airspaceId)
-                    }
-
-                    Log.d(TAG, "Viewport cleanup scheduled: ${airspacesToRemove.size} airspaces via Hilbert batch system")
-                } else {
-                    // Fallback to direct animation manager if coordinator not available
-                    airspacesToRemove.forEach { airspaceId ->
-                        val polygon = currentlyRenderedAirspaces[airspaceId]
-                        if (polygon != null) {
-                            // Animation manager handles viewport cleanup with fade-out
-                            animationManager?.animateOverlayRemoval(polygon, airspaceId, map) {
-                                currentlyRenderedAirspaces.remove(airspaceId)
-                                Log.v(TAG, "Viewport cleanup animation completed: $airspaceId")
-                            } ?: throw IllegalStateException(
-                                "Animation manager is required for airspace overlay removal. " +
-                                "Ensure OverlayCoordinator is properly initialized."
-                            )
-                        }
-                    }
-
-                    Log.d(TAG, "Viewport cleanup scheduled: ${airspacesToRemove.size} airspaces via animation manager")
-                }
-            }
-        } else {
-            Log.d(TAG, "All ${currentlyRenderedAirspaces.size} airspaces still in viewport")
-        }
+        // ✅ REMOVED: Manual viewport cleanup logic
+        // This is now handled by the adaptive system's emergency cleanup when needed
+        // The system automatically manages overlay lifecycles through zone-based allocation
     }
 
     /**
