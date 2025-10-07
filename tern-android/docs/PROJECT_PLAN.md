@@ -25,6 +25,58 @@ Android paragliding app with osmdroid maps, Jetpack Compose UI, Redux architectu
 - [ ] **Risk Assessment Engine**: Airspace, terrain, and weather risk analysis
 - [ ] **Tactical Decision Support**: Real-time recommendations for course corrections
 
+### 🪂 **PARAGLIDER-SPECIFIC OVERLAY PRIORITY SYSTEM**
+
+#### **Critical Safety Priorities (FAR 103 Ultralight Compliance)**
+
+**🚨 PRIORITY 1: Never Reduce (Safety Critical)**
+- **Danger Areas**: Military zones, prohibited areas - immediate danger to paragliders
+- **Restricted Areas**: Competition zones, nature reserves - legal restrictions
+- **Temporary Restrictions**: TFRs, NOTAM areas - temporary flight hazards
+- **Parachute Zones**: Drop zones - collision risk at similar altitudes
+
+**⚠️ PRIORITY 2: High Priority (Flight Critical)**
+- **Training Areas**: Glider training areas - shared airspace awareness
+- **Competition Areas**: Race courses, turnpoints - active event zones
+- **Weather Avoidance**: Storm cells, icing areas - immediate threats
+- **Thermal Sources**: Known lift areas - flight optimization
+
+**📍 PRIORITY 3: Moderate Priority (Situational Awareness)**
+- **Controlled Airspace**: TMA, CTR - coordination requirements
+- **Glider Sites**: Known thermal sources - flight planning
+- **Terrain Hazards**: Power lines, towers - collision avoidance
+- **Landing Options**: Suitable landing fields - safety planning
+
+**ℹ️ PRIORITY 4: Low Priority (Reduce First)**
+- **Airways**: Victor/Jet routes - not relevant for paragliders
+- **Reporting Points**: VRP, Compulsory points - powered aircraft only
+- **Navigation Aids**: VOR, NDB stations - not used by paragliders
+- **Civil Airports**: Commercial airports - avoid but not critical
+
+#### **Flight Phase-Aware Priority Adjustment**
+
+| Flight Phase | Critical Priority | High Priority | Moderate Priority | Low Priority |
+|-------------|------------------|---------------|-------------------|--------------|
+| **Launch** | Danger, Parachute, TFR | Training, Terrain | Controlled, Landing | Airways, Airports |
+| **Thermal** | Danger, Weather | Thermal, Training | Glider Sites | Nav Aids, Reporting |
+| **Glide** | Danger, TFR | Landing, Terrain | Controlled | Airways, Airports |
+| **Landing** | Danger, Parachute, TFR | Terrain, Landing | Controlled | Nav Aids, Reporting |
+| **Cruising** | Danger, TFR | Competition, Weather | Controlled | All Others |
+
+#### **Paraglider-Specific Overload Strategy**
+
+**Intelligent Reduction Algorithm:**
+1. **Always preserve** danger areas, parachute zones, TFRs
+2. **Context-aware filtering** based on flight phase and altitude
+3. **Skill level adjustment** (Student → Competition pilot modes)
+4. **Thermal activity correlation** (show thermal sources when thermaling)
+
+**Performance Standards:**
+- ✅ **Zero reduction** of critical safety overlays
+- ✅ **Landing options** always visible below 1000ft AGL
+- ✅ **Training areas** shown during moderate thermal conditions
+- ✅ **Memory usage** <75% in dense European airspace
+
 #### Phase 2: Enhanced Weather Intelligence
 **Current Status**: Basic weather screen exists with wind/temp/humidity/pressure/visibility
 **Missing Enhancements**:
