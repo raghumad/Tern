@@ -321,17 +321,11 @@ class OverlayCoordinator {
                     onComplete?.invoke()
 
                 } catch (e: Exception) {
-                    // Fallback to immediate addition if animation fails
-                    android.util.Log.w("OverlayAnimationManager", "Animation failed for overlay $overlayId, using immediate addition", e)
-                    try {
-                        if (overlay is org.osmdroid.views.overlay.Overlay) {
-                            mapView.overlays.add(overlay)
-                            mapView.invalidate()
-                        }
-                    } catch (fallbackError: Exception) {
-                        android.util.Log.e("OverlayAnimationManager", "Fallback addition also failed for $overlayId", fallbackError)
-                    }
-                    onComplete?.invoke()
+                    // Animation failed - throw exception since animation manager is now mandatory
+                    throw IllegalStateException(
+                        "Animation manager failed for overlay $overlayId. " +
+                        "Animation manager is required for overlay operations.", e
+                    )
                 }
             }
         }
@@ -362,77 +356,75 @@ class OverlayCoordinator {
                     onComplete?.invoke()
 
                 } catch (e: Exception) {
-                    // Fallback to immediate removal if animation fails
-                    android.util.Log.w("OverlayAnimationManager", "Animation failed for overlay $overlayId, using immediate removal", e)
-                    try {
-                        if (overlay is org.osmdroid.views.overlay.Overlay) {
-                            mapView.overlays.remove(overlay)
-                            mapView.invalidate()
-                        }
-                    } catch (fallbackError: Exception) {
-                        android.util.Log.e("OverlayAnimationManager", "Fallback removal also failed for $overlayId", fallbackError)
-                    }
-                    onComplete?.invoke()
+                    // Animation failed - throw exception since animation manager is now mandatory
+                    throw IllegalStateException(
+                        "Animation manager failed for overlay $overlayId. " +
+                        "Animation manager is required for overlay operations.", e
+                    )
                 }
             }
         }
 
         /**
-          * Animate polygon addition with correct fade-in behavior
-          * Fade-in: Add with 0 alpha → Animate to target alpha
-          */
+           * Animate polygon addition with correct fade-in behavior
+           * Fade-in: Add with 0 alpha → Animate to target alpha (preserving original alpha values)
+           */
         private suspend fun animatePolygonAddition(polygon: org.osmdroid.views.overlay.Polygon, mapView: MapView) {
-            // Store original colors to determine target alpha
+            // Store original colors to preserve intended final appearance
             val originalFillColor = polygon.fillPaint.color
             val originalOutlineColor = polygon.outlinePaint.color
 
-            // Determine target alpha based on color's alpha channel
-            val fillColorAlpha = android.graphics.Color.alpha(originalFillColor)
-            val outlineColorAlpha = android.graphics.Color.alpha(originalOutlineColor)
+            // Extract the intended target alphas from original colors (preserve designer's intent)
+            val targetFillAlpha = android.graphics.Color.alpha(originalFillColor)   // ✅ Use original alpha
+            val targetOutlineAlpha = android.graphics.Color.alpha(originalOutlineColor) // ✅ Use original alpha
 
-            // Calculate target paint alpha (we want full paint strength for target opacity)
-            val targetFillPaintAlpha = 255  // Full paint strength
-            val targetOutlinePaintAlpha = 255  // Full paint strength
-
-
-            // Start with 0 paint alpha (invisible)
+            // Start with 0 alpha (invisible) - both paint alpha and color alpha
             polygon.fillPaint.alpha = 0
             polygon.outlinePaint.alpha = 0
 
-            // Add to map
+            // Temporarily set colors to full opacity versions for animation
+            // (We'll restore original colors at the end)
+            polygon.fillPaint.color = android.graphics.Color.argb(targetFillAlpha,   // Use target alpha
+                android.graphics.Color.red(originalFillColor),
+                android.graphics.Color.green(originalFillColor),
+                android.graphics.Color.blue(originalFillColor))
+            polygon.outlinePaint.color = android.graphics.Color.argb(targetOutlineAlpha, // Use target alpha
+                android.graphics.Color.red(originalOutlineColor),
+                android.graphics.Color.green(originalOutlineColor),
+                android.graphics.Color.blue(originalOutlineColor))
+
+            // Add to map (overlay is invisible at this point)
             mapView.overlays.add(polygon)
 
-            // Animate from 0 to target paint alpha
+            // Animate from 0 to target alpha
             val animationDuration = 500L
             val steps = 20
             val stepDelay = animationDuration / steps
 
             for (step in 1..steps) {
-                val fadeAlpha = (targetFillPaintAlpha * step) / steps
+                val fadeAlpha = (targetFillAlpha * step) / steps
                 polygon.fillPaint.alpha = fadeAlpha
                 polygon.outlinePaint.alpha = fadeAlpha
                 mapView.invalidate()
                 delay(stepDelay)
             }
 
-            // FINAL: Full paint alpha + original colors (correct final appearance)
-            polygon.fillPaint.alpha = targetFillPaintAlpha
-            polygon.outlinePaint.alpha = targetOutlinePaintAlpha
-
-            // Restore original colors (which have the correct alpha channels)
-            polygon.fillPaint.color = originalFillColor
-            polygon.outlinePaint.color = originalOutlineColor
+            // FINAL: Set to target alphas and restore original colors (preserves exact intended appearance)
+            polygon.fillPaint.alpha = targetFillAlpha      // ✅ Use original target alpha
+            polygon.outlinePaint.alpha = targetOutlineAlpha // ✅ Use original target alpha
+            polygon.fillPaint.color = originalFillColor     // ✅ Restore exact original color
+            polygon.outlinePaint.color = originalOutlineColor // ✅ Restore exact original color
 
         }
 
         /**
-          * Animate polygon removal with correct fade-out behavior
-          * Fade-out: Animate to 0 alpha → Remove overlay
-          */
+           * Animate polygon removal with correct fade-out behavior
+           * Fade-out: Animate from current alpha to 0 → Remove overlay
+           */
         private suspend fun animatePolygonRemoval(polygon: org.osmdroid.views.overlay.Polygon, mapView: MapView) {
-            // Store original colors (not modifying them during removal animation)
-            val originalFillColor = polygon.fillPaint.color
-            val originalOutlineColor = polygon.outlinePaint.color
+            // Store current alphas (fade from actual current alpha, not hardcoded 255)
+            val currentFillAlpha = polygon.fillPaint.alpha      // ✅ Use actual current alpha
+            val currentOutlineAlpha = polygon.outlinePaint.alpha // ✅ Use actual current alpha
 
             // Animate paint alpha to 0 over 500ms
             val animationDuration = 500L
@@ -440,7 +432,7 @@ class OverlayCoordinator {
             val stepDelay = animationDuration / steps
 
             for (step in steps downTo 0) {
-                val fadeAlpha = (255 * step) / steps  // Fade from current alpha to 0
+                val fadeAlpha = (currentFillAlpha * step) / steps  // ✅ Fade from current alpha to 0
                 polygon.fillPaint.alpha = fadeAlpha
                 polygon.outlinePaint.alpha = fadeAlpha
                 mapView.invalidate()
@@ -460,7 +452,7 @@ class OverlayCoordinator {
             // Start with 0 alpha (invisible)
             marker.alpha = 0.0f
 
-            // Add to map
+            // Add to map (marker is invisible at this point)
             mapView.overlays.add(marker)
 
             // Animate from 0 to 1.0 alpha over 500ms

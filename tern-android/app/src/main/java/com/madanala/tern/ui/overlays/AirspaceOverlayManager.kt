@@ -207,31 +207,33 @@ class AirspaceOverlayManager(
 
     override fun clearOverlays() {
         mapView?.let { map ->
-            // 🎨 Use animation manager for smooth clearing of all airspaces
+            // 🎨 Clear all airspaces through animation manager (fade-out all)
             val polygonsToRemove = currentlyRenderedAirspaces.values.toList()
-            polygonsToRemove.forEachIndexed { index, polygon ->
-                val airspaceId = currentlyRenderedAirspaces.entries.find { it.value == polygon }?.key ?: "airspace_$index"
+            val airspaceIds = currentlyRenderedAirspaces.keys.toList()
 
-                animationManager?.animateOverlayRemoval(
-                    overlay = polygon,
-                    overlayId = airspaceId,
-                    mapView = map
-                ) {
-                    // Animation completed
-                } ?: run {
-                    // Fallback if no animation manager
-                    map.overlays.remove(polygon)
+            // Animation manager handles all removals with staggered fade-out
+            airspaceIds.forEachIndexed { index, airspaceId ->
+                val polygon = currentlyRenderedAirspaces[airspaceId]
+                if (polygon != null) {
+                    animationManager?.animateOverlayRemoval(
+                        overlay = polygon,
+                        overlayId = airspaceId,
+                        mapView = map
+                    ) {
+                        // Animation manager handles removal - just update tracking
+                        Log.v(TAG, "Clear animation completed for: $airspaceId")
+                    } ?: throw IllegalStateException(
+                        "Animation manager is required for airspace overlay removal. " +
+                        "Ensure OverlayCoordinator is properly initialized."
+                    )
                 }
             }
 
-            // Clear tracking after animations complete
+            // Clear tracking (animation manager handles the actual removal)
             currentlyRenderedAirspaces.clear()
-            // Don't call invalidate() - animation manager handles it internally
-            map.invalidate() // Still needed for final cleanup
-
-            Log.d(TAG, "Cleared ${polygonsToRemove.size} airspace overlays with smooth transitions")
+            Log.d(TAG, "Scheduled clear of ${polygonsToRemove.size} airspace overlays via animation manager")
         } ?: run {
-            // No map view available
+            // No map view available - just clear tracking
             currentlyRenderedAirspaces.clear()
             Log.d(TAG, "Cleared airspace tracking (no map view)")
         }
@@ -353,76 +355,117 @@ class AirspaceOverlayManager(
 
 
     /**
-      * Update airspace overlays incrementally instead of clearing everything
-      */
+       * Update airspace overlays incrementally - coordinates with animation manager
+       * Nearby feature algorithm determines WHAT should exist, animation manager handles HOW
+       */
     private fun updateAirspaceOverlaysIncrementally(map: MapView, features: List<OverlayFeature>) {
-        // Create a map of desired airspaces by ID
-        val desiredAirspaceIds = features.mapNotNull { feature ->
-            generateAirspaceId(feature) to feature
-        }.toMap()
+        // 🎯 STEP 1: Determine desired state (what SHOULD exist)
+        val desiredAirspaceIds = determineDesiredAirspaceState(features)
 
         Log.v(TAG, "Desired airspaces: ${desiredAirspaceIds.size}, Currently rendered: ${currentlyRenderedAirspaces.size}")
 
-        // Find airspaces to remove (exist in current but not in desired)
-        val airspacesToRemove = currentlyRenderedAirspaces.keys - desiredAirspaceIds.keys
+        // 🎯 STEP 2: Calculate differences (what needs to change)
+        val changes = calculateOverlayChanges(desiredAirspaceIds)
 
-        // 🎨 Use animation manager for smooth removal
-        airspacesToRemove.forEach { airspaceId ->
+        // 🎯 STEP 3: Execute changes through animation manager only
+        executeOverlayChangesThroughAnimationManager(map, changes)
+
+        Log.v(TAG, "Airspace state synchronized: ${currentlyRenderedAirspaces.size} total overlays")
+    }
+
+    /**
+     * Determine what airspace state SHOULD exist based on features
+     */
+    private fun determineDesiredAirspaceState(features: List<OverlayFeature>): Map<String, OverlayFeature> {
+        return features.mapNotNull { feature ->
+            val id = generateAirspaceId(feature)
+            id to feature
+        }.toMap()
+    }
+
+    /**
+     * Calculate what needs to be added vs removed
+     */
+    private fun calculateOverlayChanges(desiredState: Map<String, OverlayFeature>): OverlayChanges {
+        val currentIds = currentlyRenderedAirspaces.keys
+        val desiredIds = desiredState.keys
+
+        val toRemove = currentIds - desiredIds
+        val toAdd = desiredIds - currentIds
+
+        return OverlayChanges(
+            toRemove = toRemove,
+            toAdd = toAdd.mapNotNull { id -> desiredState[id]?.let { id to it } }.toMap()
+        )
+    }
+
+    /**
+     * Execute overlay changes through animation manager only
+     * Animation manager is the single source of truth for overlay lifecycle
+     */
+    private fun executeOverlayChangesThroughAnimationManager(map: MapView, changes: OverlayChanges) {
+        // 🗑️ REMOVE overlays that shouldn't exist anymore
+        removeOverlaysThroughAnimationManager(map, changes.toRemove)
+
+        // ➕ ADD new overlays that should exist
+        addOverlaysThroughAnimationManager(map, changes.toAdd)
+    }
+
+    /**
+     * Remove overlays through animation manager only (fade-out → remove)
+     */
+    private fun removeOverlaysThroughAnimationManager(map: MapView, airspaceIdsToRemove: Set<String>) {
+        airspaceIdsToRemove.forEach { airspaceId ->
             val polygon = currentlyRenderedAirspaces[airspaceId]
             if (polygon != null) {
                 animationManager?.animateOverlayRemoval(polygon, airspaceId, map) {
-                    // Remove from tracking after animation completes
+                    // Animation manager handles removal - just update our tracking
                     currentlyRenderedAirspaces.remove(airspaceId)
-                    Log.v(TAG, "Animation completed, removed airspace: $airspaceId")
-                } ?: run {
-                    // Fallback if no animation manager
-                    map.overlays.remove(polygon)
-                    currentlyRenderedAirspaces.remove(airspaceId)
-                    // Removed airspace without animation
-                }
+                    Log.v(TAG, "Animation manager completed removal: $airspaceId")
+                } ?: throw IllegalStateException(
+                    "Animation manager is required for airspace overlay removal. " +
+                    "Ensure OverlayCoordinator is properly initialized."
+                )
             }
-        }
-
-        // Find airspaces to add (exist in desired but not in current)
-        val airspacesToAdd = desiredAirspaceIds.keys - currentlyRenderedAirspaces.keys
-
-        // 🎨 Use animation manager for smooth addition with staggered timing
-        airspacesToAdd.forEachIndexed { index, airspaceId ->
-            val feature = desiredAirspaceIds[airspaceId]
-            if (feature != null) {
-                // Create overlay for single airspace
-                val overlays = GeoJsonUtils.addAirspaceFeaturesToMap(map, listOf(feature))
-                if (overlays.isNotEmpty()) {
-                    val polygon = overlays.first()
-
-                    // Add to tracking immediately
-                    currentlyRenderedAirspaces[airspaceId] = polygon
-
-                    // Use animation manager for smooth addition
-                    animationManager?.animateOverlayAddition(
-                        overlay = polygon,
-                        overlayId = airspaceId,
-                        mapView = map,
-                        staggerDelay = index * 100L // 100ms stagger for visual polish
-                    ) {
-                        // Animation completed
-                    } ?: run {
-                        // Fallback if no animation manager
-                        // Added airspace without animation
-                    }
-                }
-            }
-        }
-
-        // Airspaces to keep (don't need any action)
-
-        if (airspacesToRemove.isNotEmpty() || airspacesToAdd.isNotEmpty()) {
-            // Don't call invalidate() here - animation manager handles it internally
-            Log.v(TAG, "Airspace update: +${airspacesToAdd.size} -${airspacesToRemove.size} =${currentlyRenderedAirspaces.size} total (animation managed)")
-        } else {
-            Log.v(TAG, "No airspace changes needed")
         }
     }
+
+    /**
+     * Add overlays through animation manager only (invisible → fade-in)
+     */
+    private fun addOverlaysThroughAnimationManager(map: MapView, airspacesToAdd: Map<String, OverlayFeature>) {
+        airspacesToAdd.entries.forEachIndexed { index, (airspaceId, feature) ->
+            // Create overlay WITHOUT adding to map
+            val overlays = GeoJsonUtils.createAirspaceOverlays(map, listOf(feature))
+            if (overlays.isNotEmpty()) {
+                val polygon = overlays.first()
+
+                // Add to our tracking immediately
+                currentlyRenderedAirspaces[airspaceId] = polygon
+
+                // Animation manager handles addition with fade-in effect
+                animationManager?.animateOverlayAddition(
+                    overlay = polygon,
+                    overlayId = airspaceId,
+                    mapView = map,
+                    staggerDelay = index * 100L // Stagger for visual polish
+                ) {
+                    Log.v(TAG, "Animation manager completed addition: $airspaceId")
+                } ?: throw IllegalStateException(
+                    "Animation manager is required for airspace overlay addition. " +
+                    "Ensure OverlayCoordinator is properly initialized."
+                )
+            }
+        }
+    }
+
+    /**
+     * Data class representing overlay changes to execute
+     */
+    private data class OverlayChanges(
+        val toRemove: Set<String>,
+        val toAdd: Map<String, OverlayFeature>
+    )
 
     /**
      * Generate a unique identifier for an airspace feature
@@ -515,29 +558,24 @@ class AirspaceOverlayManager(
             Log.d(TAG, "Viewport limit enforcement: kept ${maxViewportAirspaces} closest airspaces")
         }
 
-        // Remove the determined airspaces with smooth animation
+        // Remove airspaces through animation manager (viewport cleanup)
         if (airspacesToRemove.isNotEmpty()) {
             mapView?.let { map ->
                 airspacesToRemove.forEach { airspaceId ->
                     val polygon = currentlyRenderedAirspaces[airspaceId]
                     if (polygon != null) {
-                        // Use animation manager for smooth viewport cleanup
+                        // Animation manager handles viewport cleanup with fade-out
                         animationManager?.animateOverlayRemoval(polygon, airspaceId, map) {
                             currentlyRenderedAirspaces.remove(airspaceId)
-                            // Viewport animation completed
-                        } ?: run {
-                            // Fallback if no animation manager
-                            map.overlays.remove(polygon)
-                            currentlyRenderedAirspaces.remove(airspaceId)
-                        }
-                        // Scheduled viewport removal for airspace
+                            Log.v(TAG, "Viewport cleanup animation completed: $airspaceId")
+                        } ?: throw IllegalStateException(
+                            "Animation manager is required for airspace overlay removal. " +
+                            "Ensure OverlayCoordinator is properly initialized."
+                        )
                     }
                 }
 
-                if (airspacesToRemove.isNotEmpty()) {
-                    map.invalidate()
-                    Log.d(TAG, "Viewport cleanup: removed ${airspacesToRemove.size}, remaining: ${currentlyRenderedAirspaces.size}")
-                }
+                Log.d(TAG, "Viewport cleanup scheduled: ${airspacesToRemove.size} airspaces via animation manager")
             }
         } else {
             Log.d(TAG, "All ${currentlyRenderedAirspaces.size} airspaces still in viewport")
