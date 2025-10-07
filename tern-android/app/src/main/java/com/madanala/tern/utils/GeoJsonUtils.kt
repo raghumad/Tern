@@ -109,12 +109,12 @@ object GeoJsonUtils {
     }
 
     /**
-     * Add airspace features to the map with color coding based on airspace class
-     * @param mapView The MapView to add the data to
-     * @param features List of AirspaceFeature to add
-     * @return A list of Polygon overlays that were added
+     * Create airspace overlays without adding them to map (for animation manager)
+     * @param mapView The MapView (needed for overlay creation context)
+     * @param features List of AirspaceFeature to create overlays for
+     * @return A list of Polygon overlays that were created (but not added to map)
      */
-    fun addAirspaceFeaturesToMap(
+    fun createAirspaceOverlays(
         mapView: MapView,
         features: List<MapOverlayCacheUtils.OverlayFeature>
     ): List<Polygon> {
@@ -137,7 +137,6 @@ object GeoJsonUtils {
                                 showAirspaceInfoBalloon(polygon, mapView, feature.feature)
                                 true // Consume the click
                             }
-                            mapView.overlays.add(overlay)
                             polygons.add(overlay)
                         }
                         // If shouldRender is false, the airspace is skipped (like Class G)
@@ -146,6 +145,29 @@ object GeoJsonUtils {
             } catch (_: Exception) {
                 // Skip malformed features
             }
+        }
+        return polygons
+    }
+
+    /**
+     * Add airspace features to the map with color coding based on airspace class (legacy method)
+     * @param mapView The MapView to add the data to
+     * @param features List of AirspaceFeature to add
+     * @return A list of Polygon overlays that were added
+     * @deprecated Use createAirspaceOverlays() with animation manager instead
+     */
+    @Deprecated("Use createAirspaceOverlays() with animation manager for proper fade-in animation")
+    fun addAirspaceFeaturesToMap(
+        mapView: MapView,
+        features: List<MapOverlayCacheUtils.OverlayFeature>
+    ): List<Polygon> {
+        val polygons = createAirspaceOverlays(mapView, features)
+
+        // Add all overlays immediately (no animation)
+        // Note: Overlays are not added here anymore - animation manager handles addition
+        // This maintains backward compatibility for external callers
+        polygons.forEach { polygon ->
+            mapView.overlays.add(polygon)
         }
         mapView.invalidate()
         return polygons

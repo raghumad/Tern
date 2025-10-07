@@ -496,7 +496,8 @@ class PGSpotOverlayManager(
             // Add to tracking immediately
             currentlyRenderedPGSpots[spotId] = pgSpotMarker
 
-            // Use animation manager for smooth addition
+            // Use animation manager for smooth addition (alpha=0 → fade-in)
+            // Animation manager is now mandatory for consistent overlay behavior
             animationManager?.animateOverlayAddition(
                 overlay = marker,
                 overlayId = spotId,
@@ -504,10 +505,10 @@ class PGSpotOverlayManager(
                 staggerDelay = 0L // No stagger for individual additions
             ) {
                 // Animation completed
-            } ?: run {
-                // Fallback if no animation manager
-                mapView?.overlays?.add(marker)
-            }
+            } ?: throw IllegalStateException(
+                "Animation manager is required for PG spot overlay addition. " +
+                "Ensure OverlayCoordinator is properly initialized."
+            )
 
             // Add click handler for weather details (future: detailed weather screen)
             marker.setOnMarkerClickListener { clickedMarker, _ ->
@@ -728,31 +729,34 @@ class PGSpotOverlayManager(
 
     override fun clearOverlays() {
         mapView?.let { map ->
-            // 🎨 Use animation manager for smooth clearing of all PG spots
+            // 🎨 Clear all PG spots through animation manager (fade-out all)
             val markersToRemove = currentlyRenderedPGSpots.values.toList()
-            markersToRemove.forEachIndexed { index, pgSpotMarker ->
-                val spotId = currentlyRenderedPGSpots.entries.find { it.value == pgSpotMarker }?.key ?: "pgspot_$index"
+            val spotIds = currentlyRenderedPGSpots.keys.toList()
 
-                animationManager?.animateOverlayRemoval(
-                    overlay = pgSpotMarker.marker,
-                    overlayId = spotId,
-                    mapView = map
-                ) {
-                    // Animation completed
-                } ?: run {
-                    // Fallback if no animation manager
-                    map.overlays.remove(pgSpotMarker.marker)
+            // Animation manager handles all removals with staggered fade-out
+            spotIds.forEachIndexed { index, spotId ->
+                val pgSpotMarker = currentlyRenderedPGSpots[spotId]
+                if (pgSpotMarker != null) {
+                    animationManager?.animateOverlayRemoval(
+                        overlay = pgSpotMarker.marker,
+                        overlayId = spotId,
+                        mapView = map
+                    ) {
+                        // Animation manager handles removal - just update tracking
+                        Log.v(TAG, "Clear animation completed for PG spot: $spotId")
+                    } ?: throw IllegalStateException(
+                        "Animation manager is required for PG spot overlay removal. " +
+                        "Ensure OverlayCoordinator is properly initialized."
+                    )
                 }
             }
 
-            // Clear tracking after animations complete
+            // Clear tracking (animation manager handles actual removal)
             currentlyRenderedPGSpots.clear()
             visiblePGSpots.clear()
-            map.invalidate()
-
-            Log.d(TAG, "Cleared ${markersToRemove.size} PG spot overlays with smooth transitions")
+            Log.d(TAG, "Scheduled clear of ${markersToRemove.size} PG spot overlays via animation manager")
         } ?: run {
-            // No map view available
+            // No map view available - just clear tracking
             currentlyRenderedPGSpots.clear()
             visiblePGSpots.clear()
             Log.d(TAG, "Cleared PG spot tracking (no map view)")
