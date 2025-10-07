@@ -237,10 +237,16 @@ class AirspaceOverlayManager(
             "@ unknown location"
         }
 
+        // Get actually visible airspaces (added to map vs just created)
+        val actuallyVisibleAirspaces = currentlyRenderedAirspaces.count { (_, polygon) ->
+            mapView?.overlays?.contains(polygon) == true
+        }
+
         Log.d(TAG, String.format(
-            "Airspace Budget: %d total (Currently rendered: %d airspaces %s)",
+            "Airspace Budget: %d total (Created: %d, Visible: %d %s)",
             budget.totalOverlays,
             currentlyRenderedAirspaces.size,
+            actuallyVisibleAirspaces,
             centerStr
         ))
     }
@@ -252,10 +258,78 @@ class AirspaceOverlayManager(
         super.onMemoryStateChanged(memoryState)
 
         // If memory pressure is high, trigger immediate viewport cleanup
-        if (memoryState.calculatedPressure == com.madanala.tern.utils.MemoryPressureLevel.CRITICAL_MEMORY) {
-            Log.w(TAG, "Critical memory pressure - triggering airspace cleanup")
-            mapView?.boundingBox?.let { manageViewportAirspaces(it) }
+        if (memoryState.calculatedPressure == com.madanala.tern.utils.MemoryPressureLevel.CRITICAL_MEMORY ||
+            memoryState.calculatedPressure == com.madanala.tern.utils.MemoryPressureLevel.LOW_MEMORY) {
+            Log.w(TAG, "Memory pressure detected - triggering enhanced airspace cleanup")
+            triggerEmergencyCleanup()
         }
+    }
+
+    /**
+     * Remove airspaces that are not visible in the current viewport (most efficient cleanup)
+     */
+    override fun removeInvisibleOverlays(): Int {
+        if (currentlyRenderedAirspaces.isEmpty()) return 0
+
+        val viewport = mapView?.boundingBox ?: return 0
+        val mapCenter = mapView?.mapCenter as? GeoPoint ?: return 0
+
+        // Find airspaces that are BOTH not visible AND not safety-critical
+        val invisibleNonCriticalAirspaces = currentlyRenderedAirspaces.entries.filter { (airspaceId, polygon) ->
+            val isInvisible = !isPolygonInViewport(polygon, viewport)
+            val distance = getDistanceFromCenter(polygon, mapCenter)
+            val isFar = distance > com.madanala.tern.utils.DistanceZone.MID.maxKm
+
+            // Remove if invisible AND far from center (but not safety-critical)
+            isInvisible && isFar && !isSafetyCriticalAirspace(airspaceId)
+        }
+
+        if (invisibleNonCriticalAirspaces.isEmpty()) return 0
+
+        // Remove invisible non-critical airspaces
+        val coordinator = getOverlayCoordinator()
+        var removedCount = 0
+
+        if (coordinator != null) {
+            invisibleNonCriticalAirspaces.forEach { (airspaceId, polygon) ->
+                val centroid = getPolygonCentroid(polygon)
+                coordinator.removeOverlayFromBatch(polygon, airspaceId, centroid)
+                removedCount++
+            }
+            coordinator.removeOverlayFromBatch()
+        } else {
+            invisibleNonCriticalAirspaces.forEach { (airspaceId, polygon) ->
+                animationManager?.animateOverlayRemoval(polygon, airspaceId, mapView!!) {
+                    // Remove from tracking
+                }
+                removedCount++
+            }
+        }
+
+        // Update tracking
+        invisibleNonCriticalAirspaces.forEach { (airspaceId, _) ->
+            currentlyRenderedAirspaces.remove(airspaceId)
+        }
+
+        Log.d(TAG, "Viewport cleanup: Removed ${removedCount} invisible non-critical airspaces")
+        return removedCount
+    }
+
+    /**
+     * Check if airspace is safety-critical (should never be removed for memory reasons)
+     */
+    private fun isSafetyCriticalAirspace(airspaceId: String): Boolean {
+        // Safety-critical airspaces should be in CORE zone or be essential for flight
+        // For now, consider airspaces within CORE zone as safety-critical
+        val mapCenter = mapView?.mapCenter as? GeoPoint ?: return false
+        val coreThreshold = com.madanala.tern.utils.DistanceZone.CORE.maxKm
+
+        currentlyRenderedAirspaces[airspaceId]?.let { polygon ->
+            val distance = getDistanceFromCenter(polygon, mapCenter)
+            return distance <= coreThreshold
+        }
+
+        return false
     }
 
     /**
@@ -507,22 +581,40 @@ class AirspaceOverlayManager(
             String.format("@ %.4f,%.4f", center.latitude, center.longitude)
         } else "@ unknown"
 
+        // Get actually visible airspaces before sync
+        val visibleBeforeSync = currentlyRenderedAirspaces.count { (_, polygon) ->
+            mapView?.overlays?.contains(polygon) == true
+        }
+
         Log.d(TAG, String.format(
-            "Airspace sync: Desired: %d, Current: %d %s",
+            "Airspace sync: Desired: %d, Current: %d, Visible: %d %s",
             desiredAirspaceIds.size,
             currentlyRenderedAirspaces.size,
+            visibleBeforeSync,
             centerStr
         ))
 
         // 🎯 STEP 2: Calculate differences (what needs to change)
         val changes = calculateOverlayChanges(desiredAirspaceIds)
 
+        Log.v(TAG, String.format(
+            "Airspace changes: Adding %d, Removing %d",
+            changes.toAdd.size,
+            changes.toRemove.size
+        ))
+
         // 🎯 STEP 3: Execute changes through animation manager only
         executeOverlayChangesThroughAnimationManager(map, changes)
 
+        // Check visibility after sync
+        val visibleAfterSync = currentlyRenderedAirspaces.count { (_, polygon) ->
+            mapView?.overlays?.contains(polygon) == true
+        }
+
         Log.d(TAG, String.format(
-            "Airspace synchronized: %d total overlays %s",
+            "Airspace synchronized: %d total, %d visible %s",
             currentlyRenderedAirspaces.size,
+            visibleAfterSync,
             centerStr
         ))
     }

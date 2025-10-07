@@ -30,6 +30,7 @@ data class EmergencyCleanupResult(
     val success: Boolean,
     val overlaysRemoved: Int,
     val zonesCleared: List<com.madanala.tern.utils.DistanceZone>,
+    val invisibleOverlaysRemoved: Int = 0,
     val safetyCriticalPreserved: Int = 0,
     val reason: String
 )
@@ -131,6 +132,42 @@ abstract class BaseOverlayManager(
         adaptiveStats["emergency_cleanup_recommended"] = shouldTriggerEmergencyCleanup()
 
         return adaptiveStats
+    }
+
+    /**
+     * Get detailed overlay visibility statistics for debugging
+     */
+    fun getDetailedOverlayStats(): Map<String, Any> {
+        val mapOverlayCount = mapView?.overlays?.size ?: 0
+
+        return mapOf(
+            "overlay_type" to overlayType.name,
+            "budget_total" to (currentOverlayBudget?.totalOverlays ?: 0),
+            "memory_pressure" to (currentOverlayBudget?.memoryPressure?.name ?: "unknown"),
+            "flight_phase" to (currentOverlayBudget?.flightPhase?.name ?: "unknown"),
+            "adaptive_system_available" to (adaptiveOverlaySystem != null),
+            "error_stats" to MemoryErrorRecovery.getErrorStatistics(),
+            "map_overlay_count" to mapOverlayCount,
+            "location" to if (mapView?.mapCenter != null) {
+                String.format("%.4f,%.4f", mapView!!.mapCenter.latitude, mapView!!.mapCenter.longitude)
+            } else "unknown"
+        )
+    }
+
+    /**
+     * Force refresh of overlay visibility (for debugging visibility issues)
+     */
+    fun forceOverlayVisibilityRefresh() {
+        mapView?.let { map ->
+            val overlayCount = map.overlays.size
+            Log.d(TAG, "Force refresh: Map contains ${overlayCount} total overlays")
+
+            // Force map invalidation to ensure overlays are drawn
+            map.invalidate()
+
+            // Post another invalidation to ensure animations complete
+            map.postInvalidateDelayed(100)
+        }
     }
 
     override fun onViewportChanged(viewport: BoundingBox) {
@@ -370,7 +407,7 @@ abstract class BaseOverlayManager(
     }
 
     /**
-     * Trigger emergency cleanup with aviation safety preservation
+     * Trigger emergency cleanup with aviation safety preservation and viewport awareness
      */
     fun triggerEmergencyCleanup(): EmergencyCleanupResult {
         val recommendation = getEmergencyCleanupRecommendation()
@@ -384,39 +421,71 @@ abstract class BaseOverlayManager(
             )
         }
 
-        Log.w(TAG, "🚨 EMERGENCY CLEANUP TRIGGERED: ${recommendation.reason}")
+        Log.w(TAG, "🚨 ENHANCED EMERGENCY CLEANUP: ${recommendation.reason}")
 
         return try {
-            val zonesToClear = recommendation.recommendedZonesToClear
             var totalRemoved = 0
+            val zonesCleared = mutableListOf<com.madanala.tern.utils.DistanceZone>()
+            var invisibleRemoved = 0
 
-            // Clear zones in reverse priority order (safest first)
+            // Phase 1: Remove invisible overlays first (most memory-efficient)
+            invisibleRemoved = removeInvisibleOverlays()
+            totalRemoved += invisibleRemoved
+            if (invisibleRemoved > 0) {
+                Log.d(TAG, "🚀 Viewport cleanup: Removed $invisibleRemoved invisible overlays (most efficient)")
+            } else {
+                Log.d(TAG, "Viewport cleanup: No invisible overlays found")
+            }
+
+            // Phase 2: Clear distance zones in reverse priority order (safest first)
+            val zonesToClear = recommendation.recommendedZonesToClear
             zonesToClear.forEach { zone ->
                 val removedInZone = clearOverlaysInZone(zone)
                 totalRemoved += removedInZone
-                Log.d(TAG, "Emergency cleanup: Removed $removedInZone overlays from ${zone.name} zone")
+                if (removedInZone > 0) {
+                    zonesCleared.add(zone)
+                }
+                Log.d(TAG, "Zone cleanup: Removed $removedInZone overlays from ${zone.name} zone")
             }
 
             // Always preserve safety-critical zones
             val safetyCriticalPreserved = preserveSafetyCriticalOverlays()
 
+            // Log cleanup efficiency summary
+            val efficiencyImprovement = if (invisibleRemoved > 0) {
+                " (${invisibleRemoved} invisible + ${totalRemoved - invisibleRemoved} distance-based)"
+            } else {
+                " (${totalRemoved} distance-based)"
+            }
+
+            Log.i(TAG, "✅ Enhanced cleanup complete: Removed $totalRemoved overlays$efficiencyImprovement, preserved $safetyCriticalPreserved safety-critical")
+
             EmergencyCleanupResult(
                 success = true,
                 overlaysRemoved = totalRemoved,
-                zonesCleared = zonesToClear,
+                zonesCleared = zonesCleared,
+                invisibleOverlaysRemoved = invisibleRemoved,
                 safetyCriticalPreserved = safetyCriticalPreserved,
-                reason = recommendation.reason
+                reason = "Enhanced cleanup: ${recommendation.reason}"
             )
 
         } catch (e: Exception) {
-            Log.e(TAG, "Error during emergency cleanup", e)
+            Log.e(TAG, "Error during enhanced emergency cleanup", e)
             EmergencyCleanupResult(
                 success = false,
                 overlaysRemoved = 0,
                 zonesCleared = emptyList(),
-                reason = "Cleanup failed: ${e.message}"
+                reason = "Enhanced cleanup failed: ${e.message}"
             )
         }
+    }
+
+    /**
+     * Remove overlays that are not visible in the current viewport (most memory-efficient)
+     */
+    protected open fun removeInvisibleOverlays(): Int {
+        // Default implementation - subclasses should override for viewport-specific cleanup
+        return 0
     }
 
     /**
