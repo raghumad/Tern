@@ -183,6 +183,35 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
         state
     }
 
+    // Handedness-aware UI actions
+    is MapAction.SetHandedness -> {
+        val newPreferences = state.userPreferences.copy(
+            handedness = action.handedness,
+            lastUpdated = System.currentTimeMillis()
+        )
+        state.copy(userPreferences = newPreferences)
+    }
+    is MapAction.UpdateHandednessSource -> {
+        val newPreferences = state.userPreferences.copy(
+            handednessSource = action.source,
+            lastUpdated = System.currentTimeMillis()
+        )
+        state.copy(userPreferences = newPreferences)
+    }
+    is MapAction.UpdateAdaptiveLayout -> {
+        state.copy(adaptiveLayout = action.layoutConfig)
+    }
+
+    // Flight mode actions
+    is MapAction.SetFlightMode -> {
+        state.copy(currentFlightMode = action.flightMode)
+    }
+
+    // User preferences actions
+    is MapAction.UpdateUserPreferences -> {
+        state.copy(userPreferences = action.preferences)
+    }
+
     else -> state
 }
 

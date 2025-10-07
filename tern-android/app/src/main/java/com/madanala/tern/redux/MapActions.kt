@@ -9,6 +9,7 @@ import com.madanala.tern.model.FlightMetrics
 /**
  * Redux actions for map functionality
  */
+
 sealed class MapAction {
 
     // Permission actions
@@ -73,4 +74,15 @@ sealed class MapAction {
     object StartFlightSession : MapAction()
     object EndFlightSession : MapAction()
     data class UpdateFlightPath(val position: GeoPoint) : MapAction()
+
+    // Handedness-aware UI actions - optimizes control placement for user preference
+    data class SetHandedness(val handedness: Handedness) : MapAction()
+    data class UpdateHandednessSource(val source: HandednessSource) : MapAction()
+    data class UpdateAdaptiveLayout(val layoutConfig: com.madanala.tern.redux.AdaptiveLayoutConfig) : MapAction()
+
+    // Flight mode actions - affects UI layout and control priorities
+    data class SetFlightMode(val flightMode: com.madanala.tern.model.FlightMode) : MapAction()
+
+    // User preferences actions
+    data class UpdateUserPreferences(val preferences: com.madanala.tern.redux.UserPreferencesState) : MapAction()
 }
