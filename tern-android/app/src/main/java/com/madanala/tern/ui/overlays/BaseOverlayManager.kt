@@ -1,4 +1,4 @@
-package com.madanala.tern.overlays
+package com.madanala.tern.ui.overlays
 
 import android.os.Handler
 import android.os.Looper
@@ -28,6 +28,9 @@ abstract class BaseOverlayManager(
     protected val TAG = "OverlayManager-${overlayType.name}"
     protected var mapView: MapView? = null
     protected var isAttached = false
+
+    // Universal animation manager for smooth transitions
+    internal var animationManager: com.madanala.tern.ui.overlays.OverlayCoordinator.OverlayAnimationManager? = null
     protected var hasValidGPSFix = false
 
     // Debouncing for map movements
@@ -119,8 +122,6 @@ abstract class BaseOverlayManager(
             return when (overlayType) {
                 OverlayType.AIRSPACE -> state.overlayState.airspaces
                 OverlayType.PG_SPOTS -> state.overlayState.pgSpots
-                OverlayType.SENSORS -> state.overlayState.sensors
-                OverlayType.TERRAIN -> state.overlayState.terrain
             }
         }
         // Default config when no Redux store (all enabled for stability)
@@ -128,8 +129,8 @@ abstract class BaseOverlayManager(
     }
 
     /**
-     * Set the Redux store (for late initialization)
-     */
+      * Set the Redux store (for late initialization)
+      */
     override fun setReduxStore(store: MapStore?) {
         val wasNull = mapStore == null
         mapStore = store
@@ -140,6 +141,7 @@ abstract class BaseOverlayManager(
         // Trigger state change with current state
         store?.state?.value?.let { onReduxStateChanged(it) }
     }
+
 
     /**
      * Check if this overlay is currently enabled

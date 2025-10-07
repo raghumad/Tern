@@ -35,10 +35,11 @@ import com.madanala.tern.redux.MapAction
 import com.madanala.tern.redux.MapStore
 import android.util.Log
 
+
 /**
- * Redux-based location service that handles GPS updates through Redux actions
- * Replaces direct MapViewModel location handling with Redux-compliant architecture
- */
+  * Redux-based location service that handles GPS updates through Redux actions
+  * Replaces direct MapViewModel location handling with Redux-compliant architecture
+  */
 class ReduxLocationService(private val store: MapStore) {
 
     /**
@@ -186,24 +187,25 @@ fun MapViewContainer(
      }
 
     Box(modifier = modifier.fillMaxSize()) {
-         // Redux-integrated MapView management
-         // MapViewModel connected via Redux store for overlay coordination
-         val mapView = mapViewModel.mapView
+          // Redux-integrated MapView management
+          // MapViewModel connected via Redux store for overlay coordination
+          val mapView = mapViewModel.mapView
 
-        AndroidView(
-            factory = { mapView },
-            modifier = Modifier.fillMaxSize()
-        )
+         AndroidView(
+             factory = { mapView },
+             modifier = Modifier.fillMaxSize()
+         )
 
-        // Show compass based on Redux state
-        if (state.compassVisible) {
-            Compass(
-                rotation = mapRotation,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(WindowInsets.statusBars.asPaddingValues())
-                    .padding(16.dp)
-            )
-        }
-    }
+
+         // Show compass based on Redux state
+         if (state.compassVisible) {
+             Compass(
+                 rotation = mapRotation,
+                 modifier = Modifier
+                     .align(Alignment.TopEnd)
+                     .padding(WindowInsets.statusBars.asPaddingValues())
+                     .padding(16.dp)
+             )
+         }
+     }
 }

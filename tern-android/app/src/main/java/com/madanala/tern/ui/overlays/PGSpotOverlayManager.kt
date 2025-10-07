@@ -1,4 +1,4 @@
-package com.madanala.tern.overlays
+package com.madanala.tern.ui.overlays
 
 import android.content.Context
 import android.util.Log
@@ -464,8 +464,8 @@ class PGSpotOverlayManager(
     }
 
     /**
-      * ADD PG SPOT ONLY IF NOT EXISTS (prevents duplicates)
-      */
+       * ADD PG SPOT ONLY IF NOT EXISTS (prevents duplicates)
+       */
     private fun addPGSpotIfNotExists(feature: OverlayFeature) {
         val spotId = generatePGSpotId(feature)
 
@@ -493,9 +493,21 @@ class PGSpotOverlayManager(
                 distanceFromUser = distanceKm
             )
 
-            // Add to map and tracking
-            mapView?.overlays?.add(marker)
+            // Add to tracking immediately
             currentlyRenderedPGSpots[spotId] = pgSpotMarker
+
+            // Use animation manager for smooth addition
+            animationManager?.animateOverlayAddition(
+                overlay = marker,
+                overlayId = spotId,
+                mapView = mapView!!,
+                staggerDelay = 0L // No stagger for individual additions
+            ) {
+                // Animation completed
+            } ?: run {
+                // Fallback if no animation manager
+                mapView?.overlays?.add(marker)
+            }
 
             // Add click handler for weather details (future: detailed weather screen)
             marker.setOnMarkerClickListener { clickedMarker, _ ->
@@ -715,12 +727,35 @@ class PGSpotOverlayManager(
     }
 
     override fun clearOverlays() {
-        currentlyRenderedPGSpots.values.forEach { pgSpotMarker ->
-            mapView?.overlays?.remove(pgSpotMarker.marker)
+        mapView?.let { map ->
+            // 🎨 Use animation manager for smooth clearing of all PG spots
+            val markersToRemove = currentlyRenderedPGSpots.values.toList()
+            markersToRemove.forEachIndexed { index, pgSpotMarker ->
+                val spotId = currentlyRenderedPGSpots.entries.find { it.value == pgSpotMarker }?.key ?: "pgspot_$index"
+
+                animationManager?.animateOverlayRemoval(
+                    overlay = pgSpotMarker.marker,
+                    overlayId = spotId,
+                    mapView = map
+                ) {
+                    // Animation completed
+                } ?: run {
+                    // Fallback if no animation manager
+                    map.overlays.remove(pgSpotMarker.marker)
+                }
+            }
+
+            // Clear tracking after animations complete
+            currentlyRenderedPGSpots.clear()
+            visiblePGSpots.clear()
+            map.invalidate()
+
+            Log.d(TAG, "Cleared ${markersToRemove.size} PG spot overlays with smooth transitions")
+        } ?: run {
+            // No map view available
+            currentlyRenderedPGSpots.clear()
+            visiblePGSpots.clear()
+            Log.d(TAG, "Cleared PG spot tracking (no map view)")
         }
-        currentlyRenderedPGSpots.clear()
-        visiblePGSpots.clear()
-        mapView?.invalidate()
-        Log.v(TAG, "Cleared all weather-aware PG spot overlays")
     }
 }

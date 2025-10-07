@@ -40,7 +40,6 @@ import com.madanala.tern.ui.screens.MAP_VIEW_TERRAIN
 @Composable
 fun SettingsSheet(
     onDismiss: () -> Unit,
-    mapViewModel: MapViewModel = viewModel(),
     store: com.madanala.tern.redux.MapStore = viewModel()
 ) {
     val state by store.state.collectAsState()
@@ -92,9 +91,7 @@ fun SettingsSheet(
                     onItemSelected = {
                         val newStyle = if (it == "Terrain") "terrain" else "satellite"
                         store.dispatch(com.madanala.tern.redux.MapAction.UpdateMapStyle(newStyle))
-                        // Also update MapView for immediate effect
-                        val styleInt = if (it == "Terrain") MAP_VIEW_TERRAIN else MAP_VIEW_SATELLITE
-                        mapViewModel.updateMapStyle(styleInt)
+                        // Map style changes are handled through Redux state observation in MapViewModel
                     }
                 )
                 SettingsPickerRow(

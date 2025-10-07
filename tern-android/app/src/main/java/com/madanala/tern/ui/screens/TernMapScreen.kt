@@ -31,6 +31,7 @@ import com.madanala.tern.ui.components.SettingsButton
 import com.madanala.tern.ui.components.SettingsSheet
 import com.madanala.tern.ui.components.ShareButton
 import com.madanala.tern.ui.components.ShareSheet
+import com.madanala.tern.ui.components.WeatherDetailsDialog
 import com.madanala.tern.ui.components.WelcomeScreen
 
 // Constants for map styles, moved from MainActivity for broader access
@@ -85,7 +86,6 @@ fun TernMapScreen(
     if (showSettingsSheet) {
         SettingsSheet(
             onDismiss = { showSettingsSheet = false },
-            mapViewModel = mapViewModel,
             store = store
         )
     }
@@ -96,7 +96,7 @@ fun TernMapScreen(
 
     // Show weather details dialog when PG spot is tapped
     state.weatherState.showingWeatherDialog?.let { (pgSpotId, forecast) ->
-        WeatherDetailsScreen(
+        WeatherDetailsDialog(
             forecast = forecast,
             spotName = pgSpotId,
             onDismiss = {

@@ -16,9 +16,9 @@ import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.madanala.tern.R
-import com.madanala.tern.overlays.AirspaceOverlayManager
-import com.madanala.tern.overlays.OverlayCoordinator
-import com.madanala.tern.overlays.PGSpotOverlayManager
+import com.madanala.tern.ui.overlays.AirspaceOverlayManager
+import com.madanala.tern.ui.overlays.OverlayCoordinator
+import com.madanala.tern.ui.overlays.PGSpotOverlayManager
 import com.madanala.tern.ui.screens.MAP_VIEW_SATELLITE
 import com.madanala.tern.ui.screens.MAP_VIEW_TERRAIN
 import com.madanala.tern.utils.CacheManager
@@ -49,6 +49,9 @@ private const val MAP_MOVE_DEBOUNCE_MS = 2000L // Aviation-optimized: 2 second d
 private const val TAG = "MapViewModel"
 
 class MapViewModel(application: Application) : AndroidViewModel(application) {
+
+    // Redux-first architecture: MapViewModel serves as a Redux-compliant service
+    // for map lifecycle management and overlay coordination, not traditional MVVM state
 
     // This is a deliberate architectural choice.
     // The MapView is a complex, stateful UI component. To prevent it from being destroyed and

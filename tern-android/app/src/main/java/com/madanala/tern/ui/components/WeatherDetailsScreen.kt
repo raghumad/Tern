@@ -1,4 +1,4 @@
-package com.madanala.tern.ui.screens
+package com.madanala.tern.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -30,11 +30,12 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * WeatherDetailsScreen - Modern Android Aviation Weather Screen
+ * WeatherDetailsScreen - Modern Android Aviation Weather Dialog
+ * Moved from screens to components as it's a reusable dialog component
  * Equivalent to iOS weather detail view with aviation-specific formatting
  */
 @Composable
-fun WeatherDetailsScreen(
+fun WeatherDetailsDialog(
     forecast: WeatherForecast?,
     spotName: String = "Launch Site",
     onDismiss: () -> Unit = {}
