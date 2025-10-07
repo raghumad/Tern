@@ -487,11 +487,26 @@ class PGSpotOverlayManager(
         } else "@ unknown"
 
         mapView?.invalidate()
+        // Check how many are actually visible after rendering
+        val actuallyVisibleAfterRender = currentlyRenderedPGSpots.count { (_, markerData) ->
+            mapView?.overlays?.contains(markerData.marker) == true
+        }
+
         Log.d(TAG, String.format(
-            "PG spots rendered: %d total %s",
+            "PG spots rendered: %d total, %d visible %s",
             features.size,
+            actuallyVisibleAfterRender,
             centerStr
         ))
+
+        // Debug: List what's actually in the map overlays
+        mapView?.overlays?.let { overlays ->
+            val pgSpotOverlays = overlays.count { overlay ->
+                overlay is org.osmdroid.views.overlay.Marker &&
+                currentlyRenderedPGSpots.values.any { it.marker == overlay }
+            }
+            Log.v(TAG, "Map overlays debug: $pgSpotOverlays PG spot markers found in map overlays")
+        }
     }
 
     /**
@@ -789,10 +804,16 @@ class PGSpotOverlayManager(
             "@ unknown location"
         }
 
+        // Get actually visible PG spots (added to map vs just created)
+        val actuallyVisibleSpots = currentlyRenderedPGSpots.count { (_, markerData) ->
+            markerData.marker.isInfoWindowShown || mapView?.overlays?.contains(markerData.marker) == true
+        }
+
         Log.d(TAG, String.format(
-            "PG Spot Budget: %d total (Currently rendered: %d spots %s)",
+            "PG Spot Budget: %d total (Created: %d, Visible: %d %s)",
             budget.totalOverlays,
             currentlyRenderedPGSpots.size,
+            actuallyVisibleSpots,
             centerStr
         ))
     }
@@ -803,12 +824,80 @@ class PGSpotOverlayManager(
     override fun onMemoryStateChanged(memoryState: com.madanala.tern.utils.ApplicationMemoryState) {
         super.onMemoryStateChanged(memoryState)
 
-        // If memory pressure is high, reduce weather update frequency
+        // If memory pressure is high, trigger enhanced cleanup and reduce weather updates
         if (memoryState.calculatedPressure == com.madanala.tern.utils.MemoryPressureLevel.LOW_MEMORY ||
             memoryState.calculatedPressure == com.madanala.tern.utils.MemoryPressureLevel.CRITICAL_MEMORY) {
-            Log.w(TAG, "Memory pressure detected - reducing PG spot weather updates")
-            // Could reduce weather update frequency here if needed
+            Log.w(TAG, "Memory pressure detected - triggering enhanced PG spot cleanup")
+            triggerEmergencyCleanup()
         }
+    }
+
+    /**
+     * Remove PG spots that are not visible in the current viewport (most efficient cleanup)
+     */
+    override fun removeInvisibleOverlays(): Int {
+        if (currentlyRenderedPGSpots.isEmpty()) return 0
+
+        val viewport = mapView?.boundingBox ?: return 0
+        val mapCenter = mapView?.mapCenter as? GeoPoint ?: return 0
+
+        // Find PG spots that are BOTH not visible AND not safety-critical
+        val invisibleNonCriticalSpots = currentlyRenderedPGSpots.entries.filter { (spotId, pgSpotMarker) ->
+            val isInvisible = !isPointInBoundingBox(pgSpotMarker.center, viewport)
+            val distance = calculateDistanceFromUser(pgSpotMarker.center)
+            val isFar = distance > com.madanala.tern.utils.DistanceZone.MID.maxKm
+
+            // Remove if invisible AND far from center (but not safety-critical)
+            isInvisible && isFar && !isSafetyCriticalPGSpot(spotId, distance)
+        }
+
+        if (invisibleNonCriticalSpots.isEmpty()) return 0
+
+        // Remove invisible non-critical PG spots
+        val coordinator = getOverlayCoordinator()
+        var removedCount = 0
+
+        if (coordinator != null) {
+            invisibleNonCriticalSpots.forEach { (spotId, pgSpotMarker) ->
+                coordinator.removeOverlayFromBatch(
+                    overlay = pgSpotMarker.marker,
+                    overlayId = spotId,
+                    centroid = pgSpotMarker.center
+                )
+                removedCount++
+            }
+            coordinator.removeOverlayFromBatch()
+        } else {
+            invisibleNonCriticalSpots.forEach { (spotId, pgSpotMarker) ->
+                animationManager?.animateOverlayRemoval(
+                    overlay = pgSpotMarker.marker,
+                    overlayId = spotId,
+                    mapView = mapView!!
+                ) {
+                    // Remove from tracking
+                }
+                removedCount++
+            }
+        }
+
+        // Update tracking
+        invisibleNonCriticalSpots.forEach { (spotId, _) ->
+            currentlyRenderedPGSpots.remove(spotId)
+        }
+
+        Log.d(TAG, "Viewport cleanup: Removed ${removedCount} invisible non-critical PG spots")
+        return removedCount
+    }
+
+    /**
+     * Check if PG spot is safety-critical (should never be removed for memory reasons)
+     */
+    private fun isSafetyCriticalPGSpot(spotId: String, distanceFromCenter: Double): Boolean {
+        // Safety-critical PG spots should be in CORE zone (closest landing options)
+        val coreThreshold = com.madanala.tern.utils.DistanceZone.CORE.maxKm
+
+        // Consider PG spots within CORE zone as safety-critical for immediate landing
+        return distanceFromCenter <= coreThreshold
     }
 
     /**
