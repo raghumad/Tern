@@ -45,6 +45,9 @@ fun WelcomeScreen(
             verticalArrangement = Arrangement.Center,
             modifier = Modifier.padding(16.dp)
         ) {
+            //large spacer to push content towards center
+            Spacer(modifier = Modifier.height(250.dp))
+
             // App branding (consistent with current design)
             Box(contentAlignment = Alignment.Center) {
                 Image(
@@ -72,7 +75,7 @@ fun WelcomeScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(300.dp))
 
             // GPS status-specific content
             when (gpsStatus) {
@@ -99,81 +102,65 @@ fun WelcomeScreen(
 
 @Composable
 private fun InitialWelcomeView(gruppoFont: FontFamily) {
-    Text(
-        text = "Welcome to Tern Paragliding",
-        style = TextStyle(
-            fontFamily = gruppoFont,
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Medium,
-            color = Color.White,
-            shadow = Shadow(
-                color = Color.Black,
-                blurRadius = 3f
-            )
-        ),
-        textAlign = TextAlign.Center
-    )
-
-    Spacer(modifier = Modifier.height(16.dp))
-
-    Text(
-        text = "Tap \"Allow\" when prompted for location access to begin",
-        style = TextStyle(
-            fontFamily = gruppoFont,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Normal,
-            color = Color.White.copy(alpha = 0.9f),
-            shadow = Shadow(
-                color = Color.Black,
-                blurRadius = 2f
-            )
-        ),
-        textAlign = TextAlign.Center
-    )
+    // Subtle welcome text, not competing with branding
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 32.dp),
+        contentAlignment = Alignment.BottomCenter
+    ) {
+        Text(
+            text = "Tap \"Allow\" when prompted for location access",
+            style = TextStyle(
+                fontFamily = gruppoFont,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Normal,
+                color = Color.White.copy(alpha = 0.8f),
+                shadow = Shadow(
+                    color = Color.Black,
+                    blurRadius = 2f
+                )
+            ),
+            textAlign = TextAlign.Center
+        )
+    }
 }
 
 @Composable
 private fun AcquiringGpsView(gruppoFont: FontFamily, isFinalAcquisition: Boolean = false) {
-    Card(
+    // Subtle bottom-aligned GPS status - much less prominent
+    Box(
         modifier = Modifier
-            .fillMaxWidth(0.8f)
-            .padding(horizontal = 16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = Color.White.copy(alpha = 0.9f)
-        )
+            .fillMaxWidth()
+            .padding(bottom = 32.dp),
+        contentAlignment = Alignment.BottomCenter
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(24.dp)
-        ) {
-            // Animated GPS icon
-            Box(
-                modifier = Modifier.size(60.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator(
-                    color = Color.Cyan,
-                    strokeWidth = 3.dp,
-                    modifier = Modifier.size(50.dp)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+            modifier = Modifier
+                .background(
+                    Color.Black.copy(alpha = 0.3f),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp)
                 )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Text(
-                text = if (isFinalAcquisition) "Finalizing GPS location..." else "Acquiring GPS Location",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+        ) {
+            CircularProgressIndicator(
+                color = Color.White,
+                strokeWidth = 2.dp,
+                modifier = Modifier.size(16.dp)
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.width(8.dp))
 
             Text(
-                text = "Please ensure location services are enabled and you have a clear view of the sky.",
-                style = MaterialTheme.typography.bodyMedium,
-                textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                text = if (isFinalAcquisition) "Finalizing location..." else "Acquiring GPS...",
+                style = TextStyle(
+                    fontFamily = gruppoFont,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Normal,
+                    color = Color.White
+                )
             )
         }
     }
@@ -181,40 +168,44 @@ private fun AcquiringGpsView(gruppoFont: FontFamily, isFinalAcquisition: Boolean
 
 @Composable
 private fun GpsLostView(gruppoFont: FontFamily, onRetryGps: () -> Unit) {
-    Card(
+    // Subtle bottom-aligned GPS status
+    Box(
         modifier = Modifier
-            .fillMaxWidth(0.9f)
-            .padding(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = Color.White
-        )
+            .fillMaxWidth()
+            .padding(bottom = 32.dp),
+        contentAlignment = Alignment.BottomCenter
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(24.dp)
+            modifier = Modifier
+                .background(
+                    Color.Black.copy(alpha = 0.3f),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp)
+                )
+                .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
             Text(
                 text = "GPS Signal Lost",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
-                color = Color.Red
+                style = TextStyle(
+                    fontFamily = gruppoFont,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Normal,
+                    color = Color.Red.copy(alpha = 0.9f)
+                ),
+                textAlign = TextAlign.Center
             )
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            Text(
-                text = "GPS location is required for accurate airspace information and safe paragliding operations.",
-                style = MaterialTheme.typography.bodyMedium,
-                textAlign = TextAlign.Center
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
             OutlinedButton(
-                onClick = onRetryGps
+                onClick = onRetryGps,
+                modifier = Modifier.height(28.dp)
             ) {
-                Text("Retry GPS Acquisition")
+                Text(
+                    text = "Retry",
+                    fontSize = 10.sp,
+                    fontFamily = gruppoFont
+                )
             }
         }
     }
@@ -222,31 +213,43 @@ private fun GpsLostView(gruppoFont: FontFamily, onRetryGps: () -> Unit) {
 
 @Composable
 private fun PermissionRequiredView(gruppoFont: FontFamily) {
-    Card(
+    // Subtle bottom-aligned GPS status
+    Box(
         modifier = Modifier
-            .fillMaxWidth(0.8f)
-            .padding(horizontal = 16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = Color.White
-        )
+            .fillMaxWidth()
+            .padding(bottom = 32.dp),
+        contentAlignment = Alignment.BottomCenter
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(24.dp)
+            modifier = Modifier
+                .background(
+                    Color.Black.copy(alpha = 0.3f),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp)
+                )
+                .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
             Text(
                 text = "Location Access Required",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
-                color = Color.Red
+                style = TextStyle(
+                    fontFamily = gruppoFont,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Normal,
+                    color = Color.Red.copy(alpha = 0.9f)
+                ),
+                textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
             Text(
-                text = "Tern requires location access to provide accurate airspace information and weather data for your flying location.",
-                style = MaterialTheme.typography.bodyMedium,
+                text = "Tap \"Allow\" when prompted",
+                style = TextStyle(
+                    fontFamily = gruppoFont,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Normal,
+                    color = Color.White.copy(alpha = 0.8f)
+                ),
                 textAlign = TextAlign.Center
             )
         }
