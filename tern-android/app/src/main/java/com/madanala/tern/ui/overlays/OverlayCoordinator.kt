@@ -10,6 +10,7 @@ import com.madanala.tern.utils.CacheManager
 import org.osmdroid.util.BoundingBox
 import org.osmdroid.views.MapView
 import kotlinx.coroutines.*
+import kotlin.math.log2
 
 /**
  * OverlayCoordinator: Unified management system for map overlay types.
@@ -37,6 +38,38 @@ class OverlayCoordinator {
 
     // Universal overlay animation manager for smooth transitions
     private val overlayAnimationManager = OverlayAnimationManager()
+
+    // Batch overlay operations for Hilbert curve ordering
+    private val pendingAdditions = mutableListOf<OverlayWithInfo>()
+    private val pendingRemovals = mutableListOf<OverlayWithInfo>()
+
+    // Coroutine scope for batch operations
+    private val batchAnimationScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+
+    // Data class to hold overlay information for batch operations
+    data class OverlayWithInfo(
+        val overlay: Any,
+        val overlayId: String,
+        val centroid: org.osmdroid.util.GeoPoint
+    )
+
+    // Data class for overlays with Hilbert curve values
+    data class OverlayWithHilbert(
+        val overlay: Any,
+        val overlayId: String,
+        val centroid: org.osmdroid.util.GeoPoint,
+        val hilbertValue: Long,
+        val distanceFromCenter: Double
+    ) : Comparable<OverlayWithHilbert> {
+        override fun compareTo(other: OverlayWithHilbert): Int {
+            val hilbertComparison = hilbertValue.compareTo(other.hilbertValue)
+            return if (hilbertComparison != 0) {
+                hilbertComparison
+            } else {
+                distanceFromCenter.compareTo(other.distanceFromCenter)
+            }
+        }
+    }
 
     /**
      * Initialize coordinator with Redux store
@@ -90,11 +123,13 @@ class OverlayCoordinator {
             when (manager) {
                 is com.madanala.tern.ui.overlays.AirspaceOverlayManager -> {
                     manager.setCountryCacheManager(countryCache)
-                    Log.d(TAG, "✅ Connected AirspaceOverlayManager to universal country cache")
+                    manager.setOverlayCoordinator(this) // Connect for Hilbert ordering
+                    Log.d(TAG, "✅ Connected AirspaceOverlayManager to universal country cache and coordinator")
                 }
                 is com.madanala.tern.ui.overlays.PGSpotOverlayManager -> {
                     manager.setCountryCacheManager(countryCache)
-                    Log.d(TAG, "✅ Connected PGSpotOverlayManager to universal country cache")
+                    manager.setOverlayCoordinator(this) // Connect for Hilbert ordering
+                    Log.d(TAG, "✅ Connected PGSpotOverlayManager to universal country cache and coordinator")
                 }
             }
         } ?: Log.w(TAG, "Country cache manager not available")
@@ -192,6 +227,179 @@ class OverlayCoordinator {
     }
 
     /**
+     * Add overlay to batch for ordered addition (center to outside)
+     * Overlays will be added in Hilbert curve order when flushPendingAdditions() is called
+     */
+    fun addOverlayToBatch(overlay: Any, overlayId: String, centroid: org.osmdroid.util.GeoPoint) {
+        synchronized(pendingAdditions) {
+            pendingAdditions.add(OverlayWithInfo(overlay, overlayId, centroid))
+        }
+    }
+
+    /**
+     * Add overlay to batch for ordered removal (outside to center)
+     * Overlays will be removed in reverse Hilbert curve order when flushPendingRemovals() is called
+     */
+    fun removeOverlayFromBatch(overlay: Any, overlayId: String, centroid: org.osmdroid.util.GeoPoint) {
+        synchronized(pendingRemovals) {
+            pendingRemovals.add(OverlayWithInfo(overlay, overlayId, centroid))
+        }
+    }
+
+    /**
+     * Process pending overlay additions in Hilbert curve order (center to outside)
+     * Returns the number of overlays processed
+     */
+    fun flushPendingAdditions(): Int {
+        synchronized(pendingAdditions) {
+            if (pendingAdditions.isEmpty()) return 0
+
+            val additionsToProcess = pendingAdditions.toList()
+            pendingAdditions.clear()
+
+            // Sort by Hilbert curve order (center to outside)
+            val sortedAdditions = sortOverlaysByHilbertOrder(additionsToProcess, isAddition = true)
+
+            // Process in sorted order with staggered animation
+            processBatchWithStaggeredAnimation(sortedAdditions, isAddition = true)
+
+            return sortedAdditions.size
+        }
+    }
+
+    /**
+     * Process pending overlay removals in reverse Hilbert curve order (outside to center)
+     * Returns the number of overlays processed
+     */
+    fun removeOverlayFromBatch(): Int {
+        synchronized(pendingRemovals) {
+            if (pendingRemovals.isEmpty()) return 0
+
+            val removalsToProcess = pendingRemovals.toList()
+            pendingRemovals.clear()
+
+            // Sort by reverse Hilbert curve order (outside to center)
+            val sortedRemovals = sortOverlaysByHilbertOrder(removalsToProcess, isAddition = false)
+
+            // Process in sorted order with staggered animation
+            processBatchWithStaggeredAnimation(sortedRemovals, isAddition = false)
+
+            return sortedRemovals.size
+        }
+    }
+
+    /**
+     * Calculate distance from center point for comparison with Hilbert ordering
+     */
+    private fun calculateDistanceFromCenter(point: org.osmdroid.util.GeoPoint, center: org.osmdroid.util.GeoPoint): Double {
+        return center.distanceToAsDouble(point) / 1000.0 // Convert to kilometers
+    }
+
+    /**
+     * Sort overlays by Hilbert curve order for visually beautiful addition/removal
+     */
+    private fun sortOverlaysByHilbertOrder(
+        overlays: List<OverlayWithInfo>,
+        isAddition: Boolean
+    ): List<OverlayWithInfo> {
+        if (overlays.isEmpty()) return overlays
+
+        val center = mapView?.mapCenter
+        val zoomLevel = mapView?.zoomLevelDouble ?: 10.0
+
+        if (center == null) {
+            Log.w(TAG, "No map center available for Hilbert sorting, using original order")
+            return overlays
+        }
+
+        return try {
+            // Create overlays with Hilbert values using existing MapOverlayCacheUtils
+            val centerGeoPoint = center as org.osmdroid.util.GeoPoint
+
+            // Create overlays with Hilbert values
+            val overlaysWithHilbert = overlays.map { overlayInfo ->
+                val hilbertValue = com.madanala.tern.utils.MapOverlayCacheUtils.computeHilbertIndexRelativeToCenter(
+                    overlayInfo.centroid, centerGeoPoint, 16
+                )
+                val distanceFromCenter = calculateDistanceFromCenter(overlayInfo.centroid, centerGeoPoint)
+
+                OverlayWithHilbert(
+                    overlayInfo.overlay,
+                    overlayInfo.overlayId,
+                    overlayInfo.centroid,
+                    hilbertValue,
+                    distanceFromCenter
+                )
+            }
+
+            // Sort by Hilbert value for additions (center to outside)
+            // Sort by reverse Hilbert value for removals (outside to center)
+            val sortedOverlays = if (isAddition) {
+                overlaysWithHilbert.sortedBy { it.hilbertValue }
+            } else {
+                overlaysWithHilbert.sortedByDescending { it.hilbertValue }
+            }
+
+            sortedOverlays.map { overlayWithHilbert ->
+                OverlayWithInfo(overlayWithHilbert.overlay, overlayWithHilbert.overlayId, overlayWithHilbert.centroid)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error calculating Hilbert values, using original order", e)
+            overlays
+        }
+    }
+
+    /**
+     * Process batch of overlays with staggered animation for smooth visual effect
+     */
+    private fun processBatchWithStaggeredAnimation(
+        overlays: List<OverlayWithInfo>,
+        isAddition: Boolean
+    ) {
+        if (overlays.isEmpty() || mapView == null) return
+
+        val staggerDelayMs = 100L // 100ms between each overlay
+        val totalOverlays = overlays.size
+
+        // Only log if processing more than one overlay to reduce spam
+        if (totalOverlays > 1) {
+            Log.d(TAG, "Processing ${totalOverlays} overlays with Hilbert ordering (${if (isAddition) "addition" else "removal"})")
+        } else {
+            Log.v(TAG, "Processing ${totalOverlays} overlay with Hilbert ordering (${if (isAddition) "addition" else "removal"})")
+        }
+
+        overlays.forEachIndexed { index, overlayInfo ->
+            val delay = index * staggerDelayMs
+
+            batchAnimationScope.launch {
+                try {
+                    delay(delay)
+
+                    if (isAddition) {
+                        overlayAnimationManager.animateOverlayAddition(
+                            overlay = overlayInfo.overlay,
+                            overlayId = overlayInfo.overlayId,
+                            mapView = mapView!!
+                        ) {
+                            Log.v(TAG, "Hilbert-ordered addition completed: ${overlayInfo.overlayId} (position ${index + 1}/$totalOverlays)")
+                        }
+                    } else {
+                        overlayAnimationManager.animateOverlayRemoval(
+                            overlay = overlayInfo.overlay,
+                            overlayId = overlayInfo.overlayId,
+                            mapView = mapView!!
+                        ) {
+                            Log.v(TAG, "Hilbert-ordered removal completed: ${overlayInfo.overlayId} (position ${index + 1}/$totalOverlays)")
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error in Hilbert-ordered ${if (isAddition) "addition" else "removal"} for ${overlayInfo.overlayId}", e)
+                }
+            }
+        }
+    }
+
+    /**
      * Get current cached countries for debugging
      */
     fun getCachedCountries(): Set<String> {
@@ -230,8 +438,27 @@ class OverlayCoordinator {
         }
         stats["total_active_managers"] = activeManagers.size
 
+        // Add Hilbert batch statistics
+        synchronized(pendingAdditions) {
+            stats["pending_additions"] = pendingAdditions.size
+        }
+        synchronized(pendingRemovals) {
+            stats["pending_removals"] = pendingRemovals.size
+        }
 
         return stats
+    }
+
+    /**
+     * Get current batch statistics for debugging Hilbert ordering
+     */
+    fun getBatchStats(): Map<String, Int> {
+        return synchronized(pendingAdditions to pendingRemovals) {
+            mapOf(
+                "pending_additions" to pendingAdditions.size,
+                "pending_removals" to pendingRemovals.size
+            )
+        }
     }
 
 
@@ -262,9 +489,20 @@ class OverlayCoordinator {
         // Shutdown animation manager first
         overlayAnimationManager.shutdown()
 
+        // Shutdown batch animation scope
+        batchAnimationScope.cancel()
+
         // Shutdown universal country cache manager (Priority 0)
         countryCacheManager?.shutdown()
         countryCacheManager = null
+
+        // Clear pending batches
+        synchronized(pendingAdditions) {
+            pendingAdditions.clear()
+        }
+        synchronized(pendingRemovals) {
+            pendingRemovals.clear()
+        }
 
         // Shutdown all managers
         activeManagers.values.forEach { manager ->

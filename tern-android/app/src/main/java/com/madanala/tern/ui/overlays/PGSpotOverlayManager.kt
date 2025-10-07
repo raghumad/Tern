@@ -65,12 +65,30 @@ class PGSpotOverlayManager(
     // Universal country cache manager for intelligent country management (Priority 0 fix)
     private var countryCacheManager: com.madanala.tern.utils.UniversalCountryCacheManager? = null
 
+    // Reference to overlay coordinator for Hilbert batch operations
+    private var overlayCoordinator: com.madanala.tern.ui.overlays.OverlayCoordinator? = null
+
     /**
      * Set the universal country cache manager (called by OverlayCoordinator)
      */
     fun setCountryCacheManager(countryCacheManager: com.madanala.tern.utils.UniversalCountryCacheManager) {
         this.countryCacheManager = countryCacheManager
         Log.d(TAG, "Universal country cache manager connected to PGSpotOverlayManager")
+    }
+
+    /**
+     * Set the overlay coordinator for Hilbert batch operations (called by OverlayCoordinator)
+     */
+    fun setOverlayCoordinator(coordinator: com.madanala.tern.ui.overlays.OverlayCoordinator) {
+        this.overlayCoordinator = coordinator
+        Log.d(TAG, "Overlay coordinator connected to PGSpotOverlayManager for Hilbert ordering")
+    }
+
+    /**
+     * Get the overlay coordinator for Hilbert batch operations
+     */
+    private fun getOverlayCoordinator(): com.madanala.tern.ui.overlays.OverlayCoordinator? {
+        return overlayCoordinator
     }
 
     // Track rendered PG spots and weather status for efficient updates
@@ -80,6 +98,13 @@ class PGSpotOverlayManager(
     // Aviation safety thresholds (inherited from airspace system with PG spot optimizations)
     private val checkDistanceKm = 2.0  // Smaller than airspace - PG spots are denser
     private val maxPGSpots = 50         // Reasonable limit for launch area visualization
+
+    // Clustering configuration for dense areas to prevent visual clutter
+    // TODO: Revisit clustering logic later
+    // private val clusteringEnabled = true
+    // private val clusterRadiusMeters = 1000.0  // 1km clustering radius
+    // private val maxClusterSpots = 5           // Maximum spots per cluster
+    // private val clusteringThreshold = 10     // Lower threshold to trigger clustering more aggressively
 
     data class PGSpotMarker(
          val marker: Marker,
@@ -496,19 +521,32 @@ class PGSpotOverlayManager(
             // Add to tracking immediately
             currentlyRenderedPGSpots[spotId] = pgSpotMarker
 
-            // Use animation manager for smooth addition (alpha=0 → fade-in)
-            // Animation manager is now mandatory for consistent overlay behavior
-            animationManager?.animateOverlayAddition(
-                overlay = marker,
-                overlayId = spotId,
-                mapView = mapView!!,
-                staggerDelay = 0L // No stagger for individual additions
-            ) {
-                // Animation completed
-            } ?: throw IllegalStateException(
-                "Animation manager is required for PG spot overlay addition. " +
-                "Ensure OverlayCoordinator is properly initialized."
-            )
+            // Add to Hilbert-ordered batch for smooth center-to-outside addition
+            // This will be processed in Hilbert curve order for visually beautiful addition
+            val coordinator = getOverlayCoordinator()
+            if (coordinator != null) {
+                coordinator.addOverlayToBatch(marker, spotId, center)
+
+                // Process the batch if this is the last overlay in a batch
+                // For now, process immediately to maintain current behavior
+                // In the future, this could be batched for better performance
+                if (currentlyRenderedPGSpots.size % 10 == 0) {
+                    coordinator.flushPendingAdditions()
+                }
+            } else {
+                // Fallback to direct animation manager if coordinator not available
+                animationManager?.animateOverlayAddition(
+                    overlay = marker,
+                    overlayId = spotId,
+                    mapView = mapView!!,
+                    staggerDelay = 0L
+                ) {
+                    // Animation completed
+                } ?: throw IllegalStateException(
+                    "Animation manager is required for PG spot overlay addition. " +
+                    "Ensure OverlayCoordinator is properly initialized."
+                )
+            }
 
             // Add click handler for weather details (future: detailed weather screen)
             marker.setOnMarkerClickListener { clickedMarker, _ ->
@@ -516,7 +554,10 @@ class PGSpotOverlayManager(
                 true
             }
 
-            Log.v(TAG, "Added new PG spot: $spotId")
+            // Only log individual spot additions in debug mode to reduce spam
+            if (currentlyRenderedPGSpots.size % 10 == 0) {
+                Log.d(TAG, "Added PG spot batch: ${currentlyRenderedPGSpots.size} total spots")
+            }
 
         } catch (e: Exception) {
             Log.w(TAG, "Failed to render PG spot feature", e)
@@ -549,6 +590,7 @@ class PGSpotOverlayManager(
              currentlyRenderedPGSpots[pgSpotId] = updatedMarker
          }
      }
+
 
     // === UTILITY METHODS ===
 
@@ -733,21 +775,40 @@ class PGSpotOverlayManager(
             val markersToRemove = currentlyRenderedPGSpots.values.toList()
             val spotIds = currentlyRenderedPGSpots.keys.toList()
 
-            // Animation manager handles all removals with staggered fade-out
-            spotIds.forEachIndexed { index, spotId ->
-                val pgSpotMarker = currentlyRenderedPGSpots[spotId]
-                if (pgSpotMarker != null) {
-                    animationManager?.animateOverlayRemoval(
-                        overlay = pgSpotMarker.marker,
-                        overlayId = spotId,
-                        mapView = map
-                    ) {
-                        // Animation manager handles removal - just update tracking
-                        Log.v(TAG, "Clear animation completed for PG spot: $spotId")
-                    } ?: throw IllegalStateException(
-                        "Animation manager is required for PG spot overlay removal. " +
-                        "Ensure OverlayCoordinator is properly initialized."
-                    )
+            // Use Hilbert-ordered batch removal for smooth outside-to-center removal
+            val coordinator = getOverlayCoordinator()
+            if (coordinator != null) {
+                // Add all overlays to batch for ordered removal (outside to center)
+                spotIds.forEach { spotId ->
+                    val pgSpotMarker = currentlyRenderedPGSpots[spotId]
+                    if (pgSpotMarker != null) {
+                        coordinator.removeOverlayFromBatch(
+                            overlay = pgSpotMarker.marker,
+                            overlayId = spotId,
+                            centroid = pgSpotMarker.center
+                        )
+                    }
+                }
+
+                // Process the batch for Hilbert-ordered removal
+                coordinator.removeOverlayFromBatch()
+            } else {
+                // Fallback to direct animation manager if coordinator not available
+                spotIds.forEachIndexed { index, spotId ->
+                    val pgSpotMarker = currentlyRenderedPGSpots[spotId]
+                    if (pgSpotMarker != null) {
+                        animationManager?.animateOverlayRemoval(
+                            overlay = pgSpotMarker.marker,
+                            overlayId = spotId,
+                            mapView = map
+                        ) {
+                            // Animation manager handles removal - just update tracking
+                            Log.v(TAG, "Clear animation completed for PG spot: $spotId")
+                        } ?: throw IllegalStateException(
+                            "Animation manager is required for PG spot overlay removal. " +
+                            "Ensure OverlayCoordinator is properly initialized."
+                        )
+                    }
                 }
             }
 

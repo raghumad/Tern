@@ -3,9 +3,10 @@
 ## 📋 Overview
 How Tern manages map overlays (airspaces, terrain, PG spots) safely and efficiently.
 
-## 🎯 Core Problem Solved
+## 🎯 Core Problems Solved
 **Before**: Overlays appeared/disappeared abruptly → jarring user experience
 **After**: Smooth distance-based transitions → professional aviation-grade UX
+**Added**: Beautiful Hilbert curve ordering → visually stunning overlay animations
 
 ## 🏗️ Architecture Pattern
 
@@ -79,6 +80,108 @@ private fun manageViewportAirspaces(viewport: BoundingBox) {
     // 3. Remove smoothly (batched with delays)
     removeAirspacesSmoothly(toRemove)
 }
+```
+
+## 🌊 Hilbert Curve Overlay Ordering
+
+### Beautiful Spatial Animation System
+
+**Problem**: Overlays appeared in random order → visually chaotic user experience
+**Solution**: Hilbert curve spatial ordering → overlays animate from center to outside
+
+### Hilbert Curve Implementation
+
+```kotlin
+// Calculate Hilbert value relative to map center
+fun computeHilbertIndexRelativeToCenter(
+    point: GeoPoint,
+    center: GeoPoint,
+    bits: Int
+): Long {
+    // Normalize coordinates relative to center
+    val metersPerDegree = 111320.0
+    val latOffset = (point.latitude - center.latitude) * metersPerDegree
+    val lonOffset = (point.longitude - center.longitude) * metersPerDegree * cos(radians(center.latitude))
+
+    // Scale to [0,1] range relative to center
+    val normalizedLat = 0.5 + (latOffset / metersPerDegree)
+    val normalizedLon = 0.5 + (lonOffset / metersPerDegree)
+
+    // Convert to Hilbert curve index
+    return hilbertXYToIndex(bits, normalizedLon, normalizedLat)
+}
+```
+
+### Batch Processing with Spatial Ordering
+
+```kotlin
+class OverlayCoordinator {
+    private val pendingAdditions = mutableListOf<OverlayWithInfo>()
+    private val pendingRemovals = mutableListOf<OverlayWithInfo>()
+
+    // Add overlay to batch for ordered processing
+    fun addOverlayToBatch(overlay: Any, overlayId: String, centroid: GeoPoint) {
+        synchronized(pendingAdditions) {
+            pendingAdditions.add(OverlayWithInfo(overlay, overlayId, centroid))
+        }
+    }
+
+    // Process additions in Hilbert order (center → outside)
+    fun flushPendingAdditions(): Int {
+        val sortedAdditions = sortOverlaysByHilbertOrder(pendingAdditions, isAddition = true)
+        processBatchWithStaggeredAnimation(sortedAdditions, isAddition = true)
+        return sortedAdditions.size
+    }
+
+    // Process removals in reverse Hilbert order (outside → center)
+    fun removeOverlayFromBatch(): Int {
+        val sortedRemovals = sortOverlaysByHilbertOrder(pendingRemovals, isAddition = false)
+        processBatchWithStaggeredAnimation(sortedRemovals, isAddition = false)
+        return sortedRemovals.size
+    }
+}
+```
+
+### Animation Flow
+
+```mermaid
+sequenceDiagram
+    participant U as User Action
+    participant C as OverlayCoordinator
+    participant M as OverlayManager
+    participant H as Hilbert Sorter
+    participant A as Animation Manager
+
+    U->>M: Load PG spots
+    M->>C: addOverlayToBatch(marker, id, centroid)
+    M->>C: flushPendingAdditions()
+    C->>H: sortOverlaysByHilbertOrder(additions, true)
+    H-->>C: Sorted overlays (center to outside)
+    C->>A: processBatchWithStaggeredAnimation()
+    A->>A: 100ms stagger delay per overlay
+    A-->>U: Beautiful center→outside animation
+```
+
+### Spatial Ordering Benefits
+
+**Visual Beauty**: Overlays appear to "grow" from center outward, creating wave-like animation
+**User Experience**: Intuitive spatial relationship - closer objects appear first
+**Performance**: Batch processing reduces individual animation overhead
+**Consistency**: Same ordering algorithm used for addition and removal
+
+### Integration with Existing Systems
+
+```kotlin
+// PGSpotOverlayManager integration
+val coordinator = getOverlayCoordinator()
+coordinator?.addOverlayToBatch(marker, spotId, center)
+if (currentlyRenderedPGSpots.size % 10 == 0) {
+    coordinator?.flushPendingAdditions()  // Process every 10 overlays
+}
+
+// AirspaceOverlayManager integration
+coordinator?.removeOverlayFromBatch(polygon, airspaceId, centroid)
+coordinator?.removeOverlayFromBatch()  // Process removal batch
 ```
 
 ## ⚡ Performance Patterns
@@ -252,6 +355,8 @@ class ParagliderZoningManager : BaseZoningManager() {
 - [ ] **Memory**: <75% heap usage with maximum overlay loads
 - [ ] **Smoothness**: 60fps UI updates during overlay transitions
 - [ ] **Redux Compliance**: 100% state changes through Redux
+- [ ] **Spatial Ordering**: Beautiful Hilbert curve animations (center → outside)
+- [ ] **Batch Efficiency**: <100ms processing time for 50+ overlay batches
 
 ### Paraglider-Specific Success
 - [ ] **Safety Compliance**: Zero reduction of critical safety overlays
@@ -266,6 +371,8 @@ class ParagliderZoningManager : BaseZoningManager() {
 - [ ] **Performance**: No lag or stuttering during map navigation
 - [ ] **Predictability**: Overlay behavior is consistent and expected
 - [ ] **Aviation Safety**: Maintains situational awareness during all flight phases
+- [ ] **Beautiful Animations**: Hilbert curve ordering creates stunning center→outside effects
+- [ ] **Intuitive Spatial Flow**: Overlays follow natural visual progression patterns
 
 ---
 
@@ -281,6 +388,11 @@ class ParagliderZoningManager : BaseZoningManager() {
 - Individual items = Single dispatches (washes one by one)
 - Sorted baskets = Batched operations (organized)
 - One load = Single state update (smooth result)
+
+**Hilbert Curve Ordering = Reading a Book**
+- Random order = Jumping between random pages (chaotic)
+- Alphabetical order = Reading A-Z (logical but not spatial)
+- Hilbert curve order = Reading in natural page flow (intuitive spatial progression)
 
 **Zoom Filtering = Reading a Book**
 - High zoom = Small print, many details visible

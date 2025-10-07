@@ -185,7 +185,7 @@ object MapOverlayCacheUtils {
     }
 
     /**
-     * Compute Hilbert index for a GeoPoint
+     * Compute Hilbert index for a GeoPoint (global coordinates)
      * @param point The GeoPoint
      * @param bits Number of bits for precision (e.g., 16 for 65536x65536 grid)
      */
@@ -228,6 +228,36 @@ object MapOverlayCacheUtils {
             s = s shr 1
         }
         return d
+    }
+
+    /**
+     * Compute Hilbert index for a GeoPoint relative to a center point (for overlay ordering)
+     * @param point The GeoPoint to index
+     * @param center The center point (used as origin for relative coordinates)
+     * @param bits Number of bits for precision (e.g., 16 for 65536x65536 grid)
+     * @return Hilbert index relative to center
+     */
+    fun computeHilbertIndexRelativeToCenter(point: GeoPoint, center: GeoPoint, bits: Int): Long {
+        // Normalize coordinates relative to center (for overlay ordering)
+        val metersPerDegree = 111320.0
+        val latOffset = (point.latitude - center.latitude) * metersPerDegree
+        val lonOffset = (point.longitude - center.longitude) * metersPerDegree * cos(Math.toRadians(center.latitude))
+
+        // Normalize to [0, 1] range relative to center
+        val scaleFactor = 1.0
+        val normalizedLat = 0.5 + (latOffset / metersPerDegree) * scaleFactor
+        val normalizedLon = 0.5 + (lonOffset / metersPerDegree) * scaleFactor
+
+        // Clamp to [0, 1] range
+        val clampedLat = normalizedLat.coerceIn(0.0, 1.0)
+        val clampedLon = normalizedLon.coerceIn(0.0, 1.0)
+
+        // Scale to grid size
+        val gridSize = 1L shl bits
+        val x = (clampedLon * (gridSize - 1)).toLong().coerceIn(0, gridSize - 1)
+        val y = (clampedLat * (gridSize - 1)).toLong().coerceIn(0, gridSize - 1)
+
+        return hilbertXYToIndex(bits, x, y)
     }
 
     /**
