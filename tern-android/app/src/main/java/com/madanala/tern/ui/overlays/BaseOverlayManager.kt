@@ -270,11 +270,27 @@ abstract class BaseOverlayManager(
     }
 
     /**
-     * Handle budget changes from the adaptive system
-     */
+      * Handle budget changes from the adaptive system
+      */
     private fun handleBudgetChanged(budget: OverlayBudget) {
         currentOverlayBudget = budget
-        Log.d(TAG, "Overlay budget updated: ${budget.totalOverlays} total overlays")
+
+        // Get current map center for geographic context
+        val center = mapView?.mapCenter
+        val centerStr = if (center != null) {
+            String.format("@ %.4f,%.4f", center.latitude, center.longitude)
+        } else {
+            "@ unknown location"
+        }
+
+        Log.d(TAG, String.format(
+            "Budget: %d total (Memory: %s, Flight: %s) %s",
+            budget.totalOverlays,
+            budget.memoryPressure.name,
+            budget.flightPhase.name,
+            centerStr
+        ))
+
         // Subclasses can override this for budget-specific behavior
         onOverlayBudgetChanged(budget)
     }
