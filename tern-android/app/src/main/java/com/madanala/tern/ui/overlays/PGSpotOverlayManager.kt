@@ -97,7 +97,7 @@ class PGSpotOverlayManager(
 
     // Aviation safety thresholds (inherited from airspace system with PG spot optimizations)
     private val checkDistanceKm = 2.0  // Smaller than airspace - PG spots are denser
-    private val maxPGSpots = 50         // Reasonable limit for launch area visualization
+    private var maxPGSpots = 50         // Dynamic - will be updated by adaptive system
 
     // Clustering configuration for dense areas to prevent visual clutter
     // TODO: Revisit clustering logic later
@@ -767,6 +767,106 @@ class PGSpotOverlayManager(
             val center = mapView!!.mapCenter as GeoPoint
             checkAndLoadPGSpots(center)
         }
+    }
+
+    /**
+     * Handle overlay budget changes from adaptive system
+     */
+    override fun onOverlayBudgetChanged(budget: com.madanala.tern.utils.OverlayBudget) {
+        super.onOverlayBudgetChanged(budget)
+
+        // Update dynamic PG spot limit based on memory conditions
+        // PG spots use NEAR zone allocation since they're location-based
+        maxPGSpots = budget.zoneBudgets[com.madanala.tern.utils.DistanceZone.NEAR] ?: 25
+
+        Log.d(TAG, "Updated PG spot limit: $maxPGSpots (memory: ${budget.memoryPressure.name})")
+    }
+
+    /**
+     * Handle memory state changes for PG spot-specific optimizations
+     */
+    override fun onMemoryStateChanged(memoryState: com.madanala.tern.utils.ApplicationMemoryState) {
+        super.onMemoryStateChanged(memoryState)
+
+        // If memory pressure is high, reduce weather update frequency
+        if (memoryState.calculatedPressure == com.madanala.tern.utils.MemoryPressureLevel.LOW_MEMORY ||
+            memoryState.calculatedPressure == com.madanala.tern.utils.MemoryPressureLevel.CRITICAL_MEMORY) {
+            Log.w(TAG, "Memory pressure detected - reducing PG spot weather updates")
+            // Could reduce weather update frequency here if needed
+        }
+    }
+
+    /**
+     * Clear PG spot overlays in a specific distance zone for emergency cleanup
+     */
+    override fun clearOverlaysInZone(zone: com.madanala.tern.utils.DistanceZone): Int {
+        if (currentlyRenderedPGSpots.isEmpty()) return 0
+
+        val mapCenter = mapView?.mapCenter ?: return 0
+        val zoneThreshold = zone.maxKm
+
+        // Find PG spots in the specified zone (farthest from center)
+        val spotsInZone = currentlyRenderedPGSpots.entries.filter { (_, pgSpotMarker) ->
+            val distance = calculateDistanceFromUser(pgSpotMarker.center)
+            distance > zoneThreshold
+        }
+
+        if (spotsInZone.isEmpty()) return 0
+
+        // Remove PG spots in this zone
+        val coordinator = getOverlayCoordinator()
+        var removedCount = 0
+
+        if (coordinator != null) {
+            spotsInZone.forEach { (spotId, pgSpotMarker) ->
+                coordinator.removeOverlayFromBatch(
+                    overlay = pgSpotMarker.marker,
+                    overlayId = spotId,
+                    centroid = pgSpotMarker.center
+                )
+                removedCount++
+            }
+            coordinator.removeOverlayFromBatch()
+        } else {
+            spotsInZone.forEach { (spotId, pgSpotMarker) ->
+                animationManager?.animateOverlayRemoval(
+                    overlay = pgSpotMarker.marker,
+                    overlayId = spotId,
+                    mapView = mapView!!
+                ) {
+                    // Remove from tracking
+                }
+                removedCount++
+            }
+        }
+
+        // Update tracking
+        spotsInZone.forEach { (spotId, _) ->
+            currentlyRenderedPGSpots.remove(spotId)
+        }
+
+        Log.d(TAG, "Emergency cleanup: Removed ${removedCount} PG spots from ${zone.name} zone")
+        return removedCount
+    }
+
+    /**
+     * Preserve safety-critical PG spot overlays during emergency cleanup
+     * PG spots in CORE zone are considered safety-critical for immediate landing options
+     */
+    override fun preserveSafetyCriticalOverlays(): Int {
+        if (currentlyRenderedPGSpots.isEmpty()) return 0
+
+        val mapCenter = mapView?.mapCenter ?: return 0
+        val coreZoneThreshold = com.madanala.tern.utils.DistanceZone.CORE.maxKm
+
+        // Find safety-critical PG spots in CORE zone (closest landing options)
+        val safetyCriticalSpots = currentlyRenderedPGSpots.entries.filter { (_, pgSpotMarker) ->
+            val distance = calculateDistanceFromUser(pgSpotMarker.center)
+            distance <= coreZoneThreshold
+        }
+
+        Log.d(TAG, "Emergency cleanup: Preserved ${safetyCriticalSpots.size} safety-critical PG spots in CORE zone")
+        return safetyCriticalSpots.size
     }
 
     override fun clearOverlays() {

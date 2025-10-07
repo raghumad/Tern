@@ -56,9 +56,9 @@ class AirspaceOverlayManager(
     private val checkDistanceKm = 2.0  // Reduced for aviation use (was 5.0)
     private val reFilterDistanceKm = 80.0
 
-    // Intelligent limits to prevent memory pressure crashes
-    private val maxTotalAirspaces = 150       // Hard limit to prevent ANR
-    private val maxViewportAirspaces = 100    // Most critical - what's actually visible
+    // Dynamic memory-based limits (replaces hardcoded values)
+    private var maxTotalAirspaces = 150       // Dynamic - will be updated by adaptive system
+    private var maxViewportAirspaces = 100    // Dynamic - will be updated by adaptive system
 
     // Spatial-first architecture: always use spatial queries with configurable search radius
     private val spatialQueryRadiusKm = 200.0  // Search radius for nearby airspaces (increased for better visibility)
@@ -221,6 +221,97 @@ class AirspaceOverlayManager(
             val center = mapView!!.mapCenter as GeoPoint
             checkAndLoadAirspaceData(center)
         }
+    }
+
+    /**
+     * Handle overlay budget changes from adaptive system
+     */
+    override fun onOverlayBudgetChanged(budget: com.madanala.tern.utils.OverlayBudget) {
+        super.onOverlayBudgetChanged(budget)
+
+        // Update dynamic limits based on memory conditions and zone allocation
+        maxTotalAirspaces = budget.totalOverlays
+        maxViewportAirspaces = budget.zoneBudgets[com.madanala.tern.utils.DistanceZone.CORE] ?: 50
+
+        Log.d(TAG, "Updated airspace limits - Total: $maxTotalAirspaces, Viewport: $maxViewportAirspaces")
+    }
+
+    /**
+     * Handle memory state changes for airspace-specific optimizations
+     */
+    override fun onMemoryStateChanged(memoryState: com.madanala.tern.utils.ApplicationMemoryState) {
+        super.onMemoryStateChanged(memoryState)
+
+        // If memory pressure is high, trigger immediate viewport cleanup
+        if (memoryState.calculatedPressure == com.madanala.tern.utils.MemoryPressureLevel.CRITICAL_MEMORY) {
+            Log.w(TAG, "Critical memory pressure - triggering airspace cleanup")
+            mapView?.boundingBox?.let { manageViewportAirspaces(it) }
+        }
+    }
+
+    /**
+     * Clear overlays in a specific distance zone for emergency cleanup
+     */
+    override fun clearOverlaysInZone(zone: com.madanala.tern.utils.DistanceZone): Int {
+        if (currentlyRenderedAirspaces.isEmpty()) return 0
+
+        val mapCenter = mapView?.mapCenter as? GeoPoint ?: return 0
+        val zoneThreshold = zone.maxKm
+
+        // Find airspaces in the specified zone (farthest from center)
+        val airspacesInZone = currentlyRenderedAirspaces.entries.filter { (_, polygon) ->
+            val distance = getDistanceFromCenter(polygon, mapCenter)
+            distance > zoneThreshold
+        }
+
+        if (airspacesInZone.isEmpty()) return 0
+
+        // Remove airspaces in this zone
+        val coordinator = getOverlayCoordinator()
+        var removedCount = 0
+
+        if (coordinator != null) {
+            airspacesInZone.forEach { (airspaceId, polygon) ->
+                val centroid = getPolygonCentroid(polygon)
+                coordinator.removeOverlayFromBatch(polygon, airspaceId, centroid)
+                removedCount++
+            }
+            coordinator.removeOverlayFromBatch()
+        } else {
+            airspacesInZone.forEach { (airspaceId, polygon) ->
+                animationManager?.animateOverlayRemoval(polygon, airspaceId, mapView!!) {
+                    // Remove from tracking
+                }
+                removedCount++
+            }
+        }
+
+        // Update tracking
+        airspacesInZone.forEach { (airspaceId, _) ->
+            currentlyRenderedAirspaces.remove(airspaceId)
+        }
+
+        Log.d(TAG, "Emergency cleanup: Removed ${removedCount} airspaces from ${zone.name} zone")
+        return removedCount
+    }
+
+    /**
+     * Preserve safety-critical overlays during emergency cleanup
+     */
+    override fun preserveSafetyCriticalOverlays(): Int {
+        if (currentlyRenderedAirspaces.isEmpty()) return 0
+
+        val mapCenter = mapView?.mapCenter as? GeoPoint ?: return 0
+        val coreZoneThreshold = com.madanala.tern.utils.DistanceZone.CORE.maxKm
+
+        // Find safety-critical airspaces in CORE zone
+        val safetyCriticalAirspaces = currentlyRenderedAirspaces.entries.filter { (_, polygon) ->
+            val distance = getDistanceFromCenter(polygon, mapCenter)
+            distance <= coreZoneThreshold
+        }
+
+        Log.d(TAG, "Emergency cleanup: Preserved ${safetyCriticalAirspaces.size} safety-critical airspaces in CORE zone")
+        return safetyCriticalAirspaces.size
     }
 
     override fun clearOverlays() {
