@@ -24,9 +24,9 @@ object GeoJsonUtils {
     private val mapper = jacksonObjectMapper()
 
     /**
-     * Download GeoJSON data from a URL with proper resource management
+     * Download GeoJSON data from a URL with proper resource management and validation
      * @param url The URL to download from
-     * @return The GeoJSON data as a string, or null if download failed
+     * @return The GeoJSON data as a string, or null if download failed or content is invalid
      */
     suspend fun downloadGeoJson(url: String): String? {
         return withContext(Dispatchers.IO) {
@@ -38,7 +38,15 @@ object GeoJsonUtils {
                         if (body != null) {
                             val data = body.string()
                             android.util.Log.d("GeoJsonUtils", "Downloaded ${data.length} bytes from $url")
-                            data
+
+                            // VALIDATE: Check if downloaded content is valid JSON/GeoJSON
+                            if (validateGeoJsonContent(data, url)) {
+                                android.util.Log.d("GeoJsonUtils", "✅ Downloaded content validated for $url")
+                                data
+                            } else {
+                                android.util.Log.w("GeoJsonUtils", "❌ Downloaded content failed validation for $url")
+                                null
+                            }
                         } else {
                             android.util.Log.w("GeoJsonUtils", "Response body is null for $url")
                             null
@@ -52,6 +60,97 @@ object GeoJsonUtils {
                 android.util.Log.w("GeoJsonUtils", "IOException downloading $url: ${e.message}")
                 null
             }
+        }
+    }
+
+    /**
+     * Validate that downloaded content is valid GeoJSON
+     */
+    private fun validateGeoJsonContent(content: String, url: String): Boolean {
+        if (content.isEmpty()) {
+            android.util.Log.w("GeoJsonUtils", "Content is empty for $url")
+            return false
+        }
+
+        // Check minimum size (empty or very small files are likely corrupted)
+        if (content.length < 50) {
+            android.util.Log.w("GeoJsonUtils", "Content too small (${content.length} bytes) for $url")
+            return false
+        }
+
+        // Check for basic JSON structure
+        val trimmed = content.trim()
+        if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) {
+            android.util.Log.w("GeoJsonUtils", "Content doesn't start with valid JSON structure for $url")
+            return false
+        }
+
+        // For NDGeoJSON files (newline-delimited), check if it's properly formatted
+        if (url.contains("ndgeojson")) {
+            return validateNdGeoJsonContent(content, url)
+        }
+
+        // For standard GeoJSON files, do basic JSON validation
+        return try {
+            // Try to parse as JSON to ensure it's not corrupted
+            mapper.readTree(content)
+            android.util.Log.v("GeoJsonUtils", "✅ Valid GeoJSON structure for $url")
+            true
+        } catch (e: Exception) {
+            android.util.Log.w("GeoJsonUtils", "Invalid JSON structure for $url: ${e.message}")
+            false
+        }
+    }
+
+    /**
+     * Validate NDGeoJSON (newline-delimited GeoJSON) content
+     */
+    private fun validateNdGeoJsonContent(content: String, url: String): Boolean {
+        val lines = content.lines()
+
+        if (lines.isEmpty()) {
+            android.util.Log.w("GeoJsonUtils", "NDGeoJSON has no lines for $url")
+            return false
+        }
+
+        var validLines = 0
+        var invalidLines = 0
+
+        // Check first few lines and some random samples
+        val linesToCheck = minOf(50, lines.size) // Check up to 50 lines
+
+        for (i in 0 until linesToCheck) {
+            val line = lines[i].trim()
+            if (line.isEmpty()) continue
+
+            if (isValidGeoJsonLine(line)) {
+                validLines++
+            } else {
+                invalidLines++
+            }
+        }
+
+        // Calculate validity ratio
+        val totalChecked = validLines + invalidLines
+        val validityRatio = if (totalChecked > 0) validLines.toDouble() / totalChecked else 0.0
+
+        android.util.Log.d("GeoJsonUtils", "NDGeoJSON validation for $url: $validLines valid, $invalidLines invalid (${String.format("%.1f%%", validityRatio * 100)})")
+
+        // Require at least 80% valid lines for acceptance
+        return validityRatio >= 0.8
+    }
+
+    /**
+     * Check if a single line is valid GeoJSON
+     */
+    private fun isValidGeoJsonLine(line: String): Boolean {
+        if (line.isEmpty()) return false
+
+        return try {
+            // Should be a valid JSON object starting with "{"
+            line.trim().startsWith("{") && mapper.readTree(line) != null
+        } catch (e: Exception) {
+            false
         }
     }
 

@@ -130,6 +130,10 @@ class PGSpotOverlayManager(
 
     override fun onOverlayAttached() {
         Log.d(TAG, "Weather-aware PG spots overlay manager attached")
+
+        // Clean up any corrupted cache files from previous sessions
+        pgSpotCache.cleanupCorruptedCache()
+
         initiateWeatherSystem()
 
         // Load PG spots for initial broader area to ensure they're visible on first load
@@ -227,21 +231,42 @@ class PGSpotOverlayManager(
     // === WEATHER SYSTEM ORCHESTRATION ===
 
     /**
-     * MASTER WEATHER COORDINATION
-     * Viewport-aware orchestration of weather fetching and display
-     */
+      * MASTER WEATHER COORDINATION
+      * Viewport-aware orchestration of weather fetching and display with performance optimization
+      */
     private fun updateViewportWeatherIntelligence(viewport: BoundingBox) {
         val currentTime = System.currentTimeMillis()
 
-        // Debounce rapid viewport changes to prevent excessive weather API calls
+        // PERFORMANCE: Enhanced debouncing to prevent excessive weather API calls
         if (currentTime - lastViewportChange < WEATHER_FETCH_DEBOUNCE_MS) {
             return // Too frequent, skip
         }
 
         lastViewportChange = currentTime
 
+        // PERFORMANCE: Only process if we have a significant viewport change
+        val centerLat = (viewport.latNorth + viewport.latSouth) / 2.0
+        val centerLon = (viewport.lonEast + viewport.lonWest) / 2.0
+        val center = GeoPoint(centerLat, centerLon)
+
+        lastCheckLocation?.let { lastLocation ->
+            val latDiffKm = Math.abs(center.latitude - lastLocation.latitude) * 111.1
+            val lonDiffKm = Math.abs(center.longitude - lastLocation.longitude) * 111.1 * Math.cos(Math.toRadians(center.latitude))
+            val distanceKm = Math.sqrt(latDiffKm * latDiffKm + lonDiffKm * lonDiffKm)
+
+            // Skip if movement is less than 100m (micro-movements)
+            if (distanceKm < 0.1) {
+                return
+            }
+        }
+
         // Perform viewport analysis
         val visiblePGSpotsNew = determineVisiblePGSpots(viewport)
+
+        // PERFORMANCE: Only update if there are significant visibility changes
+        if (visiblePGSpotsNew.size == visiblePGSpots.size && visiblePGSpots.containsAll(visiblePGSpotsNew)) {
+            return // No significant change, skip processing
+        }
 
         // Calculate weather intelligence updates needed
         val spotsNeedingWeather = visiblePGSpotsNew.filter { pgSpotId ->
@@ -253,11 +278,11 @@ class PGSpotOverlayManager(
         val spotsNotVisible = visiblePGSpots - visiblePGSpotsNew
         updateVisiblePGSpots(visiblePGSpotsNew)
 
-        // Trigger weather gathering for newly visible PG spots
+        // PERFORMANCE: Only trigger weather gathering if we have new spots that actually need weather
         if (spotsNeedingWeather.isNotEmpty()) {
             launchWeatherFetchingForPGSpots(spotsNeedingWeather.toSet())
 
-            // Also trigger occasional background refresh for current weather
+            // Also trigger occasional background refresh for current weather (less frequent)
             val shouldRefreshCurrent = currentTime - lastWeatherUpdate > WEATHER_UPDATE_INTERVAL_MS
             if (shouldRefreshCurrent && visiblePGSpotsNew.isNotEmpty()) {
                 launchBackgroundWeatherRefresh(visiblePGSpotsNew)
@@ -271,9 +296,9 @@ class PGSpotOverlayManager(
     }
 
     /**
-     * LAUNCH WEATHER FETCHING FOR PG SPOTS
-     * Event-driven weather acquisition for aviation safety
-     */
+      * LAUNCH WEATHER FETCHING FOR PG SPOTS
+      * Event-driven weather acquisition for aviation safety with performance optimization
+      */
     private fun launchWeatherFetchingForPGSpots(pgSpotIds: Set<String>) {
         if (pgSpotIds.isEmpty()) return
 
@@ -283,66 +308,88 @@ class PGSpotOverlayManager(
             try {
                 Log.d(TAG, "Fetching weather for ${pgSpotIds.size} PG spots")
 
-        // Dispatch Redux action to show weather fetching state
-        pgSpotIds.forEach { pgSpotId ->
-            val marker = currentlyRenderedPGSpots[pgSpotId]
-            if (marker != null) {
-                mapStore?.dispatch(WeatherActions.FetchWeatherForPGSpot(
-                    pgSpotId, marker.center.latitude, marker.center.longitude
-                ))
-            }
-        }
+                // BATCH: Dispatch Redux actions in batches to prevent state update storms
+                val batchSize = 5 // Process 5 spots at a time
+                val spotList = pgSpotIds.toList()
 
-                // Fetch weather data sequentially to respect API rate limits
-                for (pgSpotId in pgSpotIds) {
-                    val marker = currentlyRenderedPGSpots[pgSpotId] ?: continue
+                for (i in spotList.indices step batchSize) {
+                    val batch = spotList.subList(i, minOf(i + batchSize, spotList.size))
 
-                    try {
-                        // Check cache first (aviation performance optimization)
-                        var weatherForecast = weatherCache.queryNearbyWeather(
-                            marker.center.latitude,
-                            marker.center.longitude
-                        )
+                    // Dispatch Redux actions for this batch
+                    batch.forEach { pgSpotId ->
+                        val marker = currentlyRenderedPGSpots[pgSpotId]
+                        if (marker != null) {
+                            mapStore?.dispatch(WeatherActions.FetchWeatherForPGSpot(
+                                pgSpotId, marker.center.latitude, marker.center.longitude
+                            ))
+                        }
+                    }
 
-                        // Fetch fresh data if cache miss or stale
-                        if (weatherForecast == null) {
-                            weatherForecast = weatherAPI.fetchForecast(
+                    // Small delay between batches to prevent overwhelming Redux
+                    delay(100)
+                }
+
+                // PERFORMANCE OPTIMIZATION: Only fetch weather for spots that truly need it
+                val spotsNeedingWeather = pgSpotIds.filter { pgSpotId ->
+                    val marker = currentlyRenderedPGSpots[pgSpotId]
+                    marker != null && needsWeatherRefresh(pgSpotId) &&
+                    isWithinWeatherRange(marker.center, mapView?.boundingBox ?: return@launch)
+                }
+
+                if (spotsNeedingWeather.isNotEmpty()) {
+                    Log.d(TAG, "Weather refresh needed for ${spotsNeedingWeather.size}/${pgSpotIds.size} PG spots")
+
+                    // Fetch weather data sequentially to respect API rate limits
+                    for (pgSpotId in spotsNeedingWeather) {
+                        val marker = currentlyRenderedPGSpots[pgSpotId] ?: continue
+
+                        try {
+                            // Check cache first (aviation performance optimization)
+                            var weatherForecast = weatherCache.queryNearbyWeather(
                                 marker.center.latitude,
                                 marker.center.longitude
                             )
 
-                            // Cache the fresh data for future requests
-                            weatherForecast?.let { forecast ->
-                                weatherCache.cacheWeatherData(
+                            // Fetch fresh data if cache miss or stale
+                            if (weatherForecast == null) {
+                                weatherForecast = weatherAPI.fetchForecast(
                                     marker.center.latitude,
-                                    marker.center.longitude,
-                                    forecast
+                                    marker.center.longitude
                                 )
+
+                                // Cache the fresh data for future requests
+                                weatherForecast?.let { forecast ->
+                                    weatherCache.cacheWeatherData(
+                                        marker.center.latitude,
+                                        marker.center.longitude,
+                                        forecast
+                                    )
+                                }
                             }
+
+                            // Update Redux state with fetched weather
+                            if (weatherForecast != null) {
+                                  mapStore?.dispatch(WeatherActions.WeatherFetched(pgSpotId, weatherForecast))
+                                  updatePGSpotWithWindGauge(pgSpotId, weatherForecast)
+                                  updateWeatherTimestamp(pgSpotId) // Mark weather as fresh
+                                  Log.d(TAG, "Successfully fetched weather for PG spot: $pgSpotId")
+                              } else {
+                                 mapStore?.dispatch(WeatherActions.WeatherFetchError(
+                                     pgSpotId,
+                                     Exception("Weather fetch returned null")
+                                 ))
+                                 Log.w(TAG, "Weather fetch returned null for PG spot: $pgSpotId")
+                             }
+
+                        } catch (e: Exception) {
+                            // Aviation resilience - single PG spot weather failure doesn't break system
+                            Log.w(TAG, "Failed to fetch weather for PG spot $pgSpotId", e)
+                            mapStore?.dispatch(WeatherActions.WeatherFetchError(pgSpotId, e))
                         }
 
-                        // Update Redux state with fetched weather
-                        if (weatherForecast != null) {
-                             mapStore?.dispatch(WeatherActions.WeatherFetched(pgSpotId, weatherForecast))
-                             updatePGSpotWithWindGauge(pgSpotId, weatherForecast)
-                             updateWeatherTimestamp(pgSpotId) // Mark weather as fresh
-                             Log.d(TAG, "Successfully fetched weather for PG spot: $pgSpotId")
-                         } else {
-                            mapStore?.dispatch(WeatherActions.WeatherFetchError(
-                                pgSpotId,
-                                Exception("Weather fetch returned null")
-                            ))
-                            Log.w(TAG, "Weather fetch returned null for PG spot: $pgSpotId")
-                        }
-
-                    } catch (e: Exception) {
-                        // Aviation resilience - single PG spot weather failure doesn't break system
-                        Log.w(TAG, "Failed to fetch weather for PG spot $pgSpotId", e)
-                        mapStore?.dispatch(WeatherActions.WeatherFetchError(pgSpotId, e))
+                        // Respect API rate limits between requests (aviation professional behavior)
+                        delay(500) // 2 requests per second maximum
                     }
-
-                    // Respect API rate limits between requests (aviation professional behavior)
-                    delay(500) // 2 requests per second maximum
                 }
 
                 lastWeatherUpdate = System.currentTimeMillis()
@@ -433,17 +480,39 @@ class PGSpotOverlayManager(
             if (!pgSpotCache.isCached(countryCode)) {
                 // DOWNLOAD + PARSE + CACHE as FlexBuffers with Hilbert spatial index
                 Log.d(TAG, "No cached PG spots for $countryCode, downloading fresh data")
-                val downloadedFeatures = withContext(Dispatchers.IO) {
-                    pgSpotCache.cachePGSpotsData(countryCode)
+
+                val downloadedFeatures = try {
+                    withContext(Dispatchers.IO) {
+                        pgSpotCache.cachePGSpotsData(countryCode)
+                    }
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    Log.v(TAG, "PG spots download cancelled for $countryCode")
+                    return // Exit gracefully on cancellation
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error downloading PG spots for $countryCode: ${e.message}", e)
+                    // Try to use stale cache as fallback
+                    pgSpotCache.getCachedPGSpots(countryCode)
                 }
 
-                if (downloadedFeatures != null) {
+                if (downloadedFeatures != null && downloadedFeatures.isNotEmpty()) {
                     Log.d(TAG, "Downloaded and cached ${downloadedFeatures.size} PG spots for $countryCode")
                     // Now perform spatial query on the newly cached data
-                        nearbyFeatures = pgSpotCache.queryNearbyPGSpots(countryCode, center, 200.0)
+                    nearbyFeatures = pgSpotCache.queryNearbyPGSpots(countryCode, center, 200.0)
                 } else {
-                    Log.w(TAG, "Failed to download PG spots data for $countryCode")
-                    return // Graceful degradation - weather works without PG spots
+                    Log.w(TAG, "Failed to download PG spots data for $countryCode, trying fallback")
+
+                    // Try to use existing cache even if stale (better than no data)
+                    val fallbackFeatures = pgSpotCache.getCachedPGSpots(countryCode)
+                    if (fallbackFeatures != null && fallbackFeatures.isNotEmpty()) {
+                        Log.d(TAG, "Using stale cache as fallback: ${fallbackFeatures.size} PG spots for $countryCode")
+                        nearbyFeatures = fallbackFeatures.filter { feature ->
+                            val distance = center.distanceToAsDouble(feature.centroid) / 1000.0 // Convert to km
+                            distance <= 200.0 // Same 200km radius as fresh data
+                        }
+                    } else {
+                        Log.w(TAG, "No cached or downloaded PG spots available for $countryCode")
+                        return // Graceful degradation - weather works without PG spots
+                    }
                 }
             } else {
                 // CACHED: Use Hilbert spatial query for nearby features only
