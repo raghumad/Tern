@@ -19,6 +19,7 @@ import com.madanala.tern.R
 import com.madanala.tern.ui.overlays.AirspaceOverlayManager
 import com.madanala.tern.ui.overlays.OverlayCoordinator
 import com.madanala.tern.ui.overlays.PGSpotOverlayManager
+import com.madanala.tern.ui.overlays.RouteOverlayManager
 import com.madanala.tern.ui.screens.MAP_VIEW_SATELLITE
 import com.madanala.tern.ui.screens.MAP_VIEW_TERRAIN
 import com.madanala.tern.utils.CacheManager
@@ -91,6 +92,10 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
     // Overlay Coordinator - Our new advanced overlay system with memory limits
     private val overlayCoordinator = OverlayCoordinator()
 
+    // Route editing system - initialized immediately for availability
+    private var routeOverlayManager: RouteOverlayManager? = null
+    private var routeEditingManager: RouteEditingManager? = null
+
 
 
 
@@ -110,6 +115,9 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
         addMapOverlays()
         setupMapListeners()
         initializeOverlaySystem()
+
+        // Initialize route editing system immediately (Redux store connected later)
+        initializeRouteEditingSystem()
 
         // Set up Redux state observation when store is connected via setMapStore()
         // Dynamic airspace loading will be handled by location-based triggers
@@ -363,6 +371,21 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
+     * Initialize route editing system immediately (Redux store can be connected later)
+     */
+    private fun initializeRouteEditingSystem() {
+        // Initialize route overlay manager without Redux store
+        routeOverlayManager = RouteOverlayManager(routeStore = null, mapStore = null)
+
+        // Initialize route editing manager without Redux store
+        routeEditingManager = RouteEditingManager(
+            mapView = mapView,
+            routeOverlayManager = routeOverlayManager!!,
+            routeStore = null
+        )
+    }
+
+    /**
      * Initialize overlay system with Redux store after it's connected
      */
     private fun initializeOverlaySystemWithRedux(store: com.madanala.tern.redux.MapStore) {
@@ -382,7 +405,21 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
         val pgSpotManager = PGSpotOverlayManager(getApplication<Application>().applicationContext, store)
         overlayCoordinator.addOverlayManager(pgSpotManager)
 
-        Log.d(TAG, "Overlay managers registered with Redux store")
+        // Reconnect route overlay system with Redux store
+        routeOverlayManager?.setReduxStore(store)
+        overlayCoordinator.addOverlayManager(routeOverlayManager!!)
+
+        // Reconnect route editing manager with Redux store
+        routeEditingManager?.let { rem ->
+            // Create new instance with Redux store
+            routeEditingManager = RouteEditingManager(
+                mapView = mapView,
+                routeOverlayManager = routeOverlayManager!!,
+                routeStore = store
+            )
+        }
+
+        Log.d(TAG, "Route overlay and editing managers registered with Redux store")
     }
 
     /**
@@ -401,7 +438,39 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
         Log.d(TAG, "Redux Status - Has location permission: ${reduxState.hasLocationPermission}")
     }
 
+    /**
+     * Enable route editing mode - long-press on map to create waypoints
+     */
+    fun enableRouteEditMode() {
+        routeEditingManager?.setEditMode(true)
+        android.util.Log.i(TAG, "ROUTE EDIT MODE: Long-press map to create waypoints")
+    }
+
+    /**
+     * Disable route editing mode
+     */
+    fun disableRouteEditMode() {
+        routeEditingManager?.setEditMode(false)
+        android.util.Log.d(TAG, "Route edit mode disabled")
+    }
+
+    /**
+     * Check if route editing is currently active
+     */
+    fun isRouteEditModeActive(): Boolean {
+        return routeEditingManager?.isInEditMode() ?: false
+    }
+
+    /**
+     * Get route editing statistics for debugging
+     */
+    fun getRouteEditStats(): Map<String, Any> {
+        return routeEditingManager?.getEditingStats() ?: emptyMap()
+    }
+
     override fun onCleared() {
+        // Clean up route editing manager
+        routeEditingManager?.cleanup()
 
         pendingReduxUpdate?.let { mainHandler.removeCallbacks(it) }
 

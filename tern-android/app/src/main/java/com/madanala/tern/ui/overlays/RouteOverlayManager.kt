@@ -65,7 +65,6 @@ class RouteOverlayManager(
     private val performanceStats = mutableMapOf<String, Any>()
 
     override fun onOverlayAttached() {
-        Log.d(TAG, "Route overlay manager attached")
         setupRouteSubscription()
         initializeRouteOverlays()
     }
@@ -115,7 +114,6 @@ class RouteOverlayManager(
 
         // TODO: Integrate with RouteState for route data
         // For now, route data would come from a separate RouteStore
-        Log.d(TAG, "Redux state changed - route overlay config: ${routeConfig.enabled}")
     }
 
     override fun clearOverlays() {
@@ -177,7 +175,6 @@ class RouteOverlayManager(
 
         if (removedCount > 0) {
             mapView?.invalidate()
-            Log.d(TAG, "Removed $removedCount invisible route overlays")
         }
 
         return removedCount
@@ -468,18 +465,15 @@ class RouteOverlayManager(
         // TODO: Notify Redux store of selection when RouteStore is available
         // routeStore?.dispatch(RouteAction.SelectWaypoint(waypoint.id))
 
-        Log.d(TAG, "Waypoint clicked: ${waypoint.name}")
     }
 
     private fun onWaypointDragged(waypoint: Waypoint, newLocation: GeoPoint) {
         isDraggingWaypoint = true
         // Update waypoint location in real-time during drag
-        Log.d(TAG, "Waypoint dragged: ${waypoint.name} -> (${newLocation.latitude}, ${newLocation.longitude})")
     }
 
     private fun onWaypointDragStart(waypoint: Waypoint) {
         isDraggingWaypoint = true
-        Log.d(TAG, "Waypoint drag started: ${waypoint.name}")
     }
 
     private fun onWaypointDragEnd(waypoint: Waypoint, finalLocation: GeoPoint) {
@@ -492,8 +486,6 @@ class RouteOverlayManager(
         )
 
         // routeStore?.dispatch(RouteAction.UpdateWaypoint(0, updatedWaypoint)) // Index would need to be calculated
-
-        Log.d(TAG, "Waypoint drag ended: ${waypoint.name} -> (${finalLocation.latitude}, ${finalLocation.longitude})")
     }
 
     private fun updateWaypointVisualState() {

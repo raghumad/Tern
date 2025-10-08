@@ -138,7 +138,6 @@ object PerformanceDebugger {
     fun recordDuplicateRequest(requestKey: String) {
         if (!isEnabled) return
         loadingMetrics.duplicateRequests.incrementAndGet()
-        Log.v(TAG, "Duplicate request blocked: $requestKey")
     }
 
     /**
@@ -147,7 +146,6 @@ object PerformanceDebugger {
     fun recordUniqueRequest(requestKey: String) {
         if (!isEnabled) return
         loadingMetrics.uniqueRequests.incrementAndGet()
-        Log.v(TAG, "Unique request: $requestKey")
     }
 
     // ==================== PRIORITY 4: COUNTRY BORDER MANAGEMENT ====================

@@ -104,15 +104,12 @@ class AirspaceOverlayManager(
     }
 
     override fun setEnabled(enabled: Boolean) {
-        Log.d(TAG, "AirspaceOverlayManager setEnabled: $enabled")
     }
 
     override fun updateConfig(config: com.madanala.tern.redux.OverlayConfig) {
-        Log.d(TAG, "AirspaceOverlayManager updateConfig: $config")
     }
 
     override fun onOverlayAttached() {
-        Log.d(TAG, "Airspace overlay manager attached")
 
         // Get universal country cache manager from overlay coordinator
         // Note: This would need to be passed from the coordinator in real implementation
@@ -157,13 +154,11 @@ class AirspaceOverlayManager(
 
     override fun performMapMove(center: GeoPoint, zoom: Double) {
         if (!isEnabled()) {
-            Log.d(TAG, "Airspaces disabled, skipping map move handling")
             return
         }
 
         // Postpone overlay operations until GPS fix is available
         if (!hasValidGPSFix) {
-            Log.d(TAG, "No GPS fix yet, postponing airspace loading until GPS coordinates are available")
             return
         }
 
@@ -181,29 +176,23 @@ class AirspaceOverlayManager(
             val distanceKm = distance / 1000.0
 
             if (distanceKm < checkDistanceKm) {
-                Log.v(TAG, String.format("Not moved far enough (%.1f km < %.1f km), skipping reload",
-                    distanceKm, checkDistanceKm))
                 return
             }
         }
 
-        Log.d(TAG, "Map moved significantly, checking airspace state")
         checkAndLoadAirspaceData(center)
     }
 
     override fun onViewportChanged(viewport: BoundingBox) {
-        Log.d(TAG, "Viewport changed: $viewport")
         onViewportChangedInternal(viewport)
     }
 
     override fun onViewportChangedInternal(viewport: BoundingBox) {
-        Log.d(TAG, "Viewport changed internal: $viewport")
         manageViewportAirspaces(viewport)
     }
 
     override fun onReduxStateChanged(state: MapState) {
         val enabled = isEnabled()
-        Log.v(TAG, "Redux state changed, airspaces enabled: $enabled")
 
         if (!enabled) {
             // Clear airspaces if disabled
@@ -213,7 +202,6 @@ class AirspaceOverlayManager(
         } else if (mapView != null) {
             // Postpone Redux-triggered overlay operations until GPS fix is available
             if (!hasValidGPSFix) {
-                Log.d(TAG, "Postponing Redux-triggered airspace loading until GPS fix")
                 return
             }
 
@@ -311,7 +299,6 @@ class AirspaceOverlayManager(
             currentlyRenderedAirspaces.remove(airspaceId)
         }
 
-        Log.d(TAG, "Viewport cleanup: Removed ${removedCount} invisible non-critical airspaces")
         return removedCount
     }
 
@@ -374,7 +361,6 @@ class AirspaceOverlayManager(
             currentlyRenderedAirspaces.remove(airspaceId)
         }
 
-        Log.d(TAG, "Emergency cleanup: Removed ${removedCount} airspaces from ${zone.name} zone")
         return removedCount
     }
 
@@ -393,7 +379,6 @@ class AirspaceOverlayManager(
             distance <= coreZoneThreshold
         }
 
-        Log.d(TAG, "Emergency cleanup: Preserved ${safetyCriticalAirspaces.size} safety-critical airspaces in CORE zone")
         return safetyCriticalAirspaces.size
     }
 
@@ -433,8 +418,6 @@ class AirspaceOverlayManager(
                             overlayId = airspaceId,
                             mapView = map
                         ) {
-                            // Animation manager handles removal - just update tracking
-                            Log.v(TAG, "Clear animation completed for: $airspaceId")
                         } ?: throw IllegalStateException(
                             "Animation manager is required for airspace overlay removal. " +
                             "Ensure OverlayCoordinator is properly initialized."
@@ -477,7 +460,6 @@ class AirspaceOverlayManager(
      */
     private suspend fun loadAirspaceForLocation(context: Context, center: GeoPoint) {
         try {
-            Log.v(TAG, "Loading airspaces for location: ${center.latitude}, ${center.longitude}")
 
             // Use universal country cache manager for intelligent country management
             countryCacheManager?.let { countryCache ->
@@ -486,7 +468,6 @@ class AirspaceOverlayManager(
 
                 if (nearbyFeatures.isNotEmpty()) {
                     mapView?.let { map ->
-                        Log.v(TAG, "Rendering ${nearbyFeatures.size} nearby airspaces from multiple countries")
                         updateAirspaceOverlaysIncrementally(map, nearbyFeatures)
                     } ?: Log.w(TAG, "Cannot render airspaces - no map view available")
 
@@ -524,7 +505,6 @@ class AirspaceOverlayManager(
                 return
             }
 
-            Log.v(TAG, "Country code (fallback): $countryCode")
 
             // Check if country data is cached (original spatial-first architecture)
             if (!airspaceCache.isCached(countryCode)) {
@@ -541,7 +521,6 @@ class AirspaceOverlayManager(
                     return
                 }
             } else {
-                Log.v(TAG, "Using cached airspace data for $countryCode (fallback)")
             }
 
             // Always use spatial query - never load entire countries (original approach)
@@ -549,7 +528,6 @@ class AirspaceOverlayManager(
 
             if (nearbyFeatures.isNotEmpty()) {
                 mapView?.let { map ->
-                    Log.v(TAG, "Rendering ${nearbyFeatures.size} nearby airspaces for $countryCode (fallback)")
                     updateAirspaceOverlaysIncrementally(map, nearbyFeatures)
                 } ?: Log.w(TAG, "Cannot render airspaces - no map view available")
 
@@ -598,8 +576,9 @@ class AirspaceOverlayManager(
         // 🎯 STEP 2: Calculate differences (what needs to change)
         val changes = calculateOverlayChanges(desiredAirspaceIds)
 
-        Log.v(TAG, String.format(
-            "Airspace changes: Adding %d, Removing %d",
+        // Log airspace changes for debugging
+        Log.d(TAG, String.format(
+            "Airspace changes: Adding %d, Removing %d airspaces",
             changes.toAdd.size,
             changes.toRemove.size
         ))
@@ -693,7 +672,6 @@ class AirspaceOverlayManager(
                     animationManager?.animateOverlayRemoval(polygon, airspaceId, map) {
                         // Animation manager handles removal - just update our tracking
                         currentlyRenderedAirspaces.remove(airspaceId)
-                        Log.v(TAG, "Animation manager completed removal: $airspaceId")
                     } ?: throw IllegalStateException(
                         "Animation manager is required for airspace overlay removal. " +
                         "Ensure OverlayCoordinator is properly initialized."
@@ -726,7 +704,6 @@ class AirspaceOverlayManager(
                         overlayId = airspaceId,
                         mapView = map
                     ) {
-                        Log.v(TAG, "Airspace animation completed: $airspaceId")
                     }
                 }
             }
@@ -748,7 +725,6 @@ class AirspaceOverlayManager(
                         mapView = map,
                         staggerDelay = index * 100L // Stagger for visual polish
                     ) {
-                        Log.v(TAG, "Animation manager completed addition: $airspaceId")
                     } ?: throw IllegalStateException(
                         "Animation manager is required for airspace overlay addition. " +
                         "Ensure OverlayCoordinator is properly initialized."
@@ -1054,7 +1030,6 @@ class AirspaceOverlayManager(
      */
     private fun onAirspaceVisible(feature: OverlayFeature) {
          val airspaceId = generateAirspaceId(feature)
-         Log.v(TAG, "Airspace entered view: $airspaceId")
 
          // Trigger intelligent preloading of adjacent areas
          preloadAdjacentAirspaceAreas(feature)
@@ -1072,7 +1047,6 @@ class AirspaceOverlayManager(
      */
     private fun onAirspaceHidden(feature: OverlayFeature) {
          val airspaceId = generateAirspaceId(feature)
-         Log.v(TAG, "Airspace left view: $airspaceId")
 
          // Mark airspace as hidden for potential cleanup
          scheduleAirspaceCleanup(airspaceId)
@@ -1119,7 +1093,6 @@ class AirspaceOverlayManager(
     private fun updateAirspaceAccessTime(airspaceId: String) {
          // Update access time for LRU eviction logic
          // This helps keep most recently viewed airspaces in memory
-         Log.v(TAG, "Updated access time for airspace: $airspaceId")
      }
 
     /**

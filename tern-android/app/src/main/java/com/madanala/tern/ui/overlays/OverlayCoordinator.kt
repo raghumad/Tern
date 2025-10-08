@@ -78,7 +78,6 @@ class OverlayCoordinator {
     fun initialize(mapStore: MapStore?, mapView: MapView, context: Context) {
         this.mapStore = mapStore
         this.mapView = mapView
-        Log.d(TAG, "OverlayCoordinator initialized")
 
 
         // Initialize universal country cache manager for all overlay types (Priority 0 fix)
@@ -139,7 +138,6 @@ class OverlayCoordinator {
             }
         } ?: Log.w(TAG, "Country cache manager not available")
 
-        Log.d(TAG, "Added overlay manager: $overlayType, total managers: ${activeManagers.size}")
     }
 
     /**

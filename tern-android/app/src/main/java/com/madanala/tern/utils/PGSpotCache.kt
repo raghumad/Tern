@@ -111,7 +111,6 @@ class PGSpotCache(context: Context) {
                 return false
             }
 
-            Log.v(TAG, "PG spots cache integrity valid for $countryCode (${cacheFileSize} bytes data, ${spatialIndex.entries.size} entries)")
             return true
 
         } catch (e: Exception) {
@@ -185,9 +184,6 @@ class PGSpotCache(context: Context) {
 
                     // Cache as FlexBuffers + Hilbert spatial indexing
                     cachePGSpotsFeatures(countryCode, validFeatures)
-
-                    // Delete original GeoJSON file after successful conversion (same as AirspaceCache)
-                    deleteOriginalGeoJsonFile(countryCode)
 
                     Log.d(TAG, "Successfully cached ${validFeatures.size} PG spots for $countryCode")
                     return validFeatures
@@ -434,19 +430,6 @@ class PGSpotCache(context: Context) {
         }
     }
 
-    /**
-     * Delete the original GeoJSON file after successful FlexBuffers conversion
-     */
-    private fun deleteOriginalGeoJsonFile(countryCode: String) {
-        try {
-            // The original file would be stored as "${countryCode}_pgspots.geojson"
-            // but since we don't actually save it to disk (we only use it in memory),
-            // this method is primarily for consistency with AirspaceCache pattern
-            Log.v(TAG, "Original GeoJSON file cleanup completed for $countryCode")
-        } catch (e: Exception) {
-            Log.w(TAG, "Error during original GeoJSON file cleanup for $countryCode: ${e.message}")
-        }
-    }
 
     /**
      * Validate that an OverlayFeature has valid data

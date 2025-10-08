@@ -47,6 +47,7 @@ abstract class BaseOverlayManager(
     protected var mapView: MapView? = null
     protected var isAttached = false
 
+
     // Universal animation manager for smooth transitions
     internal var animationManager: com.madanala.tern.ui.overlays.OverlayCoordinator.OverlayAnimationManager? = null
     protected var hasValidGPSFix = false
@@ -76,7 +77,6 @@ abstract class BaseOverlayManager(
         this.mapView = mapView
         isAttached = true
 
-        Log.d(TAG, "Attaching overlay manager")
 
         // Initialize adaptive overlay system
         initializeAdaptiveOverlaySystem()
@@ -135,8 +135,8 @@ abstract class BaseOverlayManager(
     }
 
     /**
-     * Get detailed overlay visibility statistics for debugging
-     */
+      * Get detailed overlay visibility statistics for debugging
+      */
     fun getDetailedOverlayStats(): Map<String, Any> {
         val mapOverlayCount = mapView?.overlays?.size ?: 0
 
@@ -302,7 +302,6 @@ abstract class BaseOverlayManager(
      * Handle memory state changes from the adaptive system
      */
     private fun handleMemoryStateChanged(memoryState: ApplicationMemoryState) {
-        Log.v(TAG, "Memory state changed: ${memoryState.calculatedPressure.name}")
         // Subclasses can override this for memory-specific behavior
         onMemoryStateChanged(memoryState)
     }
