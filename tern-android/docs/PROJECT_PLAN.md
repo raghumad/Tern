@@ -3,15 +3,118 @@
 ## Context
 Android paragliding app with osmdroid maps, Jetpack Compose UI, Redux architecture, and advanced caching. Focus on aviation safety and performance for competition use (Red Bull X-Alps).
 
-## ✅ COMPLETED (Phases 1-3, Priorities 1-4)
+## ✅ COMPLETED (Phases 1-3, Priorities 1-4 + Most of Phase 4)
 - **Redux Architecture & Performance**: 100% complete with 95%+ reduction in state updates
 - **Overlay System**: Smart country management, smooth border transitions, universal caching
 - **Critical Bugs**: All resolved (UI blocking, cache persistence, ANR crashes)
 - **Aviation Safety**: Border cache issues resolved, continuous visual display during flight
 
-## 🎯 NEXT PRIORITIES
+## 🎯 CURRENT STATUS - October 2025 Assessment
+**DISCOVERY**: Most Phase 4 usability items are already implemented in recent commits!
 
-### PRIORITY 5: Enhanced Features & Polish
+### ✅ VERIFIED COMPLETED (Items 2-4 of Phase 4):
+- **Item 2: Smooth Overlay Transitions** ✅ - "Complete Overlay Animation System Overhaul"
+- **Item 3: Performance Optimization** ✅ - Adaptive overlay management with memory optimization
+- **Item 4: Enhanced Welcome Screen** ✅ - Comprehensive GPS state handling with professional UI
+
+### 🚧 REMAINING PHASE 4:
+- **Item 5: Settings Reorganization** - Current: "Map Layers" + "Units" → Target: "Aviation → Display → Units → Help"
+- **Item 6: User Guidance Enhancement** - No tooltip system found, basic onboarding exists
+
+## 🎯 NEXT PRIORITIES - Updated October 2025
+
+### 🚀 IMPLEMENTATION FOCUS: iOS Route Planning Integration
+
+**Technical Foundation Discovered:**
+- ✅ **Redux Infrastructure** - Complete state management ready for route data
+- ✅ **Overlay Architecture** - Mature system ready for route visualization
+- ✅ **Weather Algorithms** - `WeatherRouter` and `RiskAssessmentEngine` complete
+- ✅ **Flight Computer** - Advanced aviation calculations implemented
+
+**iOS Route Planning Analysis:**
+- **Waypoint Management** - Interactive map-based waypoint creation/editing
+- **FAI Compliance** - Competition-grade turnpoint validation (400m cylinders)
+- **QR Code System** - Tested 5-bit encoding system for compact data sharing
+- **Multi-format Export** - XCTSK, GPX, CUP, CompeGPS formats
+
+### 📋 DETAILED IMPLEMENTATION ROADMAP
+
+#### Week 1: Core Route Planning (Start Monday Morning)
+**Day 1: Redux Foundation**
+- Implement `RouteState` and Redux actions for waypoint management
+- Create `Waypoint` data model with FAI compliance features
+- Set up `RouteOverlayManager` extending `BaseOverlayManager`
+
+**Day 2: Map Integration**
+- Add interactive waypoint creation (tap to add, drag to move)
+- Implement route visualization with polyline overlays
+- Add waypoint markers with numbered identification
+
+**Day 3: Route Calculation**
+- Implement distance/bearing calculations between waypoints
+- Add route validation and safety checks
+- Create route statistics (total distance, leg distances)
+
+**Day 4: FAI Competition Rules**
+- Implement FAI turnpoint cylinder validation (400m radius)
+- Add FAI scoring system (distance/speed/leading points)
+- Create competition task management
+
+**Day 5: Export System**
+- Implement multiple format support (GPX, KML, XCTSK, CUP)
+- Add file sharing capabilities
+- Set up foundation for QR code system
+
+#### Week 2: QR Code Integration & Weather UX
+**Day 6-7: QR Code System**
+- Implement iOS-tested 5-bit encoding algorithms
+- Create QR code generation and scanning
+- Add QR code sharing interface
+
+**Day 8-10: Weather UX Features**
+- Weather route visualization on map
+- Flight computer UI integration
+- Risk assessment display
+
+### 🎯 SUCCESS METRICS
+- **Route Planning**: Functional waypoint management with FAI compliance
+- **QR Sharing**: Working QR code system matching iOS functionality
+- **Weather Integration**: Visual weather-optimized route display
+- **Performance**: <10 Redux dispatches/sec, <75% memory usage maintained
+
+### ⚠️ STRICT COMPLETION CRITERIA
+- All items marked ✅ ONLY when technical success metrics are verified
+- Code must compile without errors or warnings
+- Redux architecture compliance maintained
+- Performance targets met: <10 Redux dispatches/sec, <75% memory usage
+- Aviation safety standards preserved (smooth transitions, no UI blocking)
+
+### PRIORITY 5: iOS Route Planning Integration & Weather UX
+
+**USER DIRECTION**: Focus on core UX features before settings/user guidance polish.
+
+#### Phase 1: iOS Route Planning Foundation (Start Here)
+**🏗️ iOS Route Planning Feature** - *Port proven waypoint management system*
+- [ ] **Waypoint Management Redux** - Add/edit/delete waypoints with Redux state management
+- [ ] **Route Calculation Engine** - Distance/bearing calculations between waypoints
+- [ ] **Route Visualization** - Display routes on map with overlay system integration
+- [ ] **FAI Competition Rules** - Implement FAI scoring system and turnpoint validation
+- [ ] **Route Export System** - Multiple format support (GPX, KML, GeoJSON, XCTSK)
+- [ ] **QR Code System** - Port tested iOS QR sharing with 5-bit encoding
+
+#### Phase 2: Weather-Related UX Features (After Route Planning)
+**🌤️ Weather Integration & Visualization**
+- [ ] **Weather Route Visualization** - Display thermal opportunities and route optimization
+- [ ] **Flight Computer UI** - Real-time variometer, wind data, final glide display
+- [ ] **Risk Assessment Display** - Show current risk factors and safety recommendations
+- [ ] **Enhanced Weather Intelligence UI** - Aviation-specific weather with flight conditions
+
+#### Phase 3: Polish & User Experience (When Ready)
+**✨ User Interface Enhancement**
+- [ ] **Settings Reorganization** - Aviation → Display → Units → Help structure
+- [ ] **User Guidance Enhancement** - Tooltip system and contextual help
+
+### PRIORITY 6: Advanced Features (Future)
 
 #### Phase 1: Foundation Layer (Enables All Other Features)
 **🔧 Advanced Aviation Features** - *Build First*
@@ -287,6 +390,43 @@ Low risk - building on solid, validated foundation with clear architectural guar
 - Integration tests for overlay management
 - Performance benchmarks before/after each change
 - User experience validation on target devices
+
+### 📚 IOS CODE ANALYSIS - Key Discoveries
+
+**QR Code System Analysis** (`RoutePlannerModel.swift` lines 662-777):
+- **XCTSK Format**: Uses XCTrack competition format with JSON structure
+- **5-Bit Encoding**: Custom compact encoding for integers (altitude, radius)
+- **Polyline Encoding**: Google polyline algorithm for coordinate compression
+- **Multi-format Support**: XCTSK, CUP, CompeGPS WPT, OziExplorer formats
+
+**Route Planning Architecture**:
+- **Waypoint Management**: Interactive map-based creation with drag editing
+- **FAI Compliance**: 400m turnpoint cylinders, competition scoring
+- **Export Integration**: Multiple aviation formats for broad compatibility
+- **Redux-Ready**: Architecture matches existing Redux overlay pattern
+
+**Technical Implementation Notes**:
+- **Custom Encoding**: `encodeSingleInteger()` and `encodeFiveBitComponents()` for compact data
+- **Format Standards**: XCTSK for competitions, CUP for GPS devices, GPX for general use
+- **Error Handling**: Robust validation and format conversion
+- **Performance**: Optimized for mobile QR code generation and scanning
+
+### 🚀 READY FOR IMPLEMENTATION
+
+**Monday Morning Start Point:**
+1. **Redux Route State** - Implement `RouteState` and waypoint actions
+2. **Waypoint Overlay Manager** - Create `RouteOverlayManager` extending `BaseOverlayManager`
+3. **Interactive Waypoint Creation** - Tap to add, drag to edit waypoints
+4. **Route Visualization** - Display routes with distance calculations
+5. **QR Code Integration** - Port iOS-tested 5-bit encoding system
+
+**Foundation Ready:**
+- ✅ Redux architecture prepared for route state management
+- ✅ Overlay system ready for route visualization
+- ✅ Weather algorithms available for route enhancement
+- ✅ iOS implementation analyzed and understood
+
+This updated plan provides a **clear, actionable roadmap** for immediate development focus on the iOS route planning integration, followed by weather UX features, with settings polish held for later when the core functionality is solid.
 
 ---
 
