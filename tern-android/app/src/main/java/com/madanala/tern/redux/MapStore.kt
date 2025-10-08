@@ -158,6 +158,7 @@ class MapStore : ViewModel() {
         val currentEnabled = when (type) {
             OverlayType.AIRSPACE -> _state.value.overlayState.airspaces.enabled
             OverlayType.PG_SPOTS -> _state.value.overlayState.pgSpots.enabled
+            OverlayType.ROUTES -> _state.value.overlayState.routes.enabled
         }
         setOverlayEnabled(type, !currentEnabled)
     }
