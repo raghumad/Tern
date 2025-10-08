@@ -58,6 +58,7 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
         val newOverlayState = when (action.type) {
             OverlayType.AIRSPACE -> state.overlayState.copy(airspaces = state.overlayState.airspaces.copy(enabled = action.enabled))
             OverlayType.PG_SPOTS -> state.overlayState.copy(pgSpots = state.overlayState.pgSpots.copy(enabled = action.enabled))
+            OverlayType.ROUTES -> state.overlayState.copy(routes = state.overlayState.routes.copy(enabled = action.enabled))
         }
         state.copy(overlayState = newOverlayState)
     }
@@ -65,6 +66,7 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
         val newOverlayState = when (action.type) {
             OverlayType.AIRSPACE -> state.overlayState.copy(airspaces = action.config)
             OverlayType.PG_SPOTS -> state.overlayState.copy(pgSpots = action.config)
+            OverlayType.ROUTES -> state.overlayState.copy(routes = action.config)
         }
         state.copy(overlayState = newOverlayState)
     }

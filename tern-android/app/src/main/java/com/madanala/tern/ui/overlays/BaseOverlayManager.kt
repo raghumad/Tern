@@ -182,6 +182,7 @@ abstract class BaseOverlayManager(
             return when (overlayType) {
                 OverlayType.AIRSPACE -> state.overlayState.airspaces
                 OverlayType.PG_SPOTS -> state.overlayState.pgSpots
+                OverlayType.ROUTES -> state.overlayState.routes
             }
         }
         // Default config when no Redux store (all enabled for stability)

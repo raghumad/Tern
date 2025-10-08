@@ -5,7 +5,8 @@ package com.madanala.tern.redux
  */
 enum class OverlayType {
     AIRSPACE,
-    PG_SPOTS
+    PG_SPOTS,
+    ROUTES
 }
 
 data class OverlayConfig(
@@ -17,7 +18,8 @@ data class OverlayConfig(
 
 data class OverlayState(
     val airspaces: OverlayConfig = OverlayConfig(enabled = true), // Default enabled
-    val pgSpots: OverlayConfig = OverlayConfig(enabled = true)   // Enabled for weather features
+    val pgSpots: OverlayConfig = OverlayConfig(enabled = true),   // Enabled for weather features
+    val routes: OverlayConfig = OverlayConfig(enabled = true)     // Route visualization enabled by default
 )
 
 /**
