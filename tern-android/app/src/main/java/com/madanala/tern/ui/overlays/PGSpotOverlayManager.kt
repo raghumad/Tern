@@ -542,9 +542,9 @@ class PGSpotOverlayManager(
     }
 
     /**
-      * RENDER PG SPOTS WITH WEATHER CAPABILITY
-      * Initial static display with future dynamic weather integration
-      */
+       * RENDER PG SPOTS WITH WEATHER CAPABILITY
+       * Initial static display with future dynamic weather integration
+       */
     private fun renderPGSpotFeaturesWithWeather(features: List<OverlayFeature>) {
         features.forEach { feature ->
             addPGSpotIfNotExists(feature)
@@ -555,10 +555,23 @@ class PGSpotOverlayManager(
             String.format("@ %.4f,%.4f", center.latitude, center.longitude)
         } else "@ unknown"
 
+        // Essential logging for debugging
+        mapView?.overlays?.let { overlays ->
+            val totalOverlays = overlays.size
+            val pgSpotCount = overlays.count { overlay ->
+                overlay is org.osmdroid.views.overlay.Marker &&
+                currentlyRenderedPGSpots.values.any { it.marker == overlay }
+            }
+
+            Log.d(TAG, "PG spot render: $totalOverlays total overlays, $pgSpotCount PG spots")
+        }
+
         mapView?.invalidate()
-        // Check how many are actually visible after rendering
+
+        // Check visibility after rendering
         val actuallyVisibleAfterRender = currentlyRenderedPGSpots.count { (_, markerData) ->
-            mapView?.overlays?.contains(markerData.marker) == true
+            mapView?.overlays?.contains(markerData.marker) == true &&
+            isPointInBoundingBox(markerData.center, mapView?.boundingBox ?: return@count false)
         }
 
         Log.d(TAG, String.format(
@@ -567,26 +580,17 @@ class PGSpotOverlayManager(
             actuallyVisibleAfterRender,
             centerStr
         ))
-
-        // Debug: List what's actually in the map overlays
-        mapView?.overlays?.let { overlays ->
-            val pgSpotOverlays = overlays.count { overlay ->
-                overlay is org.osmdroid.views.overlay.Marker &&
-                currentlyRenderedPGSpots.values.any { it.marker == overlay }
-            }
-            Log.v(TAG, "Map overlays debug: $pgSpotOverlays PG spot markers found in map overlays")
-        }
     }
 
     /**
-       * ADD PG SPOT ONLY IF NOT EXISTS (prevents duplicates)
-       */
+        * ADD PG SPOT ONLY IF NOT EXISTS (prevents duplicates)
+        */
     private fun addPGSpotIfNotExists(feature: OverlayFeature) {
         val spotId = generatePGSpotId(feature)
 
         // Check if already exists to prevent duplicates
         if (currentlyRenderedPGSpots.containsKey(spotId)) {
-            Log.v(TAG, "PG spot already exists, skipping: $spotId")
+            Log.v(TAG, "DIAGNOSTIC: PG spot already exists, skipping: $spotId")
             return
         }
 
@@ -611,17 +615,18 @@ class PGSpotOverlayManager(
             // Add to tracking immediately
             currentlyRenderedPGSpots[spotId] = pgSpotMarker
 
-            // Add to Hilbert-ordered batch for smooth center-to-outside addition
-            // This will be processed in Hilbert curve order for visually beautiful addition
+            // ✅ FIXED: Process each overlay immediately with animation (no batching)
             val coordinator = getOverlayCoordinator()
             if (coordinator != null) {
-                coordinator.addOverlayToBatch(marker, spotId, center)
-
-                // Process the batch if this is the last overlay in a batch
-                // For now, process immediately to maintain current behavior
-                // In the future, this could be batched for better performance
-                if (currentlyRenderedPGSpots.size % 10 == 0) {
-                    coordinator.flushPendingAdditions()
+                // Use coordinator's animation manager for smooth transitions
+                coordinator.getAnimationManager().animateOverlayAddition(
+                    overlay = marker,
+                    overlayId = spotId,
+                    mapView = mapView!!,
+                    staggerDelay = 0L // No stagger for immediate processing
+                ) {
+                    // Animation completed - overlay is now visible
+                    Log.v(TAG, "PG spot animation completed: $spotId")
                 }
             } else {
                 // Fallback to direct animation manager if coordinator not available
@@ -638,19 +643,14 @@ class PGSpotOverlayManager(
                 )
             }
 
-            // Add click handler for weather details (future: detailed weather screen)
+            // Add click handler for weather details
             marker.setOnMarkerClickListener { clickedMarker, _ ->
                 showPGSpotWeatherDetails(feature)
                 true
             }
 
-            // Only log individual spot additions in debug mode to reduce spam
-            if (currentlyRenderedPGSpots.size % 10 == 0) {
-                Log.d(TAG, "Added PG spot batch: ${currentlyRenderedPGSpots.size} total spots")
-            }
-
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to render PG spot feature", e)
+            Log.w(TAG, "Failed to render PG spot feature $spotId", e)
         }
     }
 
@@ -875,8 +875,10 @@ class PGSpotOverlayManager(
 
         // Get actually visible PG spots (added to map vs just created)
         val actuallyVisibleSpots = currentlyRenderedPGSpots.count { (_, markerData) ->
-            markerData.marker.isInfoWindowShown || mapView?.overlays?.contains(markerData.marker) == true
+            mapView?.overlays?.contains(markerData.marker) == true &&
+            isPointInBoundingBox(markerData.center, mapView?.boundingBox ?: return@count false)
         }
+
 
         Log.d(TAG, String.format(
             "PG Spot Budget: %d total (Created: %d, Visible: %d %s)",

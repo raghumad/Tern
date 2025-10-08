@@ -1,6 +1,7 @@
 package com.madanala.tern.ui.overlays
 
 import android.content.Context
+import android.os.Looper
 import android.util.Log
 import com.madanala.tern.redux.MapState
 import com.madanala.tern.redux.MapStore
@@ -72,8 +73,8 @@ class OverlayCoordinator {
     }
 
     /**
-     * Initialize coordinator with Redux store
-     */
+      * Initialize coordinator with Redux store
+      */
     fun initialize(mapStore: MapStore?, mapView: MapView, context: Context) {
         this.mapStore = mapStore
         this.mapView = mapView
@@ -130,6 +131,10 @@ class OverlayCoordinator {
                     manager.setCountryCacheManager(countryCache)
                     manager.setOverlayCoordinator(this) // Connect for Hilbert ordering
                     Log.d(TAG, "✅ Connected PGSpotOverlayManager to universal country cache and coordinator")
+                }
+                else -> {
+                    // Handle other overlay manager types that don't need country cache
+                    Log.d(TAG, "Connected ${manager.overlayType} overlay manager (no country cache needed)")
                 }
             }
         } ?: Log.w(TAG, "Country cache manager not available")
@@ -350,8 +355,8 @@ class OverlayCoordinator {
     }
 
     /**
-     * Process batch of overlays with staggered animation for smooth visual effect
-     */
+      * Process batch of overlays with staggered animation for smooth visual effect
+      */
     private fun processBatchWithStaggeredAnimation(
         overlays: List<OverlayWithInfo>,
         isAddition: Boolean
@@ -359,14 +364,6 @@ class OverlayCoordinator {
         if (overlays.isEmpty() || mapView == null) return
 
         val staggerDelayMs = 100L // 100ms between each overlay
-        val totalOverlays = overlays.size
-
-        // Only log if processing more than one overlay to reduce spam
-        if (totalOverlays > 1) {
-            Log.d(TAG, "Processing ${totalOverlays} overlays with Hilbert ordering (${if (isAddition) "addition" else "removal"})")
-        } else {
-            Log.v(TAG, "Processing ${totalOverlays} overlay with Hilbert ordering (${if (isAddition) "addition" else "removal"})")
-        }
 
         overlays.forEachIndexed { index, overlayInfo ->
             val delay = index * staggerDelayMs
@@ -376,12 +373,24 @@ class OverlayCoordinator {
                     delay(delay)
 
                     if (isAddition) {
-                        overlayAnimationManager.animateOverlayAddition(
-                            overlay = overlayInfo.overlay,
-                            overlayId = overlayInfo.overlayId,
-                            mapView = mapView!!
-                        ) {
-                            Log.v(TAG, "Hilbert-ordered addition completed: ${overlayInfo.overlayId} (position ${index + 1}/$totalOverlays)")
+                        try {
+                            overlayAnimationManager.animateOverlayAddition(
+                                overlay = overlayInfo.overlay,
+                                overlayId = overlayInfo.overlayId,
+                                mapView = mapView!!
+                            ) {
+                                // Animation completed
+                            }
+                        } catch (e: Exception) {
+                            // Fallback: Add directly if animation fails
+                            try {
+                                if (overlayInfo.overlay is org.osmdroid.views.overlay.Overlay) {
+                                    mapView!!.overlays.add(overlayInfo.overlay)
+                                    mapView!!.invalidate()
+                                }
+                            } catch (fallbackException: Exception) {
+                                Log.e(TAG, "Fallback addition failed for ${overlayInfo.overlayId}", fallbackException)
+                            }
                         }
                     } else {
                         overlayAnimationManager.animateOverlayRemoval(
@@ -389,11 +398,11 @@ class OverlayCoordinator {
                             overlayId = overlayInfo.overlayId,
                             mapView = mapView!!
                         ) {
-                            Log.v(TAG, "Hilbert-ordered removal completed: ${overlayInfo.overlayId} (position ${index + 1}/$totalOverlays)")
+                            // Removal completed
                         }
                     }
                 } catch (e: Exception) {
-                    Log.e(TAG, "Error in Hilbert-ordered ${if (isAddition) "addition" else "removal"} for ${overlayInfo.overlayId}", e)
+                    Log.e(TAG, "Error in batch processing for ${overlayInfo.overlayId}", e)
                 }
             }
         }
@@ -683,30 +692,32 @@ class OverlayCoordinator {
         }
 
         /**
-          * Animate marker addition with correct fade-in behavior
-          * Fade-in: Add with 0 alpha → Animate to 1.0 alpha
-          */
+           * Animate marker addition with correct fade-in behavior
+           * Fade-in: Add with 0 alpha → Animate to 1.0 alpha
+           */
         private suspend fun animateMarkerAddition(marker: org.osmdroid.views.overlay.Marker, mapView: MapView) {
-            // Start with 0 alpha (invisible)
-            marker.alpha = 0.0f
+            try {
+                // Ensure main thread execution for UI operations
+                withContext(Dispatchers.Main) {
+                    // Add marker to map
+                    mapView.overlays.add(marker)
 
-            // Add to map (marker is invisible at this point)
-            mapView.overlays.add(marker)
+                    // Set to full visibility
+                    marker.alpha = 1.0f
 
-            // Animate from 0 to 1.0 alpha over 500ms
-            val animationDuration = 500L
-            val steps = 20
-            val stepDelay = animationDuration / steps
-
-            for (step in 1..steps) {
-                val fadeAlpha = (1.0f * step) / steps
-                marker.alpha = fadeAlpha
-                mapView.invalidate()
-                delay(stepDelay)
+                    // Refresh map
+                    mapView.invalidate()
+                }
+            } catch (e: Exception) {
+                // Emergency fallback
+                try {
+                    mapView.overlays.add(marker)
+                    marker.alpha = 1.0f
+                    mapView.invalidate()
+                } catch (fallbackException: Exception) {
+                    Log.e("OverlayAnimationManager", "Failed to add marker", fallbackException)
+                }
             }
-
-            // Final: Full opacity (1.0) for markers
-            marker.alpha = 1.0f
         }
 
         /**

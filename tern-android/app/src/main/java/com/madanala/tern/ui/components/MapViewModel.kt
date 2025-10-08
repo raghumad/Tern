@@ -140,6 +140,26 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
             })
             add(RotationGestureOverlay(mapView).apply { isEnabled = true })
 
+            // Location overlay will be added later when permissions are granted
+            // See initializeLocationOverlay() method
+        }
+    }
+
+    /**
+     * Initialize location overlay only after location permissions are granted
+     * This prevents the "Operation not started" errors
+     */
+    fun initializeLocationOverlay() {
+        if (myLocationOverlay != null) {
+            Log.d(TAG, "Location overlay already initialized")
+            return
+        }
+
+        val context = getApplication<Application>().applicationContext
+
+        try {
+            Log.d(TAG, "Initializing location overlay with proper permission check")
+
             myLocationOverlay = MyLocationNewOverlay(GpsMyLocationProvider(context), mapView).apply {
                 isDrawAccuracyEnabled = true
 
@@ -170,11 +190,17 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
                         setPersonIcon(bitmap)
                         setDirectionIcon(bitmap)
                     }
-                } catch (_: Exception) {
-                    // Log error
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to set custom location icon", e)
                 }
             }
-            add(myLocationOverlay)
+
+            mapView.overlays.add(myLocationOverlay)
+            Log.d(TAG, "Location overlay successfully initialized and added to map")
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to initialize location overlay", e)
+            // Don't throw - allow app to continue without location services
         }
     }
 
@@ -222,6 +248,8 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
                 // Handle permission changes
                 if (oldState.hasLocationPermission != newState.hasLocationPermission) {
                     if (newState.hasLocationPermission) {
+                        // Initialize location overlay now that permissions are granted
+                        initializeLocationOverlay()
                         startLocationUpdates()
                     } else {
                         myLocationOverlay?.disableMyLocation()
@@ -327,6 +355,11 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
 
         // Set up Redux state observation when store becomes available
         setupReduxStateObservation()
+
+        // If we already have location permission when store is connected, initialize location overlay
+        if (reduxState.hasLocationPermission) {
+            initializeLocationOverlay()
+        }
     }
 
     /**
