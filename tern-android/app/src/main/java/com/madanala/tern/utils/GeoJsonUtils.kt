@@ -94,7 +94,6 @@ object GeoJsonUtils {
         return try {
             // Try to parse as JSON to ensure it's not corrupted
             mapper.readTree(content)
-            android.util.Log.v("GeoJsonUtils", "✅ Valid GeoJSON structure for $url")
             true
         } catch (e: Exception) {
             android.util.Log.w("GeoJsonUtils", "Invalid JSON structure for $url: ${e.message}")

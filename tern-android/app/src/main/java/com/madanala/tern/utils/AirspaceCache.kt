@@ -110,7 +110,6 @@ class AirspaceCache(private val context: Context) {
                 return false
             }
 
-            Log.v(TAG, "Airspace cache integrity valid for $countryCode (${cacheFileSize} bytes data, ${spatialIndex.entries.size} entries)")
             return true
 
         } catch (e: Exception) {

@@ -27,6 +27,10 @@ class UniversalCountryCacheManager(
     private var lastLocation: GeoPoint? = null
     private var currentCountry: String? = null
 
+    // Enhanced access tracking for intelligent cache management
+    private val countryAccessMetadata = mutableMapOf<String, CountryAccessMetadata>()
+    private val accessOrderedCountries = LinkedHashSet<String>() // LRU ordering for cache eviction
+
     // Aviation-optimized configuration
     companion object {
         const val MAX_CACHED_COUNTRIES = 4
@@ -35,6 +39,17 @@ class UniversalCountryCacheManager(
         const val SIGNIFICANT_MOVE_KM = 2.0
         const val COUNTRY_UNLOAD_DELAY_MS = 10000L
     }
+
+    /**
+     * Data class for tracking country access metadata for intelligent cache management.
+     * Enables LRU-style eviction and performance monitoring for aviation safety.
+     */
+    private data class CountryAccessMetadata(
+        var firstAccessTime: Long,
+        var lastAccessTime: Long,
+        var accessCount: Int,
+        var totalAccessTime: Long
+    )
 
     init {
         Log.d(TAG, "UniversalCountryCacheManager initialized")
@@ -180,11 +195,95 @@ class UniversalCountryCacheManager(
     }
 
     /**
-     * Update country access time
+     * Update country access time with intelligent cache management.
+     *
+     * This method implements LRU-style access tracking for aviation-optimized
+     * country caching. It maintains access metadata for performance monitoring
+     * and enables smart cache eviction based on usage patterns.
+     *
+     * @param country The ISO country code to update access for
+     * @return true if access was recorded successfully, false if country is invalid
      */
-    private fun updateCountryAccess(country: String) {
-        // In real implementation, would update access timestamp in cache metadata
-        Log.v(TAG, "Updated access for country: $country")
+    private suspend fun updateCountryAccess(country: String): Boolean {
+        // Input validation - early return for invalid inputs
+        if (country.isBlank()) {
+            Log.w(TAG, "Attempted to update access for blank country code")
+            return false
+        }
+
+        if (country.length != 2) {
+            Log.w(TAG, "Invalid country code format (expected 2 chars): $country")
+            return false
+        }
+
+        return try {
+            mutex.withLock {
+                updateCountryAccessInternal(country)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error updating access for country: $country", e)
+            false
+        }
+    }
+
+    /**
+     * Internal access update logic with full cache management functionality.
+     * Protected by mutex lock for thread safety.
+     */
+    private fun updateCountryAccessInternal(country: String): Boolean {
+        val currentTime = System.currentTimeMillis()
+
+        // Initialize or update country metadata
+        val metadata = countryAccessMetadata.getOrPut(country) {
+            CountryAccessMetadata(
+                firstAccessTime = currentTime,
+                lastAccessTime = currentTime,
+                accessCount = 0,
+                totalAccessTime = 0L
+            )
+        }
+
+        // Update access statistics
+        metadata.apply {
+            lastAccessTime = currentTime
+            accessCount++
+            totalAccessTime += currentTime - (this.lastAccessTime - (currentTime - lastAccessTime))
+        }
+
+        // Record performance metrics for aviation safety monitoring
+        recordCountryAccess(country, metadata.accessCount)
+
+        // Implement LRU-style management: move to end of access order
+        accessOrderedCountries.remove(country)
+        accessOrderedCountries.add(country)
+
+        // Smart cache size management - evict least recently used if needed
+        if (accessOrderedCountries.size > MAX_CACHED_COUNTRIES) {
+            evictLeastRecentlyUsedCountry()
+        }
+
+        Log.v(TAG, "Updated access for country: $country (access count: ${metadata.accessCount})")
+        return true
+    }
+
+    /**
+     * Evict the least recently used country when cache is full.
+     * This implements intelligent cache management for aviation performance.
+     */
+    private fun evictLeastRecentlyUsedCountry() {
+        if (accessOrderedCountries.isEmpty()) return
+
+        val lruCountry = accessOrderedCountries.removeFirst()
+        countryAccessMetadata.remove(lruCountry)?.let { metadata ->
+            Log.d(TAG, "Evicted LRU country: $lruCountry " +
+                  "(accessed ${metadata.accessCount} times, last: ${metadata.lastAccessTime})")
+
+            // Record eviction for performance monitoring
+            recordCacheEviction(lruCountry, metadata.accessCount)
+        }
+
+        // Remove from main cache if present
+        cachedCountries.remove(lruCountry)
     }
 
     // ==================== UTILITY FUNCTIONS ====================
@@ -299,11 +398,23 @@ class UniversalCountryCacheManager(
      * Get cache statistics for debugging
      */
     fun getCacheStats(): Map<String, Any> {
+        val totalAccesses = countryAccessMetadata.values.sumOf { it.accessCount }
+        val mostAccessed = countryAccessMetadata.maxByOrNull { it.value.accessCount }
+        val avgAccessTime = if (totalAccesses > 0) {
+            countryAccessMetadata.values.sumOf { it.totalAccessTime } / totalAccesses
+        } else 0L
+
         return mapOf(
             "cached_countries" to cachedCountries.size,
             "max_countries" to MAX_CACHED_COUNTRIES,
             "current_country" to (currentCountry ?: "unknown"),
-            "cache_utilization" to (cachedCountries.size * 100) / MAX_CACHED_COUNTRIES
+            "cache_utilization" to (cachedCountries.size * 100) / MAX_CACHED_COUNTRIES,
+            "total_country_accesses" to totalAccesses,
+            "countries_with_metadata" to countryAccessMetadata.size,
+            "most_accessed_country" to (mostAccessed?.key ?: "none"),
+            "most_accessed_count" to (mostAccessed?.value?.accessCount ?: 0),
+            "average_access_time_ms" to avgAccessTime,
+            "lru_order_size" to accessOrderedCountries.size
         )
     }
 
@@ -341,6 +452,84 @@ class UniversalCountryCacheManager(
         }
     }
 
+    /**
+     * Record country access or cache eviction for performance monitoring and optimization analysis.
+     *
+     * @param country The ISO country code being recorded
+     * @param accessCount The access count for the country (use current metadata for accuracy)
+     * @param eventType Whether this is an access or eviction event
+     */
+    private fun recordCountryEvent(country: String, accessCount: Int, eventType: CountryEventType) {
+        // Input validation
+        if (country.isBlank()) {
+            Log.w(TAG, "Attempted to record ${eventType.name.lowercase()} for blank country code")
+            return
+        }
+
+        if (country.length != 2) {
+            Log.w(TAG, "Invalid country code format for ${eventType.name.lowercase()}: $country (expected 2 chars)")
+            return
+        }
+
+        if (accessCount < 0) {
+            Log.w(TAG, "Invalid negative access count for ${eventType.name.lowercase()}: $accessCount")
+            return
+        }
+
+        try {
+            // Record performance metrics with appropriate delta
+            val stateDelta = if (eventType == CountryEventType.EVICTION) -1 else 1
+            PerformanceDebugger.recordStateUpdate(stateDelta)
+
+            // Use lazy string evaluation for better performance when logging is disabled
+            val logMessage = {
+                when (eventType) {
+                    CountryEventType.ACCESS ->
+                        "Country access recorded: $country (access count: $accessCount)"
+                    CountryEventType.EVICTION ->
+                        "Cache eviction recorded: $country (was accessed $accessCount times)"
+                }
+            }
+
+            // Consistent logging level - use DEBUG for both events
+            Log.d(TAG, logMessage())
+        } catch (e: IllegalStateException) {
+            // Handle PerformanceDebugger being in an invalid state
+            Log.w(TAG, "PerformanceDebugger state error during ${eventType.name.lowercase()}: ${e.message}")
+        } catch (e: OutOfMemoryError) {
+            // Handle memory issues specifically - don't let monitoring cause crashes
+            Log.e(TAG, "Memory error during ${eventType.name.lowercase()} monitoring: ${e.message}")
+        } catch (e: Exception) {
+            // Log unexpected errors for debugging but don't crash
+            Log.e(TAG, "Unexpected error during ${eventType.name.lowercase()} monitoring for $country", e)
+        }
+    }
+
+    /**
+     * Types of country cache events for performance monitoring.
+     */
+    private enum class CountryEventType {
+        ACCESS, EVICTION
+    }
+
+    /**
+     * Record country access for performance monitoring and cache optimization.
+     * @param country The ISO country code that was accessed
+     * @param accessCount The current access count for the country
+     */
+    private fun recordCountryAccess(country: String, accessCount: Int) {
+        recordCountryEvent(country, accessCount, CountryEventType.ACCESS)
+    }
+
+    /**
+     * Record cache eviction for performance monitoring and optimization analysis.
+     * @param country The ISO country code being evicted
+     * @param accessCount The access count for the country at time of eviction
+     */
+    private fun recordCacheEviction(country: String, accessCount: Int) {
+        recordCountryEvent(country, accessCount, CountryEventType.EVICTION)
+    }
+
     // ==================== CLEANUP ====================
 
     /**
@@ -349,6 +538,8 @@ class UniversalCountryCacheManager(
     fun shutdown() {
         coroutineScope.cancel()
         cachedCountries.clear()
+        countryAccessMetadata.clear()
+        accessOrderedCountries.clear()
         currentCountry = null
         lastLocation = null
         Log.d(TAG, "UniversalCountryCacheManager shutdown complete")

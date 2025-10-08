@@ -73,7 +73,6 @@ class PGSpotOverlayManager(
      */
     fun setCountryCacheManager(countryCacheManager: com.madanala.tern.utils.UniversalCountryCacheManager) {
         this.countryCacheManager = countryCacheManager
-        Log.d(TAG, "Universal country cache manager connected to PGSpotOverlayManager")
     }
 
     /**
@@ -81,7 +80,6 @@ class PGSpotOverlayManager(
      */
     fun setOverlayCoordinator(coordinator: com.madanala.tern.ui.overlays.OverlayCoordinator) {
         this.overlayCoordinator = coordinator
-        Log.d(TAG, "Overlay coordinator connected to PGSpotOverlayManager for Hilbert ordering")
     }
 
     /**
@@ -115,7 +113,6 @@ class PGSpotOverlayManager(
     // === OVERLAY MANAGER LIFECYCLE ===
 
     override fun setEnabled(enabled: Boolean) {
-        Log.d(TAG, "PG spots overlay manager enabled: $enabled")
         if (enabled) {
             initiateWeatherSystem()
         } else {
@@ -129,7 +126,6 @@ class PGSpotOverlayManager(
     }
 
     override fun onOverlayAttached() {
-        Log.d(TAG, "Weather-aware PG spots overlay manager attached")
 
         // Clean up any corrupted cache files from previous sessions
         pgSpotCache.cleanupCorruptedCache()
@@ -173,13 +169,11 @@ class PGSpotOverlayManager(
 
     override fun performMapMove(center: GeoPoint, zoom: Double) {
         if (!isEnabled()) {
-            Log.d(TAG, "PG spots disabled, skipping weather-aware map move handling")
             return
         }
 
         // Postpone overlay operations until GPS fix is available
         if (!hasValidGPSFix) {
-            Log.d(TAG, "No GPS fix yet, postponing PG spot loading until GPS coordinates are available")
             return
         }
 
@@ -202,12 +196,10 @@ class PGSpotOverlayManager(
             val distanceKm = Math.sqrt(latDiffKm * latDiffKm + lonDiffKm * lonDiffKm)
 
             if (distanceKm < checkDistanceKm) {
-                Log.v(TAG, "Not moved far enough (${String.format("%.1f km", distanceKm)} < $checkDistanceKm km), skipping PG spot reload")
                 return
             }
         }
 
-        Log.d(TAG, "Map moved significantly, loading weather-aware PG spots")
         checkAndLoadPGSpots(center)
     }
 
@@ -292,7 +284,6 @@ class PGSpotOverlayManager(
         // Clean up weather data for spots no longer visible
         cleanupNonVisiblePGSpotWeather(spotsNotVisible)
 
-        Log.d(TAG, "Weather orchestration: ${spotsNeedingWeather.size} new weather fetches, ${spotsNotVisible.size} cleanup")
     }
 
     /**
@@ -306,7 +297,6 @@ class PGSpotOverlayManager(
 
         weatherFetchJob = coroutineScope.launch {
             try {
-                Log.d(TAG, "Fetching weather for ${pgSpotIds.size} PG spots")
 
                 // BATCH: Dispatch Redux actions in batches to prevent state update storms
                 val batchSize = 5 // Process 5 spots at a time
@@ -337,7 +327,6 @@ class PGSpotOverlayManager(
                 }
 
                 if (spotsNeedingWeather.isNotEmpty()) {
-                    Log.d(TAG, "Weather refresh needed for ${spotsNeedingWeather.size}/${pgSpotIds.size} PG spots")
 
                     // Fetch weather data sequentially to respect API rate limits
                     for (pgSpotId in spotsNeedingWeather) {
@@ -372,7 +361,6 @@ class PGSpotOverlayManager(
                                   mapStore?.dispatch(WeatherActions.WeatherFetched(pgSpotId, weatherForecast))
                                   updatePGSpotWithWindGauge(pgSpotId, weatherForecast)
                                   updateWeatherTimestamp(pgSpotId) // Mark weather as fresh
-                                  Log.d(TAG, "Successfully fetched weather for PG spot: $pgSpotId")
                               } else {
                                  mapStore?.dispatch(WeatherActions.WeatherFetchError(
                                      pgSpotId,
@@ -423,7 +411,6 @@ class PGSpotOverlayManager(
                 // marker.setCustomIcon(WindGauge(wind.speed, wind.direction))
                 // This provides the smooth transition from static to dynamic
 
-                Log.v(TAG, "Updated PG spot $pgSpotId with wind gauge: ${wind.speed}kt @ ${wind.direction}°")
 
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to update wind gauge for PG spot $pgSpotId", e)
@@ -454,7 +441,6 @@ class PGSpotOverlayManager(
      */
     private suspend fun loadPGSpotsForLocation(context: Context, center: GeoPoint) {
         try {
-            Log.v(TAG, "Loading weather-integrated PG spots for location: ${center.latitude}, ${center.longitude}")
 
             // Geographic determination (same as airspace system)
             val countryCode = com.madanala.tern.utils.CountryUtils.getCountryCodeFromGeoPoint(context, center)
@@ -470,7 +456,6 @@ class PGSpotOverlayManager(
             } ?: true // First load is always "major"
 
             if (isMajorMove) {
-                Log.v(TAG, "Major move detected - clearing PG spots for fresh weather-integrated load")
                 clearOverlays()
             }
 
@@ -479,14 +464,12 @@ class PGSpotOverlayManager(
 
             if (!pgSpotCache.isCached(countryCode)) {
                 // DOWNLOAD + PARSE + CACHE as FlexBuffers with Hilbert spatial index
-                Log.d(TAG, "No cached PG spots for $countryCode, downloading fresh data")
 
                 val downloadedFeatures = try {
                     withContext(Dispatchers.IO) {
                         pgSpotCache.cachePGSpotsData(countryCode)
                     }
                 } catch (e: kotlinx.coroutines.CancellationException) {
-                    Log.v(TAG, "PG spots download cancelled for $countryCode")
                     return // Exit gracefully on cancellation
                 } catch (e: Exception) {
                     Log.e(TAG, "Error downloading PG spots for $countryCode: ${e.message}", e)
@@ -495,7 +478,6 @@ class PGSpotOverlayManager(
                 }
 
                 if (downloadedFeatures != null && downloadedFeatures.isNotEmpty()) {
-                    Log.d(TAG, "Downloaded and cached ${downloadedFeatures.size} PG spots for $countryCode")
                     // Now perform spatial query on the newly cached data
                     nearbyFeatures = pgSpotCache.queryNearbyPGSpots(countryCode, center, 200.0)
                 } else {
@@ -516,11 +498,9 @@ class PGSpotOverlayManager(
                 }
             } else {
                 // CACHED: Use Hilbert spatial query for nearby features only
-                Log.v(TAG, "Using cached PG spots for $countryCode, performing spatial query")
                 nearbyFeatures = pgSpotCache.queryNearbyPGSpots(countryCode, center, 200.0)
             }
 
-            Log.v(TAG, "Spatial query returned ${nearbyFeatures.size} PG spots within 200 km")
 
             if (nearbyFeatures.isNotEmpty()) {
                 renderPGSpotFeaturesWithWeather(nearbyFeatures)
@@ -535,7 +515,6 @@ class PGSpotOverlayManager(
             }
 
         } catch (e: CancellationException) {
-            Log.v(TAG, "PG spots loading cancelled due to user interaction")
         } catch (e: Exception) {
             Log.e(TAG, "Error loading PG spots data: ${e.message}", e)
         }
@@ -563,7 +542,6 @@ class PGSpotOverlayManager(
                 currentlyRenderedPGSpots.values.any { it.marker == overlay }
             }
 
-            Log.d(TAG, "PG spot render: $totalOverlays total overlays, $pgSpotCount PG spots")
         }
 
         mapView?.invalidate()
@@ -590,7 +568,6 @@ class PGSpotOverlayManager(
 
         // Check if already exists to prevent duplicates
         if (currentlyRenderedPGSpots.containsKey(spotId)) {
-            Log.v(TAG, "DIAGNOSTIC: PG spot already exists, skipping: $spotId")
             return
         }
 
@@ -626,7 +603,6 @@ class PGSpotOverlayManager(
                     staggerDelay = 0L // No stagger for immediate processing
                 ) {
                     // Animation completed - overlay is now visible
-                    Log.v(TAG, "PG spot animation completed: $spotId")
                 }
             } else {
                 // Fallback to direct animation manager if coordinator not available
@@ -750,7 +726,6 @@ class PGSpotOverlayManager(
         visiblePGSpots.clear()
         visiblePGSpots.addAll(visibleSpots)
 
-        Log.d(TAG, "Visible PG spots updated. Newly visible: ${newlyVisible.size}, no longer visible: ${noLongerVisible.size}")
 
         // Launch weather fetching for newly visible spots
         if (newlyVisible.isNotEmpty()) {
@@ -770,7 +745,6 @@ class PGSpotOverlayManager(
         nonVisible.forEach { pgSpotId ->
             // Optionally dispatch action to clear weather state if memory is concern
             mapStore?.dispatch(WeatherActions.WeatherFetchError(pgSpotId, Exception("Spot no longer visible")))
-            Log.d(TAG, "Cleaned up weather for non-visible PG spot: $pgSpotId")
         }
     }
 
@@ -810,11 +784,9 @@ class PGSpotOverlayManager(
 
         // Dispatch action to show weather details dialog
         mapStore?.dispatch(WeatherActions.ShowWeatherDetails(pgSpotId, forecast))
-        Log.d(TAG, "Dispatched show weather details for PG spot: $pgSpotId")
     }
 
     private fun initiateWeatherSystem() {
-        Log.d(TAG, "Initiating weather system for PG spots")
         // System startup - check API availability, preload cache, etc.
         coroutineScope.launch {
             try {
@@ -850,7 +822,6 @@ class PGSpotOverlayManager(
         } else if (mapView != null) {
             // Postpone Redux-triggered overlay operations until GPS fix is available
             if (!hasValidGPSFix) {
-                Log.d(TAG, "Postponing Redux-triggered PG spot loading until GPS fix")
                 return
             }
 
@@ -956,7 +927,6 @@ class PGSpotOverlayManager(
             currentlyRenderedPGSpots.remove(spotId)
         }
 
-        Log.d(TAG, "Viewport cleanup: Removed ${removedCount} invisible non-critical PG spots")
         return removedCount
     }
 
@@ -1020,7 +990,6 @@ class PGSpotOverlayManager(
             currentlyRenderedPGSpots.remove(spotId)
         }
 
-        Log.d(TAG, "Emergency cleanup: Removed ${removedCount} PG spots from ${zone.name} zone")
         return removedCount
     }
 
@@ -1040,7 +1009,6 @@ class PGSpotOverlayManager(
             distance <= coreZoneThreshold
         }
 
-        Log.d(TAG, "Emergency cleanup: Preserved ${safetyCriticalSpots.size} safety-critical PG spots in CORE zone")
         return safetyCriticalSpots.size
     }
 
@@ -1078,7 +1046,6 @@ class PGSpotOverlayManager(
                             mapView = map
                         ) {
                             // Animation manager handles removal - just update tracking
-                            Log.v(TAG, "Clear animation completed for PG spot: $spotId")
                         } ?: throw IllegalStateException(
                             "Animation manager is required for PG spot overlay removal. " +
                             "Ensure OverlayCoordinator is properly initialized."
