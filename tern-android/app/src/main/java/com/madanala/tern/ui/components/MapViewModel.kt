@@ -159,14 +159,14 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun initializeLocationOverlay() {
         if (myLocationOverlay != null) {
-            Log.d(TAG, "Location overlay already initialized")
+            // Log.d(TAG, "Location overlay already initialized")
             return
         }
 
         val context = getApplication<Application>().applicationContext
 
         try {
-            Log.d(TAG, "Initializing location overlay with proper permission check")
+            // Log.d(TAG, "Initializing location overlay with proper permission check")
 
             myLocationOverlay = MyLocationNewOverlay(GpsMyLocationProvider(context), mapView).apply {
                 isDrawAccuracyEnabled = true
@@ -204,7 +204,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             mapView.overlays.add(myLocationOverlay)
-            Log.d(TAG, "Location overlay successfully initialized and added to map")
+            // Log.d(TAG, "Location overlay successfully initialized and added to map")
 
         } catch (e: Exception) {
             Log.e(TAG, "Failed to initialize location overlay", e)
@@ -271,7 +271,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
      * Initialize the new overlay system (Redux store connected later)
      */
     private fun initializeOverlaySystem() {
-        Log.d(TAG, "Initializing overlay system - Redux store will be connected later")
+        // Log.d(TAG, "Initializing overlay system - Redux store will be connected later")
 
         // Initialize overlay coordinator without Redux store (will be connected later)
         overlayCoordinator.initialize(
@@ -280,7 +280,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
             context = getApplication()
         )
 
-        Log.d(TAG, "Overlay coordinator initialized - waiting for Redux store connection")
+        // Log.d(TAG, "Overlay coordinator initialized - waiting for Redux store connection")
 
         // Overlay managers will be created when Redux store is connected via setMapStore()
     }
@@ -347,7 +347,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
      * Set the Redux store for overlay managers (late initialization for ViewModel compatibility)
      */
     fun setMapStore(store: com.madanala.tern.redux.MapStore?) {
-        Log.d(TAG, "Setting Redux store: ${store != null}")
+        // Log.d(TAG, "Setting Redux store: ${store != null}")
         reduxStore = store
 
         // Initialize Redux state when store is connected
@@ -389,7 +389,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
      * Initialize overlay system with Redux store after it's connected
      */
     private fun initializeOverlaySystemWithRedux(store: com.madanala.tern.redux.MapStore) {
-        Log.d(TAG, "Re-initializing overlay system with Redux store")
+        // Log.d(TAG, "Re-initializing overlay system with Redux store")
 
         // Initialize overlay coordinator with Redux store
         overlayCoordinator.initialize(
@@ -419,7 +419,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
             )
         }
 
-        Log.d(TAG, "Route overlay and editing managers registered with Redux store")
+        // Log.d(TAG, "Route overlay and editing managers registered with Redux store")
     }
 
     /**
@@ -433,9 +433,9 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
      * Debug method to check Redux integration status
      */
     fun logReduxStatus() {
-        Log.d(TAG, "Redux Status - Store connected: ${reduxStore != null}")
-        Log.d(TAG, "Redux Status - Location ready: ${reduxState.isLocationReady}")
-        Log.d(TAG, "Redux Status - Has location permission: ${reduxState.hasLocationPermission}")
+        // Log.d(TAG, "Redux Status - Store connected: ${reduxStore != null}")
+        // Log.d(TAG, "Redux Status - Location ready: ${reduxState.isLocationReady}")
+        // Log.d(TAG, "Redux Status - Has location permission: ${reduxState.hasLocationPermission}")
     }
 
     /**

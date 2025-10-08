@@ -82,18 +82,18 @@ class OverlayCoordinator {
 
         // Initialize universal country cache manager for all overlay types (Priority 0 fix)
         countryCacheManager = com.madanala.tern.utils.UniversalCountryCacheManager(context)
-        Log.d(TAG, "Universal country cache manager initialized for all overlay types")
+        // Log.d(TAG, "Universal country cache manager initialized for all overlay types")
 
         // Trigger performance debugger initialization for development monitoring
         try {
             com.madanala.tern.utils.PerformanceDebugger.triggerTestEvents()
         } catch (e: Exception) {
-            Log.d(TAG, "PerformanceDebugger not available in release build")
+            // Log.d(TAG, "PerformanceDebugger not available in release build")
         }
 
         // Start observing Redux state if available
         if (mapStore == null) {
-            Log.d(TAG, "No Redux store - overlay managers will use default configuration")
+            // Log.d(TAG, "No Redux store - overlay managers will use default configuration")
         } else {
             startStateObservation()
         }
@@ -124,16 +124,16 @@ class OverlayCoordinator {
                 is com.madanala.tern.ui.overlays.AirspaceOverlayManager -> {
                     manager.setCountryCacheManager(countryCache)
                     manager.setOverlayCoordinator(this) // Connect for Hilbert ordering
-                    Log.d(TAG, "✅ Connected AirspaceOverlayManager to universal country cache and coordinator")
+                    // Log.d(TAG, "✅ Connected AirspaceOverlayManager to universal country cache and coordinator")
                 }
                 is com.madanala.tern.ui.overlays.PGSpotOverlayManager -> {
                     manager.setCountryCacheManager(countryCache)
                     manager.setOverlayCoordinator(this) // Connect for Hilbert ordering
-                    Log.d(TAG, "✅ Connected PGSpotOverlayManager to universal country cache and coordinator")
+                    // Log.d(TAG, "✅ Connected PGSpotOverlayManager to universal country cache and coordinator")
                 }
                 else -> {
                     // Handle other overlay manager types that don't need country cache
-                    Log.d(TAG, "Connected ${manager.overlayType} overlay manager (no country cache needed)")
+                    // Log.d(TAG, "Connected ${manager.overlayType} overlay manager (no country cache needed)")
                 }
             }
         } ?: Log.w(TAG, "Country cache manager not available")
@@ -147,7 +147,7 @@ class OverlayCoordinator {
         activeManagers[overlayType]?.let { manager ->
             manager.onDetach()
             activeManagers.remove(overlayType)
-            Log.d(TAG, "Removed overlay manager: $overlayType")
+            // Log.d(TAG, "Removed overlay manager: $overlayType")
         }
     }
 
@@ -204,7 +204,7 @@ class OverlayCoordinator {
     fun updateOverlayConfig(overlayType: OverlayType, config: OverlayConfig) {
         getOverlayManager(overlayType)?.let { manager ->
             manager.updateConfig(config)
-            Log.d(TAG, "Updated config for $overlayType: $config")
+            // Log.d(TAG, "Updated config for $overlayType: $config")
         } ?: Log.w(TAG, "No manager found for $overlayType to update config")
     }
 
@@ -419,7 +419,7 @@ class OverlayCoordinator {
     fun triggerPerformanceDashboard() {
         try {
             com.madanala.tern.utils.PerformanceDebugger.triggerTestEvents()
-            Log.d(TAG, "Performance dashboard triggered for testing")
+            // Log.d(TAG, "Performance dashboard triggered for testing")
         } catch (e: Exception) {
             Log.e(TAG, "Error triggering performance dashboard", e)
         }
@@ -432,7 +432,7 @@ class OverlayCoordinator {
         activeManagers.values.forEach { manager ->
             manager.clearOverlays()
         }
-        Log.d(TAG, "Refreshed all overlays (${activeManagers.size} managers)")
+        // Log.d(TAG, "Refreshed all overlays (${activeManagers.size} managers)")
     }
 
     /**
@@ -475,7 +475,7 @@ class OverlayCoordinator {
     private fun startStateObservation() {
         // Note: In real implementation, you might use collectAsState() in a Composable
         // or set up observers in the coordinator lifecycle
-        Log.d(TAG, "Started Redux state observation")
+        // Log.d(TAG, "Started Redux state observation")
     }
 
     /**
@@ -491,7 +491,7 @@ class OverlayCoordinator {
       * Clean shutdown of all overlays
       */
     fun shutdown() {
-        Log.d(TAG, "Shutting down OverlayCoordinator (${activeManagers.size} managers)")
+        // Log.d(TAG, "Shutting down OverlayCoordinator (${activeManagers.size} managers)")
 
         // Shutdown animation manager first
         overlayAnimationManager.shutdown()
@@ -524,7 +524,7 @@ class OverlayCoordinator {
         mapStore = null
         mapView = null
 
-        Log.d(TAG, "OverlayCoordinator shutdown complete")
+        // Log.d(TAG, "OverlayCoordinator shutdown complete")
     }
 
     /**

@@ -121,7 +121,7 @@ class AirspaceOverlayManager(
      */
     fun setCountryCacheManager(countryCacheManager: com.madanala.tern.utils.UniversalCountryCacheManager) {
         this.countryCacheManager = countryCacheManager
-        Log.d(TAG, "Universal country cache manager connected")
+        // Log.d(TAG, "Universal country cache manager connected")
     }
 
     /**
@@ -129,7 +129,7 @@ class AirspaceOverlayManager(
      */
     fun setOverlayCoordinator(coordinator: com.madanala.tern.ui.overlays.OverlayCoordinator) {
         this.overlayCoordinator = coordinator
-        Log.d(TAG, "Overlay coordinator connected to AirspaceOverlayManager for Hilbert ordering")
+        // Log.d(TAG, "Overlay coordinator connected to AirspaceOverlayManager for Hilbert ordering")
     }
 
     /**
@@ -140,7 +140,7 @@ class AirspaceOverlayManager(
     }
 
     override fun onOverlayDetached() {
-        Log.d(TAG, "Airspace overlay manager detached")
+        // Log.d(TAG, "Airspace overlay manager detached")
 
         // Cancel any ongoing loading jobs
         loadingJob?.cancel()
@@ -403,7 +403,7 @@ class AirspaceOverlayManager(
 
                 // Clear tracking after batch processing
                 currentlyRenderedAirspaces.clear()
-                Log.d(TAG, "Scheduled clear of ${airspaceIds.size} airspace overlays via Hilbert batch system")
+                // Log.d(TAG, "Scheduled clear of ${airspaceIds.size} airspace overlays via Hilbert batch system")
             } else {
                 // Fallback to direct animation manager if coordinator not available
                 val polygonsToRemove = currentlyRenderedAirspaces.values.toList()
@@ -427,12 +427,12 @@ class AirspaceOverlayManager(
 
                 // Clear tracking (animation manager handles the actual removal)
                 currentlyRenderedAirspaces.clear()
-                Log.d(TAG, "Scheduled clear of ${polygonsToRemove.size} airspace overlays via animation manager")
+                // Log.d(TAG, "Scheduled clear of ${polygonsToRemove.size} airspace overlays via animation manager")
             }
         } ?: run {
             // No map view available - just clear tracking
             currentlyRenderedAirspaces.clear()
-            Log.d(TAG, "Cleared airspace tracking (no map view)")
+            // Log.d(TAG, "Cleared airspace tracking (no map view)")
         }
     }
 
@@ -474,7 +474,7 @@ class AirspaceOverlayManager(
                     // Update last location for movement tracking
                     lastCheckLocation = center
                 } else {
-                    Log.d(TAG, "No airspaces found near $center in cached countries")
+                    // Log.d(TAG, "No airspaces found near $center in cached countries")
 
                     // Fallback to single country approach if universal cache not available
                     loadSingleCountryAirspace(context, center)
@@ -487,7 +487,7 @@ class AirspaceOverlayManager(
 
         } catch (e: CancellationException) {
             // Expected behavior when cancelling old requests due to debounce
-            Log.d(TAG, "Airspace loading cancelled due to user interaction")
+            // Log.d(TAG, "Airspace loading cancelled due to user interaction")
         } catch (e: Exception) {
             Log.e(TAG, "Error loading airspace data", e)
         }
@@ -513,7 +513,7 @@ class AirspaceOverlayManager(
                 val ndGeoJsonString = GeoJsonUtils.downloadGeoJson(url)
 
                 if (ndGeoJsonString != null) {
-                    Log.d(TAG, "Downloaded airspace data for $countryCode (${ndGeoJsonString.length} bytes)")
+                    // Log.d(TAG, "Downloaded airspace data for $countryCode (${ndGeoJsonString.length} bytes)")
                     // Cache with Hilbert spatial indexing (original approach)
                     airspaceCache.cacheData(countryCode, ndGeoJsonString)
                 } else {
@@ -535,7 +535,7 @@ class AirspaceOverlayManager(
                 currentCountryCode = countryCode
                 lastCheckLocation = center
             } else {
-                Log.d(TAG, "No airspaces found near $center for $countryCode (fallback)")
+                // Log.d(TAG, "No airspaces found near $center for $countryCode (fallback)")
             }
 
         } catch (e: Exception) {
@@ -774,14 +774,14 @@ class AirspaceOverlayManager(
      */
     private fun manageViewportAirspaces(viewport: BoundingBox) {
         if (currentlyRenderedAirspaces.isEmpty()) {
-            Log.d(TAG, "No airspaces to manage for viewport")
+            // Log.d(TAG, "No airspaces to manage for viewport")
             return
         }
 
         // ✅ ADAPTIVE SYSTEM: Viewport management now handled by zone-based allocation
         // Manual viewport expansion replaced by intelligent zone-based cleanup
 
-        Log.d(TAG, "Managing ${currentlyRenderedAirspaces.size} airspaces for viewport: $viewport")
+        // Log.d(TAG, "Managing ${currentlyRenderedAirspaces.size} airspaces for viewport: $viewport")
 
         // ✅ ADAPTIVE SYSTEM: Use zone-based cleanup instead of manual viewport logic
         // The emergency cleanup system handles viewport management through distance zones
@@ -1075,7 +1075,7 @@ class AirspaceOverlayManager(
                          val adjacentFeatures = countryCache.queryMultiCountryArea(centroid, preloadDistance)
 
                          if (adjacentFeatures.isNotEmpty()) {
-                             Log.d(TAG, "Preloaded ${adjacentFeatures.size} adjacent airspaces for smooth transitions")
+                             // Log.d(TAG, "Preloaded ${adjacentFeatures.size} adjacent airspaces for smooth transitions")
                          }
                      }
                  } catch (e: Exception) {
@@ -1109,12 +1109,12 @@ class AirspaceOverlayManager(
 
                  // Check if airspace is still not visible before cleanup
                  if (currentlyRenderedAirspaces.containsKey(airspaceId)) {
-                     Log.d(TAG, "Airspace $airspaceId still rendered, skipping cleanup")
+                     // Log.d(TAG, "Airspace $airspaceId still rendered, skipping cleanup")
                      return@launch
                  }
 
                  // Perform cleanup operations
-                 Log.d(TAG, "Cleaning up resources for hidden airspace: $airspaceId")
+                 // Log.d(TAG, "Cleaning up resources for hidden airspace: $airspaceId")
                  // Additional cleanup logic would go here
 
              } catch (e: Exception) {
