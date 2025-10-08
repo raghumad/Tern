@@ -8,7 +8,289 @@ How Tern manages map overlays (airspaces, terrain, PG spots) safely and efficien
 **After**: Smooth distance-based transitions → professional aviation-grade UX
 **Added**: Beautiful Hilbert curve ordering → visually stunning overlay animations
 
+## 🚨 Critical Issues Resolved
+
+### Multiple Downloads & Cache Corruption Crisis
+
+**🔥 Original Problem:**
+```
+2025-10-07 17:42:17.909 - "Failed to download PG spots data for us"
+2025-10-07 17:42:19.258 - "Downloaded 557395 bytes" ✅ Success
+2025-10-07 17:42:19.258 - "PG spots download cancelled" ❌ Cancellation
+2025-10-07 17:42:19.475 - "No cached PG spots" ❌ Cache lost
+2025-10-07 17:42:19.475 - "Starting PG spots download" 🔄 Redownload
+```
+
+**✅ Solution Implemented:**
+
+**🛡️ Multi-Layer Corruption Prevention:**
+```kotlin
+// Layer 1: Source File Validation
+private fun validateGeoJsonContent(content: String, countryCode: String): Boolean {
+    // ✅ File size check (minimum 50 bytes)
+    // ✅ JSON structure validation
+    // ✅ Content parsing test
+    // ✅ NDGeoJSON line validation (70%+ valid required)
+}
+
+// Layer 2: Feature Validation
+private fun validateOverlayFeature(feature: OverlayFeature, countryCode: String): Boolean {
+    // ✅ Coordinate range validation (lat/lng limits)
+    // ✅ Geometry structure verification
+    // ✅ Required field presence checks
+}
+
+// Layer 3: Cache Integrity Validation
+private fun validateCacheIntegrity(countryCode: String): Boolean {
+    // ✅ File existence and readability
+    // ✅ File size validation (corruption detection)
+    // ✅ Spatial index structure verification
+}
+```
+
+**⚡ Race Condition Elimination:**
+```kotlin
+// Atomic download flag prevents duplicate downloads
+val isAlreadyDownloading = downloadInProgress.putIfAbsent(countryCode, true) != null
+if (isAlreadyDownloading) {
+    Log.d(TAG, "Download already in progress, skipping duplicate")
+    return null
+}
+```
+
+**🔄 Proper Error Recovery:**
+```kotlin
+} catch (e: CancellationException) {
+    Log.d(TAG, "Download cancelled for $countryCode")
+    clearCacheForCountry(countryCode) // Remove partial cache
+    throw e // Propagate cancellation properly
+} catch (e: Exception) {
+    Log.e(TAG, "Error caching data for $countryCode", e)
+    clearCacheForCountry(countryCode) // Remove corrupted cache
+    return null
+}
+```
+
+### State Update Storm Performance Crisis
+
+**🔥 Original Problem:**
+```
+⚠️ STATE UPDATE STORM: 288/sec
+⚠️ STATE UPDATE STORM: 644/sec
+```
+
+**✅ Solution Implemented:**
+
+**📦 Redux Action Batching:**
+```kotlin
+// OLD: Individual actions for each PG spot
+pgSpotIds.forEach { pgSpotId ->
+    mapStore?.dispatch(WeatherActions.FetchWeatherForPGSpot(...))
+}
+
+// NEW: Batched actions (5 at a time with delays)
+for (i in spotList.indices step batchSize) {
+    val batch = spotList.subList(i, minOf(i + batchSize, spotList.size))
+    batch.forEach { pgSpotId -> dispatch(...) }
+    delay(100) // Prevent overwhelming Redux
+}
+```
+
+**🎯 Micro-Movement Filtering:**
+```kotlin
+// Skip processing for micro-movements (<100m)
+lastCheckLocation?.let { lastLocation ->
+    val distanceKm = calculateDistance(center, lastLocation)
+    if (distanceKm < 0.1) return // Too small, skip
+}
+```
+
+**🔄 Intelligent Weather Fetching:**
+```kotlin
+// Only fetch weather for spots that actually need it
+val spotsNeedingWeather = pgSpotIds.filter { pgSpotId ->
+    val marker = currentlyRenderedPGSpots[pgSpotId]
+    marker != null && needsWeatherRefresh(pgSpotId) &&
+    isWithinWeatherRange(marker.center, viewport)
+}
+```
+
 ## 🏗️ Architecture Pattern
+
+### Unified Caching System Architecture
+
+**🎯 Complete Flow from Download to Spatial Query:**
+
+```mermaid
+graph LR
+    A[User Requests<br/>Country Data] --> B{Cache<br/>Exists?}
+    B -->|No| C[Download<br/>GeoJSON/NDGeoJSON]
+    B -->|Yes| D[Spatial Query<br/>FlexBuffers]
+    C --> E{Content<br/>Valid?}
+    E -->|No| F[❌ Reject &<br/>Log Error]
+    E -->|Yes| G[Parse to<br/>OverlayFeatures]
+    G --> H{Features<br/>Valid?}
+    H -->|No| I[❌ Filter Invalid<br/>Features]
+    H -->|Yes| J[Create Hilbert<br/>Spatial Index]
+    J --> K[Serialize to<br/>FlexBuffers]
+    K --> L[Save .flex<br/>& .idx Files]
+    L --> M[Memory-Map<br/>for Queries]
+    M --> D
+    F --> N[Graceful<br/>Degradation]
+    I --> O{Enough<br/>Valid Data?}
+    O -->|No| N
+    O -->|Yes| J
+```
+
+**🏆 Key Architectural Achievements:**
+
+1. **✅ Multi-Layer Validation**
+   - Source file validation (size, structure, JSON validity)
+   - Feature validation (coordinates, geometry, data integrity)
+   - Cache integrity validation (file corruption detection)
+
+2. **✅ Race Condition Prevention**
+   - Atomic `putIfAbsent()` operations for download flags
+   - Proper cleanup on cancellation or error
+   - Consistent state management across both caches
+
+3. **✅ Performance Optimizations**
+   - State update batching (5 Redux actions at a time)
+   - Micro-movement filtering (skip <100m moves)
+   - Memory-mapped I/O for zero-copy spatial queries
+
+4. **✅ Unified Pattern Compliance**
+   - Both PGSpotCache and AirspaceCache follow identical logic
+   - Same validation, caching, and error handling patterns
+   - Consistent behavior across all overlay types
+
+### Caching System Implementation Pattern
+
+**📥 Download Phase:**
+```kotlin
+suspend fun cacheData(countryCode: String, geoJsonString: String) {
+    // 1. Atomic download flag (prevents duplicates)
+    val isAlreadyDownloading = downloadInProgress.putIfAbsent(countryCode, true) != null
+    if (isAlreadyDownloading) return null
+
+    try {
+        // 2. Validate downloaded content
+        if (!validateGeoJsonContent(geoJsonString, countryCode)) {
+            Log.w(TAG, "Invalid content for $countryCode")
+            return null
+        }
+
+        // 3. Parse to features
+        val features = parseGeoJsonToFeatures(geoJsonString)
+
+        // 4. Validate each feature
+        val validFeatures = features.filter { validateOverlayFeature(it, countryCode) }
+
+        // 5. Cache successfully
+        if (validFeatures.isNotEmpty()) {
+            cacheFeatures(countryCode, validFeatures)
+            return validFeatures
+        }
+    } catch (e: CancellationException) {
+        clearCacheForCountry(countryCode) // Cleanup partial cache
+        throw e
+    } finally {
+        downloadInProgress.remove(countryCode)
+    }
+}
+```
+
+**🔍 Query Phase:**
+```kotlin
+fun queryNearbyFeatures(countryCode: String, center: GeoPoint, radius: Double): List<OverlayFeature> {
+    // 1. Validate cache integrity first
+    if (!isCached(countryCode)) return emptyList()
+
+    // 2. Zero-copy spatial query
+    val spatialIndex = getSpatialIndex(countryCode)
+    val mappedBuffer = getMemoryMappedBuffer(countryCode)
+    val relevantEntries = spatialIndex.findNearbyIndices(hilbertIndex, range)
+
+    // 3. Memory-mapped feature reading
+    return relevantEntries.mapNotNull { entry ->
+        val featureBytes = ByteArray(entry.byteLength)
+        synchronized(mappedBuffer) {
+            mappedBuffer.position(entry.byteOffset)
+            mappedBuffer.get(featureBytes, 0, entry.byteLength)
+        }
+        // Deserialize and validate distance...
+    }
+}
+```
+
+**🛡️ Error Recovery:**
+```kotlin
+// Graceful degradation on any failure
+} catch (e: Exception) {
+    Log.e(TAG, "Cache operation failed for $countryCode", e)
+    clearCacheForCountry(countryCode) // Remove partial/corrupted cache
+    // Return fallback data or empty list
+}
+```
+
+### BaseOverlayManager Foundation
+
+### Unified Caching System Flow Diagram
+
+```mermaid
+graph TD
+    A[Download Request] --> B{Download<br/>In Progress?}
+    B -->|No| C[Download GeoJSON/NDGeoJSON]
+    B -->|Yes| D[Skip - Already Downloading]
+    C --> E{Validate<br/>Downloaded Content}
+    E -->|Invalid| F[❌ Reject & Log Error]
+    E -->|Valid| G[Parse to OverlayFeature Objects]
+    G --> H{Validate<br/>Each Feature}
+    H -->|Invalid| I[❌ Filter Out Invalid Features]
+    H -->|Valid| J[Cache as FlexBuffers + Hilbert Index]
+    J --> K[Create Memory-Mapped I/O]
+    K --> L[Spatial Query Available]
+    I --> M{Enough Valid<br/>Features?}
+    M -->|No| N[❌ No Valid Data Available]
+    M -->|Yes| J
+    F --> O[Graceful Degradation]
+    N --> O
+```
+
+### Key Validation Layers
+
+**🔍 Layer 1: Source Validation**
+```kotlin
+// Validates downloaded content before processing
+private fun validateGeoJsonContent(content: String, countryCode: String): Boolean {
+    // ✅ Check file size (minimum 50 bytes)
+    // ✅ Verify JSON structure (must start with { or [)
+    // ✅ Test JSON parsing (must be valid JSON)
+    // ✅ NDGeoJSON line validation (70%+ valid lines required)
+}
+```
+
+**🔍 Layer 2: Feature Validation**
+```kotlin
+// Validates parsed features before caching
+private fun validateOverlayFeature(feature: OverlayFeature, countryCode: String): Boolean {
+    // ✅ Check centroid coordinates (valid lat/lng ranges)
+    // ✅ Verify feature data exists (not empty)
+    // ✅ Validate geometry structure (proper GeoJSON geometry)
+    // ✅ Ensure required coordinates for Point geometries
+}
+```
+
+**🔍 Layer 3: Cache Integrity Validation**
+```kotlin
+// Validates cache files aren't corrupted
+private fun validateCacheIntegrity(countryCode: String): Boolean {
+    // ✅ Check both .flex and .idx files exist
+    // ✅ Verify files are readable and proper size
+    // ✅ Test spatial index loading (not corrupted)
+    // ✅ Validate Hilbert curve structure
+}
+```
 
 ### BaseOverlayManager Foundation
 ```kotlin

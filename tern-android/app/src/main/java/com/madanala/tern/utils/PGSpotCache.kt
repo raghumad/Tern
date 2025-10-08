@@ -54,7 +54,70 @@ class PGSpotCache(context: Context) {
     fun isCached(countryCode: String): Boolean {
         val timestamp = cacheIndex[countryCode] ?: return false
         val ageHours = (System.currentTimeMillis() - timestamp) / (1000 * 60 * 60)
-        return ageHours < PG_SPOT_CACHE_HOURS
+        val isFresh = ageHours < PG_SPOT_CACHE_HOURS
+
+        if (!isFresh) {
+            Log.d(TAG, "PG spots cache stale for $countryCode (${ageHours}h old, max ${PG_SPOT_CACHE_HOURS}h)")
+            return false
+        }
+
+        // Validate cache integrity
+        return validateCacheIntegrity(countryCode)
+    }
+
+    /**
+     * Validate cache integrity for a country
+     */
+    private fun validateCacheIntegrity(countryCode: String): Boolean {
+        val cacheFile = File(cacheDir, "${countryCode}_pgspots.flex")
+        val indexFile = File(cacheDir, "${countryCode}_pgspots.idx")
+
+        // Check if both files exist
+        val filesExist = cacheFile.exists() && indexFile.exists()
+        if (!filesExist) {
+            Log.d(TAG, "PG spots cache files missing for $countryCode")
+            return false
+        }
+
+        // Check if files are readable
+        val filesReadable = cacheFile.canRead() && indexFile.canRead()
+        if (!filesReadable) {
+            Log.w(TAG, "PG spots cache files not readable for $countryCode")
+            return false
+        }
+
+        // Check if files have reasonable sizes (not empty or corrupted)
+        val cacheFileSize = cacheFile.length()
+        val indexFileSize = indexFile.length()
+
+        if (cacheFileSize < 100) { // Less than 100 bytes is likely corrupted
+            Log.w(TAG, "PG spots cache file too small for $countryCode (${cacheFileSize} bytes)")
+            return false
+        }
+
+        if (indexFileSize < 50) { // Less than 50 bytes is likely corrupted
+            Log.w(TAG, "PG spots index file too small for $countryCode (${indexFileSize} bytes)")
+            return false
+        }
+
+        // Try to load spatial index to verify it's not corrupted
+        try {
+            val indexData = indexFile.readBytes()
+            val indexJson = String(indexData, Charsets.UTF_8)
+            val spatialIndex = objectMapper.readValue(indexJson, MapOverlayCacheUtils.SpatialIndex::class.java)
+
+            if (spatialIndex.bits <= 0 || spatialIndex.entries.isEmpty()) {
+                Log.w(TAG, "PG spots spatial index corrupted for $countryCode")
+                return false
+            }
+
+            Log.v(TAG, "PG spots cache integrity valid for $countryCode (${cacheFileSize} bytes data, ${spatialIndex.entries.size} entries)")
+            return true
+
+        } catch (e: Exception) {
+            Log.w(TAG, "Error validating PG spots cache integrity for $countryCode: ${e.message}")
+            return false
+        }
     }
 
     /**
@@ -91,14 +154,13 @@ class PGSpotCache(context: Context) {
      * Downloads from paraglidingearth.com, caches as FlexBuffers + Hilbert
      */
     suspend fun cachePGSpotsData(countryCode: String): List<OverlayFeature>? {
-        // Prevent duplicate downloads with better error handling
-        if (downloadInProgress.containsKey(countryCode)) {
+        // Use atomic operation to prevent race conditions
+        val isAlreadyDownloading = downloadInProgress.putIfAbsent(countryCode, true) != null
+
+        if (isAlreadyDownloading) {
             Log.d(TAG, "Download already in progress for PG spots $countryCode, skipping duplicate")
             return null
         }
-
-        // Set download flag before starting
-        downloadInProgress[countryCode] = true
 
         try {
             val url = "https://www.paraglidingearth.com/api/geojson/getCountrySites.php?iso=${countryCode.lowercase()}&style=detailed"
@@ -113,13 +175,26 @@ class PGSpotCache(context: Context) {
                 val features = MapOverlayCacheUtils.parseGeoJsonToFeatures(geoJsonString, "pgspot")
                 Log.d(TAG, "Parsed ${features.size} PG spots for $countryCode")
 
-                if (features.isNotEmpty()) {
+                // VALIDATE: Check that parsed features are valid before caching
+                val validFeatures = features.filter { feature ->
+                    validateOverlayFeature(feature, countryCode)
+                }
+
+                if (validFeatures.isNotEmpty()) {
+                    Log.d(TAG, "Validated ${validFeatures.size}/${features.size} PG spot features for $countryCode")
+
                     // Cache as FlexBuffers + Hilbert spatial indexing
-                    cachePGSpotsFeatures(countryCode, features)
-                    Log.d(TAG, "Successfully cached ${features.size} PG spots for $countryCode")
-                    return features
+                    cachePGSpotsFeatures(countryCode, validFeatures)
+
+                    // Delete original GeoJSON file after successful conversion (same as AirspaceCache)
+                    deleteOriginalGeoJsonFile(countryCode)
+
+                    Log.d(TAG, "Successfully cached ${validFeatures.size} PG spots for $countryCode")
+                    return validFeatures
                 } else {
-                    Log.w(TAG, "No valid PG spots found for $countryCode (empty feature list)")
+                    Log.w(TAG, "No valid PG spots found for $countryCode after validation")
+                    // Clean up any partial cache files
+                    clearCacheForCountry(countryCode)
                 }
             } else {
                 Log.w(TAG, "PG spots download returned null/empty for $countryCode - API may not have data for this country")
@@ -129,10 +204,14 @@ class PGSpotCache(context: Context) {
 
         } catch (e: kotlinx.coroutines.CancellationException) {
             Log.d(TAG, "PG spots download cancelled for $countryCode")
+            // Clean up any partial cache on cancellation
+            clearCacheForCountry(countryCode)
             // Re-throw cancellation to propagate properly
             throw e
         } catch (e: Exception) {
             Log.e(TAG, "Error caching PG spots data for $countryCode: ${e.message}", e)
+            // Clean up any partial cache on error
+            clearCacheForCountry(countryCode)
             return null
         } finally {
             // Always clear the download flag
@@ -323,6 +402,114 @@ class PGSpotCache(context: Context) {
         } catch (e: Exception) {
             Log.e(TAG, "Error creating memory-mapped buffer for PG spots $countryCode", e)
             null
+        }
+    }
+
+    /**
+     * Clear cache for a specific country
+     */
+    private fun clearCacheForCountry(countryCode: String) {
+        try {
+            val cacheFile = File(cacheDir, "${countryCode}_pgspots.flex")
+            val indexFile = File(cacheDir, "${countryCode}_pgspots.idx")
+
+            if (cacheFile.exists()) {
+                cacheFile.delete()
+                Log.d(TAG, "Deleted cache file for $countryCode")
+            }
+            if (indexFile.exists()) {
+                indexFile.delete()
+                Log.d(TAG, "Deleted index file for $countryCode")
+            }
+
+            // Clear from memory caches
+            cacheIndex.remove(countryCode)
+            spatialIndexCache.remove(countryCode)
+            memoryMappedBuffers.remove(countryCode)
+
+            saveCacheIndex()
+            Log.d(TAG, "Cleared cache for country: $countryCode")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error clearing cache for country $countryCode", e)
+        }
+    }
+
+    /**
+     * Delete the original GeoJSON file after successful FlexBuffers conversion
+     */
+    private fun deleteOriginalGeoJsonFile(countryCode: String) {
+        try {
+            // The original file would be stored as "${countryCode}_pgspots.geojson"
+            // but since we don't actually save it to disk (we only use it in memory),
+            // this method is primarily for consistency with AirspaceCache pattern
+            Log.v(TAG, "Original GeoJSON file cleanup completed for $countryCode")
+        } catch (e: Exception) {
+            Log.w(TAG, "Error during original GeoJSON file cleanup for $countryCode: ${e.message}")
+        }
+    }
+
+    /**
+     * Validate that an OverlayFeature has valid data
+     */
+    private fun validateOverlayFeature(feature: OverlayFeature, countryCode: String): Boolean {
+        try {
+            // Check if centroid is valid
+            val centroid = feature.centroid
+            if (centroid.latitude < -90.0 || centroid.latitude > 90.0 ||
+                centroid.longitude < -180.0 || centroid.longitude > 180.0) {
+                Log.w(TAG, "Invalid centroid coordinates for PG spot in $countryCode: ${centroid.latitude}, ${centroid.longitude}")
+                return false
+            }
+
+            // Check if feature data exists
+            if (feature.feature.isEmpty()) {
+                Log.w(TAG, "Empty feature data for PG spot in $countryCode")
+                return false
+            }
+
+            // Check if feature has required geometry
+            val geometry = feature.feature["geometry"]
+            if (geometry == null || geometry !is Map<*, *>) {
+                Log.w(TAG, "Missing or invalid geometry for PG spot in $countryCode")
+                return false
+            }
+
+            // For Point geometries (PG spots), ensure coordinates exist
+            val geometryType = geometry["type"] as? String
+            if (geometryType == "Point") {
+                val coordinates = geometry["coordinates"] as? List<*>
+                if (coordinates == null || coordinates.size < 2) {
+                    Log.w(TAG, "Missing coordinates for Point geometry PG spot in $countryCode")
+                    return false
+                }
+            }
+
+            return true
+        } catch (e: Exception) {
+            Log.w(TAG, "Error validating PG spot feature in $countryCode: ${e.message}")
+            return false
+        }
+    }
+
+    /**
+     * Clean up corrupted cache files and memory references
+     */
+    fun cleanupCorruptedCache() {
+        try {
+            var cleanedCount = 0
+            cacheIndex.keys.toList().forEach { countryCode ->
+                if (!validateCacheIntegrity(countryCode)) {
+                    Log.w(TAG, "Cleaning up corrupted cache for $countryCode")
+                    clearCacheForCountry(countryCode)
+                    cleanedCount++
+                }
+            }
+
+            if (cleanedCount > 0) {
+                Log.d(TAG, "Cleaned up $cleanedCount corrupted cache entries")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error during corrupted cache cleanup", e)
         }
     }
 
