@@ -594,6 +594,7 @@ class AirspaceOverlayManager(
             centerStr
         ))
 
+
         // 🎯 STEP 2: Calculate differences (what needs to change)
         val changes = calculateOverlayChanges(desiredAirspaceIds)
 
@@ -617,6 +618,7 @@ class AirspaceOverlayManager(
             visibleAfterSync,
             centerStr
         ))
+
     }
 
     /**
@@ -718,13 +720,16 @@ class AirspaceOverlayManager(
                     // Add to our tracking immediately
                     currentlyRenderedAirspaces[airspaceId] = polygon
 
-                    // Add to Hilbert-ordered batch
-                    coordinator.addOverlayToBatch(polygon, airspaceId, feature.centroid)
+                    // ✅ FIXED: Process each overlay immediately with animation (no batching)
+                    coordinator.getAnimationManager().animateOverlayAddition(
+                        overlay = polygon,
+                        overlayId = airspaceId,
+                        mapView = map
+                    ) {
+                        Log.v(TAG, "Airspace animation completed: $airspaceId")
+                    }
                 }
             }
-
-            // Process the batch for Hilbert-ordered addition
-            coordinator.flushPendingAdditions()
         } else {
             // Fallback to direct animation manager if coordinator not available
             airspacesToAdd.entries.forEachIndexed { index, (airspaceId, feature) ->
