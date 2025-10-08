@@ -106,8 +106,8 @@ class AdaptiveOverlaySystem(private val context: Context) {
     }
 
     /**
-     * Calculate overlay budgets for each distance zone
-     */
+      * Calculate overlay budgets for each distance zone with flexible redistribution
+      */
     private fun calculateZoneBudgets(
         totalBudget: Int,
         memoryState: ApplicationMemoryState,
@@ -119,29 +119,129 @@ class AdaptiveOverlaySystem(private val context: Context) {
             return DistanceZoneUtils.getAviationSafetyBudget(totalBudget, memoryState.calculatedPressure)
         }
 
-        // Standard zone allocation with flight phase adjustments
+        // Improved zone allocation that redistributes unused budget
         val baseAllocation = mutableMapOf<DistanceZone, Int>()
 
-        // Always preserve safety-critical CORE zone (50% of budget)
-        baseAllocation[DistanceZone.CORE] = (totalBudget * 0.5).toInt()
+        // Start with minimum safe allocations for each zone
+        val minimumAllocations = getMinimumZoneAllocations(totalBudget, flightPhase)
+        var remainingBudget = totalBudget
 
-        // Allocate remaining budget based on flight phase needs
-        val remainingBudget = totalBudget - baseAllocation[DistanceZone.CORE]!!
-
-        var allocated = 0
-        DistanceZone.values().filter { it != DistanceZone.CORE }.forEach { zone ->
-            val flightMultiplier = zone.getFlightPhaseMultiplier(flightPhase)
-            val zoneBudget = (remainingBudget * flightMultiplier / getTotalFlightMultiplier(flightPhase)).toInt()
-            baseAllocation[zone] = zoneBudget
-            allocated += zoneBudget
+        // Allocate minimums first
+        DistanceZone.values().forEach { zone ->
+            val minimum = minimumAllocations[zone] ?: 0
+            baseAllocation[zone] = minimum
+            remainingBudget -= minimum
         }
 
-        // Distribute any remainder to NEAR zone (most important after CORE)
-        if (allocated < remainingBudget) {
-            baseAllocation[DistanceZone.NEAR] = baseAllocation[DistanceZone.NEAR]!! + (remainingBudget - allocated)
+        // Distribute remaining budget based on priority and flight phase needs
+        val priorityOrder = DistanceZone.getPriorityOrder()
+
+        for (zone in priorityOrder) {
+            if (remainingBudget <= 0) break
+
+            // Calculate how much more this zone can benefit from additional budget
+            val additionalAllocation = calculateOptimalZoneBudget(zone, remainingBudget, flightPhase, memoryState)
+            val actualAllocation = kotlin.math.min(additionalAllocation, remainingBudget)
+
+            if (actualAllocation > 0) {
+                baseAllocation[zone] = baseAllocation[zone]!! + actualAllocation
+                remainingBudget -= actualAllocation
+            }
         }
+
+        // If there's still budget left, distribute to zones that can use it most effectively
+        if (remainingBudget > 0) {
+            redistributeRemainingBudget(baseAllocation, remainingBudget, flightPhase)
+        }
+
+        Log.d(TAG, "Zone allocation: ${baseAllocation.map { "${it.key.name}:${it.value}" }.joinToString(", ")}")
 
         return baseAllocation
+    }
+
+    /**
+     * Get minimum safe allocations for each zone to ensure aviation safety
+     */
+    private fun getMinimumZoneAllocations(totalBudget: Int, flightPhase: FlightPhase): Map<DistanceZone, Int> {
+        // Minimum allocations based on aviation safety requirements
+        val coreMinimum = kotlin.math.max(20, (totalBudget * 0.15).toInt()) // At least 20, or 15% of budget
+        val nearMinimum = kotlin.math.max(15, (totalBudget * 0.10).toInt()) // At least 15, or 10% of budget
+
+        return mapOf(
+            DistanceZone.CORE to coreMinimum,
+            DistanceZone.NEAR to nearMinimum,
+            DistanceZone.MID to kotlin.math.max(5, (totalBudget * 0.05).toInt()),
+            DistanceZone.FAR to kotlin.math.max(3, (totalBudget * 0.03).toInt()),
+            DistanceZone.EXTREME to 0 // No minimum for extreme zone
+        )
+    }
+
+    /**
+     * Calculate optimal additional budget for a specific zone
+     */
+    private fun calculateOptimalZoneBudget(
+        zone: DistanceZone,
+        availableBudget: Int,
+        flightPhase: FlightPhase,
+        memoryState: ApplicationMemoryState
+    ): Int {
+        val flightMultiplier = zone.getFlightPhaseMultiplier(flightPhase)
+        val priorityWeight = when (zone.priority) {
+            1 -> 0.4 // CORE - highest priority
+            2 -> 0.3 // NEAR - high priority
+            3 -> 0.2 // MID - medium priority
+            4 -> 0.1 // FAR - low priority
+            5 -> 0.05 // EXTREME - lowest priority
+            else -> 0.05
+        }
+
+        // Memory pressure affects allocation for non-critical zones
+        val memoryAdjustment = when (memoryState.calculatedPressure) {
+            MemoryPressureLevel.HIGH_MEMORY -> 1.0
+            MemoryPressureLevel.MEDIUM_MEMORY -> 0.8
+            MemoryPressureLevel.LOW_MEMORY -> 0.6
+            MemoryPressureLevel.CRITICAL_MEMORY -> 0.4
+        }
+
+        // Apply flight phase and priority weighting
+        val weightedAllocation = (availableBudget * flightMultiplier * priorityWeight * memoryAdjustment)
+
+        return kotlin.math.max(0, weightedAllocation.toInt())
+    }
+
+    /**
+     * Redistribute any remaining budget to zones that need it most
+     */
+    private fun redistributeRemainingBudget(
+        allocations: MutableMap<DistanceZone, Int>,
+        remainingBudget: Int,
+        flightPhase: FlightPhase
+    ) {
+        // Priority order for redistribution (excluding EXTREME zone)
+        val redistributionPriority = listOf(DistanceZone.NEAR, DistanceZone.CORE, DistanceZone.MID, DistanceZone.FAR)
+
+        var budgetToDistribute = remainingBudget
+
+        for (zone in redistributionPriority) {
+            if (budgetToDistribute <= 0) break
+
+            // Give zones that benefit most from the current flight phase a larger share
+            val flightMultiplier = zone.getFlightPhaseMultiplier(flightPhase)
+            val zoneShare = when {
+                flightMultiplier > 1.0 -> (budgetToDistribute * 0.4).toInt() // Zones that benefit from this phase
+                flightMultiplier > 0.7 -> (budgetToDistribute * 0.3).toInt() // Standard zones
+                else -> (budgetToDistribute * 0.2).toInt() // Zones that don't benefit much
+            }
+
+            val actualShare = kotlin.math.min(zoneShare, budgetToDistribute)
+            allocations[zone] = allocations[zone]!! + actualShare
+            budgetToDistribute -= actualShare
+        }
+
+        // If there's still budget left, give it all to NEAR zone (most useful)
+        if (budgetToDistribute > 0) {
+            allocations[DistanceZone.NEAR] = allocations[DistanceZone.NEAR]!! + budgetToDistribute
+        }
     }
 
     /**
