@@ -70,7 +70,7 @@ class RouteOverlayManager(
     }
 
     override fun onOverlayDetached() {
-        Log.d(TAG, "Route overlay manager detached")
+        // Log.d(TAG, "Route overlay manager detached")
         cleanupRouteOverlays()
         routeSubscriptionJob?.cancel()
     }
@@ -79,7 +79,7 @@ class RouteOverlayManager(
         waypointMarkers.clear()
         routeLines.clear()
         cylinderOverlays.clear()
-        Log.d(TAG, "Route overlays cleaned up")
+        // Log.d(TAG, "Route overlays cleaned up")
     }
 
     override fun performMapMove(center: GeoPoint, zoom: Double) {
@@ -130,7 +130,7 @@ class RouteOverlayManager(
                     cylinderOverlays.clear()
 
                     map.invalidate()
-                    Log.d(TAG, "All route overlays cleared")
+                    // Log.d(TAG, "All route overlays cleared")
                 }
             }
         }
@@ -213,7 +213,7 @@ class RouteOverlayManager(
 
         if (removedCount > 0) {
             mapView?.invalidate()
-            Log.d(TAG, "Removed $removedCount route overlays in ${zone.name} zone")
+            // Log.d(TAG, "Removed $removedCount route overlays in ${zone.name} zone")
         }
 
         return removedCount
@@ -224,7 +224,7 @@ class RouteOverlayManager(
         val preservedCount = waypointMarkers.size + cylinderOverlays.size
 
         // Don't remove current route elements as they are safety-critical for navigation
-        Log.d(TAG, "Preserved $preservedCount safety-critical route overlays")
+        // Log.d(TAG, "Preserved $preservedCount safety-critical route overlays")
         return preservedCount
     }
 
@@ -272,7 +272,7 @@ class RouteOverlayManager(
 
         // Initialize with empty state
         updatePerformanceStats()
-        Log.d(TAG, "Route overlays initialized")
+        // Log.d(TAG, "Route overlays initialized")
     }
 
     private fun updateRouteVisualization(route: Route) {
@@ -298,7 +298,7 @@ class RouteOverlayManager(
                 updatePerformanceStats()
 
                 mapView?.invalidate()
-                Log.d(TAG, "Updated visualization for route: ${route.name} (${route.waypoints.size} waypoints)")
+                // Log.d(TAG, "Updated visualization for route: ${route.name} (${route.waypoints.size} waypoints)")
 
             } catch (e: Exception) {
                 Log.e(TAG, "Error updating route visualization", e)
@@ -631,7 +631,7 @@ class RouteOverlayManager(
 
     private fun simplifyRouteVisualization() {
         // Reduce cylinder detail and remove distant waypoints
-        Log.d(TAG, "Simplifying route visualization for performance")
+        // Log.d(TAG, "Simplifying route visualization for performance")
         // Implementation would reduce polygon points and remove distant elements
     }
 
@@ -689,7 +689,7 @@ class RouteOverlayManager(
         waypointMarkers.values.forEach { marker ->
             marker.isDraggable = enabled
         }
-        Log.d(TAG, "Interactive mode ${if (enabled) "enabled" else "disabled"}")
+        // Log.d(TAG, "Interactive mode ${if (enabled) "enabled" else "disabled"}")
     }
 
     fun selectWaypoint(waypointId: String?) {
@@ -703,7 +703,7 @@ class RouteOverlayManager(
             val routeIds = routeLines.keys.toList()
             routeIds.forEach { routeId ->
                 // Would reload and recreate overlays for each route
-                Log.d(TAG, "Refreshing visualization for route: $routeId")
+                // Log.d(TAG, "Refreshing visualization for route: $routeId")
             }
             map.invalidate()
         }

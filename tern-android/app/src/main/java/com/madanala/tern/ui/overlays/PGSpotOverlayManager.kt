@@ -121,7 +121,7 @@ class PGSpotOverlayManager(
     }
 
     override fun updateConfig(config: OverlayConfig) {
-        Log.d(TAG, "PG spots overlay manager config updated: $config")
+        // Log.d(TAG, "PG spots overlay manager config updated: $config")
         // Future: Handle PG spot specific configurations
     }
 
@@ -156,7 +156,7 @@ class PGSpotOverlayManager(
     }
 
     override fun onOverlayDetached() {
-        Log.d(TAG, "PG spots overlay manager detached")
+        // Log.d(TAG, "PG spots overlay manager detached")
         loadingJob?.cancel()
         weatherFetchJob?.cancel()
         loadingJob = null
@@ -207,7 +207,7 @@ class PGSpotOverlayManager(
      * Abstract method implementation from BaseOverlayManager
      */
     override fun onViewportChangedInternal(viewport: BoundingBox) {
-        Log.d(TAG, "Viewport changed internal: $viewport")
+        // Log.d(TAG, "Viewport changed internal: $viewport")
         // Abstract method required by base class - implementation handled in onViewportChanged
     }
 
@@ -383,7 +383,7 @@ class PGSpotOverlayManager(
                 lastWeatherUpdate = System.currentTimeMillis()
 
             } catch (e: CancellationException) {
-                Log.d(TAG, "Weather fetching cancelled due to user interaction")
+                // Log.d(TAG, "Weather fetching cancelled due to user interaction")
             } catch (e: Exception) {
                 Log.e(TAG, "Critical error in weather fetching orchestration", e)
             }
@@ -486,7 +486,7 @@ class PGSpotOverlayManager(
                     // Try to use existing cache even if stale (better than no data)
                     val fallbackFeatures = pgSpotCache.getCachedPGSpots(countryCode)
                     if (fallbackFeatures != null && fallbackFeatures.isNotEmpty()) {
-                        Log.d(TAG, "Using stale cache as fallback: ${fallbackFeatures.size} PG spots for $countryCode")
+                        // Log.d(TAG, "Using stale cache as fallback: ${fallbackFeatures.size} PG spots for $countryCode")
                         nearbyFeatures = fallbackFeatures.filter { feature ->
                             val distance = center.distanceToAsDouble(feature.centroid) / 1000.0 // Convert to km
                             distance <= 200.0 // Same 200km radius as fresh data
@@ -511,7 +511,7 @@ class PGSpotOverlayManager(
                 currentCountryCode = countryCode
                 lastCheckLocation = center
             } else {
-                Log.d(TAG, "No PG spots found within 200 km of $center")
+                // Log.d(TAG, "No PG spots found within 200 km of $center")
             }
 
         } catch (e: CancellationException) {
@@ -762,7 +762,7 @@ class PGSpotOverlayManager(
 
                 if (refreshedIds.isNotEmpty()) {
                     // Note: This is simplified - in production, would fetch fresh data
-                    Log.d(TAG, "Refreshing weather for ${refreshedIds.size} PG spots")
+                    // Log.d(TAG, "Refreshing weather for ${refreshedIds.size} PG spots")
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "Error in background weather refresh", e)
@@ -792,7 +792,7 @@ class PGSpotOverlayManager(
             try {
                 val available = weatherAPI.isAvailable()
                 mapStore?.dispatch(WeatherActions.WeatherAPIStatus(available))
-                Log.d(TAG, "Weather API availability: $available")
+                // Log.d(TAG, "Weather API availability: $available")
             } catch (e: Exception) {
                 Log.w(TAG, "Error checking weather API availability", e)
             }
@@ -800,7 +800,7 @@ class PGSpotOverlayManager(
     }
 
     private fun shutdownWeatherSystem() {
-        Log.d(TAG, "Shutting down weather system")
+        // Log.d(TAG, "Shutting down weather system")
         weatherFetchJob?.cancel()
         // Clear cache if needed, but preserve for offline capability
     }
@@ -1057,12 +1057,12 @@ class PGSpotOverlayManager(
             // Clear tracking (animation manager handles actual removal)
             currentlyRenderedPGSpots.clear()
             visiblePGSpots.clear()
-            Log.d(TAG, "Scheduled clear of ${markersToRemove.size} PG spot overlays via animation manager")
+            // Log.d(TAG, "Scheduled clear of ${markersToRemove.size} PG spot overlays via animation manager")
         } ?: run {
             // No map view available - just clear tracking
             currentlyRenderedPGSpots.clear()
             visiblePGSpots.clear()
-            Log.d(TAG, "Cleared PG spot tracking (no map view)")
+            // Log.d(TAG, "Cleared PG spot tracking (no map view)")
         }
     }
 }

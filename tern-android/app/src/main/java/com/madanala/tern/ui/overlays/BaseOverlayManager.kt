@@ -94,12 +94,12 @@ abstract class BaseOverlayManager(
 
 
     override fun updateConfig(config: OverlayConfig) {
-        Log.d(TAG, "updateConfig: $config")
+        // Log.d(TAG, "updateConfig: $config")
         // Implement in concrete subclasses if needed
     }
 
     override fun setEnabled(enabled: Boolean) {
-        Log.d(TAG, "setEnabled: $enabled")
+        // Log.d(TAG, "setEnabled: $enabled")
         // Implement in concrete subclasses if needed
     }
 
@@ -160,7 +160,7 @@ abstract class BaseOverlayManager(
     fun forceOverlayVisibilityRefresh() {
         mapView?.let { map ->
             val overlayCount = map.overlays.size
-            Log.d(TAG, "Force refresh: Map contains ${overlayCount} total overlays")
+            // Log.d(TAG, "Force refresh: Map contains ${overlayCount} total overlays")
 
             // Force map invalidation to ensure overlays are drawn
             map.invalidate()
@@ -216,7 +216,7 @@ abstract class BaseOverlayManager(
         val changed = hasValidGPSFix != hasFix
         hasValidGPSFix = hasFix
         if (changed && hasFix) {
-            Log.d(TAG, "GPS fix acquired - overlay operations now enabled")
+            // Log.d(TAG, "GPS fix acquired - overlay operations now enabled")
         }
     }
 
@@ -279,7 +279,7 @@ abstract class BaseOverlayManager(
     private fun initializeAdaptiveOverlaySystem() {
         try {
             adaptiveOverlaySystem = AdaptiveOverlaySystem(mapView?.context ?: return)
-            Log.d(TAG, "Adaptive overlay system initialized")
+            // Log.d(TAG, "Adaptive overlay system initialized")
 
             // Start monitoring with callbacks
             adaptiveOverlaySystem?.startMonitoring(
@@ -338,7 +338,7 @@ abstract class BaseOverlayManager(
     fun setFlightPhase(flightPhase: FlightPhase) {
         currentFlightPhase = flightPhase
         adaptiveOverlaySystem?.invalidateBudgetCache()
-        Log.d(TAG, "Flight phase set to: ${flightPhase.name}")
+        // Log.d(TAG, "Flight phase set to: ${flightPhase.name}")
     }
 
     /**
@@ -432,9 +432,9 @@ abstract class BaseOverlayManager(
             invisibleRemoved = removeInvisibleOverlays()
             totalRemoved += invisibleRemoved
             if (invisibleRemoved > 0) {
-                Log.d(TAG, "🚀 Viewport cleanup: Removed $invisibleRemoved invisible overlays (most efficient)")
+                // Log.d(TAG, "🚀 Viewport cleanup: Removed $invisibleRemoved invisible overlays (most efficient)")
             } else {
-                Log.d(TAG, "Viewport cleanup: No invisible overlays found")
+                // Log.d(TAG, "Viewport cleanup: No invisible overlays found")
             }
 
             // Phase 2: Clear distance zones in reverse priority order (safest first)
@@ -445,7 +445,7 @@ abstract class BaseOverlayManager(
                 if (removedInZone > 0) {
                     zonesCleared.add(zone)
                 }
-                Log.d(TAG, "Zone cleanup: Removed $removedInZone overlays from ${zone.name} zone")
+                // Log.d(TAG, "Zone cleanup: Removed $removedInZone overlays from ${zone.name} zone")
             }
 
             // Always preserve safety-critical zones
@@ -526,7 +526,7 @@ abstract class BaseOverlayManager(
             adaptiveOverlaySystem?.cleanup()
             adaptiveOverlaySystem = null
             currentOverlayBudget = null
-            Log.d(TAG, "Adaptive overlay system cleaned up")
+            // Log.d(TAG, "Adaptive overlay system cleaned up")
         } catch (e: Exception) {
             Log.e(TAG, "Error cleaning up adaptive overlay system", e)
         }
@@ -541,7 +541,7 @@ abstract class BaseOverlayManager(
             return
         }
 
-        Log.d(TAG, "Detaching overlay manager")
+        // Log.d(TAG, "Detaching overlay manager")
 
         // Cleanup adaptive overlay system first
         cleanupAdaptiveOverlaySystem()

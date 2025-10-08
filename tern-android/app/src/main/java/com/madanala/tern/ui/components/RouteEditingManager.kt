@@ -298,7 +298,7 @@ class RouteEditingManager(
 
         onWaypointSelected?.invoke(waypoint)
 
-        Log.d(TAG, "Waypoint selected: ${waypoint.name}")
+        // Log.d(TAG, "Waypoint selected: ${waypoint.name}")
     }
 
     /**
@@ -306,7 +306,7 @@ class RouteEditingManager(
      */
     private fun handleWaypointDrag(marker: Marker) {
         val waypointId = marker.title // Assuming title contains waypoint ID
-        Log.d(TAG, "Waypoint drag: $waypointId at ${marker.position}")
+        // Log.d(TAG, "Waypoint drag: $waypointId at ${marker.position}")
     }
 
     /**
@@ -319,7 +319,7 @@ class RouteEditingManager(
         // Find the waypoint and update its location
         // This would need route state access to find and update the waypoint
 
-        Log.d(TAG, "Waypoint drag end: $waypointId at ${newLocation.latitude}, ${newLocation.longitude}")
+        // Log.d(TAG, "Waypoint drag end: $waypointId at ${newLocation.latitude}, ${newLocation.longitude}")
     }
 
     /**
@@ -327,7 +327,7 @@ class RouteEditingManager(
      */
     private fun handleWaypointDragStart(marker: Marker) {
         val waypointId = marker.title
-        Log.d(TAG, "Waypoint drag start: $waypointId")
+        // Log.d(TAG, "Waypoint drag start: $waypointId")
     }
 
     /**
@@ -337,7 +337,7 @@ class RouteEditingManager(
         // Get selected waypoint ID from route state
         // routeStore?.dispatch(RouteAction.RemoveWaypoint(selectedWaypointIndex))
 
-        Log.d(TAG, "Selected waypoint deleted")
+        // Log.d(TAG, "Selected waypoint deleted")
     }
 
     /**
@@ -347,7 +347,7 @@ class RouteEditingManager(
         waypointCreationInProgress = false
         pendingWaypointLocation = null
         longPressStartTime = 0L
-        Log.d(TAG, "Waypoint creation cancelled")
+        // Log.d(TAG, "Waypoint creation cancelled")
     }
 
     /**
@@ -355,7 +355,7 @@ class RouteEditingManager(
      */
     fun clearAllWaypoints() {
         // routeStore?.dispatch(RouteAction.ClearRouteState())
-        Log.d(TAG, "All waypoints cleared")
+        // Log.d(TAG, "All waypoints cleared")
     }
 
     /**
