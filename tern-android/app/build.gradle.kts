@@ -30,14 +30,25 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
+        // Upgrade to Java 21 LTS
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
     }
 
     kotlin {
         compilerOptions {
-            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+            // Upgrade Kotlin compiler target to JVM 21
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
             freeCompilerArgs.add("-Xannotation-default-target=param-property")
+        }
+    }
+
+    // Configure Java toolchain to use Java 21 where supported by the Android Gradle Plugin
+    // AGP may ignore the toolchain for Android compilation, but setting this helps Gradle tasks
+    // that run on the JVM (kapt, gradle plugins, etc.).
+    java {
+        toolchain {
+            languageVersion.set(JavaLanguageVersion.of(21))
         }
     }
 
@@ -57,7 +68,8 @@ android {
 }
 
 dependencies {
-    implementation(platform("org.jetbrains.kotlin:kotlin-bom:2.2.10"))
+    // Align kotlin BOM with the Kotlin Gradle plugin (2.2.20)
+    implementation(platform("org.jetbrains.kotlin:kotlin-bom:2.2.20"))
     implementation("androidx.core:core-ktx:1.17.0")
     implementation("androidx.appcompat:appcompat:1.7.1")
     implementation("com.google.android.material:material:1.13.0")
