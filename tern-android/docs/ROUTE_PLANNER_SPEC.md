@@ -1,248 +1,179 @@
-# 🗺️ Route Planner Feature Specification
+# Route Planning Implementation Strategy
 
-## Overview
-Complete specification for the iOS route planning feature integration, including UX flows, safety considerations, technical requirements, and implementation details.
+**Last Updated**: October 2025
+**Status**: Planning Phase (awaiting Phase 1 implementation)
+**Author**: Development Team
 
-## 🎯 User Experience Design
+## Executive Summary
 
-### Primary Entry Points
-- **Launch Site Selection** - Browse established PG sites as starting points
-- **Map-Based Creation** - Long press to add waypoints, drag to edit
-- **Competition Import** - Import official FAI tasks
-- **Popular Routes** - Browse community XC routes
+This document outlines a phased, incremental approach to implementing route planning functionality for the Tern paragliding app. The strategy emphasizes **working functionality first, technical polish second** with rigorous testing at each phase.
 
-### Route Creation Workflow
-1. **Select Launch Site** → Creates WP1 with launch characteristics
-2. **Add Turnpoints** → Tap map or select from PG spots database
-3. **Configure Waypoints** → Set types, elevations, cylinder radii
-4. **Safety Checklists** → Complete pre-flight safety validation
-5. **Offline Caching** → Download route-line tiles and safety data
-6. **Export/Share** → Generate QR codes or files for sharing
+## Critical Lessons Learned
 
-### Waypoint Type System
-- **🏔️ Launch** - Takeoff sites with elevation and conditions
-- **⭕ Turnpoint** - FAI competition cylinders (400m default)
-- **🏁 Landing** - Safe landing zones with terrain analysis
-- **📍 Intermediate** - Route waypoints for navigation
-- **🌪️ Thermal** - Known thermal areas for soaring
+### Previous Attempt Issues
+- ❌ **Over-engineering**: 38+ files modified simultaneously
+- ❌ **Technical focus over UX**: Prioritizing compilation warnings over working features
+- ❌ **Complex Redux integration**: Adding state management before basic functionality worked
+- ❌ **Scope creep**: Adding weather integration, QR sharing, performance optimization before core features worked
 
-## 🛡️ Safety-First Architecture
+### Corrected Approach
+- ✅ **Minimal changes per phase** (1-3 files maximum)
+- ✅ **Frequent device testing** (test every change immediately)
+- ✅ **Zero warnings before GitHub push** (strict quality gate)
+- ✅ **Working functionality first** (technical polish second)
+- ✅ **Incremental GitHub pushes** (regular checkpointing)
 
-### Pre-Flight Safety Checklists
-```
-Aviation Safety:
-□ Wing inspection and airworthiness
-□ Harness and carabiner checks
-□ Reserve parachute verification
-□ Weather condition assessment
+## Implementation Phases
 
-Personal Resources:
-□ Water (2L minimum for XC flights)
-□ Snacks and energy food
-□ Electrolyte supplements
-□ Emergency cash (€50-100)
+### Phase 1: Minimal Viable Route Planning (MVP)
+**Goal**: Basic waypoint creation and display
 
-Electronics & Communication:
-□ Phone fully charged + backup battery
-□ Radio charged and tested
-□ GPS device functional
-□ Headlamp/flashlight
-
-Emergency Preparedness:
-□ Emergency contacts list
-□ Flight plan shared with someone
-□ Retrieve driver arranged
-□ Local radio frequencies
-□ Hospital locations cached
-```
-
-### Offline-First Caching Strategy
-- **Route-Line Downloads** - Map tiles downloaded along flight path lines (Launch→WP1→Landing) with 2km buffer
-- **Airspace Data** - All relevant airspace for route corridor
-- **Terrain Data** - Elevation profiles for entire route
-- **Weather Data** - Current conditions + 6-hour forecast
-- **Emergency Services** - Hospitals, emergency contacts, phone numbers
-- **PG Spots** - All takeoff/landing sites in route area
-
-### Cache Status Monitoring
-- **Visual Indicators** - Show cache progress during planning
-- **Validation** - Verify all data cached before flight
-- **Graceful Degradation** - Multiple fallback levels if cache incomplete
-
-## ⚙️ Technical Implementation Requirements
-
-### Redux State Management
+**Files to Modify (2-3 maximum)**:
 ```kotlin
-data class RouteState(
-    val waypoints: List<Waypoint> = emptyList(),
-    val selectedRoute: Route? = null,
-    val isEditMode: Boolean = false,
-    val cacheStatus: CacheStatus = CacheStatus.EMPTY,
-    val safetyChecklist: SafetyChecklist = SafetyChecklist()
-)
-
-sealed class RouteAction {
-    data class AddWaypoint(val waypoint: Waypoint) : RouteAction()
-    data class UpdateWaypoint(val index: Int, val waypoint: Waypoint) : RouteAction()
-    data class CacheRouteData(val route: Route) : RouteAction()
-    data class UpdateSafetyChecklist(val checklist: SafetyChecklist) : RouteAction()
-}
+// Essential files only
+- Waypoint data model (new file)
+- Map touch handling (modify existing)
+- Basic waypoint display (modify existing)
 ```
 
-### FAI Competition Compliance
-- **Cylinder Validation** - 400m radius standard for turnpoints
-- **Task Types** - Race to Goal, Elapsed Time, Open Distance
-- **Scoring System** - Distance/speed/leading points calculation
-- **Track Validation** - IGC format for official validation
+**Deliverables**:
+- [ ] Long press map → Create waypoint at location
+- [ ] Display waypoint markers on map
+- [ ] Simple waypoint list/information
+- [ ] **Test on device** ✅
+- [ ] **Zero warnings** ✅
+- [ ] **Push to GitHub** ✅
 
-### QR Code System (iOS-Tested)
-- **XCTSK Format** - XCTrack competition standard
-- **5-Bit Encoding** - Compact integer encoding for altitude/radius
-- **Polyline Encoding** - Google polyline algorithm for coordinates
-- **Multi-format Support** - XCTSK, CUP, CompeGPS WPT, GPX, KML
+**Success Criteria**:
+- Long press creates waypoint
+- Waypoint visible on map
+- No crashes or warnings
+- Manual testing passed
 
-## 🗺️ Map Integration Features
+### Phase 2: Route Editing & Redux Integration
+**Goal**: Add editing capabilities with state management
 
-### Interactive Waypoint Management
-- **Tap to Create** - Long press map to add waypoints
-- **Drag to Edit** - Move waypoints to exact positions
-- **Visual Feedback** - Numbered markers (WP1, WP2, WP3...)
-- **Cylinder Overlays** - FAI-standard 400m circles
-- **Route Lines** - Geodesic polylines with distance labels
+**Files to Modify (2-3 maximum)**:
+```kotlin
+// Focused changes only
+- Redux actions for waypoint CRUD
+- Route editing mode implementation
+- MapViewModel Redux connection
+```
 
-### Real-Time Map Features
-- **Live Route Updates** - Route adjusts as waypoints are modified
-- **Distance Calculations** - Real-time leg and total distance
-- **Elevation Profiles** - Terrain elevation along route
-- **Safety Validation** - Real-time airspace and terrain conflict detection
+**Deliverables**:
+- [ ] Drag-and-drop waypoint repositioning
+- [ ] Delete waypoints functionality
+- [ ] Redux state properly updates
+- [ ] **Test on device** ✅
+- [ ] **Zero warnings** ✅
+- [ ] **Push to GitHub** ✅
 
-## 📱 User Interface Components
+### Phase 3: Enhanced Features
+**Goal**: Add advanced features incrementally
 
-### Route Planning Screen
-- **Map View** - Interactive map with route overlays
-- **Waypoint List** - Scrollable list of route waypoints
-- **Route Statistics** - Distance, duration, elevation gain
-- **Action Buttons** - Export, share, duplicate, delete
+**Phase 3a: Route Metadata**
+- Route names and descriptions
+- Basic route validation
+- **Test and push**
 
-### Waypoint Editor
-- **Basic Info** - Name, description, elevation
-- **FAI Settings** - Cylinder radius, turnpoint type
-- **Safety Notes** - Custom notes and warnings
-- **Weather Integration** - Current conditions display
+**Phase 3b: Weather Integration**
+- WeatherRouter integration
+- Visual weather indicators
+- **Test and push**
 
-### Safety Checklist Interface
-- **Category Tabs** - Aviation, Resources, Electronics, Emergency
-- **Progress Tracking** - Visual completion indicators
-- **Validation** - Prevents flight without completed checks
-- **Custom Notes** - User-defined safety considerations
+**Phase 3c: QR Code Sharing**
+- iOS-compatible QR generation
+- Route export functionality
+- **Test and push**
 
-## 🌐 Offline Execution Capabilities
+## Quality Gates
 
-### Flight Mode Features
-- **Cached Map Display** - Route visible without connectivity
-- **Navigation Assistance** - Bearing and distance to waypoints
-- **Safety Information** - Emergency contacts and procedures
-- **Weather Reference** - Cached forecast for decision making
-- **Alternative Routes** - Pre-calculated escape options
+### Before Any GitHub Push
+- ✅ **Zero compilation warnings**
+- ✅ **Functionality works on device**
+- ✅ **Manual testing passed**
+- ✅ **No regressions in existing features**
+- ✅ **Performance targets met** (<10 Redux dispatches/sec, <75% memory usage)
 
-### Performance Requirements
-- **<10 Redux dispatches/sec** during route editing
-- **<75% memory usage** with complex route caching
-- **Smooth map interactions** during waypoint editing
-- **No UI blocking** during cache operations
+### During Development
+1. **Make minimal changes** (1-3 files maximum)
+2. **Test on device immediately** after each change
+3. **Fix any issues** before adding new functionality
+4. **Maintain aviation safety standards**
+5. **Ensure zero warnings** before proceeding
 
-## 📤 Sharing and Export Features
+## Success Metrics
 
-### QR Code Generation
-- **iOS-Compatible Format** - XCTSK with 5-bit encoding
-- **Instant Sharing** - Scan QR to import complete routes
-- **Competition Ready** - FAI task sharing and validation
-- **Social Integration** - WhatsApp, email, Airtribune
-
-### Multi-Format Export
-- **XCTSK** - Competition and XCTrack compatibility
-- **GPX** - Garmin and navigation app compatibility
-- **CUP** - GPS device compatibility
-- **KML** - Google Earth and mapping software
-- **IGC** - FAI official track validation format
-
-## 🔗 Integration Points
-
-### Existing System Integration
-- **Redux Architecture** - Route state management through existing store
-- **Overlay System** - Route visualization using BaseOverlayManager pattern
-- **Weather System** - Route optimization using existing WeatherRouter
-- **Cache System** - Route data caching using existing FlexBuffers system
-- **Location Services** - Launch site discovery using existing location system
-
-### New System Components
-- **RouteOverlayManager** - Extends BaseOverlayManager for route visualization
-- **CacheManager** - Route-specific caching for offline execution
-- **ExportManager** - Multi-format export with QR code generation
-- **SafetyManager** - Pre-flight checklist and validation system
-
-## ✅ Success Metrics
+### Technical Requirements
+- ✅ **Builds without warnings or errors**
+- ✅ **Installs and launches successfully**
+- ✅ **No performance regressions**
+- ✅ **Memory usage <75%**
 
 ### Functional Requirements
-- ✅ Interactive waypoint management (add, edit, delete, drag)
-- ✅ Route visualization on map with overlays
-- ✅ FAI compliance (400m cylinders, standard formats)
-- ✅ Multi-format export (GPX, KML, XCTSK, CUP)
-- ✅ QR code sharing (iOS-tested 5-bit encoding)
-- ✅ Comprehensive safety checklists
-- ✅ Offline route execution capability
+- ✅ **Long press creates waypoints**
+- ✅ **AddWaypointButton works**
+- ✅ **Route editing functions properly**
+- ✅ **Redux state updates correctly**
+- ✅ **Visual feedback for user actions**
+
+## Development Workflow
+
+```mermaid
+graph TD
+    A[Make minimal changes<br/>1-3 files] --> B[Test on device<br/>immediately]
+    B --> C[Any issues?]
+    C -->|Yes| D[Fix issues<br/>Return to B]
+    C -->|No| E[Zero warnings<br/>check]
+    E --> F[Push to GitHub<br/>checkpoint]
+    F --> G[Next phase or<br/>feature]
+```
+
+## Architectural Constraints
+
+### Redux Integration
+- Only add Redux after basic functionality works
+- Use existing Redux patterns (no new architectures)
+- Follow AGENTS.md overlay manager requirements
+- Maintain aviation safety standards
 
 ### Performance Requirements
-- ✅ <10 Redux dispatches/sec during route editing
-- ✅ Smooth map interactions with overlay updates
-- ✅ <75% memory usage with complex routes
-- ✅ No UI blocking during cache operations
-- ✅ Fast QR code generation/scanning
+- <10 Redux dispatches/sec during route operations
+- <75% memory usage with adaptive allocation
+- Zero visual discontinuity during flight operations
+- No UI blocking during critical operations
 
-### Safety Requirements
-- ✅ Complete offline functionality
-- ✅ Pre-flight checklist validation
-- ✅ Emergency information always accessible
-- ✅ Graceful degradation if cache incomplete
-- ✅ Clear safety status indicators
+### Code Quality Standards
+- Zero compilation errors OR warnings (strict compliance)
+- Follow existing code patterns and conventions
+- Maintain backward compatibility
+- No regressions in existing functionality
 
-## 📋 Implementation Checklist
+## Related Documentation
 
-### Phase 1: Redux Foundation
-- [ ] RouteState data class and Redux actions
-- [ ] RouteOverlayManager extending BaseOverlayManager
-- [ ] Basic waypoint storage in Redux state
+- **AGENTS.md** - Strict completion criteria and architectural requirements
+- **ARCHITECTURE_DECISIONS.md** - System architecture and patterns
+- **AVIATION_SAFETY.md** - Safety standards and requirements
+- **PERFORMANCE_GUIDELINES.md** - Performance targets and monitoring
 
-### Phase 2: Map Integration
-- [ ] Interactive waypoint creation (tap to add)
-- [ ] Route visualization (polylines and markers)
-- [ ] Waypoint editing (drag to move, tap to edit)
+## Future Considerations
 
-### Phase 3: Route Calculation
-- [ ] Distance/bearing calculations between waypoints
-- [ ] Route validation and safety checks
-- [ ] Route statistics (total distance, leg distances)
+### iOS Integration
+- QR code format compatibility with iOS Tern app
+- Cross-platform route sharing capabilities
+- Consistent user experience across platforms
 
-### Phase 4: FAI Competition Rules
-- [ ] FAI turnpoint cylinder validation (400m radius)
-- [ ] Competition task management
-- [ ] FAI scoring system integration
+### Competition Features
+- FAI-compliant route validation
+- Competition route management
+- Advanced waypoint types and constraints
 
-### Phase 5: Export System
-- [ ] Multi-format export (GPX, KML, XCTSK, CUP)
-- [ ] File sharing capabilities
-- [ ] QR code foundation setup
-
-### Phase 6: Safety Integration
-- [ ] Pre-flight checklist system
-- [ ] Route-line tile caching
-- [ ] Offline validation and execution
-
-### Phase 7: Weather Integration
-- [ ] Weather-optimized route display
-- [ ] Thermal opportunity visualization
-- [ ] Risk assessment integration
+### Weather Integration
+- WeatherRouter integration for route optimization
+- RiskAssessmentEngine for safety analysis
+- Visual weather indicators on routes
 
 ---
 
-*This document provides detailed technical specifications for the route planner implementation. Refer to PROJECT_PLAN.md for high-level roadmap and priorities.*
+**Ready for Phase 1 implementation!** 🪂

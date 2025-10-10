@@ -23,96 +23,115 @@ Android paragliding app with osmdroid maps, Jetpack Compose UI, Redux architectu
 
 ## 🎯 NEXT PRIORITIES - Updated October 2025
 
-### 🚀 IMPLEMENTATION FOCUS: iOS Route Planning Integration
+### 🚀 IMPLEMENTATION FOCUS: Simplified Route Planning Strategy
 
-**Technical Foundation Discovered:**
-- ✅ **Redux Infrastructure** - Complete state management ready for route data
-- ✅ **Overlay Architecture** - Mature system ready for route visualization
-- ✅ **Weather Algorithms** - `WeatherRouter` and `RiskAssessmentEngine` complete
-- ✅ **Flight Computer** - Advanced aviation calculations implemented
+**❌ Previous Approach Failed:**
+- Over-engineering with 38+ files modified
+- Complex Redux integration before basic functionality worked
+- Technical focus over working user experience
+- Core features (long-press waypoint creation) not functional
 
-**iOS Route Planning Analysis:**
-- **Waypoint Management** - Interactive map-based waypoint creation/editing
-- **FAI Compliance** - Competition-grade turnpoint validation (400m cylinders)
-- **QR Code System** - Tested 5-bit encoding system for compact data sharing
-- **Multi-format Export** - XCTSK, GPX, CUP, CompeGPS formats
+**✅ New Simplified Approach:**
+- **Phase 1: Minimal Viable Route Planning (MVP)**
+- **Phase 2: Route Editing & Redux Integration**
+- **Phase 3: Enhanced Features**
+- **Focus on working functionality first, technical polish second**
 
-### 📋 DETAILED IMPLEMENTATION ROADMAP
+### 📋 UPDATED IMPLEMENTATION ROADMAP
 
-#### Week 1: Core Route Planning (Start Monday Morning)
-**Day 1: Redux Foundation**
-- Implement `RouteState` and Redux actions for waypoint management
-- Create `Waypoint` data model with FAI compliance features
-- Set up `RouteOverlayManager` extending `BaseOverlayManager`
+#### **Phase 1: Minimal Viable Route Planning (Start Tomorrow)**
+**Goal**: Basic waypoint creation and display
 
-**Day 2: Map Integration**
-- Add interactive waypoint creation (tap to add, drag to move)
-- Implement route visualization with polyline overlays
-- Add waypoint markers with numbered identification
+**Files to Modify (2-3 maximum)**:
+```kotlin
+// Essential files only
+- Waypoint data model (new file)
+- Map touch handling (modify existing)
+- Basic waypoint display (modify existing)
+```
 
-**Day 3: Route Calculation**
-- Implement distance/bearing calculations between waypoints
-- Add route validation and safety checks
-- Create route statistics (total distance, leg distances)
+**Day 1 Deliverables**:
+- [ ] Long press map → Create waypoint at location
+- [ ] Display waypoint markers on map
+- [ ] Simple waypoint list/information
+- [ ] **Test on device** ✅
+- [ ] **Zero warnings** ✅
+- [ ] **Push to GitHub** ✅
 
-**Day 4: FAI Competition Rules**
-- Implement FAI turnpoint cylinder validation (400m radius)
-- Add FAI scoring system (distance/speed/leading points)
-- Create competition task management
+#### **Phase 2: Route Editing & Redux Integration**
+**Goal**: Add editing capabilities with state management
 
-**Day 5: Export System**
-- Implement multiple format support (GPX, KML, XCTSK, CUP)
-- Add file sharing capabilities
-- Set up foundation for QR code system
+**Files to Modify (2-3 maximum)**:
+```kotlin
+// Focused changes only
+- Redux actions for waypoint CRUD
+- Route editing mode implementation
+- MapViewModel Redux connection
+```
 
-#### Week 2: QR Code Integration & Weather UX
-**Day 6-7: QR Code System**
-- Implement iOS-tested 5-bit encoding algorithms
-- Create QR code generation and scanning
-- Add QR code sharing interface
+**Day 2-3 Deliverables**:
+- [ ] Drag-and-drop waypoint repositioning
+- [ ] Delete waypoints functionality
+- [ ] Redux state properly updates
+- [ ] **Test on device** ✅
+- [ ] **Zero warnings** ✅
+- [ ] **Push to GitHub** ✅
 
-**Day 8-10: Weather UX Features**
-- Weather route visualization on map
-- Flight computer UI integration
-- Risk assessment display
+#### **Phase 3: Enhanced Features**
+**Goal**: Add advanced features incrementally
+
+**Phase 3a: Route Metadata**
+- Route names and descriptions
+- Basic route validation
+- **Test and push**
+
+**Phase 3b: Weather Integration**
+- WeatherRouter integration
+- Visual weather indicators
+- **Test and push**
+
+**Phase 3c: QR Code Sharing**
+- iOS-compatible QR generation
+- Route export functionality
+- **Test and push**
 
 ### 🎯 SUCCESS METRICS
-- **Route Planning**: Functional waypoint management with FAI compliance
-- **QR Sharing**: Working QR code system matching iOS functionality
-- **Weather Integration**: Visual weather-optimized route display
-- **Performance**: <10 Redux dispatches/sec, <75% memory usage maintained
+- **Route Planning**: Functional waypoint management with working long-press creation
+- **User Experience**: AddWaypointButton creates waypoints (not just toast)
+- **Code Quality**: Zero compilation warnings, focused file changes
+- **Testing**: Every feature tested on device before GitHub push
 
 ### ⚠️ STRICT COMPLETION CRITERIA
-- All items marked ✅ ONLY when technical success metrics are verified
+- All items marked ✅ ONLY when functionality works on device
 - Code must compile without errors or warnings
-- Redux architecture compliance maintained
-- Performance targets met: <10 Redux dispatches/sec, <75% memory usage
-- Aviation safety standards preserved (smooth transitions, no UI blocking)
+- Core features must pass manual testing (long-press, waypoint creation)
+- Minimal file changes (avoid over-engineering)
+- Regular GitHub checkpoints with working functionality
 
-### PRIORITY 5: iOS Route Planning Integration & Weather UX
+### PRIORITY 5: Simplified Route Planning Implementation
 
-**USER DIRECTION**: Focus on core UX features before settings/user guidance polish.
+**USER DIRECTION**: Start with Phase 1 MVP, test thoroughly on device, push working checkpoints to GitHub before adding complexity.
 
-#### Phase 1: iOS Route Planning Foundation (Start Here)
-**🏗️ iOS Route Planning Feature** - *Port proven waypoint management system*
-- [ ] **Waypoint Management Redux** - Add/edit/delete waypoints with Redux state management
-- [ ] **Route Calculation Engine** - Distance/bearing calculations between waypoints
-- [ ] **Route Visualization** - Display routes on map with overlay system integration
-- [ ] **FAI Competition Rules** - Implement FAI scoring system and turnpoint validation
-- [ ] **Route Export System** - Multiple format support (GPX, KML, GeoJSON, XCTSK)
-- [ ] **QR Code System** - Port tested iOS QR sharing with 5-bit encoding
+#### Phase 1: Route Planning MVP (Start Here)
+**🎯 Minimal Viable Route Planning** - *Simple waypoint creation first*
+- [ ] **Basic Waypoint Creation** - Long press map creates waypoint (2-3 files max)
+- [ ] **Simple Display** - Show waypoints on map
+- [ ] **Basic Testing** - Verify functionality works on device
+- [ ] **GitHub Checkpoint** - Push working MVP before adding features
 
-#### Phase 2: Weather-Related UX Features (After Route Planning)
-**🌤️ Weather Integration & Visualization**
-- [ ] **Weather Route Visualization** - Display thermal opportunities and route optimization
-- [ ] **Flight Computer UI** - Real-time variometer, wind data, final glide display
-- [ ] **Risk Assessment Display** - Show current risk factors and safety recommendations
-- [ ] **Enhanced Weather Intelligence UI** - Aviation-specific weather with flight conditions
+#### Phase 2: Route Editing (After MVP Working)
+**✏️ Route Editing Features** - *Add editing after creation works*
+- [ ] **Waypoint Editing** - Drag waypoints to new positions
+- [ ] **Delete Waypoints** - Remove unwanted waypoints
+- [ ] **Redux Integration** - Add state management
+- [ ] **GitHub Checkpoint** - Push working editing before advanced features
 
-#### Phase 3: Polish & User Experience (When Ready)
-**✨ User Interface Enhancement**
-- [ ] **Settings Reorganization** - Aviation → Display → Units → Help structure
-- [ ] **User Guidance Enhancement** - Tooltip system and contextual help
+#### Phase 3: Advanced Features (Future)
+**🚀 Enhanced Features** - *Only after core functionality is solid*
+- [ ] **Weather Integration** - WeatherRouter and visual indicators
+- [ ] **QR Code Sharing** - iOS-compatible route sharing
+- [ ] **FAI Compliance** - Competition features
+- [ ] **Export System** - Multiple format support
 
 ### PRIORITY 6: Advanced Features (Future)
 
