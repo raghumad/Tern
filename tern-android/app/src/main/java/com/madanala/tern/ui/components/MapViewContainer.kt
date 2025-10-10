@@ -24,6 +24,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -40,6 +41,13 @@ import android.view.MotionEvent
 import com.madanala.tern.route.WaypointStore
 import com.madanala.tern.model.Waypoint
 import com.madanala.tern.route.WaypointOverlay
+import com.madanala.tern.route.TypeSelectionSheet
+import com.madanala.tern.route.RouteOverlay
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 
 
 /**
@@ -103,6 +111,7 @@ class ReduxLocationService(private val store: MapStore) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MapViewContainer(
      modifier: Modifier = Modifier,
@@ -195,7 +204,12 @@ fun MapViewContainer(
     Box(modifier = modifier.fillMaxSize()) {
           // Redux-integrated MapView management
           // MapViewModel connected via Redux store for overlay coordination
-          val mapView = mapViewModel.mapView
+        val mapView = mapViewModel.mapView
+        val density = LocalDensity.current
+        val sheetState = rememberModalBottomSheetState()
+        val coroutineScope = rememberCoroutineScope()
+    var pendingCoord by remember { mutableStateOf<org.osmdroid.util.GeoPoint?>(null) }
+    val waypointsList by WaypointStore.waypoints.collectAsState()
 
          // Attach a long-press listener (MapEventsOverlay) to allow creating waypoints by long-press.
          // This is a conservative Phase 1 implementation (in-memory store); we'll migrate to Redux in Phase 2.
@@ -211,12 +225,14 @@ fun MapViewContainer(
                                  if (gp is GeoPoint) {
                                      val lat = gp.latitude
                                      val lon = gp.longitude
-                                     if (lat.isFinite() && lon.isFinite()) {
-                                         val wp = Waypoint(lat = lat, lon = lon, label = "WP")
-                                         WaypointStore.add(wp)
-                                         WaypointOverlay.addMarker(mapView, wp)
-                                         Log.d("MapViewContainer", "Waypoint created: $wp")
-                                     }
+                                    if (lat.isFinite() && lon.isFinite()) {
+                                        // Instead of immediately adding, show type selection sheet
+                                        pendingCoord = gp
+                                        coroutineScope.launch {
+                                            // show sheet - using compose ModalBottomSheet state
+                                            // actual sheet UI is below in compose tree
+                                        }
+                                    }
                                  }
                              } catch (t: Throwable) {
                                  Log.w("MapViewContainer", "onLongPress failed: ${t.message}")
@@ -241,6 +257,25 @@ fun MapViewContainer(
              modifier = Modifier.fillMaxSize()
          )
 
+         // Modal sheet for type selection
+         @OptIn(ExperimentalMaterial3Api::class)
+         if (pendingCoord != null) {
+             ModalBottomSheet(
+                 onDismissRequest = { pendingCoord = null },
+                 sheetState = sheetState
+             ) {
+                 TypeSelectionSheet(onSelect = { type ->
+                     val gp = pendingCoord
+                     if (gp != null) {
+                         WaypointStore.createAndAdd(gp.latitude, gp.longitude, type, label = null)
+                         WaypointOverlay.addMarker(mapView, Waypoint(lat = gp.latitude, lon = gp.longitude, type = type))
+                         Log.d("MapViewContainer", "Typed waypoint created: ${type}")
+                     }
+                     pendingCoord = null
+                 }, onCancel = { pendingCoord = null })
+             }
+         }
+
 
          // Show compass based on Redux state
          if (state.compassVisible) {
@@ -252,5 +287,11 @@ fun MapViewContainer(
                      .padding(16.dp)
              )
          }
+        // Redraw route overlay whenever waypoints change
+        LaunchedEffect(mapView, waypointsList) {
+            mapView?.let { view ->
+                RouteOverlay.redraw(view, waypointsList)
+            }
+        }
      }
 }

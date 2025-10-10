@@ -10,6 +10,9 @@ data class Waypoint(
     val id: String = UUID.randomUUID().toString(),
     val lat: Double,
     val lon: Double,
+    val type: Type = Type.TURNPOINT,
     val label: String? = null,
     val createdAt: Instant = Instant.now()
-)
+) {
+    enum class Type { LAUNCH, TURNPOINT, LANDING }
+}

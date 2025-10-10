@@ -256,14 +256,11 @@ class AirspaceCache(private val context: Context) {
                     @Suppress("UNCHECKED_CAST")
                     // Safely extract nested maps and numeric fields
                     val rawFeature = featureData["feature"]
-                    val feature = if (rawFeature is Map<*, *>) {
-                        @Suppress("UNCHECKED_CAST")
-                        rawFeature as Map<String, Any>
-                    } else if (featureData is Map<*, *>) {
-                        @Suppress("UNCHECKED_CAST")
-                        featureData as Map<String, Any>
-                    } else {
-                        emptyMap<String, Any>()
+                    @Suppress("UNCHECKED_CAST")
+                    val feature = when {
+                        rawFeature is Map<*, *> -> rawFeature as Map<String, Any>
+                        featureData is Map<*, *> -> featureData as Map<String, Any>
+                        else -> emptyMap<String, Any>()
                     }
 
                     val centroidRaw = featureData["centroid"]
