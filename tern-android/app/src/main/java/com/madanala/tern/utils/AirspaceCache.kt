@@ -1,3 +1,4 @@
+@file:Suppress("UNCHECKED_CAST", "SENSELESS_COMPARISON")
 package com.madanala.tern.utils
 
 import android.content.Context
@@ -253,14 +254,38 @@ class AirspaceCache(private val context: Context) {
 
                     // Check if this is the new format (with "feature" key) or old format (raw feature)
                     @Suppress("UNCHECKED_CAST")
-                    val feature = featureData["feature"] as? Map<String, Any> ?: featureData
-                    @Suppress("UNCHECKED_CAST")
-                    var centroidData = featureData["centroid"] as? Map<String, Any>
-                    feature["properties"] as? Map<String, Any> ?: emptyMap()
-                    var latitude = centroidData?.get("latitude") as? Double ?: featureData["lat"] as? Double
-                    var longitude = centroidData?.get("longitude") as? Double ?: featureData["lon"] as? Double
-                    var hilbertIndex = featureData["hilbertIndex"] as? Long ?: featureData["hilbert"] as? Long
-                    val overlayType = featureData["overlayType"] as? String ?: "airspace"
+                    // Safely extract nested maps and numeric fields
+                    val rawFeature = featureData["feature"]
+                    val feature = if (rawFeature is Map<*, *>) {
+                        @Suppress("UNCHECKED_CAST")
+                        rawFeature as Map<String, Any>
+                    } else if (featureData is Map<*, *>) {
+                        @Suppress("UNCHECKED_CAST")
+                        featureData as Map<String, Any>
+                    } else {
+                        emptyMap<String, Any>()
+                    }
+
+                    val centroidRaw = featureData["centroid"]
+                    var centroidData = if (centroidRaw is Map<*, *>) {
+                        @Suppress("UNCHECKED_CAST")
+                        centroidRaw as Map<String, Any>
+                    } else null
+
+                    val overlayType = (featureData["overlayType"] as? String) ?: "airspace"
+
+                    // Extract numeric latitude/longitude/hilbert safely from either centroid or top-level keys
+                    val latCandidate = centroidData?.get("latitude") ?: featureData["lat"]
+                    val lonCandidate = centroidData?.get("longitude") ?: featureData["lon"]
+                    val hilbertCandidate = featureData["hilbertIndex"] ?: featureData["hilbert"]
+
+                    var latitude = (latCandidate as? Number)?.toDouble()
+                    var longitude = (lonCandidate as? Number)?.toDouble()
+                    var hilbertIndex = when (hilbertCandidate) {
+                        is Number -> hilbertCandidate.toLong()
+                        is String -> hilbertCandidate.toLongOrNull()
+                        else -> null
+                    }
 
                     // If centroid data is missing (old cache format or raw feature), compute it from geometry
                     if (centroidData == null && feature != null) {

@@ -1,3 +1,4 @@
+@file:Suppress("UNCHECKED_CAST")
 package com.madanala.tern.utils
 
 import android.util.Log

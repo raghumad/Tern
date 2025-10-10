@@ -1,3 +1,4 @@
+@file:Suppress("SENSELESS_COMPARISON", "DEPRECATION")
 package com.madanala.tern.utils
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper

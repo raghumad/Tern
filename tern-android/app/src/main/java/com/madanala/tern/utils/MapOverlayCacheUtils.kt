@@ -151,17 +151,20 @@ object MapOverlayCacheUtils {
         return when (type) {
             "Polygon" -> {
                 // For Polygon: [[[lon1,lat1], [lon2,lat2], ...]]
-                @Suppress("UNCHECKED_CAST")
-                val outerRing = coordinates?.get(0) as? List<List<Double>>
-                val points = outerRing?.mapNotNull { lonLat ->
-                    try {
-                        if (lonLat.size >= 2) {
-                            GeoPoint(lonLat[1], lonLat[0]) // lat, lon
+                val outerRingRaw = coordinates?.getOrNull(0)
+                val outerRing = when (outerRingRaw) {
+                    is List<*> -> outerRingRaw.filterIsInstance<List<*>>().mapNotNull { pair ->
+                        if (pair.size >= 2) {
+                            val lon = pair[0]
+                            val lat = pair[1]
+                            if (lon is Number && lat is Number) {
+                                GeoPoint(lat.toDouble(), lon.toDouble())
+                            } else null
                         } else null
-                    } catch (_: Exception) {
-                        null
                     }
-                } ?: emptyList()
+                    else -> emptyList()
+                }
+                val points = outerRing
 
                 if (points.isNotEmpty()) {
                     val avgLat = points.map { it.latitude }.average()
@@ -171,14 +174,14 @@ object MapOverlayCacheUtils {
             }
             "Point" -> {
                 // For Point: [lon, lat]
-                try {
-                    val lonLat = coordinates as List<Double>
-                    if (lonLat.size >= 2) {
-                        GeoPoint(lonLat[1], lonLat[0])
+                val lonLat = coordinates
+                if (lonLat is List<*> && lonLat.size >= 2) {
+                    val lon = lonLat[0]
+                    val lat = lonLat[1]
+                    if (lon is Number && lat is Number) {
+                        GeoPoint(lat.toDouble(), lon.toDouble())
                     } else null
-                } catch (_: Exception) {
-                    null
-                }
+                } else null
             }
             else -> null
         }

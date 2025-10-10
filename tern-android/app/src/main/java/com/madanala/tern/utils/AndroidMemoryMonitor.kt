@@ -1,5 +1,5 @@
+@file:Suppress("DEPRECATION")
 package com.madanala.tern.utils
-
 import android.app.ActivityManager
 import android.content.ComponentCallbacks2
 import android.content.Context
@@ -268,6 +268,7 @@ class AndroidMemoryMonitor(private val context: Context) : ComponentCallbacks2 {
     /**
      * ComponentCallbacks2 implementation for trim memory events
      */
+    @Suppress("OVERRIDE_DEPRECATION")
     override fun onTrimMemory(level: Int) {
         val trimLevel = when (level) {
             ComponentCallbacks2.TRIM_MEMORY_COMPLETE -> TrimMemoryLevel.CRITICAL
@@ -286,10 +287,12 @@ class AndroidMemoryMonitor(private val context: Context) : ComponentCallbacks2 {
         getComprehensiveMemoryState()
     }
 
+    @Suppress("OVERRIDE_DEPRECATION")
     override fun onConfigurationChanged(newConfig: Configuration) {
         // Not needed for memory monitoring
     }
 
+    @Suppress("OVERRIDE_DEPRECATION")
     override fun onLowMemory() {
         Log.w(TAG, "Low memory event received")
         // Force immediate memory state update

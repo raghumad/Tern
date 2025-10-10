@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.madanala.tern.ui.overlays
 
 import android.graphics.Color
@@ -311,8 +313,9 @@ class RouteOverlayManager(
 
         val polyline = Polyline().apply {
             setPoints(route.waypoints.map { it.location })
-            color = ROUTE_LINE_COLOR
-            width = ROUTE_LINE_WIDTH.toFloat()
+            // Use setter methods where available to avoid deprecated Java field access warnings
+            setColor(ROUTE_LINE_COLOR)
+            setWidth(ROUTE_LINE_WIDTH.toFloat())
             isGeodesic = true
         }
 

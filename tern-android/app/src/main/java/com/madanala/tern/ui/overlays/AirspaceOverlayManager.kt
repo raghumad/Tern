@@ -757,11 +757,22 @@ class AirspaceOverlayManager(
         // Fallback: generate ID from first coordinate
         val geometry = feature.feature["geometry"] as? Map<*, *>
         val coordinates = geometry?.get("coordinates") as? List<*>
-        val outerRing = coordinates?.get(0) as? List<List<Double>>
 
-        return if (outerRing != null && outerRing.isNotEmpty()) {
-            val firstCoord = outerRing[0]
-            String.format("airspace_coord_%.6f_%.6f", firstCoord[1], firstCoord[0])
+        val firstCoordPair = coordinates?.getOrNull(0).let { outer ->
+            when (outer) {
+                is List<*> -> outer.getOrNull(0) as? List<*>
+                else -> null
+            }
+        }
+
+        return if (firstCoordPair != null && firstCoordPair.size >= 2) {
+            val lon = firstCoordPair[0]
+            val lat = firstCoordPair[1]
+            if (lon is Number && lat is Number) {
+                String.format("airspace_coord_%.6f_%.6f", lat.toDouble(), lon.toDouble())
+            } else {
+                "airspace_hilbert_${feature.hilbertIndex}"
+            }
         } else {
             // Fallback to Hilbert index as unique identifier
             "airspace_hilbert_${feature.hilbertIndex}"
