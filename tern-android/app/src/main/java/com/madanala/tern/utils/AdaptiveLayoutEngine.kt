@@ -1,3 +1,4 @@
+@file:Suppress("DEPRECATION")
 package com.madanala.tern.utils
 
 import android.content.Context
@@ -177,7 +178,19 @@ class AdaptiveLayoutEngine(private val context: Context) {
         return try {
             val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
             val displayMetrics = DisplayMetrics()
-            windowManager.defaultDisplay.getMetrics(displayMetrics)
+            // Use Context.display where available (API 30+) or fallback to defaultDisplay for older SDKs
+            val display = try {
+                context.display
+            } catch (_: NoSuchMethodError) {
+                null
+            }
+
+            if (display != null) {
+                display.getRealMetrics(displayMetrics)
+            } else {
+                @Suppress("DEPRECATION")
+                windowManager.defaultDisplay.getMetrics(displayMetrics)
+            }
 
             Point(displayMetrics.widthPixels, displayMetrics.heightPixels)
         } catch (e: Exception) {

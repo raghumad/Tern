@@ -214,7 +214,7 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
         state.copy(userPreferences = action.preferences)
     }
 
-    else -> state
+    // No default branch required: MapAction is a sealed class and all cases are handled above
 }
 
 /**
