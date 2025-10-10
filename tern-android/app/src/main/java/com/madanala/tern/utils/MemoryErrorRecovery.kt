@@ -93,13 +93,13 @@ object MemoryErrorRecovery {
         } catch (e: Exception) {
             logError("Failed to get comprehensive memory state", e, ErrorSeverity.HIGH)
 
-            when (e) {
-                is SecurityException -> {
+            when {
+                e is SecurityException -> {
                     // Permission issues - use basic fallback
                     Log.e(TAG, "Security exception accessing memory APIs - using basic fallback")
                     createBasicMemoryState()
                 }
-                is OutOfMemoryError -> {
+                e is OutOfMemoryError -> {
                     // Critical error - use minimal state
                     Log.e(TAG, "Out of memory during memory monitoring - using minimal state")
                     fallbackMemoryState.copy(calculatedPressure = MemoryPressureLevel.CRITICAL_MEMORY)

@@ -17,6 +17,11 @@ object WaypointStore {
         _waypoints.value = _waypoints.value + waypoint
     }
 
+    fun createAndAdd(lat: Double, lon: Double, type: Waypoint.Type = Waypoint.Type.TURNPOINT, label: String? = null) {
+        val wp = Waypoint(lat = lat, lon = lon, type = type, label = label)
+        add(wp)
+    }
+
     fun remove(id: String) {
         _waypoints.value = _waypoints.value.filterNot { it.id == id }
     }

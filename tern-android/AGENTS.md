@@ -10,6 +10,11 @@ This file provides guidance to agents when working with code in this repository.
 - **Critical Bugs**: All resolved (UI blocking, cache persistence, ANR crashes)
 - **Aviation Safety**: Border cache issues resolved, continuous visual display during flight
 
+### 🆕 RECENT PROGRESS (Oct 10, 2025)
+- **Java runtime upgrade**: Project updated to target Java 21 (toolchain + kotlin jvmTarget). Local build verified on OpenJDK 21.
+- **Route Planning — Phase 1 (MVP)**: Long-press waypoint creation implemented on Android, immediate marker rendering, and a simple Waypoint list UI. Changes are committed and pushed to branch `revive-the-droid` (latest commit: `ee626cc`). Local compile (`./gradlew :app:compileDebugKotlin`) succeeded with zero compiler errors.
+- **Next short-term steps**: Add waypoint types (launch/turnpoint/landing), polyline route visualization, and migrate waypoint state to Redux (Phase 2) — see ROUTE_PLANNER_SPEC.md for phased plan.
+
 ### 🚧 REMAINING PHASE 4 (Items 5-6)
 - **Item 5: Settings Reorganization** - Current: "Map Layers" + "Units" → Target: "Aviation → Display → Units → Help"
 - **Item 6: User Guidance Enhancement** - No tooltip system found, basic onboarding exists
@@ -20,6 +25,8 @@ This file provides guidance to agents when working with code in this repository.
 - ✅ Overlay Architecture - Mature system ready for route visualization
 - ✅ Weather Algorithms - `WeatherRouter` and `RiskAssessmentEngine` complete
 - ✅ Flight Computer - Advanced aviation calculations implemented
+
+Note: Android Phase 1 MVP (waypoint creation/display) implemented and serves as a working checkpoint while iOS route planner is integrated in parallel.
 
 ## 🪂 PARAGLIDER-SPECIFIC OVERLAY PRIORITY SYSTEM
 
@@ -183,6 +190,31 @@ GPS Altitude → Kalman Filter → Aviation Calculations → Redux State
 - **QR Sharing**: Working QR code system matching iOS functionality
 - **Weather Integration**: Visual weather-optimized route display
 - **Performance**: <10 Redux dispatches/sec, <75% memory usage maintained
+
+## 🧭 Roadmap & Immediate Next Steps (Oct 10, 2025)
+
+### Current checkpoint
+- Phase 1 (MVP) Android: Long-press waypoint creation, immediate marker rendering, and simple in-memory `WaypointList` UI implemented and pushed to branch `revive-the-droid` (commit `ee626cc`). Local Kotlin compile passes and quick device sanity check completed.
+- iOS reference: Existing SwiftUI `RoutePlannerModel` and `RoutePlannerMapViewHelper` (provided by the author) used as design/behavior reference for exports (GPX/XCTSK/CUP), long-press handling, marker styling, and polyline redraw logic.
+
+### Short-term prioritized work (FAI MVP)
+1. Waypoint types: add `LAUNCH`, `TURNPOINT`, `LANDING` to the `Waypoint` model; UI for type selection on creation/edit. (Estimate: 1 day)
+2. Polyline route visualization: implement `RouteOverlayManager` to draw geodesic polylines between waypoints and update on change. (Estimate: 0.5–1 day)
+3. Editing & ordering: marker dragging and list reorder; update overlays and labels on change. (Estimate: 1–2 days)
+4. Exports: port iOS export functions (start with GPX then XCTSK/QR and CUP). (Estimate: 1–2 days)
+
+### Implementation constraints
+- Keep changes minimal per Phase (1–3 files where possible).
+- Zero compile warnings required before pushing to GitHub.
+- Device test after each incremental change.
+- Redux migration for route state to follow only after Phase 1 editing features are stable (Phase 2).
+
+### How the iOS code maps to Android work
+- `RoutePlannerModel.mapView` lifecycle & delegate logic → `MapViewContainer` + `MapViewModel` coordination on Android.
+- `addWaypoint(coordinate:)` (iOS) → long-press handler in Android `MapViewContainer` (already implemented).
+- Export routines (`saveXCTSKqr()`, `saveCompegpsWpt()`, `saveGPX`-style helpers) on iOS provide canonical serialization formats to port.
+
+If you approve, the next action I'll take is: implement Waypoint types and type-selection UI (create/update popover or temporary bottom sheet), then wire type-specific markers and small tests. Proceed? (If yes, I'll create `feature/route-fai-mvp` and implement.)
 
 ## 🚨 CRITICAL BUGFIXES (Do Not Repeat)
 - **Performance**: Move ALL processing to `Dispatchers.IO` (prevents ANR crashes)
