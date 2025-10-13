@@ -16,30 +16,34 @@ This document outlines a phased, incremental approach to implementing route plan
 - ❌ **Complex Redux integration**: Adding state management before basic functionality worked
 - ❌ **Scope creep**: Adding weather integration, QR sharing, performance optimization before core features worked
 
-### Corrected Approach
-- ✅ **Minimal changes per phase** (1-3 files maximum)
+### Corrected Approach (Updated Architecture)
+- ✅ **Simple state management first** (1-3 files maximum)
 - ✅ **Frequent device testing** (test every change immediately)
 - ✅ **Zero warnings before GitHub push** (strict quality gate)
-- ✅ **Working functionality first** (technical polish second)
+- ✅ **Working functionality first** (Redux integration second)
 - ✅ **Incremental GitHub pushes** (regular checkpointing)
+- ✅ **Redux migration after feature completion** (Phase 2)
 
 ## Implementation Phases
 
 ### Phase 1: Minimal Viable Route Planning (MVP)
-**Goal**: Basic waypoint creation and display
+**Goal**: Basic waypoint creation and display with simple state management
 
+**Architecture**: ViewModel-based state management (WaypointStore)
 **Files to Modify (2-3 maximum)**:
 ```kotlin
 // Essential files only
 - Waypoint data model (new file)
 - Map touch handling (modify existing)
 - Basic waypoint display (modify existing)
+- WaypointStore for state management (new file)
 ```
 
 **Deliverables**:
 - [ ] Long press map → Create waypoint at location
 - [ ] Display waypoint markers on map
 - [ ] Simple waypoint list/information
+- [ ] Basic waypoint editing (reorder, delete)
 - [ ] **Test on device** ✅
 - [ ] **Zero warnings** ✅
 - [ ] **Push to GitHub** ✅
@@ -47,24 +51,27 @@ This document outlines a phased, incremental approach to implementing route plan
 **Success Criteria**:
 - Long press creates waypoint
 - Waypoint visible on map
+- Basic editing functions work
 - No crashes or warnings
 - Manual testing passed
 
-### Phase 2: Route Editing & Redux Integration
-**Goal**: Add editing capabilities with state management
+### Phase 2: Redux Migration & Advanced Features
+**Goal**: Migrate to Redux architecture and add advanced capabilities
 
+**Architecture**: Migrate from WaypointStore to Redux (RouteState, RouteActions, RouteReducers)
 **Files to Modify (2-3 maximum)**:
 ```kotlin
-// Focused changes only
-- Redux actions for waypoint CRUD
-- Route editing mode implementation
-- MapViewModel Redux connection
+// Redux migration files
+- RouteState, RouteActions, RouteReducers (new files)
+- Redux bridge to sync with existing WaypointStore
+- RouteOverlayManager extending BaseOverlayManager
 ```
 
 **Deliverables**:
-- [ ] Drag-and-drop waypoint repositioning
-- [ ] Delete waypoints functionality
-- [ ] Redux state properly updates
+- [ ] Redux state management implementation
+- [ ] RouteOverlayManager for map visualization
+- [ ] Redux bridge maintains compatibility
+- [ ] Advanced waypoint management features
 - [ ] **Test on device** ✅
 - [ ] **Zero warnings** ✅
 - [ ] **Push to GitHub** ✅
@@ -132,15 +139,16 @@ graph TD
 
 ## Architectural Constraints
 
-### Redux Integration
-- Only add Redux after basic functionality works
-- Use existing Redux patterns (no new architectures)
-- Follow AGENTS.md overlay manager requirements
-- Maintain aviation safety standards
+### Development Phase Architecture
+- **Phase 1**: Use simple ViewModel-based state management (WaypointStore)
+- **Phase 2**: Migrate to Redux pattern with RouteState and RouteActions
+- **Redux Integration**: Follow AGENTS.md overlay manager requirements after migration
+- Maintain aviation safety standards throughout all phases
 
 ### Performance Requirements
-- <10 Redux dispatches/sec during route operations
-- <75% memory usage with adaptive allocation
+- **Phase 1**: Focus on functionality, optimize for <75% memory usage
+- **Phase 2**: Achieve <10 Redux dispatches/sec during route operations
+- <75% memory usage with adaptive allocation (both phases)
 - Zero visual discontinuity during flight operations
 - No UI blocking during critical operations
 
@@ -150,9 +158,59 @@ graph TD
 - Maintain backward compatibility
 - No regressions in existing functionality
 
+## Hybrid Architecture Pattern
+
+### Phase 1: Simple State Management
+```kotlin
+// ✅ DO: Use ViewModel-based approach initially
+class WaypointStore : ViewModel() {
+    private val _waypoints = MutableStateFlow<List<Waypoint>>(emptyList())
+    val waypoints: StateFlow<List<Waypoint>> = _waypoints
+
+    fun addWaypoint(waypoint: Waypoint) {
+        _waypoints.value += waypoint
+    }
+
+    fun removeWaypoint(waypoint: Waypoint) {
+        _waypoints.value -= waypoint
+    }
+}
+
+// ✅ DO: Direct communication during development
+class MapViewModel(private val waypointStore: WaypointStore) {
+    fun onMapLongPress(location: GeoPoint) {
+        val waypoint = Waypoint(location)
+        waypointStore.addWaypoint(waypoint)
+    }
+}
+```
+
+### Redux Migration Guidelines
+Migrate to Redux when ALL criteria are met:
+- ✅ **Feature Complete**: All planned functionality implemented and tested
+- ✅ **User Experience Validated**: Feature works well with simple state management
+- ✅ **Performance Stable**: Memory usage <75%, no performance issues
+- ✅ **Code Quality High**: Zero crashes, minimal bugs, confident implementation
+
+### Redux Bridge Pattern (Migration Step)
+```kotlin
+// ✅ DO: Create Redux bridge to sync stores
+class RouteReduxBridge(
+    private val simpleStore: WaypointStore,
+    private val reduxStore: RouteStore
+) {
+    init {
+        // Sync simple store changes to Redux
+        simpleStore.waypoints.collect { waypoints ->
+            reduxStore.dispatch(RouteAction.UpdateWaypoints(waypoints))
+        }
+    }
+}
+```
+
 ## Related Documentation
 
-- **AGENTS.md** - Strict completion criteria and architectural requirements
+- **AGENTS.md** - Updated hybrid development pattern and Redux migration strategy
 - **ARCHITECTURE_DECISIONS.md** - System architecture and patterns
 - **AVIATION_SAFETY.md** - Safety standards and requirements
 - **PERFORMANCE_GUIDELINES.md** - Performance targets and monitoring
