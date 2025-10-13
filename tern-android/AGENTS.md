@@ -157,24 +157,57 @@ GPS Altitude → Kalman Filter → Aviation Calculations → Redux State
 ## 🏗️ ARCHITECTURE PRINCIPLES & ENFORCEMENT (Non-Negotiable)
 
 ### Core Architecture (MANDATORY)
-- **Redux-Only Pattern**: All new features MUST use Redux overlay managers extending `BaseOverlayManager`
+- **Hybrid Development Pattern**: New features MAY use simple state management during development, MUST migrate to Redux before release
+- **Route Planner Exception**: Route planner implementation uses ViewModel-based state management initially, migrates to Redux in Phase 2
 - **Aviation Safety First**: Smooth transitions, predictable performance, offline resilience
 - **Spatial Optimization**: Hilbert indexing, intelligent country caching (max 4 countries)
 - **Performance Monitoring**: Debug-only tracking with zero release impact
 
-### ✅ DO (Redux Pattern Only)
-- Create specialized overlay managers extending `BaseOverlayManager`
-- Use Redux actions for all state changes (`store.dispatch(Action)`)
-- Coordinate through `OverlayCoordinator` for overlay lifecycle
+### ✅ DO (Hybrid Development Pattern)
+- **Phase 1 (Development)**: Use ViewModel-based state management for rapid prototyping
+- **Phase 2 (Polish)**: Migrate to Redux pattern with overlay managers extending `BaseOverlayManager`
+- Use Redux actions for all state changes after migration (`store.dispatch(Action)`)
+- Coordinate through `OverlayCoordinator` for overlay lifecycle after migration
 - Follow single responsibility principle per overlay type
-- Use Redux state observation (`store.state.collect { }`)
+- Use Redux state observation after migration (`store.state.collect { }`)
 
-### ❌ FORBIDDEN (Legacy Patterns)
-- ❌ Add overlay methods to `MapViewModel`
-- ❌ Direct overlay manipulation outside overlay managers
-- ❌ Manual overlay lifecycle management in ViewModels
-- ❌ Duplicate overlay logic between ViewModel and overlay managers
-- ❌ Call overlay manager methods directly from UI components
+### ⚠️ ALLOWED (During Development Phase)
+- ✅ ViewModel-based state management for new features
+- ✅ Direct overlay manipulation in ViewModels during development
+- ✅ Simple state management patterns for rapid prototyping
+- ✅ Direct UI component to overlay manager communication during development
+- ✅ Duplicate state management patterns during migration transition
+
+### ❌ FORBIDDEN (Production Patterns)
+- ❌ Release features with non-Redux state management
+- ❌ Skip Redux migration after development phase
+- ❌ Complex business logic in UI components
+- ❌ Direct database/network access from UI components
+
+## 🚀 REDUX MIGRATION STRATEGY
+
+### Migration Phases
+1. **Phase 1: Working simple store** - Implement basic functionality with ViewModel state management
+2. **Phase 2: Redux bridge** - Create Redux actions that sync with simple store changes
+3. **Phase 3: Feature enhancement** - Add Redux features while maintaining simple store backup
+4. **Phase 4: Gradual transfer** - Shift primary responsibility to Redux incrementally
+
+### Migration Criteria (When to Start Phase 2)
+- ✅ **Core functionality works** - All planned features implemented and tested
+- ✅ **User experience validated** - Feature works well with simple state management
+- ✅ **Performance requirements met** - <10 dispatches/sec equivalent, <75% memory usage
+- ✅ **Code stability achieved** - Zero crashes, minimal bugs, confident in implementation
+
+### Migration Anti-Patterns to Avoid
+- ❌ **Redux-first architecture**: Building Redux store/state/actions before working features
+- ❌ **Big-bang Redux migration**: Converting entire feature to Redux in one massive change
+- ❌ **Parallel development**: Building both simple and Redux versions simultaneously
+
+### Testing During Migration
+- **State immutability testing**: Verify Redux reducers don't mutate original state
+- **Action processing validation**: Test that Redux actions correctly update state
+- **Bridge testing**: Validate sync between simple store and Redux state
+- **Performance regression testing**: Ensure migration doesn't impact performance
 
 ## 🎯 SUCCESS METRICS (Mandatory for ALL Features)
 
