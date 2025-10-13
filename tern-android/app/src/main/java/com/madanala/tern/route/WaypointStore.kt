@@ -17,9 +17,10 @@ object WaypointStore {
         _waypoints.value = _waypoints.value + waypoint
     }
 
-    fun createAndAdd(lat: Double, lon: Double, type: Waypoint.Type = Waypoint.Type.TURNPOINT, label: String? = null) {
+    fun createAndAdd(lat: Double, lon: Double, type: Waypoint.Type = Waypoint.Type.TURNPOINT, label: String? = null): Waypoint {
         val wp = Waypoint(lat = lat, lon = lon, type = type, label = label)
         add(wp)
+        return wp
     }
 
     fun remove(id: String) {
@@ -28,5 +29,20 @@ object WaypointStore {
 
     fun clear() {
         _waypoints.value = emptyList()
+    }
+
+    fun updateWaypointPosition(id: String, newLat: Double, newLon: Double) {
+        val currentWaypoints = _waypoints.value
+        val index = currentWaypoints.indexOfFirst { it.id == id }
+        if (index != -1) {
+            val updatedWaypoint = currentWaypoints[index].copy(lat = newLat, lon = newLon)
+            _waypoints.value = currentWaypoints.toMutableList().apply {
+                this[index] = updatedWaypoint
+            }
+        }
+    }
+
+    fun findWaypointById(id: String): Waypoint? {
+        return _waypoints.value.find { it.id == id }
     }
 }
