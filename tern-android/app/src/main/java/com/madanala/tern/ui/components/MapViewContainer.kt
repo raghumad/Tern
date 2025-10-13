@@ -209,6 +209,7 @@ fun MapViewContainer(
         val sheetState = rememberModalBottomSheetState()
         val coroutineScope = rememberCoroutineScope()
     var pendingCoord by remember { mutableStateOf<org.osmdroid.util.GeoPoint?>(null) }
+    var isDraggingWaypoint by remember { mutableStateOf(false) }
     val waypointsList by WaypointStore.waypoints.collectAsState()
 
          // Attach a long-press listener (MapEventsOverlay) to allow creating waypoints by long-press.
@@ -259,20 +260,28 @@ fun MapViewContainer(
 
          // Modal sheet for type selection
          @OptIn(ExperimentalMaterial3Api::class)
-         if (pendingCoord != null) {
+         if (pendingCoord != null && !isDraggingWaypoint) {
              ModalBottomSheet(
-                 onDismissRequest = { pendingCoord = null },
+                 onDismissRequest = {
+                      pendingCoord = null
+                      isDraggingWaypoint = false
+                  },
                  sheetState = sheetState
              ) {
                  TypeSelectionSheet(onSelect = { type ->
                      val gp = pendingCoord
                      if (gp != null) {
                          WaypointStore.createAndAdd(gp.latitude, gp.longitude, type, label = null)
-                         WaypointOverlay.addMarker(mapView, Waypoint(lat = gp.latitude, lon = gp.longitude, type = type))
+                         val newWaypoint = WaypointStore.createAndAdd(gp.latitude, gp.longitude, type, label = null)
+                          WaypointOverlay.addMarker(mapView, newWaypoint, WaypointStore) { isDragging ->
+                               isDraggingWaypoint = isDragging
+                          }
                          Log.d("MapViewContainer", "Typed waypoint created: ${type}")
                      }
                      pendingCoord = null
-                 }, onCancel = { pendingCoord = null })
+                      isDraggingWaypoint = false
+                 }, onCancel = { pendingCoord = null
+                      isDraggingWaypoint = false })
              }
          }
 
