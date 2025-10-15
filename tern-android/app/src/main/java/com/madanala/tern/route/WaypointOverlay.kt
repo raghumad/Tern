@@ -10,7 +10,7 @@ import org.osmdroid.views.overlay.Marker
 import android.content.Context
 
 object WaypointOverlay {
-    fun addMarker(mapView: MapView, waypoint: Waypoint, waypointStore: WaypointStore, onDragStateChanged: (Boolean) -> Unit = {}): Marker {
+    fun addMarker(mapView: MapView, waypoint: Waypoint, waypointStore: WaypointStore, routeColor: RouteColor = RouteColor.DEFAULT, onDragStateChanged: (Boolean) -> Unit = {}): Marker {
         val marker = Marker(mapView).apply {
             position = GeoPoint(waypoint.lat, waypoint.lon)
             title = waypoint.label ?: when (waypoint.type) {
@@ -24,7 +24,7 @@ object WaypointOverlay {
             isDraggable = true
 
             // Set custom waypoint icon
-            icon = BitmapDrawable(mapView.resources, createWaypointIcon(waypoint, waypointStore, mapView.context))
+            icon = BitmapDrawable(mapView.resources, createWaypointIcon(waypoint, waypointStore, mapView.context, routeColor))
 
             // Add drag listener to update position in store
             setOnMarkerDragListener(object : Marker.OnMarkerDragListener {
@@ -54,7 +54,7 @@ object WaypointOverlay {
         return marker
     }
 
-    private fun createWaypointIcon(waypoint: Waypoint, waypointStore: WaypointStore, context: Context): Bitmap {
+    private fun createWaypointIcon(waypoint: Waypoint, waypointStore: WaypointStore, context: Context, routeColor: RouteColor = RouteColor.DEFAULT): Bitmap {
         return try {
             // Extract number from waypoint label (e.g., "WP 1" -> "1")
             val number = extractWaypointNumber(waypoint, waypointStore)
@@ -63,9 +63,9 @@ object WaypointOverlay {
             val bitmap = Bitmap.createBitmap(60, 60, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(bitmap)
 
-            // Draw circle background using theme primary color (cyan)
+            // Draw circle background using route color
             val paint = Paint().apply {
-                color = 0xFF00BCD4.toInt() // colorPrimary from theme
+                color = routeColor.getWaypointMarkerColor()
                 style = Paint.Style.FILL
                 isAntiAlias = true
             }
@@ -76,9 +76,9 @@ object WaypointOverlay {
 
             canvas.drawCircle(centerX, centerY, radius, paint)
 
-            // Draw number text in center using theme onPrimary color
+            // Draw number text in center using appropriate contrast color
             paint.apply {
-                color = 0xFFFFFFFF.toInt() // colorOnPrimary from theme
+                color = routeColor.getWaypointTextColor()
                 textSize = 20f
                 textAlign = Paint.Align.CENTER
                 typeface = Typeface.DEFAULT_BOLD

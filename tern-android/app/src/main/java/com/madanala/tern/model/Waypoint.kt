@@ -12,7 +12,8 @@ data class Waypoint(
     val lon: Double,
     val type: Type = Type.TURNPOINT,
     val label: String? = null,
-    val createdAt: Instant = Instant.now()
+    val createdAt: Instant = Instant.now(),
+    val routeId: String? = null
 ) {
     enum class Type { LAUNCH, TURNPOINT, LANDING }
 }

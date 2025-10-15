@@ -6,8 +6,11 @@ import com.madanala.tern.model.Waypoint
 import com.madanala.tern.redux.MapState
 import com.madanala.tern.redux.MapStore
 import com.madanala.tern.redux.OverlayType
+import com.madanala.tern.route.Route
+import com.madanala.tern.route.RouteColor
 import com.madanala.tern.route.RouteOverlay
 import com.madanala.tern.route.WaypointOverlay
+import com.madanala.tern.route.RouteStore
 import com.madanala.tern.route.WaypointStore
 import com.madanala.tern.utils.MemoryPressureLevel
 import kotlinx.coroutines.Dispatchers
@@ -30,10 +33,10 @@ class RouteOverlayManager(
     private val waypointMarkers = mutableMapOf<String, Marker>()
 
     init {
-        // Set up waypoint store observation for reactive updates
+        // Set up route store observation for reactive updates to multiple routes
         coroutineScope.launch {
-            WaypointStore.waypoints.collect { waypointList ->
-                onWaypointsChanged(waypointList)
+            RouteStore.routes.collect { routes ->
+                onRoutesChanged(routes)
             }
         }
     }
@@ -76,34 +79,38 @@ class RouteOverlayManager(
             }
             waypointMarkers.clear()
 
-            // Clear route polyline
-            RouteOverlay.redraw(mapView, emptyList())
+            // Clear all route polylines
+            RouteOverlay.clearAllRoutes(mapView)
 
             mapView.invalidate()
         }
         Log.d(TAG, "All route overlays cleared")
     }
 
-    private fun onWaypointsChanged(waypointList: List<Waypoint>) {
+    private fun onRoutesChanged(routes: List<Route>) {
         if (!isAttached || !isEnabled()) return
 
         coroutineScope.launch(Dispatchers.Main) {
             withContext(Dispatchers.Main) {
-                updateWaypointMarkers(waypointList)
-                updateRoutePolyline(waypointList)
+                updateWaypointMarkers(routes)
+                updateRoutePolylines(routes)
             }
         }
     }
 
-    private fun updateWaypointMarkers(waypointList: List<Waypoint>) {
+    private fun updateWaypointMarkers(routes: List<Route>) {
         mapView?.let { mapView ->
-            // Remove waypoints that no longer exist
-            val currentIds = waypointList.map { it.id }.toSet()
-            val toRemove = waypointMarkers.keys.filter { it !in currentIds }
+            // Get all waypoint IDs from all visible routes
+            val visibleRoutes = routes.filter { route -> route.isVisible }
+            val allWaypoints = visibleRoutes.flatMap { route -> route.waypoints }
+            val currentIds = allWaypoints.map { it.id }.toSet()
+
+            // Remove waypoints that no longer exist in any visible route
+            val toRemove = waypointMarkers.keys.filter { id -> id !in currentIds }
             toRemove.forEach { removeWaypointMarker(it) }
 
-            // Add or update existing waypoints
-            waypointList.forEach { waypoint ->
+            // Add or update existing waypoints from all visible routes
+            allWaypoints.forEach { waypoint ->
                 updateWaypointMarker(mapView, waypoint)
             }
 
@@ -117,11 +124,18 @@ class RouteOverlayManager(
             // Update existing waypoint position
             existingMarker.position = GeoPoint(waypoint.lat, waypoint.lon)
         } else {
+            // Find the route that contains this waypoint to get its color
+            val routeWithWaypoint = RouteStore.routes.value.find { route ->
+                route.waypoints.any { wp -> wp.id == waypoint.id }
+            }
+            val routeColor = routeWithWaypoint?.color ?: RouteColor.DEFAULT
+
             // Create new waypoint marker using the static method
             val marker = WaypointOverlay.addMarker(
                 mapView = mapView,
                 waypoint = waypoint,
-                waypointStore = WaypointStore
+                waypointStore = WaypointStore,
+                routeColor = routeColor
             )
             waypointMarkers[waypoint.id] = marker
         }
@@ -132,9 +146,20 @@ class RouteOverlayManager(
         marker?.let { mapView?.overlays?.remove(it) }
     }
 
-    private fun updateRoutePolyline(waypointList: List<Waypoint>) {
+    private fun updateRoutePolylines(routes: List<Route>) {
         mapView?.let { mapView ->
-            RouteOverlay.redraw(mapView, waypointList)
+            // Draw polylines for each visible route separately with proper styling
+            val visibleRoutes = routes.filter { route -> route.isVisible }
+
+            // Clear existing route polylines first
+            RouteOverlay.clearAllRoutes(mapView)
+
+            // Draw each visible route as a separate polyline with its specific color
+            visibleRoutes.forEach { route ->
+                if (route.waypoints.size >= 2) {
+                    RouteOverlay.redraw(mapView, route.id, route.waypoints, route.color)
+                }
+            }
         }
     }
 
@@ -246,10 +271,12 @@ class RouteOverlayManager(
         coroutineScope.launch(Dispatchers.Main) {
             try {
                 mapView?.let { mapView ->
-                    Log.d(TAG, "Critical cleanup: Clearing route polylines, preserving ${WaypointStore.waypoints.value.size} waypoints")
+                    val visibleRoutes = RouteStore.getVisibleRoutes()
+                    val totalWaypoints = RouteStore.getTotalWaypointCount()
+                    Log.d(TAG, "Critical cleanup: Clearing route polylines, preserving ${totalWaypoints} waypoints across ${visibleRoutes.size} routes")
 
-                    // Clear only the polyline to free memory while preserving waypoints
-                    RouteOverlay.redraw(mapView, emptyList())
+                    // Clear only the polylines to free memory while preserving waypoints
+                    RouteOverlay.clearAllRoutes(mapView)
 
                     // Force garbage collection hint for immediate memory relief
                     System.gc()
@@ -270,16 +297,19 @@ class RouteOverlayManager(
         coroutineScope.launch(Dispatchers.Main) {
             try {
                 mapView?.let { mapView ->
-                    val currentWaypoints = WaypointStore.waypoints.value
+                    val allRoutes = RouteStore.routes.value
+                    val visibleRoutes = RouteStore.getVisibleRoutes()
+                    val totalWaypoints = RouteStore.getTotalWaypointCount()
 
-                    if (currentWaypoints.size > 10) {
-                        Log.d(TAG, "Low memory cleanup: Simplifying route polyline for ${currentWaypoints.size} waypoints")
+                    if (totalWaypoints > 10) {
+                        Log.d(TAG, "Low memory cleanup: Simplifying route polylines for ${totalWaypoints} waypoints across ${visibleRoutes.size} routes")
 
-                        // For routes with many waypoints, we can simplify the polyline
+                        // For routes with many waypoints, we can simplify the polylines
                         // while keeping all waypoints visible for editing
-                        RouteOverlay.redraw(mapView, currentWaypoints)
+                        val allWaypoints = visibleRoutes.flatMap { route -> route.waypoints }
+                        RouteOverlay.redraw(mapView, allWaypoints)
                     } else {
-                        Log.v(TAG, "Low memory cleanup: Route size optimal (${currentWaypoints.size} waypoints)")
+                        Log.v(TAG, "Low memory cleanup: Route size optimal (${totalWaypoints} waypoints across ${allRoutes.size} routes)")
                     }
                 }
             } catch (e: Exception) {
@@ -296,13 +326,16 @@ class RouteOverlayManager(
         coroutineScope.launch(Dispatchers.Main) {
             try {
                 mapView?.let { mapView ->
-                    val currentWaypoints = WaypointStore.waypoints.value
+                    val allRoutes = RouteStore.routes.value
+                    val visibleRoutes = RouteStore.getVisibleRoutes()
+                    val totalWaypoints = RouteStore.getTotalWaypointCount()
 
-                    // For medium memory, ensure route is properly displayed
+                    // For medium memory, ensure routes are properly displayed
                     // but don't perform unnecessary redraws
-                    if (currentWaypoints.isNotEmpty()) {
-                        Log.v(TAG, "Medium memory optimization: Ensuring route visibility for ${currentWaypoints.size} waypoints")
-                        RouteOverlay.redraw(mapView, currentWaypoints)
+                    if (totalWaypoints > 0) {
+                        Log.v(TAG, "Medium memory optimization: Ensuring route visibility for ${totalWaypoints} waypoints across ${visibleRoutes.size} routes")
+                        val allWaypoints = visibleRoutes.flatMap { route -> route.waypoints }
+                        RouteOverlay.redraw(mapView, allWaypoints)
                     }
                 }
             } catch (e: Exception) {
@@ -319,12 +352,15 @@ class RouteOverlayManager(
         coroutineScope.launch(Dispatchers.Main) {
             try {
                 mapView?.let { mapView ->
-                    val currentWaypoints = WaypointStore.waypoints.value
+                    val allRoutes = RouteStore.routes.value
+                    val visibleRoutes = RouteStore.getVisibleRoutes()
+                    val totalWaypoints = RouteStore.getTotalWaypointCount()
 
                     // In high memory conditions, ensure optimal route display
-                    if (currentWaypoints.isNotEmpty()) {
-                        Log.v(TAG, "High memory optimization: Ensuring optimal route display for ${currentWaypoints.size} waypoints")
-                        RouteOverlay.redraw(mapView, currentWaypoints)
+                    if (totalWaypoints > 0) {
+                        Log.v(TAG, "High memory optimization: Ensuring optimal route display for ${totalWaypoints} waypoints across ${visibleRoutes.size} routes")
+                        val allWaypoints = visibleRoutes.flatMap { route -> route.waypoints }
+                        RouteOverlay.redraw(mapView, allWaypoints)
                     }
                 }
             } catch (e: Exception) {
@@ -342,7 +378,7 @@ class RouteOverlayManager(
             try {
                 mapView?.let { mapView ->
                     Log.w(TAG, "Emergency cleanup: Clearing route overlays due to error condition")
-                    RouteOverlay.redraw(mapView, emptyList())
+                    RouteOverlay.clearAllRoutes(mapView)
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error during emergency cleanup", e)
@@ -355,8 +391,14 @@ class RouteOverlayManager(
      */
     fun getRouteStats(): Map<String, Any> {
         val waypointCount = waypointMarkers.size
+        val routeStats = RouteStore.getRouteStats()
+
         return mapOf(
-            "waypoint_count" to waypointCount,
+            "waypoint_markers" to waypointCount,
+            "total_routes" to (routeStats["total_routes"] ?: 0),
+            "current_route_id" to (routeStats["current_route_id"] ?: "none"),
+            "total_waypoints" to (routeStats["total_waypoints"] ?: 0),
+            "visible_routes" to (routeStats["visible_routes"] ?: 0),
             "is_enabled" to isEnabled(),
             "is_attached" to isAttached
         )

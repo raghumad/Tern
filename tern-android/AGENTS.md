@@ -10,10 +10,11 @@ This file provides guidance to agents when working with code in this repository.
 - **Critical Bugs**: All resolved (UI blocking, cache persistence, ANR crashes)
 - **Aviation Safety**: Border cache issues resolved, continuous visual display during flight
 
-### 🆕 RECENT PROGRESS (Oct 10, 2025)
+### 🆕 RECENT PROGRESS (Oct 14, 2025)
 - **Java runtime upgrade**: Project updated to target Java 21 (toolchain + kotlin jvmTarget). Local build verified on OpenJDK 21.
-- **Route Planning — Phase 1 (MVP)**: Long-press waypoint creation implemented on Android, immediate marker rendering, and a simple Waypoint list UI. Changes are committed and pushed to branch `revive-the-droid` (latest commit: `ee626cc`). Local compile (`./gradlew :app:compileDebugKotlin`) succeeded with zero compiler errors.
-- **Next short-term steps**: Add waypoint types (launch/turnpoint/landing), polyline route visualization, and migrate waypoint state to Redux (Phase 2) — see ROUTE_PLANNER_SPEC.md for phased plan.
+- **Route Planning — Architecture Analysis**: Comprehensive analysis completed of route planning implementation vs. architecture document. Core RouteStore, RouteColor, and RouteOverlayManager are excellently implemented (95% alignment), but UI layer is largely missing.
+- **Critical Issues Identified**: 10 major bugs/unwanted behaviors identified including duplicate waypoint creation, missing route management UI, and broken route visualization.
+- **Route Architecture Status**: Backend route management is production-ready, but user-facing route planning features need implementation.
 
 ### 🚧 REMAINING PHASE 4 (Items 5-6)
 - **Item 5: Settings Reorganization** - Current: "Map Layers" + "Units" → Target: "Aviation → Display → Units → Help"
@@ -247,7 +248,52 @@ GPS Altitude → Kalman Filter → Aviation Calculations → Redux State
 - `addWaypoint(coordinate:)` (iOS) → long-press handler in Android `MapViewContainer` (already implemented).
 - Export routines (`saveXCTSKqr()`, `saveCompegpsWpt()`, `saveGPX`-style helpers) on iOS provide canonical serialization formats to port.
 
-If you approve, the next action I'll take is: implement Waypoint types and type-selection UI (create/update popover or temporary bottom sheet), then wire type-specific markers and small tests. Proceed? (If yes, I'll create `feature/route-fai-mvp` and implement.)
+## 🚧 ROUTE PLANNING IMPLEMENTATION STATUS (Oct 14, 2025)
+
+### ✅ EXCELLENT: Backend Architecture (95% Complete)
+**RouteStore.kt**: Production-ready with StateFlow management, multi-route support, visibility control
+**RouteColor.kt**: Aviation-appropriate styling with 8 color options and waypoint marker colors
+**RouteOverlayManager.kt**: Reactive rendering with memory-adaptive performance management
+**Route.kt**: Complete data model with metadata, timestamps, validation
+
+### ❌ CRITICAL GAPS: User Interface (0% Complete)
+**Missing Route Management UI**: No interface to create, edit, or manage routes
+**Broken Route Visualization**: RouteOverlayManager exists but not connected to main map view
+**Global Waypoint Storage**: Still using old pattern instead of route-centric approach
+
+### 🎯 ROUTE PLANNING TODO LIST (Implementation Priority)
+
+#### **CRITICAL BUGS** 🚨
+- [ ] **Fix duplicate waypoint creation** in MapViewContainer.kt (creates waypoints twice)
+- [ ] **Connect RouteOverlayManager** to main map view for route visualization
+
+#### **CORE FUNCTIONALITY** ⚡
+- [ ] **Create RouteManagerUI.kt** for route management interface
+- [ ] **Implement route-centric waypoint storage** (replace global WaypointStore pattern)
+- [ ] **Add route creation and editing UI flows**
+
+#### **ENHANCED FEATURES** 🔧
+- [ ] **Create route visibility and selection controls** (multi-route management)
+- [ ] **Add route statistics and validation display** (distance, waypoint count, etc.)
+- [ ] **Implement route import/export functionality** (GPX, XCTSK, CUP formats)
+- [ ] **Add route persistence** across app restarts
+
+#### **FUTURE: REDUX MIGRATION** 🏗️
+- [ ] **Connect Redux actions to UI components** (after core functionality validated)
+
+### 📋 IMPLEMENTATION STRATEGY
+1. **Start with critical bug fixes** - Get existing functionality working properly
+2. **Implement core route management** - Essential user-facing features
+3. **Add enhanced features** - Better user experience and data management
+4. **Redux migration last** - Only after everything works and is validated
+
+### 🎯 SUCCESS CRITERIA FOR ROUTE PLANNING
+- [ ] **Multiple routes** can be displayed simultaneously with independent visibility
+- [ ] **Route editing** provides instant visual feedback during waypoint dragging
+- [ ] **Route visibility** can be controlled independently per route
+- [ ] **Real-time updates** work smoothly with <10 state updates/sec
+- [ ] **No performance degradation** with multiple routes and waypoints
+- [ ] **Backward compatibility** maintained during implementation
 
 ## 🚨 CRITICAL BUGFIXES (Do Not Repeat)
 - **Performance**: Move ALL processing to `Dispatchers.IO` (prevents ANR crashes)

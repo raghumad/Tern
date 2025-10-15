@@ -38,11 +38,12 @@ import android.util.Log
 import org.osmdroid.util.GeoPoint
 import android.view.GestureDetector
 import android.view.MotionEvent
-import com.madanala.tern.route.WaypointStore
+
 import com.madanala.tern.model.Waypoint
 import com.madanala.tern.route.WaypointOverlay
+import com.madanala.tern.route.WaypointStore
 import com.madanala.tern.route.TypeSelectionSheet
-import com.madanala.tern.route.RouteOverlay
+import com.madanala.tern.route.RouteStore
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -51,9 +52,9 @@ import kotlinx.coroutines.launch
 
 
 /**
-  * Redux-based location service that handles GPS updates through Redux actions
-  * Replaces direct MapViewModel location handling with Redux-compliant architecture
-  */
+   * Redux-based location service that handles GPS updates through Redux actions
+   * Replaces direct MapViewModel location handling with Redux-compliant architecture
+   */
 class ReduxLocationService(private val store: MapStore) {
 
     /**
@@ -105,59 +106,59 @@ class ReduxLocationService(private val store: MapStore) {
     private fun isValidAviationLocation(location: org.osmdroid.util.GeoPoint): Boolean {
         // Basic validation for aviation coordinates
         return location.latitude.isFinite() &&
-               location.longitude.isFinite() &&
-               location.latitude in -90.0..90.0 &&
-               location.longitude in -180.0..180.0
+                location.longitude.isFinite() &&
+                location.latitude in -90.0..90.0 &&
+                location.longitude in -180.0..180.0
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MapViewContainer(
-     modifier: Modifier = Modifier,
-     store: MapStore = viewModel()
- ) {
-     // Redux-based location service for handling GPS updates through Redux actions
-     val locationService = ReduxLocationService(store)
+      modifier: Modifier = Modifier,
+      store: MapStore = viewModel()
+  ) {
+      // Redux-based location service for handling GPS updates through Redux actions
+      val locationService = ReduxLocationService(store)
     val context = LocalContext.current
     val state by store.state.collectAsState()
 
     // Permission handling - maintain local state for launcher
     val initialPermissionGranted = ContextCompat.checkSelfPermission(
-        context,
-        Manifest.permission.ACCESS_FINE_LOCATION
-    ) == PackageManager.PERMISSION_GRANTED
+         context,
+         Manifest.permission.ACCESS_FINE_LOCATION
+     ) == PackageManager.PERMISSION_GRANTED
 
     var hasLocationPermission by remember {
-        mutableStateOf(initialPermissionGranted)
-    }
+         mutableStateOf(initialPermissionGranted)
+     }
 
     // Initialize Redux state with current permission status
     LaunchedEffect(Unit) {
-        store.setLocationPermission(initialPermissionGranted)
-    }
+         store.setLocationPermission(initialPermissionGranted)
+     }
 
     val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestMultiplePermissions(),
-        onResult = { permissions ->
-            hasLocationPermission = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true
-            if (hasLocationPermission) {
-                // Dispatch permission granted action
-                store.setLocationPermission(true)
-            } else {
-                Toast.makeText(context, "Location permission denied.", Toast.LENGTH_LONG).show()
-                store.setLocationPermission(false)
-            }
-        }
-    )
+         contract = ActivityResultContracts.RequestMultiplePermissions(),
+         onResult = { permissions ->
+             hasLocationPermission = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true
+             if (hasLocationPermission) {
+                 // Dispatch permission granted action
+                 store.setLocationPermission(true)
+             } else {
+                 Toast.makeText(context, "Location permission denied.", Toast.LENGTH_LONG).show()
+                 store.setLocationPermission(false)
+             }
+         }
+     )
 
     LaunchedEffect(Unit) {
-        if (!hasLocationPermission) {
-            permissionLauncher.launch(
-                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
-            )
-        }
-    }
+         if (!hasLocationPermission) {
+             permissionLauncher.launch(
+                 arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
+             )
+         }
+     }
 
     // Redux migration: Collect rotation from global state
     val mapRotation = state.rotation
@@ -169,138 +170,155 @@ fun MapViewContainer(
     val mapViewModel: MapViewModel = viewModel()
 
     DisposableEffect(store) {
-        // Connect MapViewModel to Redux store for state integration
-        mapViewModel.setMapStore(store)
+         // Connect MapViewModel to Redux store for state integration
+         mapViewModel.setMapStore(store)
 
-        onDispose {
-            // Cleanup handled by MapViewModel lifecycle
-        }
-    }
+         onDispose {
+             // Cleanup handled by MapViewModel lifecycle
+         }
+     }
 
     // Redux-based location updates - replaced direct MapViewModel dependency
     LaunchedEffect(state.hasLocationPermission) {
-         if (state.hasLocationPermission) {
-             // Start Redux-based location service
-             locationService.startLocationUpdates()
-             Log.d("MapViewContainer", "Redux location service started")
-         } else {
-             // Stop location service when permission revoked
-             locationService.stopLocationUpdates()
-             Log.d("MapViewContainer", "Redux location service stopped")
-         }
-     }
+          if (state.hasLocationPermission) {
+              // Start Redux-based location service
+              locationService.startLocationUpdates()
+              Log.d("MapViewContainer", "Redux location service started")
+          } else {
+              // Stop location service when permission revoked
+              locationService.stopLocationUpdates()
+              Log.d("MapViewContainer", "Redux location service stopped")
+          }
+      }
 
     // Sync Redux location state with MapViewModel for overlay coordination
     LaunchedEffect(state.userLocation, state.isLocationReady) {
-         state.userLocation?.let { location ->
-             if (state.isLocationReady) {
-                 // Update MapViewModel with Redux location state for overlay management
-                 // This maintains compatibility while using Redux as single source of truth
-                 Log.d("MapViewContainer", "Syncing Redux location to MapViewModel: $location")
-             }
-         }
-     }
+          state.userLocation?.let { location ->
+              if (state.isLocationReady) {
+                  // Update MapViewModel with Redux location state for overlay management
+                  // This maintains compatibility while using Redux as single source of truth
+                  Log.d("MapViewContainer", "Syncing Redux location to MapViewModel: $location")
+              }
+          }
+      }
 
     Box(modifier = modifier.fillMaxSize()) {
-          // Redux-integrated MapView management
-          // MapViewModel connected via Redux store for overlay coordination
+           // Redux-integrated MapView management
+           // MapViewModel connected via Redux store for overlay coordination
         val mapView = mapViewModel.mapView
         val density = LocalDensity.current
         val sheetState = rememberModalBottomSheetState()
         val coroutineScope = rememberCoroutineScope()
     var pendingCoord by remember { mutableStateOf<org.osmdroid.util.GeoPoint?>(null) }
     var isDraggingWaypoint by remember { mutableStateOf(false) }
-    val waypointsList by WaypointStore.waypoints.collectAsState()
+    
 
-         // Attach a long-press listener (MapEventsOverlay) to allow creating waypoints by long-press.
-         // This is a conservative Phase 1 implementation (in-memory store); we'll migrate to Redux in Phase 2.
-         AndroidView(
-             factory = { ctx ->
-                 // mapView already created and managed by MapViewModel; add MapEventsOverlay once
-                 try {
-                     // GestureDetector to detect long-press and convert screen coords to GeoPoint
-                     val gestureDetector = GestureDetector(mapView.context, object : GestureDetector.SimpleOnGestureListener() {
-                         override fun onLongPress(e: MotionEvent) {
-                             try {
-                                 val gp = mapView.projection.fromPixels(e.x.toInt(), e.y.toInt())
-                                 if (gp is GeoPoint) {
-                                     val lat = gp.latitude
-                                     val lon = gp.longitude
-                                    if (lat.isFinite() && lon.isFinite()) {
-                                        // Instead of immediately adding, show type selection sheet
-                                        pendingCoord = gp
-                                        coroutineScope.launch {
-                                            // show sheet - using compose ModalBottomSheet state
-                                            // actual sheet UI is below in compose tree
-                                        }
-                                    }
-                                 }
-                             } catch (t: Throwable) {
-                                 Log.w("MapViewContainer", "onLongPress failed: ${t.message}")
-                             }
-                         }
-                     })
+          // Attach a long-press listener (MapEventsOverlay) to allow creating waypoints by long-press.
+          // This is a conservative Phase 1 implementation (in-memory store); we'll migrate to Redux in Phase 2.
+          AndroidView(
+              factory = { ctx ->
+                  // mapView already created and managed by MapViewModel; add MapEventsOverlay once
+                  try {
+                      // GestureDetector to detect long-press and convert screen coords to GeoPoint
+                      val gestureDetector = GestureDetector(mapView.context, object : GestureDetector.SimpleOnGestureListener() {
+                          override fun onLongPress(e: MotionEvent) {
+                              try {
+                                  val gp = mapView.projection.fromPixels(e.x.toInt(), e.y.toInt())
+                                  if (gp is GeoPoint) {
+                                      val lat = gp.latitude
+                                      val lon = gp.longitude
+                                     if (lat.isFinite() && lon.isFinite()) {
+                                         // Instead of immediately adding, show type selection sheet
+                                         pendingCoord = gp
+                                         coroutineScope.launch {
+                                             // show sheet - using compose ModalBottomSheet state
+                                             // actual sheet UI is below in compose tree
+                                         }
+                                     }
+                                  }
+                              } catch (t: Throwable) {
+                                  Log.w("MapViewContainer", "onLongPress failed: ${t.message}")
+                              }
+                          }
+                      })
 
-                     // Set touch listener to forward events to gesture detector while preserving map gestures
-                     mapView.setOnTouchListener { _, event ->
-                         try {
-                             gestureDetector.onTouchEvent(event)
-                         } catch (ignored: Throwable) {
-                         }
-                         // return false so MapView still handles gestures (panning/zoom)
-                         false
-                     }
-                 } catch (t: Throwable) {
-                     Log.w("MapViewContainer", "Failed to attach long-press handler: ${t.message}")
-                 }
-                 mapView
-             },
-             modifier = Modifier.fillMaxSize()
-         )
+                      // Set touch listener to forward events to gesture detector while preserving map gestures
+                      mapView.setOnTouchListener { _, event ->
+                          try {
+                              gestureDetector.onTouchEvent(event)
+                          } catch (ignored: Throwable) {
+                          }
+                          // return false so MapView still handles gestures (panning/zoom)
+                          false
+                      }
+                  } catch (t: Throwable) {
+                      Log.w("MapViewContainer", "Failed to attach long-press handler: ${t.message}")
+                  }
+                  mapView
+              },
+              modifier = Modifier.fillMaxSize()
+          )
 
-         // Modal sheet for type selection
-         @OptIn(ExperimentalMaterial3Api::class)
-         if (pendingCoord != null && !isDraggingWaypoint) {
-             ModalBottomSheet(
-                 onDismissRequest = {
+          // Modal sheet for type selection
+          @OptIn(ExperimentalMaterial3Api::class)
+          if (pendingCoord != null && !isDraggingWaypoint) {
+              ModalBottomSheet(
+                  onDismissRequest = {
+                       pendingCoord = null
+                       isDraggingWaypoint = false
+                   },
+                  sheetState = sheetState
+              ) {
+                  TypeSelectionSheet(onSelect = { type ->
+                      val gp = pendingCoord
+                      if (gp != null) {
+                           Log.d("MapViewContainer", "Creating waypoint at: ${gp.latitude}, ${gp.longitude} with type: $type")
+
+                           // Create waypoint with route association using route-centric operations
+                           val currentRoute = RouteStore.getCurrentRoute()
+                           val newWaypoint = if (currentRoute != null) {
+                               // Assign waypoint to current route
+                               WaypointStore.createWaypointInRoute(
+                                   routeId = currentRoute.id,
+                                   lat = gp.latitude,
+                                   lon = gp.longitude,
+                                   type = type
+                               )
+                           } else {
+                               // Create unassigned waypoint for backward compatibility
+                               WaypointStore.createAndAdd(
+                                   lat = gp.latitude,
+                                   lon = gp.longitude,
+                                   type = type
+                               )
+                           }
+                           Log.d("MapViewContainer", "Waypoint created with ID: ${newWaypoint.id}")
+
+                           // Add marker for the waypoint (only once)
+                           WaypointOverlay.addMarker(mapView, newWaypoint, WaypointStore) { isDragging ->
+                               isDraggingWaypoint = isDragging
+                           }
+                           Log.d("MapViewContainer", "Waypoint marker added for: $type")
+                      }
                       pendingCoord = null
                       isDraggingWaypoint = false
-                  },
-                 sheetState = sheetState
-             ) {
-                 TypeSelectionSheet(onSelect = { type ->
-                     val gp = pendingCoord
-                     if (gp != null) {
-                         WaypointStore.createAndAdd(gp.latitude, gp.longitude, type, label = null)
-                         val newWaypoint = WaypointStore.createAndAdd(gp.latitude, gp.longitude, type, label = null)
-                          WaypointOverlay.addMarker(mapView, newWaypoint, WaypointStore) { isDragging ->
-                               isDraggingWaypoint = isDragging
-                          }
-                         Log.d("MapViewContainer", "Typed waypoint created: ${type}")
-                     }
-                     pendingCoord = null
+                  }, onCancel = {
+                      pendingCoord = null
                       isDraggingWaypoint = false
-                 }, onCancel = { pendingCoord = null
-                      isDraggingWaypoint = false })
-             }
-         }
+                  })
+              }
+          }
 
 
-         // Show compass based on Redux state
-         if (state.compassVisible) {
-             Compass(
-                 rotation = mapRotation,
-                 modifier = Modifier
-                     .align(Alignment.TopEnd)
-                     .padding(WindowInsets.statusBars.asPaddingValues())
-                     .padding(16.dp)
-             )
-         }
-        // Redraw route overlay whenever waypoints change
-        LaunchedEffect(mapView, waypointsList) {
-            mapView?.let { view ->
-                RouteOverlay.redraw(view, waypointsList)
-            }
-        }
-     }
+          // Show compass based on Redux state
+          if (state.compassVisible) {
+              Compass(
+                  rotation = mapRotation,
+                  modifier = Modifier
+                      .align(Alignment.TopEnd)
+                      .padding(WindowInsets.statusBars.asPaddingValues())
+                      .padding(16.dp)
+              )
+          }
+    }
 }
