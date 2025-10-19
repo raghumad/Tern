@@ -44,6 +44,7 @@ import com.madanala.tern.route.WaypointOverlay
 import com.madanala.tern.route.WaypointStore
 import com.madanala.tern.route.TypeSelectionSheet
 import com.madanala.tern.route.RouteStore
+import com.madanala.tern.ui.overlays.RouteOverlayManager
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -169,6 +170,22 @@ fun MapViewContainer(
     // MapViewModel - Redux integration handled via setMapStore
     val mapViewModel: MapViewModel = viewModel()
 
+    // RouteOverlayManager for route visualization
+    val routeOverlayManager = remember { RouteOverlayManager(context, store) }
+
+    // Connect RouteOverlayManager to map view lifecycle for route drawing
+    DisposableEffect(mapViewModel.mapView) {
+        val mapView = mapViewModel.mapView
+
+        // Attach RouteOverlayManager to map view for route visualization
+        routeOverlayManager.onAttach(mapView)
+
+        onDispose {
+            // Cleanup handled by RouteOverlayManager lifecycle
+            routeOverlayManager.onDetach()
+        }
+    }
+
     DisposableEffect(store) {
          // Connect MapViewModel to Redux store for state integration
          mapViewModel.setMapStore(store)
@@ -272,33 +289,23 @@ fun MapViewContainer(
                   TypeSelectionSheet(onSelect = { type ->
                       val gp = pendingCoord
                       if (gp != null) {
-                           Log.d("MapViewContainer", "Creating waypoint at: ${gp.latitude}, ${gp.longitude} with type: $type")
+                        Log.d("MapViewContainer", "Creating waypoint at: ${gp.latitude}, ${gp.longitude} with type: $type")
 
-                           // Create waypoint with route association using route-centric operations
-                           val currentRoute = RouteStore.getCurrentRoute()
-                           val newWaypoint = if (currentRoute != null) {
-                               // Assign waypoint to current route
-                               WaypointStore.createWaypointInRoute(
-                                   routeId = currentRoute.id,
-                                   lat = gp.latitude,
-                                   lon = gp.longitude,
-                                   type = type
-                               )
-                           } else {
-                               // Create unassigned waypoint for backward compatibility
-                               WaypointStore.createAndAdd(
-                                   lat = gp.latitude,
-                                   lon = gp.longitude,
-                                   type = type
-                               )
-                           }
-                           Log.d("MapViewContainer", "Waypoint created with ID: ${newWaypoint.id}")
+                        // Create waypoint with route association using route-centric operations
+                        val currentRoute = RouteStore.getCurrentRoute() ?: RouteStore.createRoute("Route")
+                        val newWaypoint = WaypointStore.createWaypointInRoute(
+                            routeId = currentRoute.id,
+                            lat = gp.latitude,
+                            lon = gp.longitude,
+                            type = type
+                        )
+                        Log.d("MapViewContainer", "Waypoint created with ID: ${newWaypoint.id}")
 
-                           // Add marker for the waypoint (only once)
-                           WaypointOverlay.addMarker(mapView, newWaypoint, WaypointStore) { isDragging ->
-                               isDraggingWaypoint = isDragging
-                           }
-                           Log.d("MapViewContainer", "Waypoint marker added for: $type")
+                        // Add marker for the waypoint (only once)
+                        WaypointOverlay.addMarker(mapView, newWaypoint, WaypointStore) { isDragging ->
+                            isDraggingWaypoint = isDragging
+                        }
+                        Log.d("MapViewContainer", "Waypoint marker added for: $type")
                       }
                       pendingCoord = null
                       isDraggingWaypoint = false
