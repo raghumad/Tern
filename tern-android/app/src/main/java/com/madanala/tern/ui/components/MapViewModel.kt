@@ -426,7 +426,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun enableRouteEditMode() {
         // Route editing manager removed
-        android.util.Log.i(TAG, "Route editing functionality removed")
+        android.util.Log.i(TAG, "Route editing functionality removed - needs implementation")
     }
 
     /**

@@ -87,7 +87,7 @@ class RouteOverlayManager(
         Log.d(TAG, "All route overlays cleared")
     }
 
-    private fun onRoutesChanged(routes: List<Route>) {
+        private fun onRoutesChanged(routes: List<Route>) {
         if (!isAttached || !isEnabled()) return
 
         coroutineScope.launch(Dispatchers.Main) {
@@ -146,7 +146,7 @@ class RouteOverlayManager(
         marker?.let { mapView?.overlays?.remove(it) }
     }
 
-    private fun updateRoutePolylines(routes: List<Route>) {
+        private fun updateRoutePolylines(routes: List<Route>) {
         mapView?.let { mapView ->
             // Draw polylines for each visible route separately with proper styling
             val visibleRoutes = routes.filter { route -> route.isVisible }
@@ -157,7 +157,7 @@ class RouteOverlayManager(
             // Draw each visible route as a separate polyline with its specific color
             visibleRoutes.forEach { route ->
                 if (route.waypoints.size >= 2) {
-                    RouteOverlay.redraw(mapView, route.id, route.waypoints, route.color)
+                        RouteOverlay.redraw(mapView, route.id, route.waypoints, route.color)
                 }
             }
         }
