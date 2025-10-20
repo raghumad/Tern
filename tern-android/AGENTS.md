@@ -10,11 +10,11 @@ This file provides guidance to agents when working with code in this repository.
 - **Critical Bugs**: All resolved (UI blocking, cache persistence, ANR crashes)
 - **Aviation Safety**: Border cache issues resolved, continuous visual display during flight
 
-### 🆕 RECENT PROGRESS (Oct 14, 2025)
+### 🆕 RECENT PROGRESS (Oct 19, 2025)
 - **Java runtime upgrade**: Project updated to target Java 21 (toolchain + kotlin jvmTarget). Local build verified on OpenJDK 21.
-- **Route Planning — Architecture Analysis**: Comprehensive analysis completed of route planning implementation vs. architecture document. Core RouteStore, RouteColor, and RouteOverlayManager are excellently implemented (95% alignment), but UI layer is largely missing.
-- **Critical Issues Identified**: 10 major bugs/unwanted behaviors identified including duplicate waypoint creation, missing route management UI, and broken route visualization.
-- **Route Architecture Status**: Backend route management is production-ready, but user-facing route planning features need implementation.
+- **Route Planning Architecture**: Unified route_planner.md created with route-centric approach using airspace cache-like persistence patterns.
+- **Route-Centric Design**: Routes own waypoints with strong data relationships, 10-route limit with Hilbert spatial indexing, flat buffer storage mimicking AirspaceCache.
+- **Redux Strategy Confirmed**: Phase 1 uses simple state management, Redux migration only after UI interactions work perfectly (avoiding anti-patterns).
 
 ### 🚧 REMAINING PHASE 4 (Items 5-6)
 - **Item 5: Settings Reorganization** - Current: "Map Layers" + "Units" → Target: "Aviation → Display → Units → Help"
@@ -248,18 +248,29 @@ GPS Altitude → Kalman Filter → Aviation Calculations → Redux State
 - `addWaypoint(coordinate:)` (iOS) → long-press handler in Android `MapViewContainer` (already implemented).
 - Export routines (`saveXCTSKqr()`, `saveCompegpsWpt()`, `saveGPX`-style helpers) on iOS provide canonical serialization formats to port.
 
-## 🚧 ROUTE PLANNING IMPLEMENTATION STATUS (Oct 14, 2025)
+## 🚧 ROUTE PLANNING IMPLEMENTATION STATUS (Oct 19, 2025)
 
-### ✅ EXCELLENT: Backend Architecture (95% Complete)
-**RouteStore.kt**: Production-ready with StateFlow management, multi-route support, visibility control
+### ✅ **ROUTE-CENTRIC ARCHITECTURE**: Implementation Strategy Complete
+- **✅ Unified Documentation**: route_planner.md created with airspace cache-like persistence
+- **✅ Route-Centric Design**: Routes own waypoints, 10-route limit, Hilbert spatial indexing
+- **✅ Phase Strategy**: RouteCache in Phase 1, Redux migration in Phase 2 (avoids anti-patterns)
+
+### ✅ **BACKEND ARCHITECTURE**: Production-Ready (95% Complete)
+**RouteStore.kt**: StateFlow management with multi-route support and visibility control
 **RouteColor.kt**: Aviation-appropriate styling with 8 color options and waypoint marker colors
 **RouteOverlayManager.kt**: Reactive rendering with memory-adaptive performance management
 **Route.kt**: Complete data model with metadata, timestamps, validation
 
-### ❌ CRITICAL GAPS: User Interface (0% Complete)
+### ❌ **CRITICAL GAPS**: User Interface Implementation (0% Complete)
 **Missing Route Management UI**: No interface to create, edit, or manage routes
 **Broken Route Visualization**: RouteOverlayManager exists but not connected to main map view
-**Global Waypoint Storage**: Still using old pattern instead of route-centric approach
+**Global Waypoint Storage**: Current MapViewContainer still uses old pattern
+
+### 🎯 **NEXT STEPS**: Route-Centric Implementation
+1. **Phase 1A**: RouteCache with flat buffer storage (mimic AirspaceCache)
+2. **Phase 1B**: Update MapViewContainer to use route-centric waypoint operations
+3. **Phase 1C**: Implement spatial querying for route discovery
+4. **Phase 2**: Redux migration only after UI interactions work perfectly
 
 ### 🎯 ROUTE PLANNING TODO LIST (Implementation Priority)
 
@@ -294,6 +305,27 @@ GPS Altitude → Kalman Filter → Aviation Calculations → Redux State
 - [ ] **Real-time updates** work smoothly with <10 state updates/sec
 - [ ] **No performance degradation** with multiple routes and waypoints
 - [ ] **Backward compatibility** maintained during implementation
+
+## 🗂️ Route-Centric Architecture Patterns
+
+### Route Persistence Strategy (AirspaceCache-Like)
+- **RouteCache**: Mimics AirspaceCache with flat buffer storage and Hilbert indexing
+- **10-Route Limit**: Maximum stored routes with distance-based spatial filtering
+- **Centroid Calculation**: Routes indexed by waypoint bounding box centroid
+- **Memory-Mapped I/O**: Zero-copy route loading for performance
+- **300-Mile Queries**: Default spatial query radius for route discovery
+
+### Route Data Ownership
+- **Routes Own Waypoints**: Strong data relationships (routes contain waypoint collections)
+- **No Global WaypointStore**: Waypoints exist only within route context
+- **Automatic Cleanup**: Route deletion removes all associated waypoints
+- **Type Safety**: Compile-time guarantees of waypoint-route relationships
+
+### Route State Management
+- **Phase 1**: RouteCache with ViewModel-based operations
+- **Phase 2**: Redux bridge syncs RouteCache with Redux state
+- **Incremental Migration**: RouteCache remains for performance-critical operations
+- **Hybrid Pattern**: Best of both worlds - Redux for UI, RouteCache for persistence
 
 ## 🚨 CRITICAL BUGFIXES (Do Not Repeat)
 - **Performance**: Move ALL processing to `Dispatchers.IO` (prevents ANR crashes)
