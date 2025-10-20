@@ -43,6 +43,7 @@ class RouteOverlayManager(
 
     override fun onOverlayAttached() {
         Log.d(TAG, "Route overlay manager attached")
+        // Call parent initialization first
         // Initial waypoint rendering will be handled by WaypointStore observation
     }
 
