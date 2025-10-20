@@ -248,12 +248,12 @@ GPS Altitude → Kalman Filter → Aviation Calculations → Redux State
 - `addWaypoint(coordinate:)` (iOS) → long-press handler in Android `MapViewContainer` (already implemented).
 - Export routines (`saveXCTSKqr()`, `saveCompegpsWpt()`, `saveGPX`-style helpers) on iOS provide canonical serialization formats to port.
 
-## 🚧 ROUTE PLANNING IMPLEMENTATION STATUS (Oct 19, 2025)
+## 🚧 ROUTE PLANNING IMPLEMENTATION STATUS (October 2025)
 
 ### ✅ **ROUTE-CENTRIC ARCHITECTURE**: Implementation Strategy Complete
 - **✅ Unified Documentation**: route_planner.md created with airspace cache-like persistence
 - **✅ Route-Centric Design**: Routes own waypoints, 10-route limit, Hilbert spatial indexing
-- **✅ Phase Strategy**: RouteCache in Phase 1, Redux migration in Phase 2 (avoids anti-patterns)
+- **✅ UX-First Strategy**: Working system first, Redux polish second (validated approach)
 
 ### ✅ **BACKEND ARCHITECTURE**: Production-Ready (95% Complete)
 **RouteStore.kt**: StateFlow management with multi-route support and visibility control
@@ -261,50 +261,46 @@ GPS Altitude → Kalman Filter → Aviation Calculations → Redux State
 **RouteOverlayManager.kt**: Reactive rendering with memory-adaptive performance management
 **Route.kt**: Complete data model with metadata, timestamps, validation
 
-### ❌ **CRITICAL GAPS**: User Interface Implementation (0% Complete)
-**Missing Route Management UI**: No interface to create, edit, or manage routes
-**Broken Route Visualization**: RouteOverlayManager exists but not connected to main map view
-**Global Waypoint Storage**: Current MapViewContainer still uses old pattern
+### 🚧 **CURRENT IMPLEMENTATION**: UX-First Approach (In Progress)
+**Phase 1: Critical Bug Fixes & Core UX** (Started)
+- ✅ **Implementation Plan**: UX-first with Redux migration after validation
+- 🔄 **Phase 1A**: Fix duplicate waypoint creation in MapViewContainer.kt
+- ⏳ **Phase 1B**: Connect RouteOverlayManager to main map view for route visualization
+- ⏳ **Phase 1C**: Create RouteManagerUI.kt for route management interface
 
-### 🎯 **NEXT STEPS**: Route-Centric Implementation
-1. **Phase 1A**: RouteCache with flat buffer storage (mimic AirspaceCache)
-2. **Phase 1B**: Update MapViewContainer to use route-centric waypoint operations
-3. **Phase 1C**: Implement spatial querying for route discovery
-4. **Phase 2**: Redux migration only after UI interactions work perfectly
+### 🎯 **IMPLEMENTATION ROADMAP**: UX-Validated Development
 
-### 🎯 ROUTE PLANNING TODO LIST (Implementation Priority)
-
-#### **CRITICAL BUGS** 🚨
+#### **Phase 1: Critical Bug Fixes & Core UX** (Week 1-2)
+- [x] **Implementation Plan**: UX-first approach confirmed
 - [ ] **Fix duplicate waypoint creation** in MapViewContainer.kt (creates waypoints twice)
 - [ ] **Connect RouteOverlayManager** to main map view for route visualization
-
-#### **CORE FUNCTIONALITY** ⚡
 - [ ] **Create RouteManagerUI.kt** for route management interface
 - [ ] **Implement route-centric waypoint storage** (replace global WaypointStore pattern)
+
+#### **Phase 2: Enhanced UX Features** (Week 3-4)
 - [ ] **Add route creation and editing UI flows**
-
-#### **ENHANCED FEATURES** 🔧
 - [ ] **Create route visibility and selection controls** (multi-route management)
-- [ ] **Add route statistics and validation display** (distance, waypoint count, etc.)
+- [ ] **Add route statistics and validation display**
 - [ ] **Implement route import/export functionality** (GPX, XCTSK, CUP formats)
-- [ ] **Add route persistence** across app restarts
 
-#### **FUTURE: REDUX MIGRATION** 🏗️
-- [ ] **Connect Redux actions to UI components** (after core functionality validated)
+#### **Phase 3: Redux Integration** (Week 5+)
+- [ ] **Redux migration only after UX is validated and working perfectly**
+- [ ] **Connect Redux actions to UI components** (following established migration strategy)
 
-### 📋 IMPLEMENTATION STRATEGY
-1. **Start with critical bug fixes** - Get existing functionality working properly
-2. **Implement core route management** - Essential user-facing features
-3. **Add enhanced features** - Better user experience and data management
-4. **Redux migration last** - Only after everything works and is validated
+### 📋 **IMPLEMENTATION PRINCIPLES**
+1. **✅ UX-First Development**: Get user experience working before Redux complexity
+2. **✅ Working System First**: Implement basic functionality with simple state management
+3. **✅ Incremental Redux**: Add Redux bridge only after UI interactions work perfectly
+4. **✅ Aviation Safety**: Maintain smooth transitions and performance standards
+5. **✅ Zero Warnings**: Ensure code quality throughout development
 
-### 🎯 SUCCESS CRITERIA FOR ROUTE PLANNING
-- [ ] **Multiple routes** can be displayed simultaneously with independent visibility
-- [ ] **Route editing** provides instant visual feedback during waypoint dragging
-- [ ] **Route visibility** can be controlled independently per route
-- [ ] **Real-time updates** work smoothly with <10 state updates/sec
-- [ ] **No performance degradation** with multiple routes and waypoints
-- [ ] **Backward compatibility** maintained during implementation
+### 🎯 **SUCCESS CRITERIA FOR PHASE 1**
+- [ ] **Zero duplicate waypoints** created on map interactions
+- [ ] **Route visualization** working with immediate visual feedback
+- [ ] **Route Management UI** functional for create/edit/delete operations
+- [ ] **Route-centric data model** implemented (routes own waypoints)
+- [ ] **Real-time UI updates** during route editing
+- [ ] **Performance maintained**: <10 state updates/sec, <75% memory usage
 
 ## 🗂️ Route-Centric Architecture Patterns
 

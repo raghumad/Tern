@@ -292,13 +292,19 @@ fun MapViewContainer(
                         Log.d("MapViewContainer", "Creating waypoint at: ${gp.latitude}, ${gp.longitude} with type: $type")
 
                         // Create waypoint with route association using route-centric operations
-                        val currentRoute = RouteStore.getCurrentRoute() ?: RouteStore.createRoute("Route")
+                        // Ensure we have a consistent route for waypoint creation
+                        val currentRoute = RouteStore.getCurrentRoute() ?: RouteStore.createRoute("Flight Route")
+                        RouteStore.setCurrentRoute(currentRoute.id) // Ensure this route is set as current
+
                         val newWaypoint = WaypointStore.createWaypointInRoute(
                             routeId = currentRoute.id,
                             lat = gp.latitude,
                             lon = gp.longitude,
                             type = type
                         )
+
+                        // Update the route with the new waypoint to maintain consistency
+                        RouteStore.addWaypointToRoute(currentRoute.id, newWaypoint)
                         Log.d("MapViewContainer", "Waypoint created with ID: ${newWaypoint.id}")
 
                         // Add marker for the waypoint (only once)
