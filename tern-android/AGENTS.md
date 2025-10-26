@@ -328,3 +328,6 @@ GPS Altitude → Kalman Filter → Aviation Calculations → Redux State
 - **Architecture**: Delay map operations until GPS fix (prevents invalid API calls)
 - **Cache Management**: Never auto-clear caches on startup (preserves offline capability)
 - **Spatial Queries**: Always use `queryNearbyFeatures()` only (never entire countries)
+
+## File Modification Preferences
+- **Use diff and patch**: For all file modifications, use Linux `diff` and `patch` commands via `execute_command` to ensure precise editing.
