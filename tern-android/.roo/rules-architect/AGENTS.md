@@ -73,3 +73,6 @@
 - **Multi-tier caching**: Separate specialized caches for airspace, PG spots, weather, countries - each optimized for aviation data patterns
 - **Adaptive cache sizing**: Cache sizes must adapt to flight phases and memory pressure - maintains performance under constraints
 - **Cross-border continuity**: Cache handoff mechanism for seamless transitions - prevents visual discontinuities during flight
+
+## File Modification Preferences
+- **Use diff and patch**: For all file modifications, use Linux `diff` and `patch` commands via `execute_command` to ensure precise editing.
