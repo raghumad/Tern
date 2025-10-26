@@ -30,3 +30,6 @@
 - **Debug build checks**: Run `./gradlew assembleDebug` after code changes to ensure no warnings in debug builds
 - **Release build checks**: Ensure `./gradlew assembleRelease` also compiles cleanly for production readiness
 - **Integration with CI/CD**: Enforce zero warnings in all automated builds and pull request checks
+
+## File Modification Preferences
+- **Use diff and patch**: For all file modifications, use Linux `diff` and `patch` commands via `execute_command` to ensure precise editing.
