@@ -24,3 +24,9 @@
 - **Multiple cache managers**: Use AirspaceCache, PGSpotCache, PGSpotWeatherCache, UniversalCountryCacheManager - don't create new caches
 - **Cross-country continuity**: Implement smooth cache handoff for border transitions - cache keys must include country context
 - **Memory-aware sizing**: Cache sizes must adapt to flight phase and memory pressure - use adaptive allocation patterns
+
+## Compilation Standards Enforcement
+- **Zero warnings policy**: All code changes must compile without any warnings as a mandatory condition for marking any task as complete
+- **Debug build checks**: Run `./gradlew assembleDebug` after code changes to ensure no warnings in debug builds
+- **Release build checks**: Ensure `./gradlew assembleRelease` also compiles cleanly for production readiness
+- **Integration with CI/CD**: Enforce zero warnings in all automated builds and pull request checks
