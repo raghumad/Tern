@@ -1,7 +1,7 @@
 # Route Planner Implementation Plan
 
 **Last Updated**: October 2025
-**Status**: Clean baseline established, ready for incremental implementation
+**Status**: Clean baseline established with critical fixes, ready for incremental implementation
 **Strategy**: Implement small features, test on device, push to GitHub after each validation
 
 ## Implementation Checklist
@@ -11,13 +11,22 @@
 - [x] Test compilation and device installation from clean state
 - [x] Push clean baseline to GitHub as checkpoint
 
-### Phase 2: Basic Waypoint Creation
+### Phase 2: Critical Architecture Fixes ✅
+- [x] Move ReduxLocationService to separate file (ReduxLocationService.kt)
+- [x] Remove duplicate waypoint creation (WaypointStore vs RouteStore)
+- [x] Remove Redux dependencies from RouteOverlayManager until Phase 2
+- [x] Simplify waypoint creation logic (remove unnecessary operations)
+- [x] Move waypoint operations to Dispatchers.IO for aviation safety
+- [x] Test basic waypoint creation functionality (Ready for user testing)
+- [x] Push working baseline to GitHub (after compilation test)
+
+### Phase 3: Basic Waypoint Creation
 - [ ] Implement basic long-press waypoint creation (1-2 files max)
 - [ ] Test waypoint creation on device and push to GitHub
 - [ ] Add waypoint type selection UI (TURNPOINT, LAUNCH, LANDING)
 - [ ] Test type selection on device and push to GitHub
 
-### Phase 3: Route Management
+### Phase 4: Route Management
 - [ ] Implement simple route creation and waypoint assignment
 - [ ] Test route creation on device and push to GitHub
 - [ ] Add visual route display with basic polylines
@@ -25,7 +34,7 @@
 - [ ] Add route management UI (list, edit, delete routes)
 - [ ] Test route management on device and push to GitHub
 
-### Phase 4: Persistence & Advanced Features
+### Phase 5: Persistence & Advanced Features
 - [ ] Implement route persistence across app restarts
 - [ ] Test persistence on device and push to GitHub
 - [ ] Add route editing (drag waypoints, reorder)
