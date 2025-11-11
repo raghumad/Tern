@@ -336,6 +336,31 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
 
         val routeManager = RouteOverlayManager(store)
         overlayCoordinator.addOverlayManager(routeManager)
+
+        // Load persisted routes and populate Redux state
+        loadPersistedRoutesIntoRedux(routeManager, store)
+    }
+
+    /**
+     * Load persisted routes from cache and populate Redux state on app startup
+     */
+    private fun loadPersistedRoutesIntoRedux(routeManager: RouteOverlayManager, store: com.madanala.tern.redux.MapStore) {
+        try {
+            val persistedRoutes = routeManager.loadPersistedRoutes()
+
+            if (persistedRoutes.isNotEmpty()) {
+                // Dispatch Redux actions to add each persisted route
+                persistedRoutes.forEach { route ->
+                    store.dispatch(com.madanala.tern.redux.MapAction.AddRoute(route))
+                }
+
+                Log.d(TAG, "Loaded ${persistedRoutes.size} persisted routes into Redux state")
+            } else {
+                Log.d(TAG, "No persisted routes found")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error loading persisted routes into Redux", e)
+        }
     }
 
     /**
