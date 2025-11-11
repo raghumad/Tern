@@ -12,9 +12,9 @@
 - [x] **Clean up imports** → Remove unused imports, organize remaining ones
 - [x] **Extract magic numbers** → Create named constants for padding, timeouts, margins
 - [x] **Extract permission handling** → Create `LocationPermissionHandler.kt`
-- [ ] **Extract gesture detection** → Create `MapGestureHandler.kt`
-- [ ] **Extract waypoint creation logic** → Create `WaypointCreationManager.kt`
-- [ ] **Standardize error handling** → Consistent try-catch patterns
+- [x] **Extract gesture detection** → Create `MapGestureHandler.kt`
+- [x] **Extract waypoint creation logic** → Create `WaypointCreationManager.kt`
+- [x] **Standardize error handling** → Consistent try-catch patterns
 - [ ] **Simplify main composable** → Focus only on composition and state observation
 - [ ] **Test compilation** after each change
 - [ ] **Validate functionality** - ensure waypoint creation still works
