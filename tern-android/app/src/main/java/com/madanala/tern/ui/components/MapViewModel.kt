@@ -20,20 +20,11 @@ import com.madanala.tern.ui.overlays.AirspaceOverlayManager
 import com.madanala.tern.ui.overlays.OverlayCoordinator
 import com.madanala.tern.ui.overlays.PGSpotOverlayManager
 import com.madanala.tern.ui.overlays.RouteOverlayManager
-
 import com.madanala.tern.ui.screens.MAP_VIEW_SATELLITE
 import com.madanala.tern.ui.screens.MAP_VIEW_TERRAIN
-import com.madanala.tern.utils.CacheManager
-import com.madanala.tern.utils.CountryUtils
-import com.madanala.tern.utils.GeoJsonUtils
-import com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.osmdroid.events.MapListener
 import org.osmdroid.events.ScrollEvent
 import org.osmdroid.events.ZoomEvent
