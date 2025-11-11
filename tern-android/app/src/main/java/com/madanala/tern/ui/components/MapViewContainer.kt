@@ -158,7 +158,7 @@ private fun syncLocationState(userLocation: GeoPoint?, isLocationReady: Boolean)
 
 /**
  * Handle waypoint creation for route planning
- * Creates a new route or adds waypoint to existing route
+ * Multi-waypoint routes: Adds to most recent route, or creates new route if none exist
  */
 private fun handleWaypointCreation(store: MapStore, geoPoint: GeoPoint) {
     try {
@@ -167,30 +167,42 @@ private fun handleWaypointCreation(store: MapStore, geoPoint: GeoPoint) {
         val currentState = store.state.value
         Log.d("MapViewContainer", "Current routes count: ${currentState.routes.size}")
 
-        // For Phase 1 MVP: Create a new route with a single waypoint
-        // In future phases, this could be enhanced to:
-        // - Add to existing route if in "route editing" mode
-        // - Show route creation dialog
-        // - Support different waypoint types
+        if (currentState.routes.isEmpty()) {
+            // No routes exist - create a new route with the first waypoint
+            val newRoute = Route(
+                name = "Route 1",
+                waypoints = listOf(
+                    com.madanala.tern.model.Waypoint(
+                        lat = geoPoint.latitude,
+                        lon = geoPoint.longitude,
+                        type = com.madanala.tern.model.Waypoint.Type.TURNPOINT,
+                        label = "WP1-1"
+                    )
+                )
+            )
 
-        val newRoute = Route(
-            name = "Route ${currentState.routes.size + 1}",
-            waypoints = listOf(
-                com.madanala.tern.model.Waypoint(
+            Log.d("MapViewContainer", "Creating first route: ${newRoute.name}")
+            store.dispatch(MapAction.AddRoute(newRoute))
+            Log.d("MapViewContainer", "Created new route: ${newRoute.name} at ${geoPoint.latitude}, ${geoPoint.longitude}")
+        } else {
+            // Routes exist - add waypoint to the most recent route
+            val mostRecentRoute = currentState.routes.maxByOrNull { it.createdAt }
+            if (mostRecentRoute != null) {
+                val waypointNumber = mostRecentRoute.waypoints.size + 1
+                val routeIndex = currentState.routes.indexOf(mostRecentRoute) + 1
+                val label = "WP$routeIndex-$waypointNumber"
+
+                Log.d("MapViewContainer", "Adding waypoint to route: ${mostRecentRoute.name} (${mostRecentRoute.waypoints.size} existing waypoints)")
+                store.dispatch(MapAction.AddWaypointToRoute(
+                    routeId = mostRecentRoute.id,
                     lat = geoPoint.latitude,
                     lon = geoPoint.longitude,
                     type = com.madanala.tern.model.Waypoint.Type.TURNPOINT,
-                    label = "WP${currentState.routes.size + 1}-1"
-                )
-            )
-        )
-
-        Log.d("MapViewContainer", "Dispatching AddRoute action for: ${newRoute.name}")
-
-        // Dispatch Redux action to add the route
-        store.dispatch(MapAction.AddRoute(newRoute))
-
-        Log.d("MapViewContainer", "Created new route: ${newRoute.name} at ${geoPoint.latitude}, ${geoPoint.longitude}")
+                    label = label
+                ))
+                Log.d("MapViewContainer", "Added waypoint $label to route: ${mostRecentRoute.name}")
+            }
+        }
 
     } catch (e: Exception) {
         Log.e("MapViewContainer", "Error creating waypoint", e)

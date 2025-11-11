@@ -35,12 +35,22 @@
 - [x] **Persistence as side effect** (cache syncs with Redux)
 - [x] **Startup recovery** (load cached routes into Redux)
 
-### Phase 6: Multi-Waypoint Routes (Future)
-- [ ] **Drag & drop waypoint editing** (extend single waypoints to multi-waypoint)
-- [ ] **Route line visualization** (connect multiple waypoints)
-- [ ] **Waypoint type selection** (TURNPOINT, LAUNCH, LANDING UI)
-- [ ] **Route management UI** (list, edit, delete routes)
-- [ ] **Advanced route editing** (waypoint reordering, deletion)
+### Phase 6: Multi-Waypoint Routes ✅ **COMPLETED & FIXED**
+- [x] **Multi-waypoint route creation** (long press adds to most recent route)
+- [x] **Route line visualization** (automatic blue lines for 2+ waypoints)
+- [x] **Redux waypoint actions** (AddWaypointToRoute, RemoveWaypoint, UpdateWaypoint)
+- [x] **Enhanced waypoint markers** (larger, colored borders, clear labels)
+- [x] **Sequential waypoint labels** (WP1-1, WP1-2, WP1-3... fixed)
+- [x] **Route persistence** (survives app restart - fixed)
+- [x] **Route distance calculation** (automatic km/mile calculations)
+- [x] **Flight time estimation** (30 km/h average speed calculation)
+
+### Phase 7: Advanced Route Features (Future)
+- [ ] **Drag & drop waypoint editing** (touch and move waypoints)
+- [ ] **Waypoint type selection UI** (TURNPOINT, LAUNCH, LANDING picker)
+- [ ] **Route management interface** (list, rename, delete routes)
+- [ ] **Waypoint deletion** (long press waypoint to remove)
+- [ ] **Route statistics display** (distance, flight time, waypoints)
 - [ ] **iOS compatibility** (cross-platform route sharing)
 
 ## Architecture Guidelines
