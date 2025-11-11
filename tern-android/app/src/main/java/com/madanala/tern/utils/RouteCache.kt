@@ -387,6 +387,34 @@ class RouteCache(private val context: Context) {
     }
 
     /**
+     * Get all cached routes
+     * @return List of all cached routes
+     */
+    fun getAllCachedRoutes(): List<Route> {
+        return try {
+            val cachedRoutes = mutableListOf<Route>()
+            val routeIds = cacheIndex.keys.toList()
+
+            for (routeId in routeIds) {
+                try {
+                    val route = getCachedRoute(routeId)
+                    if (route != null) {
+                        cachedRoutes.add(route)
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Error loading cached route $routeId: ${e.message}")
+                }
+            }
+
+            Log.d(TAG, "Loaded ${cachedRoutes.size} cached routes")
+            cachedRoutes
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting all cached routes", e)
+            emptyList()
+        }
+    }
+
+    /**
      * Get cache statistics
      * @return Map with cache statistics
      */

@@ -239,6 +239,38 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
         state.copy(routes = emptyList())
     }
 
+    // Waypoint actions (for multi-waypoint routes)
+    is MapAction.AddWaypointToRoute -> {
+        val newRoutes = state.routes.map { route ->
+            if (route.id == action.routeId) {
+                route.addWaypoint(action.lat, action.lon, action.type, action.label)
+            } else {
+                route
+            }
+        }
+        state.copy(routes = newRoutes)
+    }
+    is MapAction.RemoveWaypoint -> {
+        val newRoutes = state.routes.map { route ->
+            if (route.id == action.routeId) {
+                route.removeWaypoint(action.waypointId)
+            } else {
+                route
+            }
+        }
+        state.copy(routes = newRoutes)
+    }
+    is MapAction.UpdateWaypoint -> {
+        val newRoutes = state.routes.map { route ->
+            if (route.id == action.routeId) {
+                route.updateWaypoint(action.waypointId, action.lat, action.lon, action.type)
+            } else {
+                route
+            }
+        }
+        state.copy(routes = newRoutes)
+    }
+
     // No default branch required: MapAction is a sealed class and all cases are handled above
 }
 

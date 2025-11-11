@@ -145,37 +145,7 @@ class RouteOverlayManager(
         mapView.invalidate()
     }
 
-    /**
-     * Load persisted routes on app startup (called once during initialization)
-     * This recovers routes from cache when the app restarts
-     */
-    fun loadPersistedRoutes(): List<Route> {
-        val persistedRoutes = mutableListOf<Route>()
 
-        try {
-            // Get all cached route IDs and load them
-            val cacheDir = routeCache?.let {
-                val field = it.javaClass.getDeclaredField("cacheDir")
-                field.isAccessible = true
-                field.get(it) as? java.io.File
-            }
-
-            cacheDir?.listFiles()?.forEach { file ->
-                if (file.name.endsWith("_route.flex")) {
-                    val routeId = file.name.removeSuffix("_route.flex")
-                    routeCache?.getCachedRoute(routeId)?.let { route ->
-                        persistedRoutes.add(route)
-                    }
-                }
-            }
-
-            Log.d(TAG, "Loaded ${persistedRoutes.size} persisted routes from cache")
-        } catch (e: Exception) {
-            Log.e(TAG, "Error loading persisted routes", e)
-        }
-
-        return persistedRoutes
-    }
 
     /**
      * Get current routes
