@@ -53,7 +53,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 import com.madanala.tern.ui.components.Compass
 
-
+// UI Constants
+private val COMPASS_PADDING = 16.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -279,7 +280,7 @@ fun MapViewContainer(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(WindowInsets.statusBars.asPaddingValues())
-                    .padding(16.dp)
+                    .padding(COMPASS_PADDING)
             )
         }
     }
