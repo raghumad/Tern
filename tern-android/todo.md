@@ -11,7 +11,7 @@
 
 - [x] **Clean up imports** → Remove unused imports, organize remaining ones
 - [x] **Extract magic numbers** → Create named constants for padding, timeouts, margins
-- [ ] **Extract permission handling** → Create `LocationPermissionHandler.kt`
+- [x] **Extract permission handling** → Create `LocationPermissionHandler.kt`
 - [ ] **Extract gesture detection** → Create `MapGestureHandler.kt`
 - [ ] **Extract waypoint creation logic** → Create `WaypointCreationManager.kt`
 - [ ] **Standardize error handling** → Consistent try-catch patterns
