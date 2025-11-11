@@ -22,13 +22,13 @@
 ### Phase 1B: MapViewModel.kt Refactoring
 **Goal:** Simplify over-engineered 400+ line class
 
-- [ ] **Extract overlay coordination** → Separate `OverlayCoordinator` class
-- [ ] **Extract Redux integration** → Create `ReduxMapBridge.kt`
-- [ ] **Remove dead code** → Delete commented-out methods and unused variables
-- [ ] **Standardize logging** → Consistent log levels, remove commented logs
+- [x] **Extract overlay coordination** → Separate `OverlayCoordinator` class
+- [x] **Extract Redux integration** → Create `ReduxMapBridge.kt`
+- [x] **Remove dead code** → Delete commented-out methods and unused variables
+- [x] **Standardize logging** → Consistent log levels, remove commented logs
 - [ ] **Extract constants** → Replace magic numbers with named constants
 - [ ] **Simplify initialization** → Remove complex late-binding patterns
-- [ ] **Test compilation** after each change
+- [x] **Test compilation** after each change
 - [ ] **Validate functionality** - ensure map operations still work
 
 ### Phase 1C: General Codebase Cleanup

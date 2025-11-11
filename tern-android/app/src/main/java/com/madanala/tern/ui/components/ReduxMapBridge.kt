@@ -1,0 +1,144 @@
+package com.madanala.tern.ui.components
+
+import android.util.Log
+import com.madanala.tern.redux.MapAction
+import com.madanala.tern.redux.MapState
+import com.madanala.tern.redux.MapStore
+import com.madanala.tern.ui.screens.MAP_VIEW_SATELLITE
+import com.madanala.tern.ui.screens.MAP_VIEW_TERRAIN
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import org.osmdroid.util.GeoPoint
+
+/**
+ * Redux integration bridge for MapViewModel
+ * Handles Redux state observation and action dispatching
+ */
+class ReduxMapBridge(private val coroutineScope: CoroutineScope) {
+
+    private val TAG = "ReduxMapBridge"
+
+    // Redux store - can be set after construction for ViewModel compatibility
+    private var reduxStore: MapStore? = null
+
+    // Redux state integration
+    private var reduxState: MapState = MapState()
+
+    // Redux store accessor for external components
+    val mapStore: MapStore?
+        get() = reduxStore
+
+    private val _isLocationReady = MutableStateFlow(false)
+    val isLocationReady = _isLocationReady.asStateFlow()
+
+    private val _mapRotation = MutableStateFlow(0f)
+    val mapRotation = _mapRotation.asStateFlow()
+
+    // Callbacks for MapViewModel interactions
+    var onMapStyleChange: ((Int) -> Unit)? = null
+    var onLocationPermissionGranted: (() -> Unit)? = null
+
+    /**
+     * Set the Redux store and initialize state observation
+     */
+    fun setReduxStore(store: MapStore?) {
+        reduxStore = store
+        reduxState = store?.state?.value ?: MapState()
+
+        // Log current Redux state for debugging
+        logReduxStatus()
+
+        // Set up Redux state observation
+        setupReduxStateObservation()
+    }
+
+    /**
+     * Get current Redux state
+     */
+    fun getReduxState(): MapState = reduxState
+
+    /**
+     * Update Redux state (called when state changes externally)
+     */
+    fun updateReduxState(newState: MapState) {
+        reduxState = newState
+    }
+
+    /**
+     * Dispatch Redux action for map style changes
+     */
+    fun dispatchMapStyleChange(style: Int) {
+        val styleString = if (style == MAP_VIEW_SATELLITE) "satellite" else "terrain"
+        reduxStore?.dispatch(MapAction.UpdateMapStyle(styleString))
+    }
+
+    /**
+     * Dispatch Redux actions for location state
+     */
+    fun dispatchLocationReady(isReady: Boolean) {
+        reduxStore?.dispatch(MapAction.SetLocationReady(isReady))
+        _isLocationReady.value = isReady
+    }
+
+    fun dispatchUserLocation(location: GeoPoint) {
+        reduxStore?.dispatch(MapAction.UpdateUserLocation(location))
+    }
+
+    /**
+     * Dispatch combined map movement action
+     */
+    fun dispatchMapMovement(rotation: Float, center: GeoPoint?, zoom: Double?) {
+        reduxStore?.dispatch(MapAction.UpdateMapMovement(
+            rotation = rotation,
+            center = center,
+            zoom = zoom
+        ))
+    }
+
+    /**
+     * Update map rotation state
+     */
+    fun updateMapRotation(rotation: Float) {
+        _mapRotation.value = rotation
+    }
+
+    /**
+     * Set up Redux state observation for reactive updates
+     */
+    private fun setupReduxStateObservation() {
+        val store = reduxStore ?: return
+
+        coroutineScope.launch {
+            store.state.collect { newState ->
+                val oldState = reduxState
+                reduxState = newState
+
+                // Handle overlay state changes (delegated to overlay coordinator)
+
+                // Handle map style changes
+                if (oldState.mapStyle != newState.mapStyle) {
+                    val styleInt = if (newState.mapStyle == "satellite") MAP_VIEW_SATELLITE else MAP_VIEW_TERRAIN
+                    onMapStyleChange?.invoke(styleInt)
+                }
+
+                // Handle permission changes
+                if (oldState.hasLocationPermission != newState.hasLocationPermission) {
+                    if (newState.hasLocationPermission) {
+                        onLocationPermissionGranted?.invoke()
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Debug method to check Redux integration status
+     */
+    fun logReduxStatus() {
+        Log.d(TAG, "Redux Bridge - Store connected: ${reduxStore != null}")
+        Log.d(TAG, "Redux Bridge - Location ready: ${reduxState.isLocationReady}")
+        Log.d(TAG, "Redux Bridge - Has location permission: ${reduxState.hasLocationPermission}")
+    }
+}
