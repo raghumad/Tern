@@ -19,6 +19,7 @@ import com.madanala.tern.R
 import com.madanala.tern.ui.overlays.AirspaceOverlayManager
 import com.madanala.tern.ui.overlays.OverlayCoordinator
 import com.madanala.tern.ui.overlays.PGSpotOverlayManager
+import com.madanala.tern.ui.overlays.RouteOverlayManager
 import com.madanala.tern.ui.screens.MAP_VIEW_SATELLITE
 import com.madanala.tern.ui.screens.MAP_VIEW_TERRAIN
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -291,6 +292,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun setMapStore(store: com.madanala.tern.redux.MapStore?) {
         reduxBridge.setReduxStore(store)
+        reduxBridge.setOverlayCoordinator(overlayCoordinator)
 
         // Re-initialize overlay system with Redux store now that it's available
         if (store != null) {
@@ -331,6 +333,9 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
 
         val pgSpotManager = PGSpotOverlayManager(getApplication<Application>().applicationContext, store)
         overlayCoordinator.addOverlayManager(pgSpotManager)
+
+        val routeManager = RouteOverlayManager(store)
+        overlayCoordinator.addOverlayManager(routeManager)
     }
 
     /**

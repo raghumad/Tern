@@ -25,6 +25,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.madanala.tern.redux.MapStore
+import com.madanala.tern.redux.MapAction
+import com.madanala.tern.route.Route
 import com.madanala.tern.ui.components.Compass
 import org.osmdroid.util.GeoPoint
 
@@ -46,8 +48,8 @@ fun MapViewContainer(
         MapGestureHandler(
             context,
             onLongPress = { geoPoint ->
-                // Placeholder for future waypoint creation
-                Log.d("MapViewContainer", "Long press at: ${geoPoint.latitude}, ${geoPoint.longitude}")
+                // Handle waypoint creation for route planning
+                handleWaypointCreation(store, geoPoint)
             }
         )
     }
@@ -151,5 +153,46 @@ private fun syncLocationState(userLocation: GeoPoint?, isLocationReady: Boolean)
                 Log.d("MapViewContainer", "Syncing Redux location to MapViewModel: $location")
             }
         }
+    }
+}
+
+/**
+ * Handle waypoint creation for route planning
+ * Creates a new route or adds waypoint to existing route
+ */
+private fun handleWaypointCreation(store: MapStore, geoPoint: GeoPoint) {
+    try {
+        Log.d("MapViewContainer", "Long press detected at: ${geoPoint.latitude}, ${geoPoint.longitude}")
+
+        val currentState = store.state.value
+        Log.d("MapViewContainer", "Current routes count: ${currentState.routes.size}")
+
+        // For Phase 1 MVP: Create a new route with a single waypoint
+        // In future phases, this could be enhanced to:
+        // - Add to existing route if in "route editing" mode
+        // - Show route creation dialog
+        // - Support different waypoint types
+
+        val newRoute = Route(
+            name = "Route ${currentState.routes.size + 1}",
+            waypoints = listOf(
+                com.madanala.tern.model.Waypoint(
+                    lat = geoPoint.latitude,
+                    lon = geoPoint.longitude,
+                    type = com.madanala.tern.model.Waypoint.Type.TURNPOINT,
+                    label = "WP${currentState.routes.size + 1}-1"
+                )
+            )
+        )
+
+        Log.d("MapViewContainer", "Dispatching AddRoute action for: ${newRoute.name}")
+
+        // Dispatch Redux action to add the route
+        store.dispatch(MapAction.AddRoute(newRoute))
+
+        Log.d("MapViewContainer", "Created new route: ${newRoute.name} at ${geoPoint.latitude}, ${geoPoint.longitude}")
+
+    } catch (e: Exception) {
+        Log.e("MapViewContainer", "Error creating waypoint", e)
     }
 }

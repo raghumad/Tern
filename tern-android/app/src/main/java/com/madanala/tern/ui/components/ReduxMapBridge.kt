@@ -4,6 +4,7 @@ import android.util.Log
 import com.madanala.tern.redux.MapAction
 import com.madanala.tern.redux.MapState
 import com.madanala.tern.redux.MapStore
+import com.madanala.tern.ui.overlays.OverlayCoordinator
 import com.madanala.tern.ui.screens.MAP_VIEW_SATELLITE
 import com.madanala.tern.ui.screens.MAP_VIEW_TERRAIN
 import kotlinx.coroutines.CoroutineScope
@@ -40,6 +41,9 @@ class ReduxMapBridge(private val coroutineScope: CoroutineScope) {
     var onMapStyleChange: ((Int) -> Unit)? = null
     var onLocationPermissionGranted: (() -> Unit)? = null
 
+    // Overlay coordinator for forwarding state changes
+    private var overlayCoordinator: OverlayCoordinator? = null
+
     /**
      * Set the Redux store and initialize state observation
      */
@@ -52,6 +56,13 @@ class ReduxMapBridge(private val coroutineScope: CoroutineScope) {
 
         // Set up Redux state observation
         setupReduxStateObservation()
+    }
+
+    /**
+     * Set the overlay coordinator for forwarding state changes
+     */
+    fun setOverlayCoordinator(coordinator: OverlayCoordinator) {
+        overlayCoordinator = coordinator
     }
 
     /**
@@ -115,7 +126,8 @@ class ReduxMapBridge(private val coroutineScope: CoroutineScope) {
                 val oldState = reduxState
                 reduxState = newState
 
-                // Handle overlay state changes (delegated to overlay coordinator)
+                // Forward state changes to overlay coordinator
+                overlayCoordinator?.onReduxStateChanged(newState)
 
                 // Handle map style changes
                 if (oldState.mapStyle != newState.mapStyle) {
