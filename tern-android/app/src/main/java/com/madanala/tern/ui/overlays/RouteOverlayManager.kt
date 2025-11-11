@@ -62,8 +62,7 @@ class RouteOverlayManager(
 
     override fun onOverlayAttached() {
         Log.d(TAG, "Route overlay manager attached")
-        // Load initial routes if any
-        loadNearbyRoutes()
+        // Routes will be loaded via Redux state changes
     }
 
     override fun onOverlayDetached() {
@@ -72,13 +71,13 @@ class RouteOverlayManager(
     }
 
     override fun performMapMove(center: GeoPoint, zoom: Double) {
-        // Reload routes when map moves significantly
-        loadNearbyRoutes()
+        // Map movement handled by Redux state changes
+        // Route display is determined by Redux state, not spatial queries
     }
 
     override fun onViewportChangedInternal(viewport: org.osmdroid.util.BoundingBox) {
-        // Debounced viewport changes handled by base class
-        loadNearbyRoutes()
+        // Viewport changes handled by Redux state changes
+        // Route display is determined by Redux state, not spatial queries
     }
 
     override fun onReduxStateChanged(state: MapState) {
@@ -87,23 +86,20 @@ class RouteOverlayManager(
         val config = state.overlayState.routes
 
         if (config.enabled) {
-            // Check if routes have changed in Redux state
+            // Single source of truth: Only display routes from Redux state
             if (state.routes != currentRoutes) {
                 currentRoutes = state.routes
                 updateRouteOverlays()
                 Log.d(TAG, "Routes updated from Redux state: ${currentRoutes.size} routes")
 
-                // Also cache any new routes
+                // Persistence as side effect: Cache routes for app restart recovery
                 currentRoutes.forEach { route ->
                     if (routeCache?.isCached(route.id) != true) {
                         routeCache?.cacheRoute(route)
-                        Log.d(TAG, "Cached new route: ${route.id}")
+                        Log.d(TAG, "Persisted route to cache: ${route.id}")
                     }
                 }
             }
-
-            // Also load nearby routes from cache (for routes not in Redux state)
-            loadNearbyRoutes()
         } else {
             // Clear routes when disabled
             clearRouteOverlays()
@@ -114,41 +110,7 @@ class RouteOverlayManager(
         clearRouteOverlays()
     }
 
-    /**
-     * Load routes near the current map center
-     */
-    private fun loadNearbyRoutes() {
-        if (!isEnabled()) return
 
-        val mapView = mapView ?: return
-        val routeCache = routeCache ?: return
-
-        try {
-            val center = GeoPoint(mapView.mapCenter)
-            val zoom = mapView.zoomLevelDouble
-
-            // Calculate search radius based on zoom level
-            // Higher zoom = smaller search radius for better performance
-            val searchRadiusMiles = when {
-                zoom > 12 -> 50.0   // Detailed view
-                zoom > 10 -> 150.0  // Regional view
-                zoom > 8 -> 300.0   // Continental view
-                else -> 500.0       // Global view
-            }
-
-            // Query nearby routes (max 10 as per requirements)
-            val nearbyRoutes = routeCache.queryNearbyRoutes(center, searchRadiusMiles, 10)
-
-            if (nearbyRoutes != currentRoutes) {
-                currentRoutes = nearbyRoutes
-                updateRouteOverlays()
-                Log.d(TAG, "Loaded ${nearbyRoutes.size} routes within ${searchRadiusMiles} miles")
-            }
-
-        } catch (e: Exception) {
-            Log.e(TAG, "Error loading nearby routes", e)
-        }
-    }
 
     /**
      * Update route overlays on map
@@ -184,35 +146,35 @@ class RouteOverlayManager(
     }
 
     /**
-     * Add a new route to the cache and display
+     * Load persisted routes on app startup (called once during initialization)
+     * This recovers routes from cache when the app restarts
      */
-    fun addRoute(route: Route) {
+    fun loadPersistedRoutes(): List<Route> {
+        val persistedRoutes = mutableListOf<Route>()
+
         try {
-            routeCache?.cacheRoute(route)
+            // Get all cached route IDs and load them
+            val cacheDir = routeCache?.let {
+                val field = it.javaClass.getDeclaredField("cacheDir")
+                field.isAccessible = true
+                field.get(it) as? java.io.File
+            }
 
-            // Reload routes to include the new one
-            loadNearbyRoutes()
+            cacheDir?.listFiles()?.forEach { file ->
+                if (file.name.endsWith("_route.flex")) {
+                    val routeId = file.name.removeSuffix("_route.flex")
+                    routeCache?.getCachedRoute(routeId)?.let { route ->
+                        persistedRoutes.add(route)
+                    }
+                }
+            }
 
-            Log.d(TAG, "Added route: ${route.name} with ${route.waypoints.size} waypoints")
+            Log.d(TAG, "Loaded ${persistedRoutes.size} persisted routes from cache")
         } catch (e: Exception) {
-            Log.e(TAG, "Error adding route", e)
+            Log.e(TAG, "Error loading persisted routes", e)
         }
-    }
 
-    /**
-     * Remove a route from cache and display
-     */
-    fun removeRoute(routeId: String) {
-        try {
-            routeCache?.clearCacheForRoute(routeId)
-
-            // Reload routes to reflect removal
-            loadNearbyRoutes()
-
-            Log.d(TAG, "Removed route: $routeId")
-        } catch (e: Exception) {
-            Log.e(TAG, "Error removing route", e)
-        }
+        return persistedRoutes
     }
 
     /**
