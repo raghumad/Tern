@@ -17,31 +17,20 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.madanala.tern.redux.MapStore
-import org.osmdroid.util.GeoPoint
-
-import com.madanala.tern.route.TypeSelectionSheet
-import com.madanala.tern.ui.overlays.RouteOverlayManager
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.runtime.rememberCoroutineScope
 import com.madanala.tern.ui.components.Compass
+import org.osmdroid.util.GeoPoint
 
 // UI Constants
 private val COMPASS_PADDING = 16.dp
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MapViewContainer(
     modifier: Modifier = Modifier,
@@ -51,20 +40,21 @@ fun MapViewContainer(
     val state by store.state.collectAsState()
     val hasLocationPermission = handleLocationPermissions(store)
 
-    // State for waypoint creation
-    var pendingCoord by remember { mutableStateOf<org.osmdroid.util.GeoPoint?>(null) }
-    var isDraggingWaypoint by remember { mutableStateOf(false) }
-    val coroutineScope = rememberCoroutineScope()
-
     // Core components
     val mapViewModel: MapViewModel = viewModel()
-    val routeOverlayManager = remember { RouteOverlayManager(context, store) }
-    val gestureHandler = remember { MapGestureHandler(context) { geoPoint -> pendingCoord = geoPoint } }
-    val waypointCreationManager = remember { WaypointCreationManager(mapViewModel.mapView, coroutineScope) }
+    val gestureHandler = remember {
+        MapGestureHandler(
+            context,
+            onLongPress = { geoPoint ->
+                // Placeholder for future waypoint creation
+                Log.d("MapViewContainer", "Long press at: ${geoPoint.latitude}, ${geoPoint.longitude}")
+            }
+        )
+    }
     val locationService = ReduxLocationService(store)
 
     // Setup map view lifecycle
-    setupMapViewLifecycle(mapViewModel.mapView, routeOverlayManager, gestureHandler)
+    setupMapViewLifecycle(mapViewModel.mapView, gestureHandler)
 
     // Setup Redux integration
     setupReduxIntegration(store, mapViewModel)
@@ -82,8 +72,6 @@ fun MapViewContainer(
         // Redux-integrated MapView management
         // MapViewModel connected via Redux store for overlay coordination
         val mapView = mapViewModel.mapView
-        val density = LocalDensity.current
-        val sheetState = rememberModalBottomSheetState()
 
         // Map view with gesture handling managed by MapGestureHandler
         AndroidView(
@@ -94,31 +82,6 @@ fun MapViewContainer(
             },
             modifier = Modifier.fillMaxSize()
         )
-
-        // Modal sheet for type selection
-        if (pendingCoord != null) {
-            ModalBottomSheet(
-                onDismissRequest = {
-                    pendingCoord = null
-                    isDraggingWaypoint = false
-                },
-                sheetState = sheetState
-            ) {
-                TypeSelectionSheet(
-                    onSelect = { type ->
-                        pendingCoord?.let { coordinate ->
-                            waypointCreationManager.createWaypoint(coordinate, type)
-                        }
-                        pendingCoord = null
-                        isDraggingWaypoint = false
-                    },
-                    onCancel = {
-                        pendingCoord = null
-                        isDraggingWaypoint = false
-                    }
-                )
-            }
-        }
 
         // Show compass based on Redux state
         if (state.compassVisible) {
@@ -138,19 +101,13 @@ fun MapViewContainer(
 @Composable
 private fun setupMapViewLifecycle(
     mapView: org.osmdroid.views.MapView,
-    routeOverlayManager: RouteOverlayManager,
     gestureHandler: MapGestureHandler
 ) {
     DisposableEffect(mapView) {
-        // Attach RouteOverlayManager to map view for route visualization
-        routeOverlayManager.onAttach(mapView)
-
         // Attach gesture handler for long-press detection
         gestureHandler.attachToMapView(mapView)
 
         onDispose {
-            // Cleanup handled by RouteOverlayManager lifecycle
-            routeOverlayManager.onDetach()
             // Cleanup gesture handler
             gestureHandler.detachFromMapView()
         }
