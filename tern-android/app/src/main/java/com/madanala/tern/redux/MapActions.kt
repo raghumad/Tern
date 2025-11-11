@@ -85,4 +85,10 @@ sealed class MapAction {
 
     // User preferences actions
     data class UpdateUserPreferences(val preferences: com.madanala.tern.redux.UserPreferencesState) : MapAction()
+
+    // Route actions
+    data class AddRoute(val route: com.madanala.tern.route.Route) : MapAction()
+    data class RemoveRoute(val routeId: String) : MapAction()
+    data class UpdateRoute(val route: com.madanala.tern.route.Route) : MapAction()
+    object ClearAllRoutes : MapAction()
 }

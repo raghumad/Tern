@@ -130,5 +130,8 @@ data class MapState(
     val currentFlightMode: com.madanala.tern.model.FlightMode = com.madanala.tern.model.FlightMode.GROUND,
 
     // Adaptive layout configuration - calculated based on handedness and flight mode
-    val adaptiveLayout: AdaptiveLayoutConfig = AdaptiveLayoutConfig()
+    val adaptiveLayout: AdaptiveLayoutConfig = AdaptiveLayoutConfig(),
+
+    // Route state - cached routes for display
+    val routes: List<com.madanala.tern.route.Route> = emptyList()
 )

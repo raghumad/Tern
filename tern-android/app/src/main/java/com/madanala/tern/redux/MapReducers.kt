@@ -214,6 +214,31 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
         state.copy(userPreferences = action.preferences)
     }
 
+    // Route actions
+    is MapAction.AddRoute -> {
+        val newRoutes = state.routes + action.route
+        // Enforce 10-route limit by keeping only the most recent 10 routes
+        val limitedRoutes = if (newRoutes.size > 10) {
+            newRoutes.sortedByDescending { it.createdAt }.take(10)
+        } else {
+            newRoutes
+        }
+        state.copy(routes = limitedRoutes)
+    }
+    is MapAction.RemoveRoute -> {
+        val newRoutes = state.routes.filter { it.id != action.routeId }
+        state.copy(routes = newRoutes)
+    }
+    is MapAction.UpdateRoute -> {
+        val newRoutes = state.routes.map { route ->
+            if (route.id == action.route.id) action.route else route
+        }
+        state.copy(routes = newRoutes)
+    }
+    is MapAction.ClearAllRoutes -> {
+        state.copy(routes = emptyList())
+    }
+
     // No default branch required: MapAction is a sealed class and all cases are handled above
 }
 
