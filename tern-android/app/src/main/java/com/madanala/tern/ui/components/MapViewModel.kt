@@ -74,21 +74,15 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
     var mapStyle by mutableStateOf(MAP_VIEW_TERRAIN)
         private set
 
-    // Redux state integration
-    private var reduxState: com.madanala.tern.redux.MapState = com.madanala.tern.redux.MapState()
-
-    // Redux store - can be set after construction for ViewModel compatibility
-    private var reduxStore: com.madanala.tern.redux.MapStore? = null
+    // Redux integration bridge
+    private val reduxBridge = ReduxMapBridge(viewModelScope)
 
     // Redux store accessor for external components
     val mapStore: com.madanala.tern.redux.MapStore?
-        get() = reduxStore
+        get() = reduxBridge.mapStore
 
-    private val _isLocationReady = MutableStateFlow(false)
-    val isLocationReady = _isLocationReady.asStateFlow()
-
-    private val _mapRotation = MutableStateFlow(0f)
-    val mapRotation = _mapRotation.asStateFlow()
+    val isLocationReady = reduxBridge.isLocationReady
+    val mapRotation = reduxBridge.mapRotation
 
     // Overlay Coordinator - Our new advanced overlay system with memory limits
     private val overlayCoordinator = OverlayCoordinator()
@@ -106,20 +100,15 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
         addMapOverlays()
         setupMapListeners()
         initializeOverlaySystem()
+        setupReduxBridgeCallbacks()
 
         // Initialize route editing system immediately (Redux store connected later)
         initializeRouteEditingSystem()
-
-        // Set up Redux state observation when store is connected via setMapStore()
-        // Dynamic airspace loading will be handled by location-based triggers
     }
 
     fun updateMapStyle(style: Int) {
         mapStyle = style
-
-        // Dispatch Redux action for state management
-        val styleString = if (style == MAP_VIEW_SATELLITE) "satellite" else "terrain"
-        reduxStore?.dispatch(com.madanala.tern.redux.MapAction.UpdateMapStyle(styleString))
+        reduxBridge.dispatchMapStyleChange(style)
 
         val tileSource = if (style == MAP_VIEW_SATELLITE) {
             TileSourceFactory.USGS_SAT
@@ -165,11 +154,10 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
                         mapView.controller.setZoom(USER_LOCATION_ZOOM)
                         mapView.controller.setCenter(myLocation)
                         initialZoomDone = true
-                        _isLocationReady.value = true
 
                         // Dispatch Redux actions for location state
-                        reduxStore?.dispatch(com.madanala.tern.redux.MapAction.SetLocationReady(true))
-                        reduxStore?.dispatch(com.madanala.tern.redux.MapAction.UpdateUserLocation(myLocation))
+                        reduxBridge.dispatchLocationReady(true)
+                        reduxBridge.dispatchUserLocation(myLocation)
 
                         // Notify overlay managers that GPS fix is now available
                         overlayCoordinator.getOverlayManager(com.madanala.tern.redux.OverlayType.AIRSPACE)?.updateGPSFixStatus(true)
@@ -220,39 +208,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
 
 
 
-    /**
-     * Set up Redux state observation for reactive updates
-     */
-    private fun setupReduxStateObservation() {
-        val store = reduxStore ?: return
 
-        // Launch coroutine to collect Redux state changes
-        viewModelScope.launch {
-            store.state.collect { newState ->
-                val oldState = reduxState
-                reduxState = newState
-
-                // Handle overlay state changes
-
-                // Handle map style changes
-                if (oldState.mapStyle != newState.mapStyle) {
-                    val styleInt = if (newState.mapStyle == "satellite") MAP_VIEW_SATELLITE else MAP_VIEW_TERRAIN
-                    updateMapStyle(styleInt)
-                }
-
-                // Handle permission changes
-                if (oldState.hasLocationPermission != newState.hasLocationPermission) {
-                    if (newState.hasLocationPermission) {
-                        // Initialize location overlay now that permissions are granted
-                        initializeLocationOverlay()
-                        startLocationUpdates()
-                    } else {
-                        myLocationOverlay?.disableMyLocation()
-                    }
-                }
-            }
-        }
-    }
 
     /**
      * Initialize the new overlay system (Redux store connected later)
@@ -273,6 +229,17 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
+     * Setup Redux bridge callbacks
+     */
+    private fun setupReduxBridgeCallbacks() {
+        reduxBridge.onMapStyleChange = { style -> updateMapStyle(style) }
+        reduxBridge.onLocationPermissionGranted = {
+            initializeLocationOverlay()
+            startLocationUpdates()
+        }
+    }
+
+    /**
      * Setup map listeners for automatic airspace and PG spots loading
      */
     private fun setupMapListeners() {
@@ -281,7 +248,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
                 val rotation = mapView.mapOrientation
                 val center = mapView.mapCenter
 
-                _mapRotation.value = rotation
+                reduxBridge.updateMapRotation(rotation)
 
                 // Schedule debounced Redux state updates to prevent excessive recompositions
                 center?.let { scheduleReduxUpdate(rotation, it as GeoPoint, null) } ?: scheduleReduxUpdate(rotation, null, null)
@@ -295,7 +262,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
                 val center = mapView.mapCenter
                 val zoom = mapView.zoomLevelDouble
 
-                _mapRotation.value = rotation
+                reduxBridge.updateMapRotation(rotation)
 
                 // Schedule debounced Redux state updates to prevent excessive recompositions
                 center?.let { scheduleReduxUpdate(rotation, it as GeoPoint, zoom) } ?: scheduleReduxUpdate(rotation, null, zoom)
@@ -315,11 +282,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
         pendingReduxUpdate?.let { mainHandler.removeCallbacks(it) }
         pendingReduxUpdate = Runnable {
             // Use single combined action instead of 3 separate dispatches
-            reduxStore?.dispatch(com.madanala.tern.redux.MapAction.UpdateMapMovement(
-                rotation = rotation,
-                center = center,
-                zoom = zoom
-            ))
+            reduxBridge.dispatchMapMovement(rotation, center, zoom)
         }
         mainHandler.postDelayed(pendingReduxUpdate!!, MAP_MOVE_DEBOUNCE_MS)
     }
@@ -334,24 +297,15 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
      * Set the Redux store for overlay managers (late initialization for ViewModel compatibility)
      */
     fun setMapStore(store: com.madanala.tern.redux.MapStore?) {
-        // Log.d(TAG, "Setting Redux store: ${store != null}")
-        reduxStore = store
-
-        // Initialize Redux state when store is connected
-        reduxState = store?.state?.value ?: com.madanala.tern.redux.MapState()
-
-        // Log current Redux state for debugging
-        logReduxStatus()
+        reduxBridge.setReduxStore(store)
 
         // Re-initialize overlay system with Redux store now that it's available
         if (store != null) {
             initializeOverlaySystemWithRedux(store)
         }
 
-        // Set up Redux state observation when store becomes available
-        setupReduxStateObservation()
-
         // If we already have location permission when store is connected, initialize location overlay
+        val reduxState = reduxBridge.getReduxState()
         if (reduxState.hasLocationPermission) {
             initializeLocationOverlay()
         }
@@ -396,7 +350,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
      * Update Redux state (called when state changes externally)
      */
     fun updateReduxState(newState: com.madanala.tern.redux.MapState) {
-        reduxState = newState
+        reduxBridge.updateReduxState(newState)
     }
 
     /**
