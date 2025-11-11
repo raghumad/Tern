@@ -31,8 +31,13 @@
 - ✅ **MUST** follow existing architectural patterns
 - ✅ **MUST** test on device before GitHub push
 - ✅ **MUST** maintain aviation safety standards
+- ✅ **MUST** extract constants instead of magic numbers
+- ✅ **MUST** remove unused imports and dead code
+- ✅ **MUST** use incremental refactoring (1-3 files per change)
+- ✅ **MUST** validate functionality after each refactoring step
 - ❌ **NEVER** introduce compilation warnings
 - ❌ **NEVER** break existing functionality
+- ❌ **NEVER** accumulate technical debt without cleanup
 
 ## ⚠️ STRONG RECOMMENDATIONS
 
