@@ -17,7 +17,7 @@
 - [x] **Standardize error handling** → Consistent try-catch patterns
 - [x] **Simplify main composable** → Focus only on composition and state observation
 - [x] **Test compilation** after each change
-- [ ] **Validate functionality** - ensure waypoint creation still works
+- [x] **Validate functionality** - ensure waypoint creation still works
 
 ### Phase 1B: MapViewModel.kt Refactoring
 **Goal:** Simplify over-engineered 400+ line class
@@ -34,6 +34,7 @@
 ### Phase 1C: General Codebase Cleanup
 **Goal:** Consistent quality across all files
 
+- [x] **Fix compilation warnings** → Resolved senseless comparison warnings
 - [ ] **Standardize error handling** → Consistent try-catch patterns across all files
 - [ ] **Remove unused imports** → Clean up all files
 - [ ] **Extract magic numbers** → Replace with named constants
