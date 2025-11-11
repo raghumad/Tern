@@ -13,7 +13,8 @@ import org.osmdroid.views.MapView
  */
 class MapGestureHandler(
     private val context: Context,
-    private val onLongPress: (GeoPoint) -> Unit
+    private val onLongPress: (GeoPoint) -> Unit,
+    private val onSingleTap: ((GeoPoint) -> Unit)? = null
 ) {
 
     private val gestureListener = object : GestureDetector.SimpleOnGestureListener() {
@@ -24,6 +25,18 @@ class MapGestureHandler(
                 geoPoint?.let { onLongPress(it) }
             } catch (t: Throwable) {
                 Log.w(TAG, "onLongPress failed: ${t.message}")
+            }
+        }
+
+        override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+            try {
+                // Convert screen coordinates to GeoPoint for tap handling
+                val geoPoint = screenToGeoPoint(e.x.toInt(), e.y.toInt())
+                geoPoint?.let { onSingleTap?.invoke(it) }
+                return true
+            } catch (t: Throwable) {
+                Log.w(TAG, "onSingleTapConfirmed failed: ${t.message}")
+                return false
             }
         }
     }

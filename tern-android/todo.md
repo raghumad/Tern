@@ -11,18 +11,20 @@
 - [x] Test compilation and device installation from clean state
 - [x] Push clean baseline to GitHub as checkpoint
 
-### Phase 3: Critical Architecture Fixes ✅
-- [x] Move ReduxLocationService to separate file (ReduxLocationService.kt)
-- [x] Remove duplicate waypoint creation (WaypointStore vs RouteStore)
-- [x] Remove Redux dependencies from RouteOverlayManager until Phase 2
-- [x] Simplify waypoint creation logic (remove unnecessary operations)
-- [x] Move waypoint operations to Dispatchers.IO for aviation safety
-- [x] Test basic waypoint creation functionality (Ready for user testing)
-- [x] Push working baseline to GitHub (after compilation test)
+### Phase 3: Architecture Cleanup ✅
+- [x] **Remove incorrect route planner implementation** (RouteOverlayManager, WaypointStore, etc.)
+- [x] **Clean MapViewContainer** (remove route-specific UI components)
+- [x] **Clean MapViewModel** (remove RouteOverlayManager references)
+- [x] **Test compilation** (ensure core map functionality works)
+- [x] **Establish clean baseline** (ready for proper route planner implementation)
 
-### Phase 4: Enhanced Route Features
-- [ ] Implement basic long-press waypoint creation (1-2 files max)
-- [ ] Test waypoint creation on device and push to GitHub
+### Phase 4: Proper Route Planner Implementation (Planning Phase)
+- [ ] **Discuss RouteCache architecture** (flat buffer storage, Hilbert indexing)
+- [ ] **Plan Route-centric data flow** (Route.addWaypoint() → RouteCache.persistRoute())
+- [ ] **Design waypoint UX patterns** (iOS-style long press + drag)
+- [ ] **Implement RouteCache** (mimic AirspaceCache patterns)
+- [ ] **Add route visualization** (polylines, waypoint markers)
+- [ ] **Test on device** and push to GitHub
 - [ ] Add waypoint type selection UI (TURNPOINT, LAUNCH, LANDING)
 - [ ] Test type selection on device and push to GitHub
 

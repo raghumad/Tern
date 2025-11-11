@@ -19,7 +19,6 @@ import com.madanala.tern.R
 import com.madanala.tern.ui.overlays.AirspaceOverlayManager
 import com.madanala.tern.ui.overlays.OverlayCoordinator
 import com.madanala.tern.ui.overlays.PGSpotOverlayManager
-import com.madanala.tern.ui.overlays.RouteOverlayManager
 import com.madanala.tern.ui.screens.MAP_VIEW_SATELLITE
 import com.madanala.tern.ui.screens.MAP_VIEW_TERRAIN
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -332,12 +331,6 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
 
         val pgSpotManager = PGSpotOverlayManager(getApplication<Application>().applicationContext, store)
         overlayCoordinator.addOverlayManager(pgSpotManager)
-
-        // Create and register route overlay manager
-        val routeManager = RouteOverlayManager(getApplication<Application>().applicationContext, store)
-        overlayCoordinator.addOverlayManager(routeManager)
-
-        Log.d(TAG, "Route overlay manager registered with Redux store")
     }
 
     /**
