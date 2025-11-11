@@ -24,7 +24,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.madanala.tern.redux.MapStore
 import com.madanala.tern.redux.WeatherActions
-import com.madanala.tern.ui.components.AddWaypointButton
 import com.madanala.tern.ui.components.MapViewContainer
 import com.madanala.tern.ui.components.MapViewModel
 import com.madanala.tern.ui.components.SettingsButton
@@ -69,7 +68,6 @@ fun TernMapScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 SettingsButton(onClick = { showSettingsSheet = true })
-                AddWaypointButton()
                 ShareButton(onClick = { showShareSheet = true })
             }
             AnimatedVisibility(

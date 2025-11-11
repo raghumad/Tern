@@ -93,15 +93,6 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
     // Overlay Coordinator - Our new advanced overlay system with memory limits
     private val overlayCoordinator = OverlayCoordinator()
 
-    // Route overlay manager for waypoint and route visualization
-    private lateinit var routeOverlayManager: RouteOverlayManager
-
-
-
-
-    private val showPGSpotsEnabled: Boolean
-        get() = reduxState.overlayState.pgSpots.enabled
-
     private val mainHandler = Handler(Looper.getMainLooper())
     private var pendingReduxUpdate: Runnable? = null
 
@@ -159,15 +150,12 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun initializeLocationOverlay() {
         if (myLocationOverlay != null) {
-            // Log.d(TAG, "Location overlay already initialized")
             return
         }
 
         val context = getApplication<Application>().applicationContext
 
         try {
-            // Log.d(TAG, "Initializing location overlay with proper permission check")
-
             myLocationOverlay = MyLocationNewOverlay(GpsMyLocationProvider(context), mapView).apply {
                 isDrawAccuracyEnabled = true
 
@@ -204,7 +192,6 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             mapView.overlays.add(myLocationOverlay)
-            // Log.d(TAG, "Location overlay successfully initialized and added to map")
 
         } catch (e: Exception) {
             Log.e(TAG, "Failed to initialize location overlay", e)
@@ -419,38 +406,6 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
         // Log.d(TAG, "Redux Status - Store connected: ${reduxStore != null}")
         // Log.d(TAG, "Redux Status - Location ready: ${reduxState.isLocationReady}")
         // Log.d(TAG, "Redux Status - Has location permission: ${reduxState.hasLocationPermission}")
-    }
-
-    /**
-     * Enable route editing mode - long-press on map to create waypoints
-     */
-    fun enableRouteEditMode() {
-        // Route editing manager removed
-        android.util.Log.i(TAG, "Route editing functionality removed - needs implementation")
-    }
-
-    /**
-     * Disable route editing mode
-     */
-    fun disableRouteEditMode() {
-        // Route editing manager removed
-        android.util.Log.d(TAG, "Route editing functionality removed")
-    }
-
-    /**
-     * Check if route editing is currently active
-     */
-    fun isRouteEditModeActive(): Boolean {
-        // Route editing manager removed
-        return false
-    }
-
-    /**
-     * Get route editing statistics for debugging
-     */
-    fun getRouteEditStats(): Map<String, Any> {
-        // Route editing manager removed
-        return emptyMap()
     }
 
     override fun onCleared() {

@@ -1,3 +1,5 @@
+@file:Suppress("SENSELESS_COMPARISON")
+
 package com.madanala.tern.utils
 
 import android.util.Log
@@ -93,13 +95,9 @@ object MemoryErrorRecovery {
         } catch (e: Exception) {
             logError("Failed to get comprehensive memory state", e, ErrorSeverity.HIGH)
 
-            when {
-                e is SecurityException -> {
-                    // Permission issues - use basic fallback
-                    Log.e(TAG, "Security exception accessing memory APIs - using basic fallback")
-                    createBasicMemoryState()
-                }
-                e is OutOfMemoryError -> {
+            // Use fallback based on exception type
+            when (e::class) {
+                OutOfMemoryError::class -> {
                     // Critical error - use minimal state
                     Log.e(TAG, "Out of memory during memory monitoring - using minimal state")
                     fallbackMemoryState.copy(calculatedPressure = MemoryPressureLevel.CRITICAL_MEMORY)
@@ -129,15 +127,15 @@ object MemoryErrorRecovery {
         } catch (e: Exception) {
             logError("Failed to calculate overlay budget", e, ErrorSeverity.MEDIUM)
 
-            when (e) {
-                is OutOfMemoryError -> {
+            when (e::class) {
+                OutOfMemoryError::class -> {
                     // Reduce budget significantly for OOM
                     fallbackBudget.copy(
                         totalOverlays = fallbackBudget.totalOverlays / 2,
                         recommendation = "Reduced budget due to OOM error"
                     )
                 }
-                is IllegalStateException -> {
+                IllegalStateException::class -> {
                     // System not properly initialized
                     fallbackBudget
                 }
