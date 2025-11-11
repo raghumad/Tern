@@ -9,11 +9,11 @@
 ### Phase 1A: MapViewContainer.kt Refactoring
 **Goal:** Break down massive 200+ line composable into focused components
 
+- [x] **Clean up imports** → Remove unused imports, organize remaining ones
+- [x] **Extract magic numbers** → Create named constants for padding, timeouts, margins
 - [ ] **Extract permission handling** → Create `LocationPermissionHandler.kt`
 - [ ] **Extract gesture detection** → Create `MapGestureHandler.kt`
 - [ ] **Extract waypoint creation logic** → Create `WaypointCreationManager.kt`
-- [ ] **Clean up imports** → Remove unused imports, organize remaining ones
-- [ ] **Extract magic numbers** → Create named constants for padding, timeouts, margins
 - [ ] **Standardize error handling** → Consistent try-catch patterns
 - [ ] **Simplify main composable** → Focus only on composition and state observation
 - [ ] **Test compilation** after each change
