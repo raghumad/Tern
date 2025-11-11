@@ -5,11 +5,9 @@ package com.madanala.tern.ui.components
 // - Added DisposableEffect for compose lifecycle management
 // - Kept launcher-based permission handling (rememberPermissionState from Accompanist had API issues)
 
-import android.Manifest
-import android.content.pm.PackageManager
-import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
+import android.util.Log
+import android.view.GestureDetector
+import android.view.MotionEvent
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
@@ -24,19 +22,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.madanala.tern.redux.MapStore
-import android.util.Log
 import org.osmdroid.util.GeoPoint
-import android.view.GestureDetector
-import android.view.MotionEvent
 
 import com.madanala.tern.model.Waypoint
 import com.madanala.tern.route.RouteStore
@@ -67,42 +61,8 @@ fun MapViewContainer(
     val context = LocalContext.current
     val state by store.state.collectAsState()
 
-    // Permission handling - maintain local state for launcher
-    val initialPermissionGranted = ContextCompat.checkSelfPermission(
-        context,
-        Manifest.permission.ACCESS_FINE_LOCATION
-    ) == PackageManager.PERMISSION_GRANTED
-
-    var hasLocationPermission by remember {
-        mutableStateOf(initialPermissionGranted)
-    }
-
-    // Initialize Redux state with current permission status
-    LaunchedEffect(Unit) {
-        store.setLocationPermission(initialPermissionGranted)
-    }
-
-    val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestMultiplePermissions(),
-        onResult = { permissions ->
-            hasLocationPermission = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true
-            if (hasLocationPermission) {
-                // Dispatch permission granted action
-                store.setLocationPermission(true)
-            } else {
-                Toast.makeText(context, "Location permission denied.", Toast.LENGTH_LONG).show()
-                store.setLocationPermission(false)
-            }
-        }
-    )
-
-    LaunchedEffect(Unit) {
-        if (!hasLocationPermission) {
-            permissionLauncher.launch(
-                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
-            )
-        }
-    }
+    // Handle location permissions using extracted component
+    val hasLocationPermission = handleLocationPermissions(store)
 
     // Redux migration: Collect rotation from global state
     val mapRotation = state.rotation
