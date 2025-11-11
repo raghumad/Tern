@@ -32,7 +32,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.madanala.tern.redux.MapAction
 import com.madanala.tern.redux.MapStore
 import android.util.Log
 import org.osmdroid.util.GeoPoint
