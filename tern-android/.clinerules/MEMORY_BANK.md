@@ -32,6 +32,12 @@
 - **Background Processing**: All heavy work on `Dispatchers.IO`
 - **Memory Limits**: <75% heap usage, adaptive overlay budgets
 
+### 5. UI Component Architecture
+- **ReduxMapBridge Pattern**: Clean separation of Redux integration from business logic
+- **Modular Components**: Single-responsibility components (LocationPermissionHandler, MapGestureHandler, WaypointCreationManager)
+- **Late-Binding Initialization**: ViewModel-compatible Redux store connection
+- **Bridge Callbacks**: Reactive Redux state observation with callback pattern
+
 ## 🗂️ Key Data Structures
 
 ### Redux State Hierarchy
