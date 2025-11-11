@@ -48,6 +48,9 @@ import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay
 
 private const val USER_LOCATION_ZOOM = 10.0
 private const val MAP_MOVE_DEBOUNCE_MS = 2000L // Aviation-optimized: 2 second debounce for smooth flight experience
+private const val MAP_MIN_ZOOM = 3.0
+private const val MAP_MAX_ZOOM = 20.0
+private const val SCALE_BAR_OFFSET_Y = 10
 private const val TAG = "MapViewModel"
 
 class MapViewModel(application: Application) : AndroidViewModel(application) {
@@ -93,8 +96,8 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
     init {
         mapView = MapView(application).apply {
             setMultiTouchControls(true)
-            minZoomLevel = 3.0
-            maxZoomLevel = 20.0
+            minZoomLevel = MAP_MIN_ZOOM
+            maxZoomLevel = MAP_MAX_ZOOM
             setTileSource(TileSourceFactory.OpenTopo) // A sensible default
         }
         addMapOverlays()
@@ -124,7 +127,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
             add(CopyrightOverlay(context))
             add(ScaleBarOverlay(mapView).apply {
                 setCentred(true)
-                setScaleBarOffset(context.resources.displayMetrics.widthPixels / 2, 10)
+                setScaleBarOffset(context.resources.displayMetrics.widthPixels / 2, SCALE_BAR_OFFSET_Y)
             })
             add(RotationGestureOverlay(mapView).apply { isEnabled = true })
 

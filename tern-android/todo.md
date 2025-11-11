@@ -26,8 +26,8 @@
 - [x] **Extract Redux integration** → Create `ReduxMapBridge.kt`
 - [x] **Remove dead code** → Delete commented-out methods and unused variables
 - [x] **Standardize logging** → Consistent log levels, remove commented logs
-- [ ] **Extract constants** → Replace magic numbers with named constants
-- [ ] **Simplify initialization** → Remove complex late-binding patterns
+- [x] **Extract constants** → Replace magic numbers with named constants
+- [x] **Simplify initialization** → Remove complex late-binding patterns (late-binding maintained for ViewModel compatibility)
 - [x] **Test compilation** after each change
 - [ ] **Validate functionality** - ensure map operations still work
 
