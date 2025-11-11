@@ -15,8 +15,8 @@
 - [x] **Extract gesture detection** → Create `MapGestureHandler.kt`
 - [x] **Extract waypoint creation logic** → Create `WaypointCreationManager.kt`
 - [x] **Standardize error handling** → Consistent try-catch patterns
-- [ ] **Simplify main composable** → Focus only on composition and state observation
-- [ ] **Test compilation** after each change
+- [x] **Simplify main composable** → Focus only on composition and state observation
+- [x] **Test compilation** after each change
 - [ ] **Validate functionality** - ensure waypoint creation still works
 
 ### Phase 1B: MapViewModel.kt Refactoring
