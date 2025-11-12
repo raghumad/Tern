@@ -133,5 +133,17 @@ data class MapState(
     val adaptiveLayout: AdaptiveLayoutConfig = AdaptiveLayoutConfig(),
 
     // Route state - cached routes for display
-    val routes: List<com.madanala.tern.route.Route> = emptyList()
+    val routes: List<com.madanala.tern.route.Route> = emptyList(),
+
+    // Route editing state - for interactive waypoint editing
+    val selectedWaypoint: WaypointSelection? = null
+)
+
+/**
+ * Waypoint selection state for interactive editing
+ */
+data class WaypointSelection(
+    val routeId: String,
+    val waypointId: String,
+    val isDragging: Boolean = false
 )
