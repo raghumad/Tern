@@ -5,6 +5,7 @@
 - **Tech Stack**: Kotlin, Jetpack Compose, osmdroid maps, Redux state management, FlexBuffers caching
 - **Target Users**: Paragliders from student to competition pilots
 - **Critical Focus**: Aviation safety, smooth performance, offline resilience
+- **Current Status**: ✅ **Route Planner MVP Complete** - Multi-waypoint routes with Redux architecture, comprehensive testing, and production-ready code quality
 
 ## 🎯 Core Architecture Patterns
 
@@ -75,6 +76,15 @@ AccuracyLevel.BASIC          - GPS fallback only
 - **PGSpotCache**: Paragliding spots with weather correlation
 - **UniversalCountryCacheManager**: Smart 4-country limit for aviation use
 - **RouteCache**: Flat buffer storage mimicking airspace patterns
+
+## 🛤️ Route Planner Architecture
+- **Route-Centric Data Model**: Routes own waypoints with strong relationships
+- **Multi-Waypoint Support**: Sequential waypoint creation (WP1-1, WP1-2, WP1-3...)
+- **Redux State Management**: Complete route state in Redux store
+- **Visual Route Display**: Blue connecting lines with aviation color coding
+- **Interactive Waypoint Selection**: Tap to select/deselect waypoints
+- **10-Route Limit**: Competition-ready with distance-based spatial filtering
+- **Persistence**: Routes cached across app restarts using FlexBuffers
 
 ## 🪂 Flight Phase Awareness
 - **Launch**: High power, detailed airspace awareness
