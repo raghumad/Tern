@@ -6,6 +6,7 @@ import android.view.MotionEvent
 import com.madanala.tern.redux.MapState
 import com.madanala.tern.redux.MapStore
 import com.madanala.tern.redux.OverlayType
+import com.madanala.tern.redux.WaypointSelection
 import com.madanala.tern.route.Route
 import com.madanala.tern.utils.RouteCache
 import org.osmdroid.util.GeoPoint
@@ -20,15 +21,37 @@ class RouteOverlayManager(
     mapStore: MapStore?
 ) : BaseOverlayManager(OverlayType.ROUTES, mapStore) {
 
+    companion object {
+        // Rendering constants for consistent visual appearance
+        private const val ROUTE_LINE_WIDTH = 8f
+        private const val WAYPOINT_BORDER_WIDTH = 3f
+        private const val SELECTION_HIGHLIGHT_WIDTH = 6f
+        private const val SELECTION_HIGHLIGHT_PADDING = 8f
+        private const val LABEL_TEXT_SIZE = 32f
+        private const val LABEL_OFFSET_Y = 10f
+
+        // Waypoint sizes for different route types
+        private const val SINGLE_WAYPOINT_RADIUS = 20f
+        private const val MULTI_WAYPOINT_RADIUS = 12f
+
+        // Touch interaction constants
+        private const val SINGLE_WAYPOINT_TAP_RADIUS = 60f
+        private const val MULTI_WAYPOINT_TAP_RADIUS = 40f
+
+        // Waypoint type rendering constants
+        private const val LAUNCH_TRIANGLE_SIZE_RATIO = 0.7f
+        private const val LANDING_SQUARE_SIZE_RATIO = 0.7f
+    }
+
     private var routeCache: RouteCache? = null
     private var currentRoutes: List<Route> = emptyList()
-    private var currentSelectedWaypoint: com.madanala.tern.redux.WaypointSelection? = null
+    private var currentSelectedWaypoint: WaypointSelection? = null
     private val routeOverlays = mutableListOf<RouteOverlay>()
 
     // Paint objects for route rendering
     private val routePaint = Paint().apply {
         color = Color.BLUE
-        strokeWidth = 8f
+        strokeWidth = ROUTE_LINE_WIDTH
         style = Paint.Style.STROKE
         strokeCap = Paint.Cap.ROUND
         strokeJoin = Paint.Join.ROUND
@@ -44,13 +67,13 @@ class RouteOverlayManager(
     private val waypointBorderPaint = Paint().apply {
         color = Color.BLUE
         style = Paint.Style.STROKE
-        strokeWidth = 3f
+        strokeWidth = WAYPOINT_BORDER_WIDTH
         isAntiAlias = true
     }
 
     private val labelPaint = Paint().apply {
         color = Color.BLACK
-        textSize = 32f
+        textSize = LABEL_TEXT_SIZE
         textAlign = Paint.Align.CENTER
         isAntiAlias = true
     }
@@ -58,7 +81,7 @@ class RouteOverlayManager(
     private val selectionPaint = Paint().apply {
         color = Color.YELLOW
         style = Paint.Style.STROKE
-        strokeWidth = 6f
+        strokeWidth = SELECTION_HIGHLIGHT_WIDTH
         isAntiAlias = true
     }
 
@@ -190,7 +213,7 @@ class RouteOverlayManager(
                 val screenDistance = kotlin.math.sqrt(dx * dx + dy * dy)
 
                 // Use larger tap radius for single-waypoint routes (in pixels)
-                val tapRadius = if (route.waypoints.size == 1) 60f else 40f // pixels
+                val tapRadius = if (route.waypoints.size == 1) SINGLE_WAYPOINT_TAP_RADIUS else MULTI_WAYPOINT_TAP_RADIUS
 
                 if (screenDistance <= tapRadius) {
                     // Waypoint tapped - dispatch selection action
@@ -249,7 +272,7 @@ class RouteOverlayManager(
                 val screenPoint = projection.toPixels(point, null)
 
                 // Use larger radius for single-waypoint routes to make them more visible
-                val radius = if (route.waypoints.size == 1) 20f else 12f
+                val radius = if (route.waypoints.size == 1) SINGLE_WAYPOINT_RADIUS else MULTI_WAYPOINT_RADIUS
 
                 // Draw waypoint circle with white fill
                 canvas.drawCircle(screenPoint.x.toFloat(), screenPoint.y.toFloat(), radius, waypointPaint)
@@ -262,9 +285,10 @@ class RouteOverlayManager(
 
                         // Draw triangle for launch
                         val trianglePath = Path()
-                        trianglePath.moveTo(screenPoint.x.toFloat(), screenPoint.y - radius)
-                        trianglePath.lineTo(screenPoint.x - radius, screenPoint.y + radius)
-                        trianglePath.lineTo(screenPoint.x + radius, screenPoint.y + radius)
+                        val triangleSize = radius * LAUNCH_TRIANGLE_SIZE_RATIO
+                        trianglePath.moveTo(screenPoint.x.toFloat(), screenPoint.y - triangleSize)
+                        trianglePath.lineTo(screenPoint.x - triangleSize, screenPoint.y + triangleSize)
+                        trianglePath.lineTo(screenPoint.x + triangleSize, screenPoint.y + triangleSize)
                         trianglePath.close()
                         canvas.drawPath(trianglePath, waypointBorderPaint)
                     }
@@ -273,7 +297,7 @@ class RouteOverlayManager(
                         canvas.drawCircle(screenPoint.x.toFloat(), screenPoint.y.toFloat(), radius, waypointBorderPaint)
 
                         // Draw square for landing
-                        val halfSize = radius * 0.7f
+                        val halfSize = radius * LANDING_SQUARE_SIZE_RATIO
                         canvas.drawRect(
                             screenPoint.x - halfSize, screenPoint.y - halfSize,
                             screenPoint.x + halfSize, screenPoint.y + halfSize,
@@ -290,13 +314,13 @@ class RouteOverlayManager(
                 // Draw selection highlight if this waypoint is selected
                 currentSelectedWaypoint?.let { selection ->
                     if (selection.routeId == route.id && selection.waypointId == waypoint.id) {
-                        canvas.drawCircle(screenPoint.x.toFloat(), screenPoint.y.toFloat(), radius + 8f, selectionPaint)
+                        canvas.drawCircle(screenPoint.x.toFloat(), screenPoint.y.toFloat(), radius + SELECTION_HIGHLIGHT_PADDING, selectionPaint)
                     }
                 }
 
                 // Draw label if present
                 waypoint.label?.let { label ->
-                    canvas.drawText(label, screenPoint.x.toFloat(), screenPoint.y - radius - 10, labelPaint)
+                    canvas.drawText(label, screenPoint.x.toFloat(), screenPoint.y - radius - LABEL_OFFSET_Y, labelPaint)
                 }
             }
         }
