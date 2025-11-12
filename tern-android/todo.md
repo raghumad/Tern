@@ -83,13 +83,25 @@
 
 ## 🚀 PHASE 1: Test Quality Improvement (IMMEDIATE PRIORITY)
 
-### High-Impact Testing (Week 1 - PRIORITY)
-- [ ] **JaCoCo Code Coverage**: Enable HTML/XML coverage reports and analysis (+0.5 points)
-- [ ] **Cache Layer Tests**: Create CacheLayerTest.kt for AirspaceCache/RouteCache validation (+0.2 points)
-- [ ] **Overlay Manager Tests**: Create OverlayManagerTest.kt for Redux state observation (+0.2 points)
-- [ ] **UI Regression Tests**: Create UiRegressionTest.kt for visual continuity (+0.1 points)
+### Coverage-Heavy Testing (Week 1 - MAXIMUM COVERAGE IMPACT)
+- [x] **JaCoCo Code Coverage**: Enable HTML/XML coverage reports and analysis (+0.5 points) - **COMPLETED**
+- [ ] **Cache Layer Tests**: Create CacheLayerTest.kt (+0.2 points, ~+15-20% coverage)
+  - [ ] `route_cache_flatbuffer_serialization_deserialization` - Test FlexBuffers persistence
+  - [ ] `airspace_cache_hilbert_spatial_indexing` - Test spatial query performance
+  - [ ] `cache_persistence_across_app_restarts` - Test data integrity
+  - [ ] `memory_mapped_io_zero_copy_loading` - Test performance optimization
+- [ ] **Overlay Manager Tests**: Create OverlayManagerTest.kt (+0.2 points, ~+10-15% coverage)
+  - [ ] `route_overlay_redux_state_observation` - Test Redux integration
+  - [ ] `base_overlay_memory_adaptive_allocation` - Test memory management
+  - [ ] `waypoint_rendering_state_synchronization` - Test UI updates
+  - [ ] `overlay_lifecycle_management` - Test creation/destruction
+- [ ] **UI Regression Tests**: Create UiRegressionTest.kt (+0.1 points, ~+5-10% coverage)
+  - [ ] `waypoint_creation_visual_continuity` - Test Compose rendering
+  - [ ] `gesture_handling_state_updates` - Test touch interactions
+  - [ ] `route_display_blue_connecting_lines` - Test visual elements
+  - [ ] `selection_state_visual_feedback` - Test highlight states
 
-### Aviation Safety Testing (Week 2-3)
+### Aviation Safety Testing (Week 2-3 - After Coverage Foundation)
 - [ ] **GPS Safety Tests**: Create GpsSafetyTest.kt for aviation GPS validation (+0.3 points)
 - [ ] **Memory Monitoring Tests**: Create MemorySafetyTest.kt for heap usage validation (+0.3 points)
 - [ ] **Performance Benchmark Tests**: Create PerformanceBenchmarkTest.kt for dispatch frequency (+0.2 points)
@@ -141,7 +153,7 @@
 
 ## 🎯 Next Steps Priority
 
-1. **HIGH-IMPACT TESTING**: JaCoCo coverage, cache layer, overlay managers, UI regression (IMMEDIATE - +1.0 points)
+1. **COVERAGE-HEAVY TESTING**: Cache layer, overlay managers, UI regression (MAXIMUM COVERAGE IMPACT - +1.0 points potential)
 2. **AVIATION SAFETY TESTING**: GPS validation, memory monitoring, performance benchmarks (Week 2-3)
 3. **Phase 7.1**: Interactive editing features (waypoint deletion, drag & drop)
 4. **Phase 7.2**: Waypoint types (TURNPOINT, LAUNCH, LANDING)
