@@ -113,29 +113,37 @@ class RouteOverlayManager(
     }
 
     override fun onReduxStateChanged(state: MapState) {
-        Log.d(TAG, "Redux state changed - routes enabled: ${state.overlayState.routes.enabled}, route count: ${state.routes.size}, selected: ${state.selectedWaypoint}")
+        try {
+            Log.d(TAG, "Redux state changed - routes enabled: ${state.overlayState.routes.enabled}, route count: ${state.routes.size}, selected: ${state.selectedWaypoint}")
 
-        val config = state.overlayState.routes
+            val config = state.overlayState.routes
 
-        if (config.enabled) {
-            // Single source of truth: Only display routes from Redux state
-            if (state.routes != currentRoutes || state.selectedWaypoint != currentSelectedWaypoint) {
-                currentRoutes = state.routes
-                currentSelectedWaypoint = state.selectedWaypoint
-                updateRouteOverlays()
-                Log.d(TAG, "Routes updated from Redux state: ${currentRoutes.size} routes, selected: ${currentSelectedWaypoint}")
+            if (config.enabled) {
+                // Single source of truth: Only display routes from Redux state
+                if (state.routes != currentRoutes || state.selectedWaypoint != currentSelectedWaypoint) {
+                    currentRoutes = state.routes
+                    currentSelectedWaypoint = state.selectedWaypoint
+                    updateRouteOverlays()
+                    Log.d(TAG, "Routes updated from Redux state: ${currentRoutes.size} routes, selected: ${currentSelectedWaypoint}")
 
-                // Persistence as side effect: Cache routes for app restart recovery
-                currentRoutes.forEach { route ->
-                    if (routeCache?.isCached(route.id) != true) {
-                        routeCache?.cacheRoute(route)
-                        Log.d(TAG, "Persisted route to cache: ${route.id}")
+                    // Persistence as side effect: Cache routes for app restart recovery
+                    currentRoutes.forEach { route ->
+                        try {
+                            if (routeCache?.isCached(route.id) != true) {
+                                routeCache?.cacheRoute(route)
+                                Log.d(TAG, "Persisted route to cache: ${route.id}")
+                            }
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Failed to cache route ${route.id}", e)
+                        }
                     }
                 }
+            } else {
+                // Clear routes when disabled
+                clearRouteOverlays()
             }
-        } else {
-            // Clear routes when disabled
-            clearRouteOverlays()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error handling Redux state change in RouteOverlayManager", e)
         }
     }
 
@@ -294,84 +302,92 @@ class RouteOverlayManager(
         }
 
         override fun draw(canvas: Canvas, mapView: MapView, shadow: Boolean) {
-            if (shadow) return
+            try {
+                if (shadow) return
 
-            val projection = mapView.projection
+                val projection = mapView.projection
 
-            // Draw route line
-            if (route.waypoints.size >= 2) {
-                val path = Path()
+                // Draw route line
+                if (route.waypoints.size >= 2) {
+                    val path = Path()
 
-                route.waypoints.forEachIndexed { index, waypoint ->
-                    val point = GeoPoint(waypoint.lat, waypoint.lon)
-                    val screenPoint = projection.toPixels(point, null)
+                    route.waypoints.forEachIndexed { index, waypoint ->
+                        val point = GeoPoint(waypoint.lat, waypoint.lon)
+                        val screenPoint = projection.toPixels(point, null)
 
-                    if (index == 0) {
-                        path.moveTo(screenPoint.x.toFloat(), screenPoint.y.toFloat())
-                    } else {
-                        path.lineTo(screenPoint.x.toFloat(), screenPoint.y.toFloat())
+                        if (index == 0) {
+                            path.moveTo(screenPoint.x.toFloat(), screenPoint.y.toFloat())
+                        } else {
+                            path.lineTo(screenPoint.x.toFloat(), screenPoint.y.toFloat())
+                        }
                     }
+
+                    canvas.drawPath(path, routePaint)
                 }
 
-                canvas.drawPath(path, routePaint)
-            }
+                // Draw waypoints
+                route.waypoints.forEach { waypoint ->
+                    try {
+                        val point = GeoPoint(waypoint.lat, waypoint.lon)
+                        val screenPoint = projection.toPixels(point, null)
 
-            // Draw waypoints
-            route.waypoints.forEach { waypoint ->
-                val point = GeoPoint(waypoint.lat, waypoint.lon)
-                val screenPoint = projection.toPixels(point, null)
+                        // Use larger radius for single-waypoint routes to make them more visible
+                        val radius = if (route.waypoints.size == 1) SINGLE_WAYPOINT_RADIUS else MULTI_WAYPOINT_RADIUS
 
-                // Use larger radius for single-waypoint routes to make them more visible
-                val radius = if (route.waypoints.size == 1) SINGLE_WAYPOINT_RADIUS else MULTI_WAYPOINT_RADIUS
+                        // Draw waypoint circle with white fill
+                        canvas.drawCircle(screenPoint.x.toFloat(), screenPoint.y.toFloat(), radius, waypointPaint)
 
-                // Draw waypoint circle with white fill
-                canvas.drawCircle(screenPoint.x.toFloat(), screenPoint.y.toFloat(), radius, waypointPaint)
+                        // Draw colored border based on waypoint type
+                        when (waypoint.type) {
+                            com.madanala.tern.model.Waypoint.Type.LAUNCH -> {
+                                waypointBorderPaint.color = Color.GREEN
+                                canvas.drawCircle(screenPoint.x.toFloat(), screenPoint.y.toFloat(), radius, waypointBorderPaint)
 
-                // Draw colored border based on waypoint type
-                when (waypoint.type) {
-                    com.madanala.tern.model.Waypoint.Type.LAUNCH -> {
-                        waypointBorderPaint.color = Color.GREEN
-                        canvas.drawCircle(screenPoint.x.toFloat(), screenPoint.y.toFloat(), radius, waypointBorderPaint)
+                                // Draw triangle for launch
+                                val trianglePath = Path()
+                                val triangleSize = radius * LAUNCH_TRIANGLE_SIZE_RATIO
+                                trianglePath.moveTo(screenPoint.x.toFloat(), screenPoint.y - triangleSize)
+                                trianglePath.lineTo(screenPoint.x - triangleSize, screenPoint.y + triangleSize)
+                                trianglePath.lineTo(screenPoint.x + triangleSize, screenPoint.y + triangleSize)
+                                trianglePath.close()
+                                canvas.drawPath(trianglePath, waypointBorderPaint)
+                            }
+                            com.madanala.tern.model.Waypoint.Type.LANDING -> {
+                                waypointBorderPaint.color = Color.RED
+                                canvas.drawCircle(screenPoint.x.toFloat(), screenPoint.y.toFloat(), radius, waypointBorderPaint)
 
-                        // Draw triangle for launch
-                        val trianglePath = Path()
-                        val triangleSize = radius * LAUNCH_TRIANGLE_SIZE_RATIO
-                        trianglePath.moveTo(screenPoint.x.toFloat(), screenPoint.y - triangleSize)
-                        trianglePath.lineTo(screenPoint.x - triangleSize, screenPoint.y + triangleSize)
-                        trianglePath.lineTo(screenPoint.x + triangleSize, screenPoint.y + triangleSize)
-                        trianglePath.close()
-                        canvas.drawPath(trianglePath, waypointBorderPaint)
-                    }
-                    com.madanala.tern.model.Waypoint.Type.LANDING -> {
-                        waypointBorderPaint.color = Color.RED
-                        canvas.drawCircle(screenPoint.x.toFloat(), screenPoint.y.toFloat(), radius, waypointBorderPaint)
+                                // Draw square for landing
+                                val halfSize = radius * LANDING_SQUARE_SIZE_RATIO
+                                canvas.drawRect(
+                                    screenPoint.x - halfSize, screenPoint.y - halfSize,
+                                    screenPoint.x + halfSize, screenPoint.y + halfSize,
+                                    waypointBorderPaint
+                                )
+                            }
+                            else -> {
+                                // Blue border for turnpoints
+                                waypointBorderPaint.color = Color.BLUE
+                                canvas.drawCircle(screenPoint.x.toFloat(), screenPoint.y.toFloat(), radius, waypointBorderPaint)
+                            }
+                        }
 
-                        // Draw square for landing
-                        val halfSize = radius * LANDING_SQUARE_SIZE_RATIO
-                        canvas.drawRect(
-                            screenPoint.x - halfSize, screenPoint.y - halfSize,
-                            screenPoint.x + halfSize, screenPoint.y + halfSize,
-                            waypointBorderPaint
-                        )
-                    }
-                    else -> {
-                        // Blue border for turnpoints
-                        waypointBorderPaint.color = Color.BLUE
-                        canvas.drawCircle(screenPoint.x.toFloat(), screenPoint.y.toFloat(), radius, waypointBorderPaint)
+                        // Draw selection highlight if this waypoint is selected
+                        currentSelectedWaypoint?.let { selection ->
+                            if (selection.routeId == route.id && selection.waypointId == waypoint.id) {
+                                canvas.drawCircle(screenPoint.x.toFloat(), screenPoint.y.toFloat(), radius + SELECTION_HIGHLIGHT_PADDING, selectionPaint)
+                            }
+                        }
+
+                        // Draw label if present
+                        waypoint.label?.let { label ->
+                            canvas.drawText(label, screenPoint.x.toFloat(), screenPoint.y - radius - LABEL_OFFSET_Y, labelPaint)
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Error drawing waypoint ${waypoint.id} in route ${route.id}", e)
                     }
                 }
-
-                // Draw selection highlight if this waypoint is selected
-                currentSelectedWaypoint?.let { selection ->
-                    if (selection.routeId == route.id && selection.waypointId == waypoint.id) {
-                        canvas.drawCircle(screenPoint.x.toFloat(), screenPoint.y.toFloat(), radius + SELECTION_HIGHLIGHT_PADDING, selectionPaint)
-                    }
-                }
-
-                // Draw label if present
-                waypoint.label?.let { label ->
-                    canvas.drawText(label, screenPoint.x.toFloat(), screenPoint.y - radius - LABEL_OFFSET_Y, labelPaint)
-                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error drawing route overlay for route ${route.id}", e)
             }
         }
     }
