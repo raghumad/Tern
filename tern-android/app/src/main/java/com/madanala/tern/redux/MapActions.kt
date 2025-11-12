@@ -5,6 +5,10 @@ import com.madanala.tern.model.FlightData
 import com.madanala.tern.model.SensorState
 import com.madanala.tern.model.FlightComputerData
 import com.madanala.tern.model.FlightMetrics
+import com.madanala.tern.model.FlightMode
+import com.madanala.tern.model.SensorConfig
+import com.madanala.tern.model.Waypoint
+import com.madanala.tern.route.Route
 
 /**
  * Redux actions for map functionality
@@ -19,7 +23,7 @@ sealed class MapAction {
     // Location actions
     data class UpdateUserLocation(val location: GeoPoint?) : MapAction()
     data class SetLocationReady(val ready: Boolean) : MapAction()
-    data class UpdateGpsStatus(val status: com.madanala.tern.redux.GpsStatus) : MapAction()
+    data class UpdateGpsStatus(val status: GpsStatus) : MapAction()
     object RetryGpsAcquisition : MapAction()
 
     // Map viewport actions
@@ -66,9 +70,9 @@ sealed class MapAction {
     data class UpdateFlightMetrics(val flightMetrics: FlightMetrics) : MapAction()
 
     // Sensor control actions
-    data class StartSensors(val flightMode: com.madanala.tern.model.FlightMode = com.madanala.tern.model.FlightMode.FLIGHT) : MapAction()
+    data class StartSensors(val flightMode: FlightMode = FlightMode.FLIGHT) : MapAction()
     object StopSensors : MapAction()
-    data class SetSensorConfig(val config: com.madanala.tern.model.SensorConfig) : MapAction()
+    data class SetSensorConfig(val config: SensorConfig) : MapAction()
 
     // Flight session actions
     object StartFlightSession : MapAction()
@@ -78,24 +82,24 @@ sealed class MapAction {
     // Handedness-aware UI actions - optimizes control placement for user preference
     data class SetHandedness(val handedness: Handedness) : MapAction()
     data class UpdateHandednessSource(val source: HandednessSource) : MapAction()
-    data class UpdateAdaptiveLayout(val layoutConfig: com.madanala.tern.redux.AdaptiveLayoutConfig) : MapAction()
+    data class UpdateAdaptiveLayout(val layoutConfig: AdaptiveLayoutConfig) : MapAction()
 
     // Flight mode actions - affects UI layout and control priorities
-    data class SetFlightMode(val flightMode: com.madanala.tern.model.FlightMode) : MapAction()
+    data class SetFlightMode(val flightMode: FlightMode) : MapAction()
 
     // User preferences actions
-    data class UpdateUserPreferences(val preferences: com.madanala.tern.redux.UserPreferencesState) : MapAction()
+    data class UpdateUserPreferences(val preferences: UserPreferencesState) : MapAction()
 
     // Route actions
-    data class AddRoute(val route: com.madanala.tern.route.Route) : MapAction()
+    data class AddRoute(val route: Route) : MapAction()
     data class RemoveRoute(val routeId: String) : MapAction()
-    data class UpdateRoute(val route: com.madanala.tern.route.Route) : MapAction()
+    data class UpdateRoute(val route: Route) : MapAction()
     object ClearAllRoutes : MapAction()
 
     // Waypoint actions (for multi-waypoint routes)
-    data class AddWaypointToRoute(val routeId: String, val lat: Double, val lon: Double, val type: com.madanala.tern.model.Waypoint.Type = com.madanala.tern.model.Waypoint.Type.TURNPOINT, val label: String? = null) : MapAction()
+    data class AddWaypointToRoute(val routeId: String, val lat: Double, val lon: Double, val type: Waypoint.Type = Waypoint.Type.TURNPOINT, val label: String? = null) : MapAction()
     data class RemoveWaypoint(val routeId: String, val waypointId: String) : MapAction()
-    data class UpdateWaypoint(val routeId: String, val waypointId: String, val lat: Double? = null, val lon: Double? = null, val type: com.madanala.tern.model.Waypoint.Type? = null, val label: String? = null) : MapAction()
+    data class UpdateWaypoint(val routeId: String, val waypointId: String, val lat: Double? = null, val lon: Double? = null, val type: Waypoint.Type? = null, val label: String? = null) : MapAction()
 
     // Interactive editing actions (Phase 7.1)
     data class SelectWaypoint(val routeId: String, val waypointId: String) : MapAction()
