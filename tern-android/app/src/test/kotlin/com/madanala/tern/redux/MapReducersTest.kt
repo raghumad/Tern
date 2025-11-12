@@ -1,0 +1,118 @@
+package com.madanala.tern.redux
+
+import com.google.common.truth.Truth.assertThat
+import com.madanala.tern.model.FlightMode
+import com.madanala.tern.model.Waypoint
+import com.madanala.tern.route.Route
+import org.junit.jupiter.api.Test
+import org.osmdroid.util.GeoPoint
+
+/**
+ * Unit tests for Redux reducers
+ * Tests state immutability and action processing
+ */
+class MapReducersTest {
+
+    @Test
+    fun `mapReducer handles UpdateUserLocation action correctly`() {
+        val initialState = MapState()
+        val newLocation = GeoPoint(40.0, -74.0)
+
+        val action = MapAction.UpdateUserLocation(newLocation)
+        val newState = mapReducer(initialState, action)
+
+        assertThat(newState.userLocation).isEqualTo(newLocation)
+        assertThat(initialState.userLocation).isNull() // Original state unchanged
+    }
+
+    @Test
+    fun `mapReducer handles SetFlightMode action correctly`() {
+        val initialState = MapState(currentFlightMode = FlightMode.GROUND)
+        val newFlightMode = FlightMode.FLIGHT
+
+        val action = MapAction.SetFlightMode(newFlightMode)
+        val newState = mapReducer(initialState, action)
+
+        assertThat(newState.currentFlightMode).isEqualTo(newFlightMode)
+        assertThat(initialState.currentFlightMode).isEqualTo(FlightMode.GROUND) // Original unchanged
+    }
+
+    @Test
+    fun `mapReducer handles AddRoute action correctly`() {
+        val initialState = MapState(routes = emptyList())
+        val newRoute = Route(name = "Test Route")
+
+        val action = MapAction.AddRoute(newRoute)
+        val newState = mapReducer(initialState, action)
+
+        assertThat(newState.routes).hasSize(1)
+        assertThat(newState.routes.first()).isEqualTo(newRoute)
+        assertThat(initialState.routes).isEmpty() // Original unchanged
+    }
+
+    @Test
+    fun `mapReducer handles SelectWaypoint action correctly`() {
+        val initialState = MapState(selectedWaypoint = null)
+        val route = Route(name = "Test Route")
+        val waypoint = Waypoint(lat = 40.0, lon = -74.0, type = Waypoint.Type.TURNPOINT, label = "WP1-1", routeId = route.id)
+        val routeWithWaypoint = route.addWaypoint(waypoint.lat, waypoint.lon, waypoint.type, waypoint.label)
+
+        val action = MapAction.SelectWaypoint(routeWithWaypoint.id, waypoint.id)
+        val newState = mapReducer(initialState, action)
+
+        assertThat(newState.selectedWaypoint).isNotNull()
+        assertThat(newState.selectedWaypoint?.routeId).isEqualTo(routeWithWaypoint.id)
+        assertThat(newState.selectedWaypoint?.waypointId).isEqualTo(waypoint.id)
+        assertThat(initialState.selectedWaypoint).isNull() // Original unchanged
+    }
+
+    @Test
+    fun `mapReducer handles DeselectWaypoint action correctly`() {
+        val route = Route(name = "Test Route")
+        val waypoint = Waypoint(lat = 40.0, lon = -74.0, type = Waypoint.Type.TURNPOINT, label = "WP1-1", routeId = route.id)
+        val initialState = MapState(selectedWaypoint = WaypointSelection(route.id, waypoint.id))
+
+        val action = MapAction.DeselectWaypoint
+        val newState = mapReducer(initialState, action)
+
+        assertThat(newState.selectedWaypoint).isNull()
+        assertThat(initialState.selectedWaypoint).isNotNull() // Original unchanged
+    }
+
+    @Test
+    fun `mapReducer handles UpdateUserPreferences action correctly`() {
+        val initialState = MapState(userPreferences = UserPreferencesState(handedness = Handedness.RIGHT_HANDED))
+        val newPreferences = UserPreferencesState(handedness = Handedness.LEFT_HANDED)
+
+        val action = MapAction.UpdateUserPreferences(newPreferences)
+        val newState = mapReducer(initialState, action)
+
+        assertThat(newState.userPreferences.handedness).isEqualTo(Handedness.LEFT_HANDED)
+        assertThat(initialState.userPreferences.handedness).isEqualTo(Handedness.RIGHT_HANDED) // Original unchanged
+    }
+
+    @Test
+    fun `mapReducer maintains state immutability for complex updates`() {
+        val initialRoutes = listOf(Route(name = "Route 1"), Route(name = "Route 2"))
+        val initialState = MapState(
+            routes = initialRoutes,
+            userLocation = GeoPoint(40.0, -74.0),
+            currentFlightMode = FlightMode.GROUND
+        )
+
+        // Perform multiple actions
+        val stateAfterLocation = mapReducer(initialState, MapAction.UpdateUserLocation(GeoPoint(41.0, -75.0)))
+        val stateAfterFlightMode = mapReducer(stateAfterLocation, MapAction.SetFlightMode(FlightMode.FLIGHT))
+        val stateAfterRouteAdd = mapReducer(stateAfterFlightMode, MapAction.AddRoute(Route(name = "Route 3")))
+
+        // Verify final state
+        assertThat(stateAfterRouteAdd.userLocation?.latitude).isEqualTo(41.0)
+        assertThat(stateAfterRouteAdd.currentFlightMode).isEqualTo(FlightMode.FLIGHT)
+        assertThat(stateAfterRouteAdd.routes).hasSize(3)
+
+        // Verify original state unchanged
+        assertThat(initialState.userLocation?.latitude).isEqualTo(40.0)
+        assertThat(initialState.currentFlightMode).isEqualTo(FlightMode.GROUND)
+        assertThat(initialState.routes).hasSize(2)
+    }
+}

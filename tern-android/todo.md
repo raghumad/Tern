@@ -29,11 +29,11 @@
 ## 🔄 Phase 8: Code Quality & Testing (Priority)
 
 ### 8.1 Code Refactoring
-- [ ] **MapState.kt Split**: Extract classes into separate files:
+- [x] **MapState.kt Split**: Extract classes into separate files:
   - `UserPreferences.kt` (Handedness, UserPreferencesState)
   - `AdaptiveLayout.kt` (ScreenZone, AdaptiveLayoutConfig)
   - `WaypointState.kt` (WaypointSelection)
-  - Keep core `MapState.kt` focused on main app state
+  - Keep core `MapState.kt` focused on main app state - **COMPLETED**
 - [ ] **Code Pattern Review**: Audit all modified files for consistency:
   - [x] `RouteOverlayManager.kt`: Redux integration patterns, overlay lifecycle - **COMPLETED**
   - [x] `MapViewContainer.kt`: Compose lifecycle management, gesture handling - **COMPLETED**
@@ -48,17 +48,17 @@
 - [ ] **Performance Optimization**: Review memory usage and dispatch frequency
 
 ### 8.2 Testing Framework Setup
-- [ ] **Test Dependencies**: Add JUnit, Espresso, Mockito to build.gradle.kts
-- [ ] **Unit Test Structure**: Create app/src/test/kotlin/ directory structure
-- [ ] **Redux Logic Tests**: Test reducers and actions (highest ROI)
-- [ ] **Route Model Tests**: Test Route.kt business logic
+- [x] **Test Dependencies**: Add JUnit, Espresso, Mockito to build.gradle.kts - **COMPLETED**
+- [x] **Unit Test Structure**: Create app/src/test/kotlin/ directory structure - **COMPLETED**
+- [x] **Redux Logic Tests**: Test reducers and actions (highest ROI) - **COMPLETED**
+- [x] **Route Model Tests**: Test Route.kt business logic - **COMPLETED**
 - [ ] **Integration Tests**: Test component interactions
 - [ ] **UI Test Setup**: Configure Espresso for gesture testing
 - [ ] **CI/CD Integration**: Add GitHub Actions workflow
 
 ### 8.3 Documentation Updates
-- [ ] **Code Comments**: Add missing documentation for new features
-- [ ] **Architecture Docs**: Update AGENTS.md with waypoint selection patterns
+- [x] **Code Comments**: Add missing documentation for new features - **COMPLETED**
+- [x] **Architecture Docs**: Update AGENTS.md with current project status - **COMPLETED**
 - [ ] **API Documentation**: Document Redux actions and state structure
 
 ## 🔮 Phase 7: Advanced Route Features (Future - After Code Quality)
@@ -112,10 +112,10 @@
 ## 📝 **Code Quality Notes**
 
 ### **Technical Debt & Refactoring Needed:**
-- [ ] **MapState.kt Code Review**: File has grown too large (8+ classes/enums) - consider splitting into separate files:
-  - `UserPreferences.kt` (Handedness, UserPreferencesState)
-  - `AdaptiveLayout.kt` (ScreenZone, AdaptiveLayoutConfig)
-  - `WaypointState.kt` (WaypointSelection)
-  - Keep core `MapState.kt` focused on main app state
+- [x] **MapState.kt Code Review**: File has grown too large (8+ classes/enums) - SPLIT COMPLETED:
+  - ✅ `UserPreferences.kt` (Handedness, UserPreferencesState)
+  - ✅ `AdaptiveLayout.kt` (ScreenZone, AdaptiveLayoutConfig)
+  - ✅ `WaypointState.kt` (WaypointSelection)
+  - ✅ Core `MapState.kt` now focused on main app state
 
 **Ready for Phase 7 advanced features when needed!** 🪂
