@@ -5,65 +5,8 @@ import com.madanala.tern.model.FlightData
 import com.madanala.tern.model.SensorState
 import com.madanala.tern.model.FlightComputerData
 import com.madanala.tern.model.FlightMetrics
-
-/**
- * Handedness preference for adaptive UI layout
- */
-enum class Handedness {
-    LEFT_HANDED,
-    RIGHT_HANDED,
-    AMBIDEXTROUS
-}
-
-/**
- * Source of handedness detection for transparency
- */
-enum class HandednessSource {
-    USER_SELECTED,      // User explicitly chose during onboarding
-    SYSTEM_DETECTED,    // Detected from system settings
-    SMART_DEFAULT       // Educated guess from device config
-}
-
-/**
- * User preferences for adaptive UI
- */
-data class UserPreferencesState(
-    val handedness: Handedness = Handedness.RIGHT_HANDED,
-    val handednessSource: HandednessSource = HandednessSource.SMART_DEFAULT,
-    val lastUpdated: Long = System.currentTimeMillis()
-)
-
-/**
- * Adaptive layout configuration based on handedness and flight mode
- */
-data class AdaptiveLayoutConfig(
-    val criticalZone: ScreenZone = ScreenZone.BOTTOM_RIGHT,
-    val importantZone: ScreenZone = ScreenZone.BOTTOM_CENTER,
-    val secondaryZone: ScreenZone = ScreenZone.TOP_CENTER,
-    val tertiaryZone: ScreenZone = ScreenZone.TOP_RIGHT,
-
-    // Layout metadata
-    val layoutVersion: Int = 1,
-    val lastCalculated: Long = System.currentTimeMillis(),
-
-    // Performance optimization
-    val requiresRecalculation: Boolean = true
-)
-
-/**
- * Screen zones for control placement optimization
- */
-enum class ScreenZone {
-    TOP_LEFT, TOP_CENTER, TOP_RIGHT,
-    MIDDLE_LEFT, MIDDLE_CENTER, MIDDLE_RIGHT,
-    BOTTOM_LEFT, BOTTOM_CENTER, BOTTOM_RIGHT,
-
-    // Special zones
-    CENTER, FULL_WIDTH_TOP, FULL_WIDTH_BOTTOM,
-
-    // Adaptive zones that change based on handedness
-    THUMB_ZONE, INDEX_ZONE, VISUAL_ZONE
-}
+import com.madanala.tern.model.FlightMode
+import com.madanala.tern.route.Route
 
 /**
  * Global state for map functionality using Redux pattern
@@ -77,7 +20,7 @@ data class MapState(
     // Location state
     val isLocationReady: Boolean = false,
     val userLocation: GeoPoint? = null,
-    val gpsStatus: com.madanala.tern.redux.GpsStatus = com.madanala.tern.redux.GpsStatus.INITIAL,
+    val gpsStatus: GpsStatus = GpsStatus.INITIAL,
 
     // Permission state
     val hasLocationPermission: Boolean = false,
@@ -127,23 +70,14 @@ data class MapState(
     val userPreferences: UserPreferencesState = UserPreferencesState(),
 
     // Current flight mode - affects UI layout and control priorities
-    val currentFlightMode: com.madanala.tern.model.FlightMode = com.madanala.tern.model.FlightMode.GROUND,
+    val currentFlightMode: FlightMode = FlightMode.GROUND,
 
     // Adaptive layout configuration - calculated based on handedness and flight mode
     val adaptiveLayout: AdaptiveLayoutConfig = AdaptiveLayoutConfig(),
 
     // Route state - cached routes for display
-    val routes: List<com.madanala.tern.route.Route> = emptyList(),
+    val routes: List<Route> = emptyList(),
 
     // Route editing state - for interactive waypoint editing
     val selectedWaypoint: WaypointSelection? = null
-)
-
-/**
- * Waypoint selection state for interactive editing
- */
-data class WaypointSelection(
-    val routeId: String,
-    val waypointId: String,
-    val isDragging: Boolean = false
 )
