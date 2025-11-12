@@ -1,9 +1,13 @@
 package com.madanala.tern.redux
+
 import com.madanala.tern.model.FlightData
 import com.madanala.tern.model.SensorState
 import com.madanala.tern.model.FlightComputerData
 import com.madanala.tern.model.FlightMetrics
 import org.osmdroid.util.GeoPoint
+
+// Constants for reducer logic
+private const val MAX_ROUTES = 10
 
 /**
  * Redux reducers for map functionality
@@ -29,7 +33,7 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
     }
     MapAction.RetryGpsAcquisition -> {
         state.copy(
-            gpsStatus = com.madanala.tern.redux.GpsStatus.ACQUIRING,
+            gpsStatus = GpsStatus.ACQUIRING,
             isLocationReady = false,
             userLocation = null
         )
@@ -217,9 +221,9 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
     // Route actions
     is MapAction.AddRoute -> {
         val newRoutes = state.routes + action.route
-        // Enforce 10-route limit by keeping only the most recent 10 routes
-        val limitedRoutes = if (newRoutes.size > 10) {
-            newRoutes.sortedByDescending { it.createdAt }.take(10)
+        // Enforce route limit by keeping only the most recent routes
+        val limitedRoutes = if (newRoutes.size > MAX_ROUTES) {
+            newRoutes.sortedByDescending { it.createdAt }.take(MAX_ROUTES)
         } else {
             newRoutes
         }
