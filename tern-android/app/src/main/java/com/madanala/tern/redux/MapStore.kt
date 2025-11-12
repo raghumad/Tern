@@ -26,8 +26,8 @@ class MapStore : ViewModel() {
     private var isProcessingBatch = false
 
     // Aviation-optimized batching configuration
-    private val batchWindowMs = 100L  // Batch within 100ms for responsiveness
-    private val maxBatchSize = 10     // Max actions per batch
+    private val batchWindowMs = ReduxConstants.BATCH_WINDOW_MS  // Batch within 100ms for responsiveness
+    private val maxBatchSize = ReduxConstants.MAX_BATCH_SIZE     // Max actions per batch
 
     /**
      * Optimized dispatch with state update batching
