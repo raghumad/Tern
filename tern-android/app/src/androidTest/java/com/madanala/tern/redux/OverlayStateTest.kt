@@ -9,7 +9,7 @@ import org.junit.Test
 class OverlayStateTest {
 
     @Test
-    fun `overlay enabled state updates correctly`() {
+    fun `overlay_enabled_state_updates_correctly`() {
         // Initial state
         val initialState = MapState()
 
@@ -28,7 +28,7 @@ class OverlayStateTest {
     }
 
     @Test
-    fun `overlay config updates correctly`() {
+    fun `overlay_config_updates_correctly`() {
         val initialState = MapState()
         val newConfig = OverlayConfig(enabled = true, opacity = 0.5f, filterRadiusMiles = 200.0)
 
@@ -39,7 +39,7 @@ class OverlayStateTest {
     }
 
     @Test
-    fun `default overlay state configuration`() {
+    fun `default_overlay_state_configuration`() {
         val state = MapState()
 
         // Airspaces should be enabled by default
@@ -56,7 +56,7 @@ class OverlayStateTest {
     }
 
     @Test
-    fun `overlay state immutability`() {
+    fun `overlay_state_immutability`() {
         val state1 = MapState()
 
         // Modify airspaces config
