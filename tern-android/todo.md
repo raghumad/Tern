@@ -81,18 +81,31 @@
 - [ ] **Version Compatibility**: Handle route format versioning
 - [ ] **Validation**: Check imported routes for validity
 
-## 🔄 PHASE 8: Quality Assurance (Last Priority)
+## 🚀 PHASE 1: Test Quality Improvement (IMMEDIATE PRIORITY)
 
-### 8.1 Performance Optimization
+### High-Impact Testing (Week 1 - PRIORITY)
+- [ ] **JaCoCo Code Coverage**: Enable HTML/XML coverage reports and analysis (+0.5 points)
+- [ ] **Cache Layer Tests**: Create CacheLayerTest.kt for AirspaceCache/RouteCache validation (+0.2 points)
+- [ ] **Overlay Manager Tests**: Create OverlayManagerTest.kt for Redux state observation (+0.2 points)
+- [ ] **UI Regression Tests**: Create UiRegressionTest.kt for visual continuity (+0.1 points)
+
+### Aviation Safety Testing (Week 2-3)
+- [ ] **GPS Safety Tests**: Create GpsSafetyTest.kt for aviation GPS validation (+0.3 points)
+- [ ] **Memory Monitoring Tests**: Create MemorySafetyTest.kt for heap usage validation (+0.3 points)
+- [ ] **Performance Benchmark Tests**: Create PerformanceBenchmarkTest.kt for dispatch frequency (+0.2 points)
+
+### Advanced Testing Infrastructure (Week 5-6)
+- [ ] **CI/CD Integration**: Add GitHub Actions workflow for automated testing
+- [ ] **Test Analytics**: Enhanced regression detection and trend analysis
+- [ ] **Quality Automation**: Automated test scoring and coverage thresholds
+
+## 🔄 PHASE 8: Legacy Quality Assurance (AFTER Test Quality)
+
+### 8.1 Performance Optimization (Lower Priority)
 - [ ] **Memory Usage Review**: Validate <75% heap usage maintained
 - [ ] **Dispatch Frequency**: Ensure <10 Redux dispatches/sec target
 - [ ] **Spatial Query Performance**: Test Hilbert indexing efficiency
 - [ ] **Cache Hit Rate**: Verify >80% for spatial queries
-
-### 8.2 CI/CD Integration
-- [ ] **GitHub Actions Workflow**: Add automated testing pipeline
-- [ ] **Quality Gates**: Zero warnings, device testing, no regressions
-- [ ] **Build Validation**: Automated compilation and dependency checks
 
 ## 📋 Aviation Safety Standards (All Met ✅)
 
@@ -128,11 +141,14 @@
 
 ## 🎯 Next Steps Priority
 
-1. **Phase 7.1**: Interactive editing features (waypoint deletion, drag & drop)
-2. **Phase 7.2**: Waypoint types (TURNPOINT, LAUNCH, LANDING)
-3. **Phase 7.3**: Route management UI (list screens, import/export, cross-platform)
-4. **Phase 8**: Quality assurance (performance optimization, CI/CD) - last priority
-5. **Quality Assurance**: Ensure all aviation safety standards maintained throughout
-6. **User Validation**: Test advanced features with real paraglider workflows
+1. **HIGH-IMPACT TESTING**: JaCoCo coverage, cache layer, overlay managers, UI regression (IMMEDIATE - +1.0 points)
+2. **AVIATION SAFETY TESTING**: GPS validation, memory monitoring, performance benchmarks (Week 2-3)
+3. **Phase 7.1**: Interactive editing features (waypoint deletion, drag & drop)
+4. **Phase 7.2**: Waypoint types (TURNPOINT, LAUNCH, LANDING)
+5. **Phase 7.3**: Route management UI (list screens, import/export, cross-platform)
+6. **ADVANCED TESTING**: CI/CD integration, test analytics, quality automation
+7. **Phase 8**: Legacy quality assurance (performance optimization) - lowest priority
+8. **Quality Assurance**: Ensure all aviation safety standards maintained throughout
+9. **User Validation**: Test advanced features with real paraglider workflows
 
 **Foundation is solid for advanced features!** 🪂

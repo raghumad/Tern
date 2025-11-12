@@ -308,6 +308,7 @@ fun generateSafetyValidation(): String {
 **Visual Continuity**: ❌ Not tested (no UI regression testing)
 
 **Action Required**: Implement automated safety validation tests
+**Priority**: HIGH - Aviation safety standards require comprehensive validation
     """.trimIndent()
 }
 
