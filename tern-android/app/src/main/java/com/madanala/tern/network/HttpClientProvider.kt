@@ -4,6 +4,7 @@ package com.madanala.tern.network // Or your preferred package for network utili
 
 import android.content.Context
 import androidx.preference.PreferenceManager // For easy SharedPreferences access
+import com.madanala.tern.redux.CacheConstants
 import okhttp3.Cache
 import okhttp3.OkHttpClient
 import java.io.File
@@ -27,7 +28,7 @@ object HttpClientProvider {
         val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(appContext)
         val maxCacheSizeMB = sharedPreferences.getString(PREF_KEY_MAX_CACHE_SIZE_MB, DEFAULT_MAX_CACHE_SIZE_MB.toString())
             ?.toLongOrNull() ?: DEFAULT_MAX_CACHE_SIZE_MB
-        val maxCacheSizeBytes = maxCacheSizeMB * 1024 * 1024
+        val maxCacheSizeBytes = maxCacheSizeMB * CacheConstants.BYTES_PER_MB
 
         val cacheDirectory = File(appContext.cacheDir, CACHE_DIR_NAME)
         val cache = Cache(cacheDirectory, maxCacheSizeBytes)

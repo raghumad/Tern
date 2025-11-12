@@ -11,9 +11,9 @@ enum class OverlayType {
 
 data class OverlayConfig(
     val enabled: Boolean = false,
-    val opacity: Float = 0.8f,
+    val opacity: Float = OverlayConstants.DEFAULT_OVERLAY_OPACITY,
     val showLabels: Boolean = true,
-    val filterRadiusMiles: Double = 300.0
+    val filterRadiusMiles: Double = OverlayConstants.DEFAULT_FILTER_RADIUS_MILES
 )
 
 data class OverlayState(

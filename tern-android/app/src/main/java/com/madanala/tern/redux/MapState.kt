@@ -15,7 +15,7 @@ data class MapState(
     // Map viewport state
     val rotation: Float = 0f,
     val center: GeoPoint? = null,
-    val zoom: Double = 8.0,
+    val zoom: Double = MapConstants.DEFAULT_ZOOM_LEVEL,
 
     // Location state
     val isLocationReady: Boolean = false,

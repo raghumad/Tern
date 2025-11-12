@@ -6,8 +6,7 @@ import com.madanala.tern.model.FlightComputerData
 import com.madanala.tern.model.FlightMetrics
 import org.osmdroid.util.GeoPoint
 
-// Constants for reducer logic
-private const val MAX_ROUTES = 10
+// Route management constants imported from Constants.kt
 
 /**
  * Redux reducers for map functionality - organized by functional groups
@@ -267,8 +266,8 @@ private fun handleUserPreferencesActions(state: MapState, action: MapAction): Ma
 private fun handleRouteActions(state: MapState, action: MapAction): MapState = when (action) {
     is MapAction.AddRoute -> {
         val newRoutes = state.routes + action.route
-        val limitedRoutes = if (newRoutes.size > MAX_ROUTES) {
-            newRoutes.sortedByDescending { it.createdAt }.take(MAX_ROUTES)
+        val limitedRoutes = if (newRoutes.size > RouteConstants.MAX_ROUTES) {
+            newRoutes.sortedByDescending { it.createdAt }.take(RouteConstants.MAX_ROUTES)
         } else newRoutes
 
         val updatedSelection = updateSelectionAfterRouteChange(state.selectedWaypoint, limitedRoutes, action.route.id)
