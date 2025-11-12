@@ -10,54 +10,122 @@ import org.osmdroid.util.GeoPoint
 private const val MAX_ROUTES = 10
 
 /**
- * Redux reducers for map functionality
+ * Redux reducers for map functionality - organized by functional groups
  */
 fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
-    // Permission actions
-    is MapAction.RequestLocationPermission -> {
-        state.copy(permissionRequested = true)
-    }
-    is MapAction.UpdateLocationPermission -> {
-        state.copy(hasLocationPermission = action.granted, permissionRequested = true)
-    }
+    // Permission & Location Management
+    is MapAction.RequestLocationPermission,
+    is MapAction.UpdateLocationPermission,
+    is MapAction.UpdateUserLocation,
+    is MapAction.SetLocationReady,
+    is MapAction.UpdateGpsStatus,
+    MapAction.RetryGpsAcquisition -> handlePermissionAndLocationActions(state, action)
 
-    // Location actions
-    is MapAction.UpdateUserLocation -> {
-        state.copy(userLocation = action.location)
-    }
-    is MapAction.SetLocationReady -> {
-        state.copy(isLocationReady = action.ready)
-    }
-    is MapAction.UpdateGpsStatus -> {
-        state.copy(gpsStatus = action.status)
-    }
-    MapAction.RetryGpsAcquisition -> {
-        state.copy(
-            gpsStatus = GpsStatus.ACQUIRING,
-            isLocationReady = false,
-            userLocation = null
-        )
-    }
+    // Map Viewport & Display
+    is MapAction.UpdateRotation,
+    is MapAction.UpdateCenter,
+    is MapAction.UpdateZoom,
+    is MapAction.UpdateMapMovement -> handleMapViewportActions(state, action)
 
-    // Map viewport actions
-    is MapAction.UpdateRotation -> {
-        state.copy(rotation = action.rotation)
-    }
-    is MapAction.UpdateCenter -> {
-        state.copy(center = action.center)
-    }
-    is MapAction.UpdateZoom -> {
-        state.copy(zoom = action.zoom)
-    }
-    is MapAction.UpdateMapMovement -> {
-        // Combined map movement update for performance optimization
-        state.copy(
-            rotation = action.rotation ?: state.rotation,
-            center = action.center ?: state.center,
-            zoom = action.zoom ?: state.zoom
-        )
-    }
+    // Overlay Management
+    is MapAction.SetOverlayEnabled,
+    is MapAction.UpdateOverlayConfig -> handleOverlayActions(state, action)
 
+    // Loading States
+    is MapAction.SetLoadingAirspaces,
+    is MapAction.SetLoadingPGSpots -> handleLoadingStateActions(state, action)
+
+    // Cache Management
+    is MapAction.UpdateCurrentCountryCode,
+    is MapAction.AddAirspaceCountry,
+    is MapAction.AddPGSpotCountry,
+    is MapAction.ClearAirspaceCache,
+    is MapAction.ClearPGSpotCache -> handleCacheActions(state, action)
+
+    // Configuration & UI
+    is MapAction.UpdateMapStyle,
+    is MapAction.SetCompassVisible -> handleConfigurationAndUIActions(state, action)
+
+    // Settings & Preferences
+    is MapAction.SetSettingsOverlayEnabled,
+    is MapAction.SetUnitPreference -> handleSettingsActions(state, action)
+
+    // Sensor & Flight Data
+    is MapAction.UpdateSensorState,
+    is MapAction.UpdateFlightData,
+    is MapAction.UpdateFlightComputerData,
+    is MapAction.UpdateFlightMetrics,
+    is MapAction.StartSensors,
+    MapAction.StopSensors,
+    is MapAction.SetSensorConfig -> handleSensorActions(state, action)
+
+    // Flight Sessions
+    is MapAction.StartFlightSession,
+    is MapAction.EndFlightSession,
+    is MapAction.UpdateFlightPath -> handleFlightSessionActions(state, action)
+
+    // User Preferences & Layout
+    is MapAction.SetHandedness,
+    is MapAction.UpdateHandednessSource,
+    is MapAction.UpdateAdaptiveLayout,
+    is MapAction.SetFlightMode,
+    is MapAction.UpdateUserPreferences -> handleUserPreferencesActions(state, action)
+
+    // Route Management
+    is MapAction.AddRoute,
+    is MapAction.RemoveRoute,
+    is MapAction.UpdateRoute,
+    is MapAction.ClearAllRoutes -> handleRouteActions(state, action)
+
+    // Waypoint Management
+    is MapAction.AddWaypointToRoute,
+    is MapAction.RemoveWaypoint,
+    is MapAction.UpdateWaypoint -> handleWaypointActions(state, action)
+
+    // Interactive Editing
+    is MapAction.SelectWaypoint,
+    MapAction.DeselectWaypoint,
+    is MapAction.StartWaypointDrag,
+    is MapAction.UpdateWaypointDrag,
+    MapAction.EndWaypointDrag -> handleInteractiveEditingActions(state, action)
+}
+
+/**
+ * Handle permission and location-related actions
+ */
+private fun handlePermissionAndLocationActions(state: MapState, action: MapAction): MapState = when (action) {
+    is MapAction.RequestLocationPermission -> state.copy(permissionRequested = true)
+    is MapAction.UpdateLocationPermission -> state.copy(hasLocationPermission = action.granted, permissionRequested = true)
+    is MapAction.UpdateUserLocation -> state.copy(userLocation = action.location)
+    is MapAction.SetLocationReady -> state.copy(isLocationReady = action.ready)
+    is MapAction.UpdateGpsStatus -> state.copy(gpsStatus = action.status)
+    MapAction.RetryGpsAcquisition -> state.copy(
+        gpsStatus = GpsStatus.ACQUIRING,
+        isLocationReady = false,
+        userLocation = null
+    )
+    else -> state
+}
+
+/**
+ * Handle map viewport and display actions
+ */
+private fun handleMapViewportActions(state: MapState, action: MapAction): MapState = when (action) {
+    is MapAction.UpdateRotation -> state.copy(rotation = action.rotation)
+    is MapAction.UpdateCenter -> state.copy(center = action.center)
+    is MapAction.UpdateZoom -> state.copy(zoom = action.zoom)
+    is MapAction.UpdateMapMovement -> state.copy(
+        rotation = action.rotation ?: state.rotation,
+        center = action.center ?: state.center,
+        zoom = action.zoom ?: state.zoom
+    )
+    else -> state
+}
+
+/**
+ * Handle overlay management actions
+ */
+private fun handleOverlayActions(state: MapState, action: MapAction): MapState = when (action) {
     is MapAction.SetOverlayEnabled -> {
         val newOverlayState = when (action.type) {
             OverlayType.AIRSPACE -> state.overlayState.copy(airspaces = state.overlayState.airspaces.copy(enabled = action.enabled))
@@ -74,48 +142,47 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
         }
         state.copy(overlayState = newOverlayState)
     }
+    else -> state
+}
 
+/**
+ * Handle loading state actions
+ */
+private fun handleLoadingStateActions(state: MapState, action: MapAction): MapState = when (action) {
+    is MapAction.SetLoadingAirspaces -> state.copy(isLoadingAirspaces = action.loading)
+    is MapAction.SetLoadingPGSpots -> state.copy(isLoadingPGSpots = action.loading)
+    else -> state
+}
 
-    // Loading state actions
-    is MapAction.SetLoadingAirspaces -> {
-        state.copy(isLoadingAirspaces = action.loading)
-    }
-    is MapAction.SetLoadingPGSpots -> {
-        state.copy(isLoadingPGSpots = action.loading)
-    }
+/**
+ * Handle cache management actions
+ */
+private fun handleCacheActions(state: MapState, action: MapAction): MapState = when (action) {
+    is MapAction.UpdateCurrentCountryCode -> state.copy(currentCountryCode = action.countryCode)
+    is MapAction.AddAirspaceCountry -> state.copy(airspaceCountries = state.airspaceCountries + action.countryCode)
+    is MapAction.AddPGSpotCountry -> state.copy(pgSpotCountries = state.pgSpotCountries + action.countryCode)
+    is MapAction.ClearAirspaceCache -> state.copy(airspaceCountries = emptySet())
+    is MapAction.ClearPGSpotCache -> state.copy(pgSpotCountries = emptySet())
+    else -> state
+}
 
-    // Cache actions
-    is MapAction.UpdateCurrentCountryCode -> {
-        state.copy(currentCountryCode = action.countryCode)
-    }
-    is MapAction.AddAirspaceCountry -> {
-        state.copy(airspaceCountries = state.airspaceCountries + action.countryCode)
-    }
-    is MapAction.AddPGSpotCountry -> {
-        state.copy(pgSpotCountries = state.pgSpotCountries + action.countryCode)
-    }
-    is MapAction.ClearAirspaceCache -> {
-        state.copy(airspaceCountries = emptySet())
-    }
-    is MapAction.ClearPGSpotCache -> {
-        state.copy(pgSpotCountries = emptySet())
-    }
+/**
+ * Handle configuration and UI actions
+ */
+private fun handleConfigurationAndUIActions(state: MapState, action: MapAction): MapState = when (action) {
+    is MapAction.UpdateMapStyle -> state.copy(mapStyle = action.style)
+    is MapAction.SetCompassVisible -> state.copy(compassVisible = action.visible)
+    else -> state
+}
 
-    // Configuration actions
-    is MapAction.UpdateMapStyle -> {
-        state.copy(mapStyle = action.style)
-    }
-
-    // UI actions
-    is MapAction.SetCompassVisible -> {
-        state.copy(compassVisible = action.visible)
-    }
-
-    // Settings actions - Update overlay state through Redux
+/**
+ * Handle settings actions
+ */
+private fun handleSettingsActions(state: MapState, action: MapAction): MapState = when (action) {
     is MapAction.SetSettingsOverlayEnabled -> {
         val newOverlayState = when (action.overlayType) {
             "airspaces" -> state.overlayState.copy(airspaces = state.overlayState.airspaces.copy(enabled = action.enabled))
-            "hotspots" -> state.overlayState.copy(pgSpots = state.overlayState.pgSpots.copy(enabled = action.enabled)) // hotspots -> pgSpots
+            "hotspots" -> state.overlayState.copy(pgSpots = state.overlayState.pgSpots.copy(enabled = action.enabled))
             "pgspots" -> state.overlayState.copy(pgSpots = state.overlayState.pgSpots.copy(enabled = action.enabled))
             else -> state.overlayState
         }
@@ -127,43 +194,34 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
             "distance" -> state.settingsState.copy(distanceUnit = action.unit)
             "speed" -> state.settingsState.copy(speedUnit = action.unit)
             "altitude" -> state.settingsState.copy(altitudeUnit = action.unit)
-            else -> state.settingsState // Fallback for unknown unit types
+            else -> state.settingsState
         }
         state.copy(settingsState = newSettingsState)
     }
+    else -> state
+}
 
-    // Sensor actions - real-time flight data integration
-    is MapAction.UpdateSensorState -> {
-        state.copy(sensorState = action.sensorState)
-    }
-    is MapAction.UpdateFlightData -> {
-        state.copy(currentFlightData = action.flightData)
-    }
-    is MapAction.UpdateFlightComputerData -> {
-        state.copy(flightComputerData = action.flightComputerData)
-    }
-    is MapAction.UpdateFlightMetrics -> {
-        state.copy(flightMetrics = action.flightMetrics)
-    }
+/**
+ * Handle sensor and flight data actions
+ */
+private fun handleSensorActions(state: MapState, action: MapAction): MapState = when (action) {
+    is MapAction.UpdateSensorState -> state.copy(sensorState = action.sensorState)
+    is MapAction.UpdateFlightData -> state.copy(currentFlightData = action.flightData)
+    is MapAction.UpdateFlightComputerData -> state.copy(flightComputerData = action.flightComputerData)
+    is MapAction.UpdateFlightMetrics -> state.copy(flightMetrics = action.flightMetrics)
+    is MapAction.StartSensors -> state.copy(sensorState = state.sensorState.copy(
+        isActive = true,
+        flightMode = action.flightMode
+    ))
+    MapAction.StopSensors -> state.copy(sensorState = state.sensorState.copy(isActive = false))
+    is MapAction.SetSensorConfig -> state // Sensor config managed by SensorOverlayManager
+    else -> state
+}
 
-    // Sensor control actions
-    is MapAction.StartSensors -> {
-        val newSensorState = state.sensorState.copy(
-            isActive = true,
-            flightMode = action.flightMode
-        )
-        state.copy(sensorState = newSensorState)
-    }
-    MapAction.StopSensors -> {
-        val newSensorState = state.sensorState.copy(isActive = false)
-        state.copy(sensorState = newSensorState)
-    }
-    is MapAction.SetSensorConfig -> {
-        // Sensor configuration is managed internally by SensorOverlayManager
-        state
-    }
-
-    // Flight session actions
+/**
+ * Handle flight session actions
+ */
+private fun handleFlightSessionActions(state: MapState, action: MapAction): MapState = when (action) {
     is MapAction.StartFlightSession -> {
         val newMetrics = FlightMetrics(
             startTime = System.currentTimeMillis(),
@@ -180,116 +238,74 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
         )
         state.copy(flightMetrics = newMetrics)
     }
-    is MapAction.EndFlightSession -> {
-        // Keep the final metrics for analysis
-        state
-    }
-    is MapAction.UpdateFlightPath -> {
-        // Flight path tracking is managed by SensorOverlayManager
-        state
-    }
+    is MapAction.EndFlightSession -> state // Keep final metrics for analysis
+    is MapAction.UpdateFlightPath -> state // Flight path managed by SensorOverlayManager
+    else -> state
+}
 
-    // Handedness-aware UI actions
-    is MapAction.SetHandedness -> {
-        val newPreferences = state.userPreferences.copy(
-            handedness = action.handedness,
-            lastUpdated = System.currentTimeMillis()
-        )
-        state.copy(userPreferences = newPreferences)
-    }
-    is MapAction.UpdateHandednessSource -> {
-        val newPreferences = state.userPreferences.copy(
-            handednessSource = action.source,
-            lastUpdated = System.currentTimeMillis()
-        )
-        state.copy(userPreferences = newPreferences)
-    }
-    is MapAction.UpdateAdaptiveLayout -> {
-        state.copy(adaptiveLayout = action.layoutConfig)
-    }
+/**
+ * Handle user preferences and layout actions
+ */
+private fun handleUserPreferencesActions(state: MapState, action: MapAction): MapState = when (action) {
+    is MapAction.SetHandedness -> state.copy(userPreferences = state.userPreferences.copy(
+        handedness = action.handedness,
+        lastUpdated = System.currentTimeMillis()
+    ))
+    is MapAction.UpdateHandednessSource -> state.copy(userPreferences = state.userPreferences.copy(
+        handednessSource = action.source,
+        lastUpdated = System.currentTimeMillis()
+    ))
+    is MapAction.UpdateAdaptiveLayout -> state.copy(adaptiveLayout = action.layoutConfig)
+    is MapAction.SetFlightMode -> state.copy(currentFlightMode = action.flightMode)
+    is MapAction.UpdateUserPreferences -> state.copy(userPreferences = action.preferences)
+    else -> state
+}
 
-    // Flight mode actions
-    is MapAction.SetFlightMode -> {
-        state.copy(currentFlightMode = action.flightMode)
-    }
-
-    // User preferences actions
-    is MapAction.UpdateUserPreferences -> {
-        state.copy(userPreferences = action.preferences)
-    }
-
-    // Route actions
+/**
+ * Handle route management actions
+ */
+private fun handleRouteActions(state: MapState, action: MapAction): MapState = when (action) {
     is MapAction.AddRoute -> {
         val newRoutes = state.routes + action.route
-        // Enforce route limit by keeping only the most recent routes
         val limitedRoutes = if (newRoutes.size > MAX_ROUTES) {
             newRoutes.sortedByDescending { it.createdAt }.take(MAX_ROUTES)
-        } else {
-            newRoutes
-        }
-        // Clear selection if it would become invalid
-        val updatedSelection = state.selectedWaypoint?.let { selection ->
-            val routeExists = limitedRoutes.any { it.id == selection.routeId }
-            if (routeExists) {
-                val route = limitedRoutes.find { it.id == selection.routeId }
-                val waypointExists = route?.waypoints?.any { it.id == selection.waypointId } == true
-                if (waypointExists) selection else null
-            } else null
-        }
+        } else newRoutes
+
+        val updatedSelection = updateSelectionAfterRouteChange(state.selectedWaypoint, limitedRoutes, action.route.id)
         state.copy(routes = limitedRoutes, selectedWaypoint = updatedSelection)
     }
     is MapAction.RemoveRoute -> {
         val newRoutes = state.routes.filter { it.id != action.routeId }
-        // Clear selection if the selected waypoint was in the removed route
-        val updatedSelection = state.selectedWaypoint?.let { selection ->
-            if (selection.routeId == action.routeId) null else selection
-        }
+        val updatedSelection = state.selectedWaypoint?.takeIf { it.routeId != action.routeId }
         state.copy(routes = newRoutes, selectedWaypoint = updatedSelection)
     }
     is MapAction.UpdateRoute -> {
-        val newRoutes = state.routes.map { route ->
-            if (route.id == action.route.id) action.route else route
-        }
-        // Clear selection if the selected waypoint was removed from the updated route
-        val updatedSelection = state.selectedWaypoint?.let { selection ->
-            if (selection.routeId == action.route.id) {
-                val route = action.route
-                val waypointExists = route.waypoints.any { it.id == selection.waypointId }
-                if (waypointExists) selection else null
-            } else selection
-        }
+        val newRoutes = state.routes.map { if (it.id == action.route.id) action.route else it }
+        val updatedSelection = updateSelectionAfterRouteChange(state.selectedWaypoint, newRoutes, action.route.id)
         state.copy(routes = newRoutes, selectedWaypoint = updatedSelection)
     }
-    is MapAction.ClearAllRoutes -> {
-        state.copy(routes = emptyList())
-    }
+    is MapAction.ClearAllRoutes -> state.copy(routes = emptyList())
+    else -> state
+}
 
-    // Waypoint actions (for multi-waypoint routes)
+/**
+ * Handle waypoint management actions
+ */
+private fun handleWaypointActions(state: MapState, action: MapAction): MapState = when (action) {
     is MapAction.AddWaypointToRoute -> {
         val newRoutes = state.routes.map { route ->
             if (route.id == action.routeId) {
                 route.addWaypoint(action.lat, action.lon, action.type, action.label)
-            } else {
-                route
-            }
+            } else route
         }
         state.copy(routes = newRoutes)
     }
     is MapAction.RemoveWaypoint -> {
         val newRoutes = state.routes.map { route ->
-            if (route.id == action.routeId) {
-                route.removeWaypoint(action.waypointId)
-            } else {
-                route
-            }
+            if (route.id == action.routeId) route.removeWaypoint(action.waypointId) else route
         }
-        // Clear selection if the removed waypoint was selected
-        val updatedSelection = state.selectedWaypoint?.let { selection ->
-            if (selection.routeId == action.routeId && selection.waypointId == action.waypointId) {
-                null
-            } else {
-                selection
-            }
+        val updatedSelection = state.selectedWaypoint?.takeIf {
+            !(it.routeId == action.routeId && it.waypointId == action.waypointId)
         }
         state.copy(routes = newRoutes, selectedWaypoint = updatedSelection)
     }
@@ -297,61 +313,63 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
         val newRoutes = state.routes.map { route ->
             if (route.id == action.routeId) {
                 route.updateWaypoint(action.waypointId, action.lat, action.lon, action.type)
-            } else {
-                route
-            }
+            } else route
         }
         state.copy(routes = newRoutes)
     }
+    else -> state
+}
 
-    // Interactive editing actions (Phase 7.1)
-    is MapAction.SelectWaypoint -> {
-        val selection = WaypointSelection(
-            routeId = action.routeId,
-            waypointId = action.waypointId,
-            isDragging = false
-        )
-        state.copy(selectedWaypoint = selection)
-    }
-    MapAction.DeselectWaypoint -> {
-        state.copy(selectedWaypoint = null)
-    }
+/**
+ * Handle interactive editing actions
+ */
+private fun handleInteractiveEditingActions(state: MapState, action: MapAction): MapState = when (action) {
+    is MapAction.SelectWaypoint -> state.copy(selectedWaypoint = WaypointSelection(
+        routeId = action.routeId,
+        waypointId = action.waypointId,
+        isDragging = false
+    ))
+    MapAction.DeselectWaypoint -> state.copy(selectedWaypoint = null)
     is MapAction.StartWaypointDrag -> {
         val currentSelection = state.selectedWaypoint
-        if (currentSelection != null && currentSelection.routeId == action.routeId && currentSelection.waypointId == action.waypointId) {
-            val updatedSelection = currentSelection.copy(isDragging = true)
-            state.copy(selectedWaypoint = updatedSelection)
-        } else {
-            state
-        }
+        if (currentSelection?.routeId == action.routeId && currentSelection.waypointId == action.waypointId) {
+            state.copy(selectedWaypoint = currentSelection.copy(isDragging = true))
+        } else state
     }
     is MapAction.UpdateWaypointDrag -> {
         val currentSelection = state.selectedWaypoint
-        if (currentSelection != null && currentSelection.isDragging) {
-            // Update the waypoint position in the route
+        if (currentSelection?.isDragging == true) {
             val newRoutes = state.routes.map { route ->
                 if (route.id == currentSelection.routeId) {
                     route.updateWaypoint(currentSelection.waypointId, action.lat, action.lon)
-                } else {
-                    route
-                }
+                } else route
             }
             state.copy(routes = newRoutes)
-        } else {
-            state
-        }
+        } else state
     }
     MapAction.EndWaypointDrag -> {
         val currentSelection = state.selectedWaypoint
-        if (currentSelection != null && currentSelection.isDragging) {
-            val updatedSelection = currentSelection.copy(isDragging = false)
-            state.copy(selectedWaypoint = updatedSelection)
-        } else {
-            state
-        }
+        if (currentSelection?.isDragging == true) {
+            state.copy(selectedWaypoint = currentSelection.copy(isDragging = false))
+        } else state
     }
+    else -> state
+}
 
-    // No default branch required: MapAction is a sealed class and all cases are handled above
+/**
+ * Update waypoint selection after route changes
+ */
+private fun updateSelectionAfterRouteChange(
+    currentSelection: WaypointSelection?,
+    routes: List<com.madanala.tern.route.Route>,
+    changedRouteId: String
+): WaypointSelection? {
+    if (currentSelection == null) return null
+
+    val route = routes.find { it.id == changedRouteId } ?: return null
+    val waypointExists = route.waypoints.any { it.id == currentSelection.waypointId }
+
+    return if (waypointExists) currentSelection else null
 }
 
 /**
