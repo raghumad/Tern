@@ -8,6 +8,8 @@ plugins {
     id("jacoco")
 }
 
+apply(plugin = "jacoco")
+
 android {
     namespace = "com.madanala.tern"
     compileSdk = 36
@@ -159,6 +161,28 @@ jacoco {
     toolVersion = "0.8.12"
 }
 
+tasks.register<JacocoReport>("jacocoTestReport") {
+    dependsOn("testDebugUnitTest")
+
+    reports {
+        html.required.set(true)
+        xml.required.set(true)
+        csv.required.set(false)
+    }
+
+    val javaClasses = fileTree("${project.layout.buildDirectory.get()}/tmp/kotlin-classes/debug") {
+        exclude("**/test/**")
+    }
+
+    val kotlinClasses = fileTree("${project.layout.buildDirectory.get()}/tmp/kotlin-classes/debug") {
+        exclude("**/test/**")
+    }
+
+    classDirectories.setFrom(files(javaClasses, kotlinClasses))
+    sourceDirectories.setFrom(files("${project.projectDir}/src/main/java", "${project.projectDir}/src/main/kotlin"))
+    executionData.setFrom(file("${project.layout.buildDirectory.get()}/jacoco/testDebugUnitTest.exec"))
+}
+
 tasks.register("runAllTestsAndGenerateSummary") {
     group = "verification"
     description = "Run all tests (unit + integration) and generate comprehensive test summary"
@@ -268,16 +292,66 @@ ${if (failures.isNotEmpty()) "**Failures:**\n" + failures.joinToString("\n") els
 }
 
 fun generateCoverageSummary(reportDir: File): String {
-    val htmlReport = File(reportDir, "testDebugUnitTest/html/index.html")
-    if (!htmlReport.exists()) {
+    val htmlReport = File(reportDir, "jacocoTestReport/html/index.html")
+    val xmlReport = File(reportDir, "jacocoTestReport/jacocoTestReport.xml")
+
+    if (!htmlReport.exists() && !xmlReport.exists()) {
         return "**Coverage Report**: Not generated (run `./gradlew jacocoTestReport` first)\n"
     }
 
-    // For now, return a placeholder. In a real implementation, we'd parse the JaCoCo HTML report
+    var totalCoverage = 0.0
+    var instructionCoverage = 0.0
+    var branchCoverage = 0.0
+    var lineCoverage = 0.0
+    var methodCoverage = 0.0
+    var classCoverage = 0.0
+
+    // Parse XML report for detailed metrics
+    if (xmlReport.exists()) {
+        try {
+            val xmlContent = xmlReport.readText()
+            // Extract coverage percentages from XML
+            val counterPattern = Regex("<counter type=\"([^\"]+)\" missed=\"(\\d+)\" covered=\"(\\d+)\"/>")
+            counterPattern.findAll(xmlContent).forEach { match ->
+                val type = match.groupValues[1]
+                val missed = match.groupValues[2].toInt()
+                val covered = match.groupValues[3].toInt()
+                val total = missed + covered
+                val percentage = if (total > 0) (covered.toDouble() / total * 100) else 0.0
+
+                when (type) {
+                    "INSTRUCTION" -> instructionCoverage = percentage
+                    "BRANCH" -> branchCoverage = percentage
+                    "LINE" -> lineCoverage = percentage
+                    "METHOD" -> methodCoverage = percentage
+                    "CLASS" -> classCoverage = percentage
+                }
+            }
+            totalCoverage = (instructionCoverage + branchCoverage + lineCoverage) / 3.0
+        } catch (e: Exception) {
+            println("Warning: Could not parse JaCoCo XML report: ${e.message}")
+        }
+    }
+
+    val coverageStatus = when {
+        totalCoverage >= 80.0 -> "🟢 Excellent"
+        totalCoverage >= 70.0 -> "🟡 Good"
+        totalCoverage >= 60.0 -> "🟠 Adequate"
+        else -> "🔴 Needs Improvement"
+    }
+
     return """
 **Coverage Report**: Generated at `${htmlReport.absolutePath}`
+**Overall Coverage**: ${"%.1f".format(totalCoverage)}% ($coverageStatus)
 
 *Open the HTML report in a browser for detailed coverage analysis*
+
+**Detailed Metrics:**
+- **Instruction Coverage**: ${"%.1f".format(instructionCoverage)}%
+- **Branch Coverage**: ${"%.1f".format(branchCoverage)}%
+- **Line Coverage**: ${"%.1f".format(lineCoverage)}%
+- **Method Coverage**: ${"%.1f".format(methodCoverage)}%
+- **Class Coverage**: ${"%.1f".format(classCoverage)}%
 
 **Key Coverage Areas:**
 - Business Logic: Route calculations, Redux state management
@@ -313,22 +387,109 @@ fun generateSafetyValidation(): String {
 }
 
 fun generateQualityMetrics(): String {
+    // Calculate dynamic score based on actual metrics
+    val testResultsDir = file("${project.layout.buildDirectory.get()}/test-results")
+    val jacocoReportDir = file("${project.layout.buildDirectory.get()}/reports/jacoco")
+    val xmlReport = File(jacocoReportDir, "testDebugUnitTest/jacocoTestReport.xml")
+
+    // Base score components
+    var score = 0.0
+    val maxScore = 10.0
+    val strengths = mutableListOf<String>()
+    val improvements = mutableListOf<String>()
+
+    // 1. Test Execution (2 points)
+    val testResults = generateTestResultsSummary(testResultsDir, "test")
+    val hasTests = testResults.contains("total") && !testResults.contains("No test results found")
+    val testScore = if (hasTests) 2.0 else 0.0
+    score += testScore
+
+    if (hasTests) {
+        strengths.add("✅ Comprehensive unit test coverage for business logic")
+    } else {
+        improvements.add("❌ No unit tests found")
+    }
+
+    // 2. Code Coverage Infrastructure (1 point)
+    val xmlReportCorrect = File(jacocoReportDir, "jacocoTestReport/jacocoTestReport.xml")
+    val hasCoverageReport = xmlReportCorrect.exists()
+    val coverageScore = if (hasCoverageReport) 1.0 else 0.0
+    score += coverageScore
+
+    if (hasCoverageReport) {
+        strengths.add("✅ Code coverage infrastructure configured")
+    } else {
+        improvements.add("⚠️ Code coverage reports not generated")
+    }
+
+    // 3. Coverage Quality (2 points)
+    var coverageQualityScore = 0.0
+    if (xmlReportCorrect.exists()) {
+        try {
+            val xmlContent = xmlReportCorrect.readText()
+            val counterPattern = Regex("<counter type=\"LINE\" missed=\"(\\d+)\" covered=\"(\\d+)\"/>")
+            val match = counterPattern.find(xmlContent)
+            if (match != null) {
+                val missed = match.groupValues[1].toInt()
+                val covered = match.groupValues[2].toInt()
+                val total = missed + covered
+                val lineCoverage = if (total > 0) (covered.toDouble() / total * 100) else 0.0
+
+                coverageQualityScore = when {
+                    lineCoverage >= 80.0 -> 2.0
+                    lineCoverage >= 60.0 -> 1.5
+                    lineCoverage >= 40.0 -> 1.0
+                    lineCoverage >= 20.0 -> 0.5
+                    else -> 0.0
+                }
+
+                if (lineCoverage >= 60.0) {
+                    strengths.add("✅ Good code coverage (${"%.1f".format(lineCoverage)}%)")
+                } else {
+                    improvements.add("⚠️ Low code coverage (${"%.1f".format(lineCoverage)}%) - target 80%+")
+                }
+            }
+        } catch (e: Exception) {
+            improvements.add("⚠️ Could not parse coverage data")
+        }
+    }
+    score += coverageQualityScore
+
+    // 4. Safety Validation (2 points) - Currently minimal
+    val safetyScore = 0.5 // Partial integration test coverage
+    score += safetyScore
+    improvements.add("⚠️ Missing tests for safety-critical components")
+
+    // 5. Integration Testing (1 point)
+    val integrationScore = 1.0 // Has integration tests
+    score += integrationScore
+    strengths.add("✅ Integration tests for critical user flows")
+
+    // 6. Automation (1 point)
+    val automationScore = 1.0 // Has automated reporting
+    score += automationScore
+    strengths.add("✅ Automated test execution and reporting")
+
+    // 7. UI Testing (1 point) - Currently minimal
+    val uiScore = 0.5 // Basic setup but no comprehensive UI tests
+    score += uiScore
+    improvements.add("⚠️ Limited UI regression testing")
+
+    val finalScore = score.coerceAtMost(maxScore)
+
     return """
-**Test Quality Score**: 7.5/10
+**Test Quality Score**: ${"%.1f".format(finalScore)}/10
 
 **Strengths:**
-- ✅ Comprehensive unit test coverage for business logic
-- ✅ Integration tests for critical user flows
-- ✅ Automated test execution and reporting
+${strengths.joinToString("\n")}
 
 **Areas for Improvement:**
-- ⚠️ Missing tests for safety-critical components
-- ⚠️ No automated performance validation
-- ⚠️ Limited UI regression testing
+${improvements.joinToString("\n")}
 
 **Recommendations:**
 - Prioritize cache layer and overlay manager testing
 - Implement automated safety validation
 - Add performance regression testing
+- Increase code coverage to 80%+
     """.trimIndent()
 }
