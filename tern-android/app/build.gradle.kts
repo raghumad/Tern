@@ -12,16 +12,34 @@ apply(plugin = "jacoco")
 
 android {
     namespace = "com.madanala.tern"
-    compileSdk = 36
+    compileSdk = 34
 
     defaultConfig {
         applicationId = "com.madanala.tern"
         minSdk = 24
-        targetSdk = 36
+        targetSdk = 34
         versionCode = 1
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    // Enable coverage for both unit and instrumentation tests
+    buildTypes {
+        getByName("debug") {
+            enableAndroidTestCoverage = true
+            enableUnitTestCoverage = true
+        }
+    }
+
+    testOptions {
+        unitTests.all {
+            jacoco {
+                includeNoLocationClasses = true
+            }
+            it.useJUnitPlatform()
+        }
+        execution = "ANDROIDX_TEST_ORCHESTRATOR"
     }
 
     buildTypes {
@@ -70,13 +88,6 @@ android {
     }
 
     buildToolsVersion = "36.0.0"
-
-    // Configure JUnit 5
-    testOptions {
-        unitTests.all {
-            it.useJUnitPlatform()
-        }
-    }
 }
 
 dependencies {
@@ -181,6 +192,65 @@ tasks.register<JacocoReport>("jacocoTestReport") {
     classDirectories.setFrom(files(javaClasses, kotlinClasses))
     sourceDirectories.setFrom(files("${project.projectDir}/src/main/java", "${project.projectDir}/src/main/kotlin"))
     executionData.setFrom(file("${project.layout.buildDirectory.get()}/jacoco/testDebugUnitTest.exec"))
+}
+
+// Combined coverage report including both unit and instrumentation tests
+tasks.register<JacocoReport>("testWithCoverage") {
+    dependsOn("testDebugUnitTest", "connectedDebugAndroidTest", "generateTestSummary")
+
+    group = "verification"
+    description = "Run all tests (unit + instrumentation), generate coverage report, and create quality summary"
+
+    reports {
+        html.required.set(true)
+        xml.required.set(true)
+        csv.required.set(false)
+        html.outputLocation.set(file("${project.layout.buildDirectory.get()}/reports/jacoco/combined/html"))
+        xml.outputLocation.set(file("${project.layout.buildDirectory.get()}/reports/jacoco/combined/jacocoCombinedReport.xml"))
+    }
+
+    val coverageSourceDirs = listOf(
+        "src/main/java",
+        "src/main/kotlin"
+    )
+
+    val coverageExcludes = listOf(
+        "**/R.class",
+        "**/R$*.class",
+        "**/BuildConfig.*",
+        "**/Manifest*.*"
+    )
+
+    classDirectories.setFrom(
+        fileTree(dir: "${project.layout.buildDirectory.get()}/tmp/kotlin-classes/debug") {
+            exclude(coverageExcludes)
+        }
+    )
+
+    sourceDirectories.setFrom(files(coverageSourceDirs))
+
+    // Include both unit test and instrumentation test coverage data
+    executionData.setFrom(
+        fileTree(dir: project.layout.buildDirectory.get(), includes: listOf(
+            "jacoco/testDebugUnitTest.exec",
+            "outputs/code_coverage/debugAndroidTest/connected/**/*.ec"
+        ))
+    )
+
+    doFirst {
+        println("🔍 Generating combined coverage report...")
+        println("📊 This will include coverage from:")
+        println("   - Unit tests (business logic, utilities)")
+        println("   - Instrumentation tests (UI, integration, Android framework)")
+    }
+
+    doLast {
+        println("✅ Combined coverage report and test summary generated!")
+        println("📁 HTML Coverage Report: ${reports.html.outputLocation.get()}/index.html")
+        println("📄 XML Coverage Report: ${reports.xml.outputLocation.get()}")
+        println("� Test Summary Report: ${project.layout.buildDirectory.get()}/reports/test-summary.md")
+        println("💡 Tip: Check the test summary for quality metrics and recommendations")
+    }
 }
 
 tasks.register("runAllTestsAndGenerateSummary") {
