@@ -2,7 +2,6 @@ package com.madanala.tern
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
-import com.google.common.truth.Truth.assertThat
 import com.madanala.tern.model.Waypoint
 import com.madanala.tern.redux.MapAction
 import com.madanala.tern.redux.MapState
@@ -11,9 +10,13 @@ import com.madanala.tern.route.Route
 import com.madanala.tern.utils.RouteCache
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
-import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.Test
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
 import org.osmdroid.util.GeoPoint
 
 /**
@@ -26,7 +29,7 @@ class RouteIntegrationTest {
     private lateinit var context: Context
     private lateinit var routeCache: RouteCache
 
-    @BeforeEach
+    @Before
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
         routeCache = RouteCache(context)
@@ -34,13 +37,13 @@ class RouteIntegrationTest {
         routeCache.clearCache()
     }
 
-    @AfterEach
+    @After
     fun tearDown() {
         routeCache.clearCache()
     }
 
     @Test
-    fun `route creation flow - Redux action to cache persistence`() = runTest {
+    fun `route_creation_flow_Redux_action_to_cache_persistence`() = runTest {
         // Initial state
         val initialState = MapState()
 
@@ -50,8 +53,8 @@ class RouteIntegrationTest {
         val stateWithRoute = mapReducer(initialState, action)
 
         // Verify Redux state updated
-        assertThat(stateWithRoute.routes).hasSize(1)
-        assertThat(stateWithRoute.routes.first().name).isEqualTo(routeName)
+        assertEquals(1, stateWithRoute.routes.size)
+        assertEquals(routeName, stateWithRoute.routes.first().name)
 
         // Persist to cache
         val routeToPersist = stateWithRoute.routes.first()
@@ -59,13 +62,13 @@ class RouteIntegrationTest {
 
         // Verify persistence by loading from cache
         val loadedRoutes = routeCache.getAllCachedRoutes()
-        assertThat(loadedRoutes).hasSize(1)
-        assertThat(loadedRoutes.first().name).isEqualTo(routeName)
-        assertThat(loadedRoutes.first().id).isEqualTo(routeToPersist.id)
+        assertEquals(1, loadedRoutes.size)
+        assertEquals(routeName, loadedRoutes.first().name)
+        assertEquals(routeToPersist.id, loadedRoutes.first().id)
     }
 
     @Test
-    fun `waypoint addition flow - Redux to cache to UI state sync`() = runTest {
+    fun `waypoint_addition_flow_Redux_to_cache_to_UI_state_sync`() = runTest {
         // Start with empty route
         val route = Route(name = "Waypoint Integration Test")
         val initialState = MapState(routes = listOf(route))
@@ -83,28 +86,28 @@ class RouteIntegrationTest {
         val stateWithWaypoint = mapReducer(initialState, action)
 
         // Verify Redux state has waypoint
-        assertThat(stateWithWaypoint.routes).hasSize(1)
+        assertEquals(1, stateWithWaypoint.routes.size)
         val routeWithWaypoint = stateWithWaypoint.routes.first()
-        assertThat(routeWithWaypoint.waypoints).hasSize(1)
+        assertEquals(1, routeWithWaypoint.waypoints.size)
 
         val waypoint = routeWithWaypoint.waypoints.first()
-        assertThat(waypoint.lat).isEqualTo(waypointLat)
-        assertThat(waypoint.lon).isEqualTo(waypointLon)
-        assertThat(waypoint.routeId).isEqualTo(route.id)
+        assertEquals(waypointLat, waypoint.lat, 0.0)
+        assertEquals(waypointLon, waypoint.lon, 0.0)
+        assertEquals(route.id, waypoint.routeId)
 
         // Persist updated route
         routeCache.cacheRoute(routeWithWaypoint)
 
         // Verify persistence includes waypoint
         val loadedRoutes = routeCache.getAllCachedRoutes()
-        assertThat(loadedRoutes).hasSize(1)
+        assertEquals(1, loadedRoutes.size)
         val loadedRoute = loadedRoutes.first()
-        assertThat(loadedRoute.waypoints).hasSize(1)
-        assertThat(loadedRoute.waypoints.first().lat).isEqualTo(waypointLat)
+        assertEquals(1, loadedRoute.waypoints.size)
+        assertEquals(waypointLat, loadedRoute.waypoints.first().lat, 0.0)
     }
 
     @Test
-    fun `multi-waypoint route with distance calculations`() = runTest {
+    fun `multi_waypoint_route_with_distance_calculations`() = runTest {
         val initialState = MapState()
 
         // Create route
@@ -133,23 +136,23 @@ class RouteIntegrationTest {
 
         // Verify route has all waypoints
         val finalRoute = currentState.routes.first()
-        assertThat(finalRoute.waypoints).hasSize(3)
+        assertEquals(3, finalRoute.waypoints.size)
 
         // Verify distance calculations
-        assertThat(finalRoute.totalDistanceKm).isGreaterThan(0.0)
-        assertThat(finalRoute.estimatedFlightTimeMinutes).isGreaterThan(0)
+        assertTrue(finalRoute.totalDistanceKm > 0.0)
+        assertTrue(finalRoute.estimatedFlightTimeMinutes > 0)
 
         // Persist and verify
         routeCache.cacheRoute(finalRoute)
         val loadedRoutes = routeCache.getAllCachedRoutes()
         val loadedRoute = loadedRoutes.first()
 
-        assertThat(loadedRoute.totalDistanceKm).isEqualTo(finalRoute.totalDistanceKm)
-        assertThat(loadedRoute.estimatedFlightTimeMinutes).isEqualTo(finalRoute.estimatedFlightTimeMinutes)
+        assertEquals(finalRoute.totalDistanceKm, loadedRoute.totalDistanceKm, 0.0)
+        assertEquals(finalRoute.estimatedFlightTimeMinutes, loadedRoute.estimatedFlightTimeMinutes)
     }
 
     @Test
-    fun `waypoint selection state management integration`() = runTest {
+    fun `waypoint_selection_state_management_integration`() = runTest {
         // Create route with waypoint
         val route = Route(name = "Selection Test")
         val waypoint = Waypoint(lat = 40.0, lon = -74.0, type = Waypoint.Type.TURNPOINT, label = "WP1-1", routeId = route.id)
@@ -162,20 +165,20 @@ class RouteIntegrationTest {
         val stateWithSelection = mapReducer(initialState, selectAction)
 
         // Verify selection state
-        assertThat(stateWithSelection.selectedWaypoint).isNotNull()
-        assertThat(stateWithSelection.selectedWaypoint?.routeId).isEqualTo(route.id)
-        assertThat(stateWithSelection.selectedWaypoint?.waypointId).isEqualTo(waypoint.id)
+        assertNotNull(stateWithSelection.selectedWaypoint)
+        assertEquals(route.id, stateWithSelection.selectedWaypoint?.routeId)
+        assertEquals(waypoint.id, stateWithSelection.selectedWaypoint?.waypointId)
 
         // Clear selection
         val clearAction = MapAction.DeselectWaypoint
         val stateCleared = mapReducer(stateWithSelection, clearAction)
 
         // Verify selection cleared
-        assertThat(stateCleared.selectedWaypoint).isNull()
+        assertNull(stateCleared.selectedWaypoint)
     }
 
     @Test
-    fun `route persistence and recovery across app restarts`() = runTest {
+    fun `route_persistence_and_recovery_across_app_restarts`() = runTest {
         // Simulate app usage: create route, add waypoints, select waypoint
         val initialState = MapState()
 
@@ -207,19 +210,19 @@ class RouteIntegrationTest {
         val recoveredRoute = recoveredRoutes.first()
 
         // Verify route data recovered
-        assertThat(recoveredRoute.name).isEqualTo("Persistence Test")
-        assertThat(recoveredRoute.waypoints).hasSize(1)
-        assertThat(recoveredRoute.totalDistanceKm).isEqualTo(finalRoute.totalDistanceKm)
+        assertEquals("Persistence Test", recoveredRoute.name)
+        assertEquals(1, recoveredRoute.waypoints.size)
+        assertEquals(finalRoute.totalDistanceKm, recoveredRoute.totalDistanceKm, 0.0)
 
         // Create new Redux state from recovered data
         val recoveredState = MapState(routes = recoveredRoutes)
 
         // Verify clean slate for UI state (selection not persisted)
-        assertThat(recoveredState.selectedWaypoint).isNull()
+        assertNull(recoveredState.selectedWaypoint)
     }
 
     @Test
-    fun `route limit enforcement integration`() = runTest {
+    fun `route_limit_enforcement_integration`() = runTest {
         val initialState = MapState()
 
         // Create maximum routes (10 routes)
@@ -234,14 +237,14 @@ class RouteIntegrationTest {
         }
 
         // Verify 10 routes allowed
-        assertThat(currentState.routes).hasSize(10)
+        assertEquals(10, currentState.routes.size)
 
         // Persist all routes
         routes.forEach { routeCache.cacheRoute(it) }
 
         // Verify all persisted
         val loadedRoutes = routeCache.getAllCachedRoutes()
-        assertThat(loadedRoutes).hasSize(10)
+        assertEquals(10, loadedRoutes.size)
 
         // Note: UI would need to enforce the 10-route limit in the UI layer
         // Cache allows more for flexibility, but UI should prevent >10

@@ -31,6 +31,7 @@
 - ✅ **MUST** follow existing architectural patterns
 - ✅ **MUST** test on device before GitHub push
 - ✅ **MUST** maintain aviation safety standards
+- ✅ **MUST** write automated tests for every feature item implemented
 - ✅ **MUST** extract constants instead of magic numbers
 - ✅ **MUST** remove unused imports and dead code
 - ✅ **MUST** use incremental refactoring (1-3 files per change)
@@ -232,6 +233,7 @@ val points: List<GeoPoint>  // Unclear purpose - flight path, airspace, waypoint
    - [ ] Progressive enhancement maintained
 
 3. **Quality Assurance**:
+   - [ ] Automated tests written for implemented features
    - [ ] Git commit with clear description
    - [ ] Technical documentation updated
    - [ ] Success metrics validated through testing
