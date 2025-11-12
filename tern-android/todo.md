@@ -41,7 +41,7 @@
   - [x] `MapActions.kt`: Action naming conventions, parameter validation - **COMPLETED**
   - [x] `Route.kt`: Data model patterns, validation logic - **COMPLETED**
   - [x] `RouteCache.kt`: Error handling, resource management - **COMPLETED**
-- [ ] **RouteOverlayManager.kt Cleanup**: Review and optimize waypoint selection logic
+- [x] **RouteOverlayManager.kt Cleanup**: Review and optimize waypoint selection logic - **COMPLETED**
 - [ ] **MapReducers.kt Organization**: Group related reducer functions
 - [ ] **Constants Extraction**: Move magic numbers to named constants
 - [ ] **Error Handling Review**: Standardize exception handling across all files
@@ -53,7 +53,7 @@
 - [x] **Redux Logic Tests**: Test reducers and actions (highest ROI) - **COMPLETED**
 - [x] **Route Model Tests**: Test Route.kt business logic - **COMPLETED**
 - [x] **Integration Tests**: Test component interactions - **COMPLETED**
-- [ ] **UI Test Setup**: Configure Espresso for gesture testing
+- [x] **UI Test Setup**: Configure Espresso for gesture testing - **COMPLETED**
 - [ ] **CI/CD Integration**: Add GitHub Actions workflow (Lower priority - UX testing first)
 
 ### 8.3 Documentation Updates
