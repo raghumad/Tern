@@ -35,9 +35,11 @@
 - ✅ **MUST** remove unused imports and dead code
 - ✅ **MUST** use incremental refactoring (1-3 files per change)
 - ✅ **MUST** validate functionality after each refactoring step
+- ✅ **MUST** use clear, intent-revealing names for variables and methods
 - ❌ **NEVER** introduce compilation warnings
 - ❌ **NEVER** break existing functionality
 - ❌ **NEVER** accumulate technical debt without cleanup
+- ❌ **NEVER** use ambiguous or generic names that hide algorithmic intent
 
 ## ⚠️ STRONG RECOMMENDATIONS
 
@@ -118,6 +120,20 @@ private fun calculateOverlayBudget(memoryState: ApplicationMemoryState): Int {
         else -> 200                        // Standard allocation
     }
 }
+```
+
+### Clear Naming Pattern
+```kotlin
+// ✅ CORRECT: Intent-revealing names for aviation software
+fun calculateHaversineDistance(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double
+fun validateFlightPathSafety(waypoints: List<Waypoint>, airspace: AirspaceData): SafetyStatus
+val activeFlightPath: List<GeoPoint>  // Clear purpose
+val aircraftPosition: GeoPoint        // Domain-specific terminology
+
+// ❌ AVOID: Ambiguous or generic names
+fun calculateDistance(a: Double, b: Double, c: Double, d: Double): Double  // What algorithm?
+fun processData(input: List<Any>): List<Any>  // Too generic for aviation context
+val points: List<GeoPoint>  // Unclear purpose - flight path, airspace, waypoints?
 ```
 
 ## 🚦 SUCCESS METRICS CHECKLIST

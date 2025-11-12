@@ -21,6 +21,12 @@ class RouteCache(private val context: Context) {
     companion object {
         // Cache validity periods (in hours)
         const val ROUTE_CACHE_HOURS = 168  // 7 days for routes (less critical than airspaces)
+
+        // Cache validation constants
+        private const val MIN_CACHE_FILE_SIZE_BYTES = 100L
+        private const val MIN_INDEX_FILE_SIZE_BYTES = 50L
+        private const val HILBERT_BITS_PRECISION = 32
+        private const val MAX_DISTANCE_METERS_PER_MILE = 1609.34
     }
 
     private val cacheDir: File = File(context.cacheDir, "route_cache")
@@ -78,12 +84,12 @@ class RouteCache(private val context: Context) {
         val cacheFileSize = cacheFile.length()
         val indexFileSize = indexFile.length()
 
-        if (cacheFileSize < 100) {
+        if (cacheFileSize < MIN_CACHE_FILE_SIZE_BYTES) {
             Log.w(TAG, "Route cache file too small for $routeId (${cacheFileSize} bytes)")
             return false
         }
 
-        if (indexFileSize < 50) {
+        if (indexFileSize < MIN_INDEX_FILE_SIZE_BYTES) {
             Log.w(TAG, "Route index file too small for $routeId (${indexFileSize} bytes)")
             return false
         }
@@ -230,7 +236,7 @@ class RouteCache(private val context: Context) {
      * Check if a route is within distance of center point
      */
     private fun isRouteWithinDistance(route: Route, center: GeoPoint, maxDistanceMiles: Double): Boolean {
-        val maxDistanceMeters = maxDistanceMiles * 1609.34
+        val maxDistanceMeters = maxDistanceMiles * MAX_DISTANCE_METERS_PER_MILE
 
         // Check if any waypoint is within distance
         return route.waypoints.any { waypoint ->
@@ -278,7 +284,7 @@ class RouteCache(private val context: Context) {
                 }
             }.sortedBy { waypoint ->
                 // Sort by Hilbert index to maintain original order approximately
-                MapOverlayCacheUtils.computeHilbertIndex(GeoPoint(waypoint.lat, waypoint.lon), 32)
+                MapOverlayCacheUtils.computeHilbertIndex(GeoPoint(waypoint.lat, waypoint.lon), HILBERT_BITS_PRECISION)
             }
 
             if (waypoints.isNotEmpty()) {
@@ -302,7 +308,7 @@ class RouteCache(private val context: Context) {
     private fun convertRouteToFeatures(route: Route): List<MapOverlayCacheUtils.OverlayFeature> {
         return route.waypoints.map { waypoint ->
             val centroid = GeoPoint(waypoint.lat, waypoint.lon)
-            val hilbertIndex = MapOverlayCacheUtils.computeHilbertIndex(centroid, 32) // Use 32 bits for routes
+            val hilbertIndex = MapOverlayCacheUtils.computeHilbertIndex(centroid, HILBERT_BITS_PRECISION)
 
             // Create feature data for waypoint
             val featureData = mapOf(
