@@ -26,7 +26,42 @@
 - Enhanced visual markers with aviation colors
 - Route distance/time calculations
 
-## 🔮 Phase 7: Advanced Route Features (Future)
+## 🔄 Phase 8: Code Quality & Testing (Priority)
+
+### 8.1 Code Refactoring
+- [ ] **MapState.kt Split**: Extract classes into separate files:
+  - `UserPreferences.kt` (Handedness, UserPreferencesState)
+  - `AdaptiveLayout.kt` (ScreenZone, AdaptiveLayoutConfig)
+  - `WaypointState.kt` (WaypointSelection)
+  - Keep core `MapState.kt` focused on main app state
+- [ ] **Code Pattern Review**: Audit all modified files for consistency:
+  - [x] `RouteOverlayManager.kt`: Redux integration patterns, overlay lifecycle - **COMPLETED**
+  - [ ] `MapViewContainer.kt`: Compose lifecycle management, gesture handling
+  - [ ] `MapReducers.kt`: Action handling consistency, state immutability
+  - [ ] `MapActions.kt`: Action naming conventions, parameter validation
+  - [ ] `Route.kt`: Data model patterns, validation logic
+  - [ ] `RouteCache.kt`: Error handling, resource management
+- [ ] **RouteOverlayManager.kt Cleanup**: Review and optimize waypoint selection logic
+- [ ] **MapReducers.kt Organization**: Group related reducer functions
+- [ ] **Constants Extraction**: Move magic numbers to named constants
+- [ ] **Error Handling Review**: Standardize exception handling across all files
+- [ ] **Performance Optimization**: Review memory usage and dispatch frequency
+
+### 8.2 Testing Framework Setup
+- [ ] **Test Dependencies**: Add JUnit, Espresso, Mockito to build.gradle.kts
+- [ ] **Unit Test Structure**: Create app/src/test/kotlin/ directory structure
+- [ ] **Redux Logic Tests**: Test reducers and actions (highest ROI)
+- [ ] **Route Model Tests**: Test Route.kt business logic
+- [ ] **Integration Tests**: Test component interactions
+- [ ] **UI Test Setup**: Configure Espresso for gesture testing
+- [ ] **CI/CD Integration**: Add GitHub Actions workflow
+
+### 8.3 Documentation Updates
+- [ ] **Code Comments**: Add missing documentation for new features
+- [ ] **Architecture Docs**: Update AGENTS.md with waypoint selection patterns
+- [ ] **API Documentation**: Document Redux actions and state structure
+
+## 🔮 Phase 7: Advanced Route Features (Future - After Code Quality)
 
 ### 7.1 Interactive Editing
 - [x] **Waypoint Selection**: Tap waypoint to select/deselect (visual highlight)
