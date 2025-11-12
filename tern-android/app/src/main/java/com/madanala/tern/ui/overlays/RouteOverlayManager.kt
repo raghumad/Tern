@@ -200,47 +200,97 @@ class RouteOverlayManager(
         override fun onSingleTapConfirmed(e: MotionEvent?, mapView: MapView?): Boolean {
             if (e == null || mapView == null) return false
 
+            // Handle waypoint selection logic
+            return handleWaypointTap(e, mapView)
+        }
+
+        /**
+         * Handle waypoint tap selection with improved logic
+         */
+        private fun handleWaypointTap(e: MotionEvent, mapView: MapView): Boolean {
             val projection = mapView.projection
 
-            // Check if tap is on a waypoint (using screen pixel distance)
+            // Find tapped waypoint using spatial distance calculation
+            val tappedWaypoint = findTappedWaypoint(e, projection)
+
+            return if (tappedWaypoint != null) {
+                handleWaypointSelection(tappedWaypoint)
+                true // Consume the tap
+            } else {
+                // Tap not on waypoint - deselect if something was selected
+                handleTapOutsideWaypoint()
+            }
+        }
+
+        /**
+         * Find waypoint under tap location using screen distance
+         */
+        private fun findTappedWaypoint(e: MotionEvent, projection: org.osmdroid.views.Projection): com.madanala.tern.model.Waypoint? {
             route.waypoints.forEach { waypoint ->
                 val waypointPoint = GeoPoint(waypoint.lat, waypoint.lon)
                 val screenPoint = projection.toPixels(waypointPoint, null)
 
-                // Calculate screen distance from tap to waypoint
-                val dx = e.x - screenPoint.x
-                val dy = e.y - screenPoint.y
-                val screenDistance = kotlin.math.sqrt(dx * dx + dy * dy)
-
-                // Use larger tap radius for single-waypoint routes (in pixels)
-                val tapRadius = if (route.waypoints.size == 1) SINGLE_WAYPOINT_TAP_RADIUS else MULTI_WAYPOINT_TAP_RADIUS
+                val screenDistance = calculateScreenDistance(e.x, e.y, screenPoint.x.toFloat(), screenPoint.y.toFloat())
+                val tapRadius = getTapRadiusForRoute()
 
                 if (screenDistance <= tapRadius) {
-                    // Waypoint tapped - dispatch selection action
-                    val currentSelection = currentSelectedWaypoint
-
-                    if (currentSelection?.routeId == route.id && currentSelection.waypointId == waypoint.id) {
-                        // Same waypoint tapped - deselect
-                        mapStore?.dispatch(com.madanala.tern.redux.MapAction.DeselectWaypoint)
-                        Log.d(TAG, "Deselected waypoint: ${waypoint.id}")
-                    } else {
-                        // Different waypoint tapped - select it
-                        mapStore?.dispatch(com.madanala.tern.redux.MapAction.SelectWaypoint(route.id, waypoint.id))
-                        Log.d(TAG, "Selected waypoint: ${waypoint.id} in route: ${route.id}")
-                    }
-
-                    return true // Consume the tap
+                    return waypoint
                 }
             }
+            return null
+        }
 
-            // Tap not on waypoint - deselect if something was selected
-            if (currentSelectedWaypoint != null) {
+        /**
+         * Calculate Euclidean distance between two screen points
+         */
+        private fun calculateScreenDistance(x1: Float, y1: Float, x2: Float, y2: Float): Float {
+            val dx = x1 - x2
+            val dy = y1 - y2
+            return kotlin.math.sqrt(dx * dx + dy * dy)
+        }
+
+        /**
+         * Get appropriate tap radius based on route type
+         */
+        private fun getTapRadiusForRoute(): Float {
+            return if (route.waypoints.size == 1) SINGLE_WAYPOINT_TAP_RADIUS else MULTI_WAYPOINT_TAP_RADIUS
+        }
+
+        /**
+         * Handle waypoint selection/deselection logic
+         */
+        private fun handleWaypointSelection(waypoint: com.madanala.tern.model.Waypoint) {
+            val currentSelection = currentSelectedWaypoint
+
+            if (isSameWaypointSelected(currentSelection, waypoint)) {
+                // Same waypoint tapped - deselect
+                mapStore?.dispatch(com.madanala.tern.redux.MapAction.DeselectWaypoint)
+                Log.d(TAG, "Deselected waypoint: ${waypoint.id}")
+            } else {
+                // Different waypoint tapped - select it
+                mapStore?.dispatch(com.madanala.tern.redux.MapAction.SelectWaypoint(route.id, waypoint.id))
+                Log.d(TAG, "Selected waypoint: ${waypoint.id} in route: ${route.id}")
+            }
+        }
+
+        /**
+         * Check if the same waypoint is already selected
+         */
+        private fun isSameWaypointSelected(selection: WaypointSelection?, waypoint: com.madanala.tern.model.Waypoint): Boolean {
+            return selection?.routeId == route.id && selection.waypointId == waypoint.id
+        }
+
+        /**
+         * Handle tap outside any waypoint
+         */
+        private fun handleTapOutsideWaypoint(): Boolean {
+            return if (currentSelectedWaypoint != null) {
                 mapStore?.dispatch(com.madanala.tern.redux.MapAction.DeselectWaypoint)
                 Log.d(TAG, "Deselected waypoint (tap elsewhere)")
-                return true
+                true
+            } else {
+                false // Let other overlays handle the tap
             }
-
-            return false // Let other overlays handle the tap
         }
 
         override fun draw(canvas: Canvas, mapView: MapView, shadow: Boolean) {
