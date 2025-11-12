@@ -39,8 +39,8 @@
   - [x] `MapViewContainer.kt`: Compose lifecycle management, gesture handling - **COMPLETED**
   - [x] `MapReducers.kt`: Action handling consistency, state immutability - **COMPLETED**
   - [x] `MapActions.kt`: Action naming conventions, parameter validation - **COMPLETED**
-  - [ ] `Route.kt`: Data model patterns, validation logic
-  - [ ] `RouteCache.kt`: Error handling, resource management
+  - [x] `Route.kt`: Data model patterns, validation logic - **COMPLETED**
+  - [x] `RouteCache.kt`: Error handling, resource management - **COMPLETED**
 - [ ] **RouteOverlayManager.kt Cleanup**: Review and optimize waypoint selection logic
 - [ ] **MapReducers.kt Organization**: Group related reducer functions
 - [ ] **Constants Extraction**: Move magic numbers to named constants

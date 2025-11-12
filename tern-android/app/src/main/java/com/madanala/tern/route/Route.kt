@@ -8,6 +8,11 @@ import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.math.sqrt
 
+// Route calculation constants
+private const val EARTH_RADIUS_KM = 6371.0
+private const val AVERAGE_FLIGHT_SPEED_KMH = 30.0
+private const val MINUTES_PER_HOUR = 60
+
 /**
  * Route model for paragliding route planning.
  * Routes own their waypoints with strong relationships.
@@ -85,12 +90,12 @@ data class Route(
         for (i in 0 until waypoints.size - 1) {
             val wp1 = waypoints[i]
             val wp2 = waypoints[i + 1]
-            val distance = calculateDistance(wp1.lat, wp1.lon, wp2.lat, wp2.lon)
+            val distance = calculateHaversineDistance(wp1.lat, wp1.lon, wp2.lat, wp2.lon)
             totalDistance += distance
         }
 
-        // Estimate flight time at 30 km/h average speed
-        val estimatedTimeMinutes = (totalDistance / 30.0 * 60).toInt()
+        // Estimate flight time at average paragliding speed
+        val estimatedTimeMinutes = (totalDistance / AVERAGE_FLIGHT_SPEED_KMH * MINUTES_PER_HOUR).toInt()
 
         return copy(
             totalDistanceKm = totalDistance,
@@ -99,17 +104,17 @@ data class Route(
     }
 
     /**
-     * Calculate distance between two points using Haversine formula
+     * Calculate great circle distance between two points using Haversine formula
+     * Returns distance in kilometers following the shortest path over Earth's surface
      */
-    private fun calculateDistance(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
-        val earthRadius = 6371.0 // km
-        val dLat = kotlin.math.PI * (lat2 - lat1) / 180.0
-        val dLon = kotlin.math.PI * (lon2 - lon1) / 180.0
+    private fun calculateHaversineDistance(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+        val dLat = Math.PI * (lat2 - lat1) / 180.0
+        val dLon = Math.PI * (lon2 - lon1) / 180.0
         val a = sin(dLat / 2) * sin(dLat / 2) +
-                cos(kotlin.math.PI * lat1 / 180.0) * cos(kotlin.math.PI * lat2 / 180.0) *
+                cos(Math.PI * lat1 / 180.0) * cos(Math.PI * lat2 / 180.0) *
                 sin(dLon / 2) * sin(dLon / 2)
         val c = 2 * atan2(sqrt(a), sqrt(1 - a))
-        return earthRadius * c
+        return EARTH_RADIUS_KM * c
     }
 
     companion object {
