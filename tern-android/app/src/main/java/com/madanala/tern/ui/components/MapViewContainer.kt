@@ -27,11 +27,18 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.madanala.tern.redux.MapStore
 import com.madanala.tern.redux.MapAction
 import com.madanala.tern.route.Route
+import com.madanala.tern.model.Waypoint
 import com.madanala.tern.ui.components.Compass
 import org.osmdroid.util.GeoPoint
 
 // UI Constants
 private val COMPASS_PADDING = 16.dp
+
+// Route Planning Constants
+private const val DEFAULT_ROUTE_NAME_PREFIX = "Route"
+private const val WAYPOINT_LABEL_PREFIX = "WP"
+private const val WAYPOINT_LABEL_SEPARATOR = "-"
+private const val FIRST_ROUTE_INDEX = 1
 
 @Composable
 fun MapViewContainer(
@@ -169,42 +176,59 @@ private fun handleWaypointCreation(store: MapStore, geoPoint: GeoPoint) {
 
         if (currentState.routes.isEmpty()) {
             // No routes exist - create a new route with the first waypoint
-            val newRoute = Route(
-                name = "Route 1",
-                waypoints = listOf(
-                    com.madanala.tern.model.Waypoint(
-                        lat = geoPoint.latitude,
-                        lon = geoPoint.longitude,
-                        type = com.madanala.tern.model.Waypoint.Type.TURNPOINT,
-                        label = "WP1-1"
-                    )
-                )
-            )
+            val newRoute = createFirstRoute(geoPoint)
 
             Log.d("MapViewContainer", "Creating first route: ${newRoute.name}")
             store.dispatch(MapAction.AddRoute(newRoute))
             Log.d("MapViewContainer", "Created new route: ${newRoute.name} at ${geoPoint.latitude}, ${geoPoint.longitude}")
         } else {
             // Routes exist - add waypoint to the most recent route
-            val mostRecentRoute = currentState.routes.maxByOrNull { it.createdAt }
-            if (mostRecentRoute != null) {
-                val waypointNumber = mostRecentRoute.waypoints.size + 1
-                val routeIndex = currentState.routes.indexOf(mostRecentRoute) + 1
-                val label = "WP$routeIndex-$waypointNumber"
-
-                Log.d("MapViewContainer", "Adding waypoint to route: ${mostRecentRoute.name} (${mostRecentRoute.waypoints.size} existing waypoints)")
-                store.dispatch(MapAction.AddWaypointToRoute(
-                    routeId = mostRecentRoute.id,
-                    lat = geoPoint.latitude,
-                    lon = geoPoint.longitude,
-                    type = com.madanala.tern.model.Waypoint.Type.TURNPOINT,
-                    label = label
-                ))
-                Log.d("MapViewContainer", "Added waypoint $label to route: ${mostRecentRoute.name}")
-            }
+            addWaypointToMostRecentRoute(store, geoPoint, currentState.routes)
         }
 
     } catch (e: Exception) {
         Log.e("MapViewContainer", "Error creating waypoint", e)
+    }
+}
+
+/**
+ * Create the first route with a single waypoint
+ */
+private fun createFirstRoute(geoPoint: GeoPoint): Route {
+    val waypointLabel = "$WAYPOINT_LABEL_PREFIX$FIRST_ROUTE_INDEX$WAYPOINT_LABEL_SEPARATOR$FIRST_ROUTE_INDEX"
+    val routeName = "$DEFAULT_ROUTE_NAME_PREFIX $FIRST_ROUTE_INDEX"
+
+    return Route(
+        name = routeName,
+        waypoints = listOf(
+            Waypoint(
+                lat = geoPoint.latitude,
+                lon = geoPoint.longitude,
+                type = Waypoint.Type.TURNPOINT,
+                label = waypointLabel
+            )
+        )
+    )
+}
+
+/**
+ * Add a waypoint to the most recently created route
+ */
+private fun addWaypointToMostRecentRoute(store: MapStore, geoPoint: GeoPoint, routes: List<Route>) {
+    val mostRecentRoute = routes.maxByOrNull { it.createdAt }
+    if (mostRecentRoute != null) {
+        val waypointNumber = mostRecentRoute.waypoints.size + 1
+        val routeIndex = routes.indexOf(mostRecentRoute) + 1
+        val label = "$WAYPOINT_LABEL_PREFIX$routeIndex$WAYPOINT_LABEL_SEPARATOR$waypointNumber"
+
+        Log.d("MapViewContainer", "Adding waypoint to route: ${mostRecentRoute.name} (${mostRecentRoute.waypoints.size} existing waypoints)")
+        store.dispatch(MapAction.AddWaypointToRoute(
+            routeId = mostRecentRoute.id,
+            lat = geoPoint.latitude,
+            lon = geoPoint.longitude,
+            type = Waypoint.Type.TURNPOINT,
+            label = label
+        ))
+        Log.d("MapViewContainer", "Added waypoint $label to route: ${mostRecentRoute.name}")
     }
 }
