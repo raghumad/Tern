@@ -2,6 +2,7 @@ package com.madanala.tern.ui.overlays
 
 import android.graphics.*
 import android.util.Log
+import android.view.MotionEvent
 import com.madanala.tern.redux.MapState
 import com.madanala.tern.redux.MapStore
 import com.madanala.tern.redux.OverlayType
@@ -21,6 +22,7 @@ class RouteOverlayManager(
 
     private var routeCache: RouteCache? = null
     private var currentRoutes: List<Route> = emptyList()
+    private var currentSelectedWaypoint: com.madanala.tern.redux.WaypointSelection? = null
     private val routeOverlays = mutableListOf<RouteOverlay>()
 
     // Paint objects for route rendering
@@ -53,6 +55,13 @@ class RouteOverlayManager(
         isAntiAlias = true
     }
 
+    private val selectionPaint = Paint().apply {
+        color = Color.YELLOW
+        style = Paint.Style.STROKE
+        strokeWidth = 6f
+        isAntiAlias = true
+    }
+
     init {
         // Initialize route cache
         mapView?.context?.let { context ->
@@ -81,16 +90,17 @@ class RouteOverlayManager(
     }
 
     override fun onReduxStateChanged(state: MapState) {
-        Log.d(TAG, "Redux state changed - routes enabled: ${state.overlayState.routes.enabled}, route count: ${state.routes.size}")
+        Log.d(TAG, "Redux state changed - routes enabled: ${state.overlayState.routes.enabled}, route count: ${state.routes.size}, selected: ${state.selectedWaypoint}")
 
         val config = state.overlayState.routes
 
         if (config.enabled) {
             // Single source of truth: Only display routes from Redux state
-            if (state.routes != currentRoutes) {
+            if (state.routes != currentRoutes || state.selectedWaypoint != currentSelectedWaypoint) {
                 currentRoutes = state.routes
+                currentSelectedWaypoint = state.selectedWaypoint
                 updateRouteOverlays()
-                Log.d(TAG, "Routes updated from Redux state: ${currentRoutes.size} routes")
+                Log.d(TAG, "Routes updated from Redux state: ${currentRoutes.size} routes, selected: ${currentSelectedWaypoint}")
 
                 // Persistence as side effect: Cache routes for app restart recovery
                 currentRoutes.forEach { route ->
@@ -160,9 +170,55 @@ class RouteOverlayManager(
     }
 
     /**
-     * Inner class for individual route overlay rendering
+     * Inner class for individual route overlay rendering and interaction
      */
     private inner class RouteOverlay(private val route: Route) : Overlay() {
+
+        override fun onSingleTapConfirmed(e: MotionEvent?, mapView: MapView?): Boolean {
+            if (e == null || mapView == null) return false
+
+            val projection = mapView.projection
+
+            // Check if tap is on a waypoint (using screen pixel distance)
+            route.waypoints.forEach { waypoint ->
+                val waypointPoint = GeoPoint(waypoint.lat, waypoint.lon)
+                val screenPoint = projection.toPixels(waypointPoint, null)
+
+                // Calculate screen distance from tap to waypoint
+                val dx = e.x - screenPoint.x
+                val dy = e.y - screenPoint.y
+                val screenDistance = kotlin.math.sqrt(dx * dx + dy * dy)
+
+                // Use larger tap radius for single-waypoint routes (in pixels)
+                val tapRadius = if (route.waypoints.size == 1) 60f else 40f // pixels
+
+                if (screenDistance <= tapRadius) {
+                    // Waypoint tapped - dispatch selection action
+                    val currentSelection = currentSelectedWaypoint
+
+                    if (currentSelection?.routeId == route.id && currentSelection.waypointId == waypoint.id) {
+                        // Same waypoint tapped - deselect
+                        mapStore?.dispatch(com.madanala.tern.redux.MapAction.DeselectWaypoint)
+                        Log.d(TAG, "Deselected waypoint: ${waypoint.id}")
+                    } else {
+                        // Different waypoint tapped - select it
+                        mapStore?.dispatch(com.madanala.tern.redux.MapAction.SelectWaypoint(route.id, waypoint.id))
+                        Log.d(TAG, "Selected waypoint: ${waypoint.id} in route: ${route.id}")
+                    }
+
+                    return true // Consume the tap
+                }
+            }
+
+            // Tap not on waypoint - deselect if something was selected
+            if (currentSelectedWaypoint != null) {
+                mapStore?.dispatch(com.madanala.tern.redux.MapAction.DeselectWaypoint)
+                Log.d(TAG, "Deselected waypoint (tap elsewhere)")
+                return true
+            }
+
+            return false // Let other overlays handle the tap
+        }
 
         override fun draw(canvas: Canvas, mapView: MapView, shadow: Boolean) {
             if (shadow) return
@@ -228,6 +284,13 @@ class RouteOverlayManager(
                         // Blue border for turnpoints
                         waypointBorderPaint.color = Color.BLUE
                         canvas.drawCircle(screenPoint.x.toFloat(), screenPoint.y.toFloat(), radius, waypointBorderPaint)
+                    }
+                }
+
+                // Draw selection highlight if this waypoint is selected
+                currentSelectedWaypoint?.let { selection ->
+                    if (selection.routeId == route.id && selection.waypointId == waypoint.id) {
+                        canvas.drawCircle(screenPoint.x.toFloat(), screenPoint.y.toFloat(), radius + 8f, selectionPaint)
                     }
                 }
 

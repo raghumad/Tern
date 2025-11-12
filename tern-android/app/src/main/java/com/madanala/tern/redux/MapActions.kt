@@ -96,4 +96,11 @@ sealed class MapAction {
     data class AddWaypointToRoute(val routeId: String, val lat: Double, val lon: Double, val type: com.madanala.tern.model.Waypoint.Type = com.madanala.tern.model.Waypoint.Type.TURNPOINT, val label: String? = null) : MapAction()
     data class RemoveWaypoint(val routeId: String, val waypointId: String) : MapAction()
     data class UpdateWaypoint(val routeId: String, val waypointId: String, val lat: Double? = null, val lon: Double? = null, val type: com.madanala.tern.model.Waypoint.Type? = null, val label: String? = null) : MapAction()
+
+    // Interactive editing actions (Phase 7.1)
+    data class SelectWaypoint(val routeId: String, val waypointId: String) : MapAction()
+    object DeselectWaypoint : MapAction()
+    data class StartWaypointDrag(val routeId: String, val waypointId: String) : MapAction()
+    data class UpdateWaypointDrag(val lat: Double, val lon: Double) : MapAction()
+    object EndWaypointDrag : MapAction()
 }

@@ -223,17 +223,38 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
         } else {
             newRoutes
         }
-        state.copy(routes = limitedRoutes)
+        // Clear selection if it would become invalid
+        val updatedSelection = state.selectedWaypoint?.let { selection ->
+            val routeExists = limitedRoutes.any { it.id == selection.routeId }
+            if (routeExists) {
+                val route = limitedRoutes.find { it.id == selection.routeId }
+                val waypointExists = route?.waypoints?.any { it.id == selection.waypointId } == true
+                if (waypointExists) selection else null
+            } else null
+        }
+        state.copy(routes = limitedRoutes, selectedWaypoint = updatedSelection)
     }
     is MapAction.RemoveRoute -> {
         val newRoutes = state.routes.filter { it.id != action.routeId }
-        state.copy(routes = newRoutes)
+        // Clear selection if the selected waypoint was in the removed route
+        val updatedSelection = state.selectedWaypoint?.let { selection ->
+            if (selection.routeId == action.routeId) null else selection
+        }
+        state.copy(routes = newRoutes, selectedWaypoint = updatedSelection)
     }
     is MapAction.UpdateRoute -> {
         val newRoutes = state.routes.map { route ->
             if (route.id == action.route.id) action.route else route
         }
-        state.copy(routes = newRoutes)
+        // Clear selection if the selected waypoint was removed from the updated route
+        val updatedSelection = state.selectedWaypoint?.let { selection ->
+            if (selection.routeId == action.route.id) {
+                val route = action.route
+                val waypointExists = route.waypoints.any { it.id == selection.waypointId }
+                if (waypointExists) selection else null
+            } else selection
+        }
+        state.copy(routes = newRoutes, selectedWaypoint = updatedSelection)
     }
     is MapAction.ClearAllRoutes -> {
         state.copy(routes = emptyList())
@@ -258,7 +279,15 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
                 route
             }
         }
-        state.copy(routes = newRoutes)
+        // Clear selection if the removed waypoint was selected
+        val updatedSelection = state.selectedWaypoint?.let { selection ->
+            if (selection.routeId == action.routeId && selection.waypointId == action.waypointId) {
+                null
+            } else {
+                selection
+            }
+        }
+        state.copy(routes = newRoutes, selectedWaypoint = updatedSelection)
     }
     is MapAction.UpdateWaypoint -> {
         val newRoutes = state.routes.map { route ->
@@ -269,6 +298,53 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
             }
         }
         state.copy(routes = newRoutes)
+    }
+
+    // Interactive editing actions (Phase 7.1)
+    is MapAction.SelectWaypoint -> {
+        val selection = WaypointSelection(
+            routeId = action.routeId,
+            waypointId = action.waypointId,
+            isDragging = false
+        )
+        state.copy(selectedWaypoint = selection)
+    }
+    MapAction.DeselectWaypoint -> {
+        state.copy(selectedWaypoint = null)
+    }
+    is MapAction.StartWaypointDrag -> {
+        val currentSelection = state.selectedWaypoint
+        if (currentSelection != null && currentSelection.routeId == action.routeId && currentSelection.waypointId == action.waypointId) {
+            val updatedSelection = currentSelection.copy(isDragging = true)
+            state.copy(selectedWaypoint = updatedSelection)
+        } else {
+            state
+        }
+    }
+    is MapAction.UpdateWaypointDrag -> {
+        val currentSelection = state.selectedWaypoint
+        if (currentSelection != null && currentSelection.isDragging) {
+            // Update the waypoint position in the route
+            val newRoutes = state.routes.map { route ->
+                if (route.id == currentSelection.routeId) {
+                    route.updateWaypoint(currentSelection.waypointId, action.lat, action.lon)
+                } else {
+                    route
+                }
+            }
+            state.copy(routes = newRoutes)
+        } else {
+            state
+        }
+    }
+    MapAction.EndWaypointDrag -> {
+        val currentSelection = state.selectedWaypoint
+        if (currentSelection != null && currentSelection.isDragging) {
+            val updatedSelection = currentSelection.copy(isDragging = false)
+            state.copy(selectedWaypoint = updatedSelection)
+        } else {
+            state
+        }
     }
 
     // No default branch required: MapAction is a sealed class and all cases are handled above
