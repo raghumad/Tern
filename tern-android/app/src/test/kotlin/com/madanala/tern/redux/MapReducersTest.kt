@@ -138,4 +138,121 @@ class MapReducersTest {
         assertThat(initialState.currentFlightMode).isEqualTo(FlightMode.GROUND)
         assertThat(initialState.routes).hasSize(2)
     }
+
+    // Route Management Tests - Phase 7.3
+
+    @Test
+    fun `mapReducer handles SelectRoute action correctly`() {
+        val initialState = MapState(selectedRouteId = null)
+        val routeId = "test-route-123"
+
+        val action = MapAction.SelectRoute(routeId)
+        val newState = mapReducer(initialState, action)
+
+        assertThat(newState.selectedRouteId).isEqualTo(routeId)
+        assertThat(initialState.selectedRouteId).isNull() // Original unchanged
+    }
+
+    @Test
+    fun `mapReducer handles DeselectRoute action correctly`() {
+        val initialState = MapState(selectedRouteId = "test-route-123")
+
+        val action = MapAction.DeselectRoute
+        val newState = mapReducer(initialState, action)
+
+        assertThat(newState.selectedRouteId).isNull()
+        assertThat(initialState.selectedRouteId).isEqualTo("test-route-123") // Original unchanged
+    }
+
+    @Test
+    fun `mapReducer handles RemoveRoute action correctly and clears selections`() {
+        val routeToRemove = Route(id = "route-1", name = "Route 1")
+        val routeToKeep = Route(id = "route-2", name = "Route 2")
+        val initialState = MapState(
+            routes = listOf(routeToRemove, routeToKeep),
+            selectedRouteId = "route-1" // Selected route being removed
+        )
+
+        val action = MapAction.RemoveRoute("route-1")
+        val newState = mapReducer(initialState, action)
+
+        assertThat(newState.routes).hasSize(1)
+        assertThat(newState.routes.first()).isEqualTo(routeToKeep)
+        assertThat(newState.selectedRouteId).isNull() // Selection cleared
+        assertThat(initialState.routes).hasSize(2) // Original unchanged
+        assertThat(initialState.selectedRouteId).isEqualTo("route-1")
+    }
+
+    @Test
+    fun `mapReducer handles RemoveRoute action when removing non-selected route`() {
+        val routeToRemove = Route(id = "route-1", name = "Route 1")
+        val routeToKeep = Route(id = "route-2", name = "Route 2")
+        val initialState = MapState(
+            routes = listOf(routeToRemove, routeToKeep),
+            selectedRouteId = "route-2" // Different route selected
+        )
+
+        val action = MapAction.RemoveRoute("route-1")
+        val newState = mapReducer(initialState, action)
+
+        assertThat(newState.routes).hasSize(1)
+        assertThat(newState.routes.first()).isEqualTo(routeToKeep)
+        assertThat(newState.selectedRouteId).isEqualTo("route-2") // Selection preserved
+    }
+
+    @Test
+    fun `mapReducer handles UpdateRoute action correctly with route renaming`() {
+        val originalRoute = Route(id = "route-1", name = "Old Name")
+        val updatedRoute = originalRoute.copy(name = "New Name")
+        val initialState = MapState(routes = listOf(originalRoute))
+
+        val action = MapAction.UpdateRoute(updatedRoute)
+        val newState = mapReducer(initialState, action)
+
+        assertThat(newState.routes).hasSize(1)
+        assertThat(newState.routes.first().name).isEqualTo("New Name")
+        assertThat(initialState.routes.first().name).isEqualTo("Old Name") // Original unchanged
+    }
+
+    @Test
+    fun `mapReducer handles UpdateRoute action and preserves waypoint selections`() {
+        val route = Route(id = "route-1", name = "Test Route")
+        val routeWithWaypoint = route.addWaypoint(40.0, -74.0, Waypoint.Type.TURNPOINT, "WP1-1")
+        val waypoint = routeWithWaypoint.waypoints.first()
+        val updatedRoute = routeWithWaypoint.copy(name = "Updated Route")
+
+        val initialState = MapState(
+            routes = listOf(routeWithWaypoint),
+            selectedWaypoint = WaypointSelection(routeWithWaypoint.id, waypoint.id)
+        )
+
+        val action = MapAction.UpdateRoute(updatedRoute)
+        val newState = mapReducer(initialState, action)
+
+        assertThat(newState.routes.first().name).isEqualTo("Updated Route")
+        assertThat(newState.selectedWaypoint?.routeId).isEqualTo(routeWithWaypoint.id) // Selection preserved
+        assertThat(newState.selectedWaypoint?.waypointId).isEqualTo(waypoint.id)
+    }
+
+    @Test
+    fun `mapReducer handles ClearAllRoutes action correctly`() {
+        val routes = listOf(
+            Route(name = "Route 1"),
+            Route(name = "Route 2"),
+            Route(name = "Route 3")
+        )
+        val initialState = MapState(
+            routes = routes,
+            selectedRouteId = "route-2",
+            selectedWaypoint = WaypointSelection("route-1", "wp-1")
+        )
+
+        val action = MapAction.ClearAllRoutes
+        val newState = mapReducer(initialState, action)
+
+        assertThat(newState.routes).isEmpty()
+        assertThat(newState.selectedRouteId).isNull() // Selection cleared
+        assertThat(newState.selectedWaypoint).isNull() // Waypoint selection cleared
+        assertThat(initialState.routes).isNotEmpty() // Original unchanged
+    }
 }
