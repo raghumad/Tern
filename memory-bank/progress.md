@@ -29,7 +29,7 @@
 - [x] **Implementation Plan**: UX-first approach with Redux migration after validation
 - [x] **Waypoint Selection**: Tap to select/deselect with visual highlight working
 - [x] **Selection State Management**: Selection clears when routes/waypoints modified
-- [ ] **Fix Duplicate Waypoint Creation**: Resolve double waypoint creation in MapViewContainer.kt
+- [x] **Fix Duplicate Waypoint Creation**: Smart selection UX - long press near existing waypoint selects it instead of creating duplicate
 - [ ] **Connect RouteOverlayManager**: Integrate with main map view for route visualization
 - [ ] **Create RouteManagerUI.kt**: Build route management interface
 
@@ -69,6 +69,13 @@
 - QR code generation and scanning
 - Cross-platform format compatibility
 - Route data validation and versioning
+
+### UI Testing Implementation Plan (Deferred Until Post-MVP)
+- **Testing Framework Ready**: Espresso + Jetpack Compose testing infrastructure operational
+- **Automation Pipeline**: Zero-manual-step execution via `android_test_automation.py` + `./gradlew runAutomatedTests`
+- **Reference Material**: Use Jetpack Compose testing codelab (https://developer.android.com/codelabs/jetpack-compose-testing) when implementing waypoint selection UI tests
+- **Scope**: Automated emulator execution without human intervention, covering tap-to-select/deselect and visual highlight validation
+- **When to Activate**: After Phase 1 bug fixes completed and UX fully validated
 
 ### Android Testing Expansion (Ongoing - High Priority, +2.0 points total potential)
 
