@@ -55,6 +55,7 @@ fun MapViewContainer(
     val gestureHandler = remember {
         MapGestureHandler(
             context,
+            store,
             onLongPress = { geoPoint ->
                 // Handle waypoint creation for route planning
                 handleWaypointCreation(store, geoPoint)
@@ -208,7 +209,7 @@ private fun handleWaypointCreation(store: MapStore, geoPoint: GeoPoint) {
         }
 
     } catch (e: Exception) {
-        Log.e("MapViewContainer", "Error creating waypoint", e)
+        Log.e("MapViewContainer", "Error handling waypoint creation", e)
     }
 }
 

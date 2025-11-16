@@ -100,6 +100,7 @@ sealed class MapAction {
     data class AddWaypointToRoute(val routeId: String, val lat: Double, val lon: Double, val type: Waypoint.Type = Waypoint.Type.TURNPOINT, val label: String? = null) : MapAction()
     data class RemoveWaypoint(val routeId: String, val waypointId: String) : MapAction()
     data class UpdateWaypoint(val routeId: String, val waypointId: String, val lat: Double? = null, val lon: Double? = null, val type: Waypoint.Type? = null, val label: String? = null) : MapAction()
+    data class UpdateWaypointType(val routeId: String, val waypointId: String, val type: Waypoint.Type) : MapAction()
 
     // Interactive editing actions (Phase 7.1)
     data class SelectWaypoint(val routeId: String, val waypointId: String) : MapAction()
@@ -107,4 +108,5 @@ sealed class MapAction {
     data class StartWaypointDrag(val routeId: String, val waypointId: String) : MapAction()
     data class UpdateWaypointDrag(val lat: Double, val lon: Double) : MapAction()
     object EndWaypointDrag : MapAction()
+    object CancelWaypointDrag : MapAction()
 }

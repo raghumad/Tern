@@ -178,6 +178,52 @@ class RouteIntegrationTest {
     }
 
     @Test
+    fun `waypoint_deletion_via_long_press_integration`() = runTest {
+        // Create route with multiple waypoints
+        val route = Route(name = "Deletion Test")
+        val waypoint1 = Waypoint(lat = 40.0, lon = -74.0, type = Waypoint.Type.TURNPOINT, label = "WP1-1", routeId = route.id)
+        val waypoint2 = Waypoint(lat = 40.1, lon = -74.1, type = Waypoint.Type.TURNPOINT, label = "WP1-2", routeId = route.id)
+        val waypoint3 = Waypoint(lat = 40.2, lon = -74.2, type = Waypoint.Type.TURNPOINT, label = "WP1-3", routeId = route.id)
+
+        var routeWithWaypoints = route
+            .addWaypoint(waypoint1.lat, waypoint1.lon, waypoint1.type, waypoint1.label)
+            .addWaypoint(waypoint2.lat, waypoint2.lon, waypoint2.type, waypoint2.label)
+            .addWaypoint(waypoint3.lat, waypoint3.lon, waypoint3.type, waypoint3.label)
+
+        val initialState = MapState(routes = listOf(routeWithWaypoints))
+
+        // Select the middle waypoint
+        val selectAction = MapAction.SelectWaypoint(route.id, waypoint2.id)
+        val stateWithSelection = mapReducer(initialState, selectAction)
+        assertNotNull(stateWithSelection.selectedWaypoint)
+        assertEquals(waypoint2.id, stateWithSelection.selectedWaypoint?.waypointId)
+
+        // Delete the selected waypoint via RemoveWaypoint action
+        val deleteAction = MapAction.RemoveWaypoint(route.id, waypoint2.id)
+        val stateAfterDeletion = mapReducer(stateWithSelection, deleteAction)
+
+        // Verify waypoint removed from route
+        val updatedRoute = stateAfterDeletion.routes.first()
+        assertEquals(2, updatedRoute.waypoints.size)
+        assertNull(updatedRoute.waypoints.find { it.id == waypoint2.id })
+
+        // Verify selection cleared after deletion
+        assertNull(stateAfterDeletion.selectedWaypoint)
+
+        // Verify remaining waypoints still exist
+        assertNotNull(updatedRoute.waypoints.find { it.id == waypoint1.id })
+        assertNotNull(updatedRoute.waypoints.find { it.id == waypoint3.id })
+
+        // Persist updated route
+        routeCache.cacheRoute(updatedRoute)
+        val loadedRoutes = routeCache.getAllCachedRoutes()
+        assertEquals(1, loadedRoutes.size)
+        val loadedRoute = loadedRoutes.first()
+        assertEquals(2, loadedRoute.waypoints.size)
+        assertNull(loadedRoute.waypoints.find { it.id == waypoint2.id })
+    }
+
+    @Test
     fun `route_persistence_and_recovery_across_app_restarts`() = runTest {
         // Simulate app usage: create route, add waypoints, select waypoint
         val initialState = MapState()
