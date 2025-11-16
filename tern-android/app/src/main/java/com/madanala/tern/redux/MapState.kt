@@ -79,5 +79,8 @@ data class MapState(
     val routes: List<Route> = emptyList(),
 
     // Route editing state - for interactive waypoint editing
-    val selectedWaypoint: WaypointSelection? = null
+    val selectedWaypoint: WaypointSelection? = null,
+
+    // Selected route for viewing/editing
+    val selectedRouteId: String? = null
 )

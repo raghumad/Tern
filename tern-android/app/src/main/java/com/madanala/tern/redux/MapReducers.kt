@@ -89,6 +89,10 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
     is MapAction.UpdateWaypointDrag,
     MapAction.EndWaypointDrag,
     MapAction.CancelWaypointDrag -> handleInteractiveEditingActions(state, action)
+
+    // Route Selection
+    is MapAction.SelectRoute,
+    MapAction.DeselectRoute -> handleRouteSelectionActions(state, action)
 }
 
 /**
@@ -278,14 +282,15 @@ private fun handleRouteActions(state: MapState, action: MapAction): MapState = w
     is MapAction.RemoveRoute -> {
         val newRoutes = state.routes.filter { it.id != action.routeId }
         val updatedSelection = state.selectedWaypoint?.takeIf { it.routeId != action.routeId }
-        state.copy(routes = newRoutes, selectedWaypoint = updatedSelection)
+        val updatedSelectedRouteId = state.selectedRouteId?.takeIf { it != action.routeId }
+        state.copy(routes = newRoutes, selectedWaypoint = updatedSelection, selectedRouteId = updatedSelectedRouteId)
     }
     is MapAction.UpdateRoute -> {
         val newRoutes = state.routes.map { if (it.id == action.route.id) action.route else it }
         val updatedSelection = updateSelectionAfterRouteChange(state.selectedWaypoint, newRoutes, action.route.id)
         state.copy(routes = newRoutes, selectedWaypoint = updatedSelection)
     }
-    is MapAction.ClearAllRoutes -> state.copy(routes = emptyList())
+    is MapAction.ClearAllRoutes -> state.copy(routes = emptyList(), selectedRouteId = null, selectedWaypoint = null)
     else -> state
 }
 
@@ -384,6 +389,15 @@ private fun handleInteractiveEditingActions(state: MapState, action: MapAction):
             )
         } else state
     }
+    else -> state
+}
+
+/**
+ * Handle route selection actions
+ */
+private fun handleRouteSelectionActions(state: MapState, action: MapAction): MapState = when (action) {
+    is MapAction.SelectRoute -> state.copy(selectedRouteId = action.routeId)
+    MapAction.DeselectRoute -> state.copy(selectedRouteId = null)
     else -> state
 }
 

@@ -5,10 +5,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 
 @Composable
 fun SettingsButton(onClick: () -> Unit) {
@@ -31,5 +31,15 @@ fun AddWaypointButton() {
 fun ShareButton(onClick: () -> Unit) {
     IconButton(onClick = onClick) {
         Icon(Icons.Default.MoreVert, contentDescription = "Share Menu")
+    }
+}
+
+@Composable
+fun RouteButton(onClick: () -> Unit) {
+    IconButton(onClick = onClick) {
+        Icon(
+            painter = androidx.compose.ui.res.painterResource(id = com.madanala.tern.R.drawable.route_24),
+            contentDescription = "Route Management"
+        )
     }
 }

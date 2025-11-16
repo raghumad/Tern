@@ -27,6 +27,7 @@ class RouteOverlayManager(
         private const val WAYPOINT_BORDER_WIDTH = 3f
         private const val SELECTION_HIGHLIGHT_WIDTH = 6f
         private const val SELECTION_HIGHLIGHT_PADDING = 8f
+        private const val ROUTE_SELECTION_HIGHLIGHT_WIDTH = 12f
         private const val LABEL_TEXT_SIZE = 32f
         private const val LABEL_OFFSET_Y = 10f
 
@@ -46,6 +47,7 @@ class RouteOverlayManager(
     private var routeCache: RouteCache? = null
     private var currentRoutes: List<Route> = emptyList()
     private var currentSelectedWaypoint: WaypointSelection? = null
+    private var currentSelectedRouteId: String? = null
     private val routeOverlays = mutableListOf<RouteOverlay>()
 
     // Paint objects for route rendering
@@ -92,6 +94,13 @@ class RouteOverlayManager(
         isAntiAlias = true
     }
 
+    private val routeSelectionPaint = Paint().apply {
+        color = Color.MAGENTA
+        style = Paint.Style.STROKE
+        strokeWidth = ROUTE_SELECTION_HIGHLIGHT_WIDTH
+        isAntiAlias = true
+    }
+
     init {
         // Initialize route cache
         mapView?.context?.let { context ->
@@ -121,17 +130,18 @@ class RouteOverlayManager(
 
     override fun onReduxStateChanged(state: MapState) {
         try {
-            Log.d(TAG, "Redux state changed - routes enabled: ${state.overlayState.routes.enabled}, route count: ${state.routes.size}, selected: ${state.selectedWaypoint}")
+            Log.d(TAG, "Redux state changed - routes enabled: ${state.overlayState.routes.enabled}, route count: ${state.routes.size}, selected waypoint: ${state.selectedWaypoint}, selected route: ${state.selectedRouteId}")
 
             val config = state.overlayState.routes
 
             if (config.enabled) {
                 // Single source of truth: Only display routes from Redux state
-                if (state.routes != currentRoutes || state.selectedWaypoint != currentSelectedWaypoint) {
+                if (state.routes != currentRoutes || state.selectedWaypoint != currentSelectedWaypoint || state.selectedRouteId != currentSelectedRouteId) {
                     currentRoutes = state.routes
                     currentSelectedWaypoint = state.selectedWaypoint
+                    currentSelectedRouteId = state.selectedRouteId
                     updateRouteOverlays()
-                    Log.d(TAG, "Routes updated from Redux state: ${currentRoutes.size} routes, selected: ${currentSelectedWaypoint}")
+                    Log.d(TAG, "Routes updated from Redux state: ${currentRoutes.size} routes, selected waypoint: ${currentSelectedWaypoint}, selected route: ${currentSelectedRouteId}")
 
                     // Persistence as side effect: Cache routes for app restart recovery
                     currentRoutes.forEach { route ->
@@ -327,6 +337,11 @@ class RouteOverlayManager(
                         } else {
                             path.lineTo(screenPoint.x.toFloat(), screenPoint.y.toFloat())
                         }
+                    }
+
+                    // Check if this route is selected and draw highlight first
+                    if (currentSelectedRouteId == route.id) {
+                        canvas.drawPath(path, routeSelectionPaint)
                     }
 
                     canvas.drawPath(path, routePaint)

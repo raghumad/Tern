@@ -204,8 +204,15 @@ private fun handleWaypointCreation(store: MapStore, geoPoint: GeoPoint) {
             store.dispatch(MapAction.AddRoute(newRoute))
             Log.d("MapViewContainer", "Created new route: ${newRoute.name} at ${geoPoint.latitude}, ${geoPoint.longitude}")
         } else {
-            // Routes exist - add waypoint to the most recent route
-            addWaypointToMostRecentRoute(store, geoPoint, currentState.routes)
+            // Check if a route is selected
+            val selectedRouteId = currentState.selectedRouteId
+            if (selectedRouteId != null) {
+                // Add waypoint to the selected route
+                addWaypointToSelectedRoute(store, geoPoint, selectedRouteId, currentState.routes)
+            } else {
+                // No route selected - add waypoint to the most recent route
+                addWaypointToMostRecentRoute(store, geoPoint, currentState.routes)
+            }
         }
 
     } catch (e: Exception) {
@@ -252,6 +259,28 @@ private fun addWaypointToMostRecentRoute(store: MapStore, geoPoint: GeoPoint, ro
             label = label
         ))
         Log.d("MapViewContainer", "Added waypoint $label to route: ${mostRecentRoute.name}")
+    }
+}
+
+/**
+ * Add a waypoint to the selected route
+ */
+private fun addWaypointToSelectedRoute(store: MapStore, geoPoint: GeoPoint, selectedRouteId: String, routes: List<Route>) {
+    val selectedRoute = routes.find { it.id == selectedRouteId }
+    if (selectedRoute != null) {
+        val waypointNumber = selectedRoute.waypoints.size + 1
+        val routeIndex = routes.indexOf(selectedRoute) + 1
+        val label = "$WAYPOINT_LABEL_PREFIX$routeIndex$WAYPOINT_LABEL_SEPARATOR$waypointNumber"
+
+        Log.d("MapViewContainer", "Adding waypoint to selected route: ${selectedRoute.name} (${selectedRoute.waypoints.size} existing waypoints)")
+        store.dispatch(MapAction.AddWaypointToRoute(
+            routeId = selectedRoute.id,
+            lat = geoPoint.latitude,
+            lon = geoPoint.longitude,
+            type = Waypoint.Type.TURNPOINT,
+            label = label
+        ))
+        Log.d("MapViewContainer", "Added waypoint $label to selected route: ${selectedRoute.name}")
     }
 }
 

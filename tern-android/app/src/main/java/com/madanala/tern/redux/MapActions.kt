@@ -109,4 +109,8 @@ sealed class MapAction {
     data class UpdateWaypointDrag(val lat: Double, val lon: Double) : MapAction()
     object EndWaypointDrag : MapAction()
     object CancelWaypointDrag : MapAction()
+
+    // Route selection actions
+    data class SelectRoute(val routeId: String) : MapAction()
+    object DeselectRoute : MapAction()
 }

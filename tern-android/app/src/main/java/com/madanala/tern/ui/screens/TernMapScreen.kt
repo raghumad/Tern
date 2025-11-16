@@ -28,12 +28,14 @@ import com.madanala.tern.redux.WeatherActions
 import com.madanala.tern.ui.components.EditWaypointScreen
 import com.madanala.tern.ui.components.MapViewContainer
 import com.madanala.tern.ui.components.MapViewModel
+import com.madanala.tern.ui.components.RouteButton
 import com.madanala.tern.ui.components.SettingsButton
 import com.madanala.tern.ui.components.SettingsSheet
 import com.madanala.tern.ui.components.ShareButton
 import com.madanala.tern.ui.components.ShareSheet
 import com.madanala.tern.ui.components.WeatherDetailsDialog
 import com.madanala.tern.ui.components.WelcomeScreen
+import com.madanala.tern.ui.screens.RouteListScreen
 
 // Constants for map styles, moved from MainActivity for broader access
 const val MAP_VIEW_TERRAIN = 1
@@ -48,6 +50,7 @@ fun TernMapScreen(
     var showSettingsSheet by remember { mutableStateOf(false) }
     var showShareSheet by remember { mutableStateOf(false) }
     var showEditWaypointScreen by remember { mutableStateOf(false) }
+    var showRouteListScreen by remember { mutableStateOf(false) }
     val state by store.state.collectAsState()
     val isLocationReady = state.isLocationReady
     val gpsStatus = state.gpsStatus
@@ -77,6 +80,7 @@ fun TernMapScreen(
             ) {
                 SettingsButton(onClick = { showSettingsSheet = true })
                 ShareButton(onClick = { showShareSheet = true })
+                RouteButton(onClick = { showRouteListScreen = true })
             }
             AnimatedVisibility(
                 visible = !isLocationReady,
@@ -98,6 +102,13 @@ fun TernMapScreen(
 
     if (showShareSheet) {
         ShareSheet(onDismiss = { showShareSheet = false })
+    }
+
+    if (showRouteListScreen) {
+        RouteListScreen(
+            store = store,
+            onRouteSelected = { showRouteListScreen = false }
+        )
     }
 
     if (showEditWaypointScreen) {
