@@ -259,15 +259,14 @@ class AndroidTestAutomation:
 
         try:
             emulator = self._get_emulator_path()
+            # Use simpler emulator command that should work on most systems
             cmd = [
                 str(emulator),
                 "-avd", self.avd_name,
                 "-no-window",                    # Headless mode
-                "-gpu", "swiftshader_indirect", # Software rendering
-                "-qemu", "-enable-kvm" if self.platform == "linux" else None,  # KVM on Linux
+                "-gpu", "swiftshader_indirect", # Software rendering for systems without GPU support
                 "-memory", "2048",              # 2GB RAM
-                "-netspeed", "full",            # Full network speed
-                "-netdelay", "none"             # No network delay
+                "-wipe-data"                    # Clean start
             ]
 
             # Remove None values
@@ -301,33 +300,42 @@ class AndroidTestAutomation:
         """Get path to emulator executable."""
         return self.sdk_path / "emulator" / "emulator"
 
-    def _wait_for_emulator_ready(self, timeout: int = 300) -> bool:
-        """Wait for device/emulator to be ready for testing."""
+    def _wait_for_emulator_ready(self, timeout: int = 120) -> bool:
+        """Wait for device/emulator to be ready for testing. Reduced timeout and better error handling."""
         adb = self._get_adb_path()
         start_time = time.time()
+
+        self.log(f"⏳ Waiting for device connection (max {timeout}s)...")
 
         while time.time() - start_time < timeout:
             try:
                 # Check if any device is online
                 result = self.run_command([str(adb), "devices"], check=False)
-                if "\tdevice" in result.stdout and "List of devices attached" in result.stdout:
-                    # Found at least one connected device
-                    self.log("✅ Device connected and ready for testing")
+                lines = result.stdout.split('\n')
 
-                    # Try to disable animations for faster testing (ignore errors for physical devices)
-                    self.run_command([str(adb), "shell", "settings", "put", "global", "window_animation_scale", "0"], check=False)
-                    self.run_command([str(adb), "shell", "settings", "put", "global", "transition_animation_scale", "0"], check=False)
-                    self.run_command([str(adb), "shell", "settings", "put", "global", "animator_duration_scale", "0"], check=False)
+                # Look for actual device lines (not just headers)
+                for line in lines:
+                    if line.strip() and '\tdevice' in line and not line.startswith('List of devices attached'):
+                        # Found at least one connected device
+                        device_id = line.split('\t')[0]
+                        self.log(f"✅ Device connected and ready: {device_id}")
 
-                    # Wait a bit more for system to settle
-                    time.sleep(5)
-                    return True
-            except:
-                pass
+                        # Try to disable animations for faster testing (ignore errors for physical devices)
+                        self.run_command([str(adb), "shell", "settings", "put", "global", "window_animation_scale", "0"], check=False)
+                        self.run_command([str(adb), "shell", "settings", "put", "global", "transition_animation_scale", "0"], check=False)
+                        self.run_command([str(adb), "shell", "settings", "put", "global", "animator_duration_scale", "0"], check=False)
 
-            time.sleep(5)
-            self.log("⏳ Still waiting for device...")
+                        # Wait a bit more for system to settle
+                        time.sleep(3)
+                        return True
+            except Exception as e:
+                self.log(f"⚠️ ADB check failed: {e}")
 
+            time.sleep(3)
+            elapsed = int(time.time() - start_time)
+            self.log(f"⏳ Still waiting for device... ({elapsed}s)")
+
+        self.log("❌ Timeout: Device never connected")
         return False
 
     def _get_adb_path(self) -> Path:
@@ -353,6 +361,37 @@ class AndroidTestAutomation:
             else:
                 self.log("❌ Tests failed", "ERROR")
                 self.log(f"Test output: {result.stdout}", "ERROR")
+                return False
+
+        except subprocess.TimeoutExpired:
+            self.log("⏰ Tests timed out", "ERROR")
+            return False
+        except Exception as e:
+            self.log(f"❌ Test execution failed: {e}", "ERROR")
+            return False
+
+    def _run_tests_only(self) -> bool:
+        """Run tests assuming devices are already available."""
+        self.log("🧪 Running tests on connected device(s)...")
+
+        try:
+            # Run the Gradle test task that includes instrumentation tests
+            result = self.run_command(
+                ["./gradlew", "testWithCoverage"],
+                cwd=self.project_root,
+                timeout=self.config["test_timeout"]
+            )
+
+            if result.returncode == 0:
+                self.log("✅ All tests passed!")
+                self._display_test_summary()
+                return True
+            else:
+                self.log("❌ Tests failed", "ERROR")
+                if result.stdout:
+                    self.log(f"Test output: {result.stdout[-1000:]}...", "ERROR")  # Last 1000 chars
+                if result.stderr:
+                    self.log(f"Error output: {result.stderr[-1000:]}...", "ERROR")
                 return False
 
         except subprocess.TimeoutExpired:
@@ -416,26 +455,44 @@ class AndroidTestAutomation:
             self.log(f"Warning: Cleanup encountered issues: {e}")
 
     def run_full_automation(self) -> bool:
-        """Run the complete automated testing workflow."""
+        """Run the complete automated testing workflow with optimization."""
         self.log("🎯 Starting full automated Android testing...")
 
-        emulator_process = None
-
         try:
-            # Step 1: Setup Android SDK
+            # Phase 1: Setup and validation (no emulator)
+            self.log("🏗️ Phase 1: Setup and build preparation...")
             if not self.setup_android_sdk():
                 return False
 
-            # Step 2: Setup AVD
             if not self.setup_avd():
                 return False
 
-            # Step 3: Launch emulator
-            emulator_process = self.launch_emulator()
+            # Build the test APKs first (without running tests)
+            self.log("🔨 Building test APKs...")
+            try:
+                self.run_command(["./gradlew", "assembleDebugAndroidTest"], timeout=300)
+                self.log("✅ Test APKs built successfully")
+            except Exception as e:
+                self.log(f"❌ APK build failed: {e}", "ERROR")
+                return False
+
+            # Phase 2: Launch emulator with lower memory and connect
+            self.log("🚀 Phase 2: Launching optimized emulator...")
+            emulator_process = self.launch_emulator_optimized()
             if not emulator_process:
                 return False
 
-            # Step 4: Run tests
+            # Wait a bit for emulator to fully stabilize
+            self.log("⏳ Waiting for emulator to fully stabilize...")
+            time.sleep(15)
+
+            # Verify emulator is still responsive
+            if not self._verify_emulator_health():
+                self.log("❌ Emulator health check failed", "ERROR")
+                return False
+
+            # Phase 3: Run tests
+            self.log("🧪 Phase 3: Running instrumentation tests...")
             if not self.run_tests():
                 return False
 
@@ -452,6 +509,80 @@ class AndroidTestAutomation:
             # Always cleanup
             self.cleanup(emulator_process)
 
+    def launch_emulator_optimized(self) -> Optional[subprocess.Popen]:
+        """Launch emulator with optimized settings for stability."""
+        self.log("🚀 Launching Android emulator with optimized settings...")
+
+        try:
+            emulator = self._get_emulator_path()
+
+            # Use more conservative settings for better stability
+            cmd = [
+                str(emulator),
+                "-avd", self.avd_name,
+                "-no-window",                    # Headless mode
+                "-gpu", "swiftshader_indirect", # Software rendering
+                "-memory", "1024",              # Reduced memory (1GB instead of 2GB)
+                "-cores", "1",                  # Single core to reduce CPU load
+                "-wipe-data",                   # Clean start
+                "-no-snapshot-load",            # Don't load snapshots
+                "-no-snapstorage"               # Don't save snapshots
+            ]
+
+            self.log("🎮 Starting optimized emulator...")
+            self.log(f"Command: {' '.join(cmd)}")
+
+            # Launch emulator in background
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                start_new_session=True  # Create new process group for better cleanup
+            )
+
+            # Wait for emulator to boot (increased wait time for stability)
+            self.log("⏳ Waiting for emulator to boot (this may take longer with conservative settings)...")
+            if self._wait_for_emulator_ready(timeout=180):  # 3 minutes timeout
+                self.log("✅ Emulator is ready and stable!")
+                return process
+            else:
+                self.log("❌ Optimized emulator failed to boot", "ERROR")
+                process.terminate()
+                try:
+                    process.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                return None
+
+        except Exception as e:
+            self.log(f"❌ Optimized emulator launch failed: {e}", "ERROR")
+            return None
+
+    def _verify_emulator_health(self) -> bool:
+        """Verify that emulator is responsive and stable."""
+        adb = self._get_adb_path()
+
+        # Perform a series of quick health checks
+        health_checks = [
+            ([str(adb), "shell", "echo", "healthy"], "ADB shell connectivity"),
+            ([str(adb), "shell", "pm", "list", "packages", "-3"], "Package manager access"),
+            ([str(adb), "shell", "getprop", "ro.build.version.sdk"], "System property access"),
+        ]
+
+        for cmd, description in health_checks:
+            try:
+                result = self.run_command(cmd, timeout=10)
+                if result.returncode != 0:
+                    self.log(f"⚠️ Health check failed ({description}): exit code {result.returncode}")
+                    return False
+            except Exception as e:
+                self.log(f"⚠️ Health check failed ({description}): {e}")
+                return False
+
+        self.log("✅ All emulator health checks passed")
+        return True
+
 
 def main():
     """Main entry point for the automation script."""
@@ -460,7 +591,31 @@ def main():
 
     automation = AndroidTestAutomation()
 
-    success = automation.run_full_automation()
+    # First check if we have running devices already
+    print("\n🔍 Checking for existing Android devices...")
+
+    # Check for running devices first
+    has_devices = False
+    try:
+        adb_result = automation.run_command([str(automation._get_adb_path()), "devices"], check=False)
+        if "\tdevice" in adb_result.stdout and "List of devices attached" in adb_result.stdout:
+            has_devices = True
+            print("✅ Found running Android devices!")
+        else:
+            print("❌ No running Android devices found")
+    except Exception as e:
+        print(f"⚠️ Could not check for devices: {e}")
+        has_devices = False
+
+    if not has_devices:
+        print("\n🤖 No devices connected - launching automated emulator...")
+
+        # Try to run full automation (will launch emulator)
+        success = automation.run_full_automation()
+    else:
+        print("\n🧪 Running tests on existing connected device...")
+        # We have devices, proceed with testing
+        success = automation._run_tests_only()
 
     if success:
         print("\n🎉 SUCCESS: All tests completed successfully!")

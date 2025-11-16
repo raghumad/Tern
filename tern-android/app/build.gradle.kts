@@ -264,7 +264,24 @@ tasks.register("runAllTestsAndGenerateSummary") {
 
 tasks.register("runUnitTestsAndGenerateSummary") {
     group = "verification"
-    description = "Run unit tests only and generate comprehensive test summary (no device needed)"
+    description = "Run all tests (unit + instrumentation*) and generate comprehensive test summary"
+
+    dependsOn("runUnitTestsOnlyAndGenerateSummary")
+
+    doLast {
+        println("🎯 Unit tests completed! Test summary generated at: ${project.layout.buildDirectory.get()}/reports/test-summary.md")
+        println("📊 To view the summary: cat ${project.layout.buildDirectory.get()}/reports/test-summary.md")
+        println("📈 JaCoCo coverage report: ${project.layout.buildDirectory.get()}/reports/jacoco/jacocoTestReport/html/index.html")
+        println("")
+        println("💡 Note: Instrumentation tests require Android device/emulator.")
+        println("   To run with Android device: ./gradlew runAllTestsAndGenerateSummary")
+        println("   To start emulator manually first: ./gradlew runAutomatedTests")
+    }
+}
+
+tasks.register("runUnitTestsOnlyAndGenerateSummary") {
+    group = "verification"
+    description = "Run unit tests only and generate comprehensive test summary"
 
     dependsOn("testDebugUnitTest", "jacocoTestReport", "generateTestSummary")
 

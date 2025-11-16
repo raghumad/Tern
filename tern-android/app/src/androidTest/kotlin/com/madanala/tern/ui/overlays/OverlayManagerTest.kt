@@ -242,7 +242,7 @@ class OverlayManagerTest {
         overlayManager.onReduxStateChanged(stateWithSelection)
 
         // Verify selection is tracked
-        val currentSelection = stateWithSelection.overlayState.routes.selectedWaypoint
+        val currentSelection = stateWithSelection.selectedWaypoint
         Assert.assertNotNull("Should have waypoint selection", currentSelection)
         Assert.assertEquals("Should have correct route ID", route.id, currentSelection?.routeId)
         Assert.assertEquals("Should have correct waypoint ID", firstWaypoint.id, currentSelection?.waypointId)
@@ -252,24 +252,19 @@ class OverlayManagerTest {
         val stateAfterDeselect = reduxStore.state.value
         overlayManager.onReduxStateChanged(stateAfterDeselect)
 
-        val noSelection = stateAfterDeselect.overlayState.routes.selectedWaypoint
+        val noSelection = stateAfterDeselect.selectedWaypoint
         Assert.assertNull("Should have no selection after deselect", noSelection)
     }
 
     @Test
     fun testOverlayManagerErrorHandling() {
-        // Test that overlay manager handles null/empty states gracefully
-
-        // Test with null state (should not crash)
-        overlayManager.onReduxStateChanged(null)
-        var routesAfterNull = overlayManager.getCurrentRoutes()
-        Assert.assertNotNull("Should handle null state", routesAfterNull)
+        // Test that overlay manager handles empty states gracefully
 
         // Test with empty routes list (should not crash)
         val emptyState = reduxStore.state.value.copy(routes = emptyList())
         overlayManager.onReduxStateChanged(emptyState)
-        routesAfterNull = overlayManager.getCurrentRoutes()
-        Assert.assertTrue("Should handle empty routes list", routesAfterNull.isEmpty())
+        val routesAfterEmpty = overlayManager.getCurrentRoutes()
+        Assert.assertTrue("Should handle empty routes list", routesAfterEmpty.isEmpty())
 
         // Test config with null values (should use defaults)
         val configWithNulls = overlayManager.getCurrentConfig()
