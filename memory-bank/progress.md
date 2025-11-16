@@ -76,9 +76,9 @@
 - [x] **Task 1.1**: Diagnose import conflicts in test dependencies and Truth assertions (+0.1 points)
 - [x] **Task 1.2**: Fix test framework dependencies and imports to enable new test creation (+0.2 points)
 
-#### Phase 2: Unit Tests (0.8 points) - UNBLOCKED
-- [x] **Task 2.1**: Create GPS safety validation tests (GpsSafetyTest.kt, +0.3 points, ~+5-8% coverage)
-- [ ] **Task 2.2**: Create memory monitoring tests (MemorySafetyTest.kt, +0.3 points, ~+5-8% coverage) - **CURRENT TASK**
+#### Phase 2: Unit Tests (0.8 points total) ✅
+- [x] **Task 2.1**: Create GPS safety validation tests (GpsSafetyTest.kt, +0.3 points, 7 tests)
+- [x] **Task 2.2**: Create memory monitoring tests (MemorySafetyTest.kt, +0.3 points, 7 tests)
 - [ ] **Task 2.3**: Create performance benchmark tests (PerformanceBenchmarkTest.kt, +0.2 points, ~+3-5% coverage)
 
 #### Phase 3: Integration Tests (0.3 points)
