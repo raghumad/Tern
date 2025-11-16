@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -24,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.madanala.tern.redux.MapStore
 import com.madanala.tern.redux.WeatherActions
+import com.madanala.tern.ui.components.EditWaypointScreen
 import com.madanala.tern.ui.components.MapViewContainer
 import com.madanala.tern.ui.components.MapViewModel
 import com.madanala.tern.ui.components.SettingsButton
@@ -45,10 +47,16 @@ fun TernMapScreen(
 ) {
     var showSettingsSheet by remember { mutableStateOf(false) }
     var showShareSheet by remember { mutableStateOf(false) }
+    var showEditWaypointScreen by remember { mutableStateOf(false) }
     val state by store.state.collectAsState()
     val isLocationReady = state.isLocationReady
     val gpsStatus = state.gpsStatus
     val mapViewModel = viewModel<MapViewModel>()
+
+    // Show edit waypoint screen when waypoint is selected
+    LaunchedEffect(state.selectedWaypoint) {
+        showEditWaypointScreen = state.selectedWaypoint != null
+    }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -90,6 +98,13 @@ fun TernMapScreen(
 
     if (showShareSheet) {
         ShareSheet(onDismiss = { showShareSheet = false })
+    }
+
+    if (showEditWaypointScreen) {
+        EditWaypointScreen(
+            store = store,
+            onDismiss = { showEditWaypointScreen = false }
+        )
     }
 
     // Show weather details dialog when PG spot is tapped

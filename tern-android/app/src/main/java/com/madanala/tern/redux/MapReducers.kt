@@ -79,14 +79,16 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
     // Waypoint Management
     is MapAction.AddWaypointToRoute,
     is MapAction.RemoveWaypoint,
-    is MapAction.UpdateWaypoint -> handleWaypointActions(state, action)
+    is MapAction.UpdateWaypoint,
+    is MapAction.UpdateWaypointType -> handleWaypointActions(state, action)
 
     // Interactive Editing
     is MapAction.SelectWaypoint,
     MapAction.DeselectWaypoint,
     is MapAction.StartWaypointDrag,
     is MapAction.UpdateWaypointDrag,
-    MapAction.EndWaypointDrag -> handleInteractiveEditingActions(state, action)
+    MapAction.EndWaypointDrag,
+    MapAction.CancelWaypointDrag -> handleInteractiveEditingActions(state, action)
 }
 
 /**
@@ -316,6 +318,14 @@ private fun handleWaypointActions(state: MapState, action: MapAction): MapState 
         }
         state.copy(routes = newRoutes)
     }
+    is MapAction.UpdateWaypointType -> {
+        val newRoutes = state.routes.map { route ->
+            if (route.id == action.routeId) {
+                route.updateWaypoint(action.waypointId, null, null, action.type)
+            } else route
+        }
+        state.copy(routes = newRoutes)
+    }
     else -> state
 }
 
@@ -332,7 +342,14 @@ private fun handleInteractiveEditingActions(state: MapState, action: MapAction):
     is MapAction.StartWaypointDrag -> {
         val currentSelection = state.selectedWaypoint
         if (currentSelection?.routeId == action.routeId && currentSelection.waypointId == action.waypointId) {
-            state.copy(selectedWaypoint = currentSelection.copy(isDragging = true))
+            // Store original position when drag starts
+            val route = state.routes.find { it.id == currentSelection.routeId }
+            val waypoint = route?.waypoints?.find { it.id == currentSelection.waypointId }
+            state.copy(selectedWaypoint = currentSelection.copy(
+                isDragging = true,
+                originalLat = waypoint?.lat,
+                originalLon = waypoint?.lon
+            ))
         } else state
     }
     is MapAction.UpdateWaypointDrag -> {
@@ -350,6 +367,21 @@ private fun handleInteractiveEditingActions(state: MapState, action: MapAction):
         val currentSelection = state.selectedWaypoint
         if (currentSelection?.isDragging == true) {
             state.copy(selectedWaypoint = currentSelection.copy(isDragging = false))
+        } else state
+    }
+    MapAction.CancelWaypointDrag -> {
+        val currentSelection = state.selectedWaypoint
+        if (currentSelection?.isDragging == true && currentSelection.originalLat != null && currentSelection.originalLon != null) {
+            // Restore waypoint to original position
+            val newRoutes = state.routes.map { route ->
+                if (route.id == currentSelection.routeId) {
+                    route.updateWaypoint(currentSelection.waypointId, currentSelection.originalLat, currentSelection.originalLon)
+                } else route
+            }
+            state.copy(
+                routes = newRoutes,
+                selectedWaypoint = currentSelection.copy(isDragging = false)
+            )
         } else state
     }
     else -> state

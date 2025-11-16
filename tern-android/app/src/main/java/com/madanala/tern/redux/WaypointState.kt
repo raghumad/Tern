@@ -6,5 +6,7 @@ package com.madanala.tern.redux
 data class WaypointSelection(
     val routeId: String,
     val waypointId: String,
-    val isDragging: Boolean = false
+    val isDragging: Boolean = false,
+    val originalLat: Double? = null,
+    val originalLon: Double? = null
 )

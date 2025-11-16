@@ -85,6 +85,13 @@ class RouteOverlayManager(
         isAntiAlias = true
     }
 
+    private val dragPaint = Paint().apply {
+        color = Color.CYAN
+        style = Paint.Style.STROKE
+        strokeWidth = SELECTION_HIGHLIGHT_WIDTH
+        isAntiAlias = true
+    }
+
     init {
         // Initialize route cache
         mapView?.context?.let { context ->
@@ -374,7 +381,8 @@ class RouteOverlayManager(
                         // Draw selection highlight if this waypoint is selected
                         currentSelectedWaypoint?.let { selection ->
                             if (selection.routeId == route.id && selection.waypointId == waypoint.id) {
-                                canvas.drawCircle(screenPoint.x.toFloat(), screenPoint.y.toFloat(), radius + SELECTION_HIGHLIGHT_PADDING, selectionPaint)
+                                val paint = if (selection.isDragging) dragPaint else selectionPaint
+                                canvas.drawCircle(screenPoint.x.toFloat(), screenPoint.y.toFloat(), radius + SELECTION_HIGHLIGHT_PADDING, paint)
                             }
                         }
 
