@@ -54,8 +54,8 @@ class MapReducersTest {
     fun `mapReducer handles SelectWaypoint action correctly`() {
         val initialState = MapState(selectedWaypoint = null)
         val route = Route(name = "Test Route")
-        val waypoint = Waypoint(lat = 40.0, lon = -74.0, type = Waypoint.Type.TURNPOINT, label = "WP1-1", routeId = route.id)
-        val routeWithWaypoint = route.addWaypoint(waypoint.lat, waypoint.lon, waypoint.type, waypoint.label)
+        val routeWithWaypoint = route.addWaypoint(40.0, -74.0, Waypoint.Type.TURNPOINT, "WP1-1")
+        val waypoint = routeWithWaypoint.waypoints.first()
 
         val action = MapAction.SelectWaypoint(routeWithWaypoint.id, waypoint.id)
         val newState = mapReducer(initialState, action)
@@ -89,6 +89,29 @@ class MapReducersTest {
 
         assertThat(newState.userPreferences.handedness).isEqualTo(Handedness.LEFT_HANDED)
         assertThat(initialState.userPreferences.handedness).isEqualTo(Handedness.RIGHT_HANDED) // Original unchanged
+    }
+
+    @Test
+    fun `mapReducer handles UpdateWaypointType action correctly`() {
+        val route = Route(name = "Test Route")
+        val routeWithWaypoint = route.addWaypoint(40.0, -74.0, Waypoint.Type.TURNPOINT, "WP1-1")
+        val waypoint = routeWithWaypoint.waypoints.first()
+
+        val initialState = MapState(routes = listOf(routeWithWaypoint))
+        val newType = Waypoint.Type.LANDING
+
+        val action = MapAction.UpdateWaypointType(routeWithWaypoint.id, waypoint.id, newType)
+        val newState = mapReducer(initialState, action)
+
+        // Verify waypoint type was updated
+        val updatedRoute = newState.routes.first()
+        val updatedWaypoint = updatedRoute.waypoints.first()
+        assertThat(updatedWaypoint.type).isEqualTo(newType)
+
+        // Verify original state unchanged
+        val originalRoute = initialState.routes.first()
+        val originalWaypoint = originalRoute.waypoints.first()
+        assertThat(originalWaypoint.type).isEqualTo(Waypoint.Type.TURNPOINT)
     }
 
     @Test
