@@ -62,7 +62,19 @@
 - **OpenMeteo**: European weather forecasts
 - **Airspace Data**: Aviation databases (implementation needed)
 
-## Testing and Quality Assurance
+## UI/UX Design Principles
+
+### Intuitive Interaction Patterns (Android)
+- **Contextual Gesture Behavior**: Interactions adapt based on proximity and state
+  - Long press near existing waypoint = select, not create
+  - Tap on selected item = deselect, tap elsewhere = clear selection
+  - Future: Multi-touch gestures for advanced operations
+- **Progressive Disclosure**: Complex features revealed contextually
+- **Consistent Feedback**: Visual/audio feedback for all interactions
+- **Error Prevention**: Smart validation prevents user mistakes
+- **Accessibility First**: Screen reader support, high contrast, gesture alternatives
+
+### Testing and Quality Assurance
 
 ### Android Testing Strategy
 - **Unit Tests**: Kotlin/JUnit for business logic

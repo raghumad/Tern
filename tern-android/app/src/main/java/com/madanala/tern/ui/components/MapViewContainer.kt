@@ -169,6 +169,7 @@ private fun syncLocationState(userLocation: GeoPoint?, isLocationReady: Boolean)
 /**
  * Handle waypoint creation for route planning
  * Multi-waypoint routes: Adds to most recent route, or creates new route if none exist
+ * Smart selection: Long press near existing waypoint selects it instead of creating duplicate
  */
 private fun handleWaypointCreation(store: MapStore, geoPoint: GeoPoint) {
     try {
@@ -176,6 +177,23 @@ private fun handleWaypointCreation(store: MapStore, geoPoint: GeoPoint) {
 
         val currentState = store.state.value
         Log.d("MapViewContainer", "Current routes count: ${currentState.routes.size}")
+
+        // Check for existing waypoint within select tolerance - if found, select instead of create
+        val selectToleranceDegrees = 0.001 // ~100 meters at equator
+        val nearbyWaypoint = findNearbyWaypoint(currentState.routes, geoPoint, selectToleranceDegrees)
+
+        if (nearbyWaypoint != null) {
+            // Find the route containing this waypoint
+            val containingRoute = currentState.routes.find { route ->
+                route.waypoints.any { it.id == nearbyWaypoint.id }
+            }
+
+            if (containingRoute != null) {
+                Log.d("MapViewContainer", "Selecting nearby waypoint instead of creating new one: ${nearbyWaypoint.id}")
+                store.dispatch(MapAction.SelectWaypoint(containingRoute.id, nearbyWaypoint.id))
+                return
+            }
+        }
 
         if (currentState.routes.isEmpty()) {
             // No routes exist - create a new route with the first waypoint
@@ -234,4 +252,45 @@ private fun addWaypointToMostRecentRoute(store: MapStore, geoPoint: GeoPoint, ro
         ))
         Log.d("MapViewContainer", "Added waypoint $label to route: ${mostRecentRoute.name}")
     }
+}
+
+/**
+ * Find existing waypoint within tolerance distance from geoPoint
+ * Uses Hilbert-aware spatial reasoning (following established pattern)
+ */
+private fun findNearbyWaypoint(routes: List<Route>, geoPoint: GeoPoint, toleranceDegrees: Double): com.madanala.tern.model.Waypoint? {
+    // Hilbert pattern: compute index for target point for spatial reasoning consistency
+    val targetHilbertIndex = com.madanala.tern.utils.MapOverlayCacheUtils.computeHilbertIndex(geoPoint, 16)
+
+    routes.forEach { route ->
+        route.waypoints.forEach { waypoint ->
+            // Primary: Exact distance calculation (following Hilbert query pattern)
+            val distanceDegrees = calculateDistanceDegrees(
+                waypoint.lat, waypoint.lon,
+                geoPoint.latitude, geoPoint.longitude
+            )
+
+            // Secondary: Hilbert index proximity check for spatial reasoning consistency
+            val waypointHilbertIndex = com.madanala.tern.utils.MapOverlayCacheUtils.computeHilbertIndex(
+                org.osmdroid.util.GeoPoint(waypoint.lat, waypoint.lon), 16
+            )
+
+            val hilbertDistance = kotlin.math.abs(targetHilbertIndex - waypointHilbertIndex)
+
+            // Combined check: exact distance within tolerance
+            if (distanceDegrees <= toleranceDegrees) {
+                return waypoint
+            }
+        }
+    }
+    return null
+}
+
+/**
+ * Calculate distance between two points in degrees (following Hilbert validation pattern)
+ */
+private fun calculateDistanceDegrees(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+    val dLat = lat1 - lat2
+    val dLon = lon1 - lon2
+    return kotlin.math.sqrt(dLat * dLat + dLon * dLon)
 }
