@@ -12,12 +12,12 @@ apply(plugin = "jacoco")
 
 android {
     namespace = "com.madanala.tern"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.madanala.tern"
         minSdk = 24
-        targetSdk = 34
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0"
 
@@ -34,9 +34,6 @@ android {
 
     testOptions {
         unitTests.all {
-            jacoco {
-                includeNoLocationClasses = true
-            }
             it.useJUnitPlatform()
         }
         execution = "ANDROIDX_TEST_ORCHESTRATOR"
@@ -222,7 +219,7 @@ tasks.register<JacocoReport>("testWithCoverage") {
     )
 
     classDirectories.setFrom(
-        fileTree(dir: "${project.layout.buildDirectory.get()}/tmp/kotlin-classes/debug") {
+        fileTree("${project.layout.buildDirectory.get()}/tmp/kotlin-classes/debug") {
             exclude(coverageExcludes)
         }
     )
@@ -231,10 +228,10 @@ tasks.register<JacocoReport>("testWithCoverage") {
 
     // Include both unit test and instrumentation test coverage data
     executionData.setFrom(
-        fileTree(dir: project.layout.buildDirectory.get(), includes: listOf(
-            "jacoco/testDebugUnitTest.exec",
-            "outputs/code_coverage/debugAndroidTest/connected/**/*.ec"
-        ))
+        fileTree(project.layout.buildDirectory.get().asFile) {
+            include("jacoco/testDebugUnitTest.exec")
+            include("outputs/code_coverage/debugAndroidTest/connected/**/*.ec")
+        }
     )
 
     doFirst {
@@ -262,6 +259,80 @@ tasks.register("runAllTestsAndGenerateSummary") {
     doLast {
         println("🎯 All tests completed! Test summary generated at: ${project.layout.buildDirectory.get()}/reports/test-summary.md")
         println("📊 To view the summary: cat ${project.layout.buildDirectory.get()}/reports/test-summary.md")
+    }
+}
+
+tasks.register("runUnitTestsAndGenerateSummary") {
+    group = "verification"
+    description = "Run unit tests only and generate comprehensive test summary (no device needed)"
+
+    dependsOn("testDebugUnitTest", "jacocoTestReport", "generateTestSummary")
+
+    doLast {
+        println("🎯 Unit tests completed! Test summary generated at: ${project.layout.buildDirectory.get()}/reports/test-summary.md")
+        println("📊 To view the summary: cat ${project.layout.buildDirectory.get()}/reports/test-summary.md")
+        println("📈 JaCoCo coverage report: ${project.layout.buildDirectory.get()}/reports/jacoco/jacocoTestReport/html/index.html")
+    }
+}
+
+tasks.register("runAutomatedTests") {
+    group = "verification"
+    description = "Run fully automated Android testing with zero manual steps (SDK setup, emulator, tests, cleanup)"
+
+    doLast {
+        println("🤖 Starting fully automated Android testing...")
+        println("📋 This will:")
+        println("   1. Download and configure Android SDK (if needed)")
+        println("   2. Create Pixel Pro emulator (if needed)")
+        println("   3. Launch emulator with performance optimizations")
+        println("   4. Run ./gradlew testWithCoverage with coverage")
+        println("   5. Generate comprehensive test summary (test-summary.md)")
+        println("   6. Clean up emulator and resources")
+        println()
+
+        // Check if Python is available
+        val pythonResult = providers.exec {
+            commandLine("python3", "--version")
+            isIgnoreExitValue = true
+        }
+
+        if (pythonResult.result.get().exitValue != 0) {
+            val python2Result = providers.exec {
+                commandLine("python", "--version")
+                isIgnoreExitValue = true
+            }
+            if (python2Result.result.get().exitValue != 0) {
+                throw GradleException("❌ Python is not available. Please install Python 3.6+ to use automated testing.")
+            }
+        }
+
+        // Run the Python automation script
+        val scriptPath = "${project.rootDir}/scripts/android_test_automation.py"
+        val scriptFile = file(scriptPath)
+
+        if (!scriptFile.exists()) {
+            throw GradleException("❌ Automation script not found: $scriptPath")
+        }
+
+        println("🔧 Executing automation script: $scriptPath")
+
+        val automationResult = providers.exec {
+            workingDir = project.rootDir
+            commandLine("python3", scriptPath)
+            isIgnoreExitValue = true
+        }
+
+        val exitCode = automationResult.result.get().exitValue
+
+        if (exitCode == 0) {
+            println("\n🎉 SUCCESS: Automated testing completed successfully!")
+            println("📋 Test summary: build/reports/test-summary.md")
+            println("📊 JaCoCo coverage: build/reports/jacoco/combined/html/index.html")
+        } else {
+            println("\n❌ FAILURE: Automated testing failed (exit code: $exitCode)")
+            println("📋 Check the logs above for details")
+            throw GradleException("Automated testing failed")
+        }
     }
 }
 
