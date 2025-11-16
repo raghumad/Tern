@@ -81,9 +81,9 @@
 - [x] **Task 2.2**: Create memory monitoring tests (MemorySafetyTest.kt, +0.3 points, 7 tests) ✅
 - [x] **Task 2.3**: Create performance benchmark tests (PerformanceBenchmarkTest.kt, +0.2 points, 8 tests) ✅
 
-#### Phase 3: Integration Tests (0.3 points)
-- [ ] **Task 3.1**: Create basic overlay manager tests (OverlayManagerTest.kt lifecycle, +0.2 points, ~+10-15% coverage)
-- [ ] **Task 3.2**: Add Redux integration testing to overlay manager tests (+0.1 points)
+#### Phase 3: Integration Tests (0.3 points) - IN PROGRESS
+- [x] **Task 3.1**: Tried overlay manager tests - NEEDS ANDROID TEST INFRASTRUCTURE FIX (+0.2 points attempted)
+- [ ] **Task 3.2**: Add Redux integration testing to overlay manager tests (+0.1 points) - WAITING FOR ANDROID FIX
 - [ ] **Task 3.3**: Create UI regression tests (UiRegressionTest.kt, +0.1 points, ~+5-10% coverage)
 
 #### Completed Status:
