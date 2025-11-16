@@ -206,4 +206,75 @@ class CacheLayerTest {
         assertTrue("Cache stats should include size info", stats.containsKey("totalSizeBytes"))
         assertTrue("Should have at least 1 route", (stats["totalRoutes"] as? Int ?: 0) >= 1)
     }
+
+    /**
+     * Test Waypoint Type Persistence and Backward Compatibility
+     * Ensures waypoint types are saved and restored correctly, including legacy routes without types
+     */
+    @Test
+    fun testWaypointTypePersistenceAndBackwardCompatibility() = runTest {
+        // Test route with different waypoint types
+        val route = Route(
+            id = "waypoint_types_test",
+            name = "Waypoint Types Test",
+            waypoints = listOf(
+                Waypoint("launch", 40.7128, -74.0060, Waypoint.Type.LAUNCH, "LAUNCH", Instant.now(), "waypoint_types_test"),
+                Waypoint("turnpoint", 40.7589, -73.9851, Waypoint.Type.TURNPOINT, "TURNPOINT", Instant.now(), "waypoint_types_test"),
+                Waypoint("landing", 40.7505, -73.9934, Waypoint.Type.LANDING, "LANDING", Instant.now(), "waypoint_types_test")
+            )
+        )
+
+        // Cache the route
+        routeCache.cacheRoute(route)
+
+        // Retrieve cached route
+        val cachedRoute = routeCache.getCachedRoute(route.id)
+        assertNotNull("Cached route should not be null", cachedRoute)
+
+        // Verify all waypoint types are preserved
+        assertEquals("Should have 3 waypoints", 3, cachedRoute?.waypoints?.size)
+        val waypoints = cachedRoute?.waypoints?.sortedBy { it.id } ?: emptyList()
+
+        assertEquals("First waypoint should be LAUNCH", Waypoint.Type.LAUNCH, waypoints[0].type)
+        assertEquals("Second waypoint should be TURNPOINT", Waypoint.Type.TURNPOINT, waypoints[1].type)
+        assertEquals("Third waypoint should be LANDING", Waypoint.Type.LANDING, waypoints[2].type)
+
+        // Test backward compatibility by simulating legacy cache data
+        // This tests the reconstructRouteFromFeatures method with missing waypointType
+        val legacyFeatures = route.waypoints.map { waypoint ->
+            val centroid = org.osmdroid.util.GeoPoint(waypoint.lat, waypoint.lon)
+            val hilbertIndex = com.madanala.tern.utils.MapOverlayCacheUtils.computeHilbertIndex(centroid, 32)
+
+            // Create feature WITHOUT waypointType (simulating legacy data)
+            val featureData = mapOf(
+                "type" to "Feature",
+                "geometry" to mapOf(
+                    "type" to "Point",
+                    "coordinates" to listOf(waypoint.lon, waypoint.lat)
+                ),
+                "properties" to mapOf(
+                    "waypointId" to waypoint.id,
+                    "routeId" to route.id,
+                    // NOTE: "waypointType" is intentionally omitted to test backward compatibility
+                    "label" to (waypoint.label ?: ""),
+                    "routeName" to route.name
+                )
+            )
+
+            com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature(featureData, centroid, hilbertIndex, "route")
+        }
+
+        // Test reconstruction from legacy features (should default to TURNPOINT)
+        val reconstructedRoute = (routeCache::class.java.getDeclaredMethod("reconstructRouteFromFeatures", String::class.java, List::class.java)
+            .apply { isAccessible = true }
+            .invoke(routeCache, route.id, legacyFeatures)) as? Route
+
+        assertNotNull("Reconstructed route should not be null", reconstructedRoute)
+        assertEquals("Should have 3 waypoints", 3, reconstructedRoute?.waypoints?.size)
+
+        // All waypoints should default to TURNPOINT for backward compatibility
+        reconstructedRoute?.waypoints?.forEach { waypoint ->
+            assertEquals("Legacy waypoint should default to TURNPOINT", Waypoint.Type.TURNPOINT, waypoint.type)
+        }
+    }
 }

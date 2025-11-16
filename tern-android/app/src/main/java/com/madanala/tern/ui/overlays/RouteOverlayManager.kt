@@ -39,8 +39,8 @@ class RouteOverlayManager(
         private const val MULTI_WAYPOINT_TAP_RADIUS = 40f
 
         // Waypoint type rendering constants
-        private const val LAUNCH_TRIANGLE_SIZE_RATIO = 0.7f
-        private const val LANDING_SQUARE_SIZE_RATIO = 0.7f
+        private const val LAUNCH_TRIANGLE_SIZE_RATIO = 1.0f
+        private const val LANDING_SQUARE_SIZE_RATIO = 1.0f
     }
 
     private var routeCache: RouteCache? = null
@@ -341,40 +341,36 @@ class RouteOverlayManager(
                         // Use larger radius for single-waypoint routes to make them more visible
                         val radius = if (route.waypoints.size == 1) SINGLE_WAYPOINT_RADIUS else MULTI_WAYPOINT_RADIUS
 
-                        // Draw waypoint circle with white fill
-                        canvas.drawCircle(screenPoint.x.toFloat(), screenPoint.y.toFloat(), radius, waypointPaint)
-
-                        // Draw colored border based on waypoint type
+                        // Draw waypoint shape based on type
                         when (waypoint.type) {
                             com.madanala.tern.model.Waypoint.Type.LAUNCH -> {
-                                waypointBorderPaint.color = Color.GREEN
-                                canvas.drawCircle(screenPoint.x.toFloat(), screenPoint.y.toFloat(), radius, waypointBorderPaint)
-
                                 // Draw triangle for launch
+                                waypointBorderPaint.color = Color.GREEN
                                 val trianglePath = Path()
                                 val triangleSize = radius * LAUNCH_TRIANGLE_SIZE_RATIO
                                 trianglePath.moveTo(screenPoint.x.toFloat(), screenPoint.y - triangleSize)
                                 trianglePath.lineTo(screenPoint.x - triangleSize, screenPoint.y + triangleSize)
                                 trianglePath.lineTo(screenPoint.x + triangleSize, screenPoint.y + triangleSize)
                                 trianglePath.close()
-                                canvas.drawPath(trianglePath, waypointBorderPaint)
+                                canvas.drawPath(trianglePath, waypointPaint) // White fill
+                                canvas.drawPath(trianglePath, waypointBorderPaint) // Green border
                             }
                             com.madanala.tern.model.Waypoint.Type.LANDING -> {
-                                waypointBorderPaint.color = Color.RED
-                                canvas.drawCircle(screenPoint.x.toFloat(), screenPoint.y.toFloat(), radius, waypointBorderPaint)
-
                                 // Draw square for landing
+                                waypointBorderPaint.color = Color.RED
                                 val halfSize = radius * LANDING_SQUARE_SIZE_RATIO
-                                canvas.drawRect(
+                                val rect = RectF(
                                     screenPoint.x - halfSize, screenPoint.y - halfSize,
-                                    screenPoint.x + halfSize, screenPoint.y + halfSize,
-                                    waypointBorderPaint
+                                    screenPoint.x + halfSize, screenPoint.y + halfSize
                                 )
+                                canvas.drawRect(rect, waypointPaint) // White fill
+                                canvas.drawRect(rect, waypointBorderPaint) // Red border
                             }
                             else -> {
-                                // Blue border for turnpoints
+                                // Draw circle for turnpoints
                                 waypointBorderPaint.color = Color.BLUE
-                                canvas.drawCircle(screenPoint.x.toFloat(), screenPoint.y.toFloat(), radius, waypointBorderPaint)
+                                canvas.drawCircle(screenPoint.x.toFloat(), screenPoint.y.toFloat(), radius, waypointPaint) // White fill
+                                canvas.drawCircle(screenPoint.x.toFloat(), screenPoint.y.toFloat(), radius, waypointBorderPaint) // Blue border
                             }
                         }
 
@@ -382,7 +378,32 @@ class RouteOverlayManager(
                         currentSelectedWaypoint?.let { selection ->
                             if (selection.routeId == route.id && selection.waypointId == waypoint.id) {
                                 val paint = if (selection.isDragging) dragPaint else selectionPaint
-                                canvas.drawCircle(screenPoint.x.toFloat(), screenPoint.y.toFloat(), radius + SELECTION_HIGHLIGHT_PADDING, paint)
+                                val highlightRadius = radius + SELECTION_HIGHLIGHT_PADDING
+                                when (waypoint.type) {
+                                    com.madanala.tern.model.Waypoint.Type.LAUNCH -> {
+                                        // Draw triangular highlight for launch
+                                        val trianglePath = Path()
+                                        val triangleSize = highlightRadius
+                                        trianglePath.moveTo(screenPoint.x.toFloat(), screenPoint.y - triangleSize)
+                                        trianglePath.lineTo(screenPoint.x - triangleSize, screenPoint.y + triangleSize)
+                                        trianglePath.lineTo(screenPoint.x + triangleSize, screenPoint.y + triangleSize)
+                                        trianglePath.close()
+                                        canvas.drawPath(trianglePath, paint)
+                                    }
+                                    com.madanala.tern.model.Waypoint.Type.LANDING -> {
+                                        // Draw square highlight for landing
+                                        val halfSize = highlightRadius
+                                        canvas.drawRect(
+                                            screenPoint.x - halfSize, screenPoint.y - halfSize,
+                                            screenPoint.x + halfSize, screenPoint.y + halfSize,
+                                            paint
+                                        )
+                                    }
+                                    else -> {
+                                        // Draw circular highlight for turnpoints
+                                        canvas.drawCircle(screenPoint.x.toFloat(), screenPoint.y.toFloat(), highlightRadius, paint)
+                                    }
+                                }
                             }
                         }
 

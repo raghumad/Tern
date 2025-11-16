@@ -261,14 +261,14 @@ class RouteCache(private val context: Context) {
             val waypoints = features.mapNotNull { feature ->
                 val props = feature.feature["properties"] as? Map<*, *>
                 val waypointId = props?.get("waypointId") as? String
-                val waypointTypeStr = props?.get("waypointType") as? String
+                val waypointTypeStr = (props?.get("waypointType") as? String)?.takeIf { it.isNotEmpty() } ?: "TURNPOINT"
                 val label = props?.get("label") as? String
 
-                if (waypointId != null && waypointTypeStr != null) {
+                if (waypointId != null) {
                     val waypointType = try {
                         Waypoint.Type.valueOf(waypointTypeStr)
                     } catch (e: Exception) {
-                        Waypoint.Type.TURNPOINT // Default fallback
+                        Waypoint.Type.TURNPOINT // Default fallback for invalid types
                     }
 
                     Waypoint(
