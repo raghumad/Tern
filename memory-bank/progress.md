@@ -70,13 +70,25 @@
 - Cross-platform format compatibility
 - Route data validation and versioning
 
-### Android Testing Expansion (Ongoing - High Priority, +0.6 points potential)
+### Android Testing Expansion (Ongoing - High Priority, +2.0 points total potential)
+
+#### Phase 1: Fix Testing Framework (Unblocks all tests)
+- [ ] **Task 1.1**: Diagnose import conflicts in test dependencies andTruth assertions (+0.1 points) - **CURRENT TASK**
+- [ ] **Task 1.2**: Fix test framework dependencies and imports to enable new test creation (+0.2 points)
+
+#### Phase 2: Unit Tests (0.8 points)
+- [ ] **Task 2.1**: Create GPS safety validation tests (GpsSafetyTest.kt, +0.3 points, ~+5-8% coverage)
+- [ ] **Task 2.2**: Create memory monitoring tests (MemorySafetyTest.kt, +0.3 points, ~+5-8% coverage)
+- [ ] **Task 2.3**: Create performance benchmark tests (PerformanceBenchmarkTest.kt, +0.2 points, ~+3-5% coverage)
+
+#### Phase 3: Integration Tests (0.3 points)
+- [ ] **Task 3.1**: Create basic overlay manager tests (OverlayManagerTest.kt lifecycle, +0.2 points, ~+10-15% coverage)
+- [ ] **Task 3.2**: Add Redux integration testing to overlay manager tests (+0.1 points)
+- [ ] **Task 3.3**: Create UI regression tests (UiRegressionTest.kt, +0.1 points, ~+5-10% coverage)
+
+#### Completed Status:
 - [x] **Automated Test Infrastructure Fixed**: Updated Python automation script, config alignment, added unit-only testing task (+0.4 points)
-- [ ] **Overlay Manager Tests**: Create OverlayManagerTest.kt (+0.2 points, ~+10-15% coverage)
-- [ ] **UI Regression Tests**: Create UiRegressionTest.kt (+0.1 points, ~+5-10% coverage)
-- [ ] **GPS Safety Tests**: Create GpsSafetyTest.kt for aviation GPS validation (+0.3 points)
-- [ ] **Memory Monitoring Tests**: Create MemorySafetyTest.kt for heap usage validation (+0.3 points)
-- [ ] **Performance Benchmark Tests**: Create PerformanceBenchmarkTest.kt for dispatch frequency (+0.2 points)
+- [x] **Test Coverage Analysis Completed**: Identified 31 existing tests, coverage at 3.1%, critical gaps in safety validation (-0.1 points)
 
 ### iOS SynchroniSation
 - Feature parity analysis with Android MVP
