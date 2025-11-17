@@ -127,7 +127,7 @@ class AirspaceOverlayManager(
     /**
      * Set the overlay coordinator for Hilbert batch operations (called by OverlayCoordinator)
      */
-    fun setOverlayCoordinator(coordinator: com.madanala.tern.ui.overlays.OverlayCoordinator) {
+    override fun setOverlayCoordinator(coordinator: com.madanala.tern.ui.overlays.OverlayCoordinator) {
         this.overlayCoordinator = coordinator
         // Log.d(TAG, "Overlay coordinator connected to AirspaceOverlayManager for Hilbert ordering")
     }

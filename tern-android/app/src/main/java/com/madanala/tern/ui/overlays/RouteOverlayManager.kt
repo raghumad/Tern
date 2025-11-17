@@ -50,6 +50,9 @@ class RouteOverlayManager(
     private var currentSelectedRouteId: String? = null
     private val routeOverlays = mutableListOf<RouteOverlay>()
 
+    // Overlay coordinator for Hilbert ordering and lifecycle management
+    private var overlayCoordinator: OverlayCoordinator? = null
+
     // Paint objects for route rendering
     private val routePaint = Paint().apply {
         color = Color.BLUE
@@ -113,6 +116,11 @@ class RouteOverlayManager(
         // Routes will be loaded via Redux state changes
     }
 
+    override fun setOverlayCoordinator(coordinator: OverlayCoordinator) {
+        this.overlayCoordinator = coordinator
+        Log.d(TAG, "RouteOverlayManager connected to OverlayCoordinator for lifecycle management")
+    }
+
     override fun onOverlayDetached() {
         Log.d(TAG, "Route overlay manager detached")
         clearRouteOverlays()
@@ -121,11 +129,17 @@ class RouteOverlayManager(
     override fun performMapMove(center: GeoPoint, zoom: Double) {
         // Map movement handled by Redux state changes
         // Route display is determined by Redux state, not spatial queries
+
+        // Notify overlay coordinator of map movement for distance-based zoning
+        overlayCoordinator?.onMapMoved(center.latitude, center.longitude, zoom)
     }
 
     override fun onViewportChangedInternal(viewport: org.osmdroid.util.BoundingBox) {
         // Viewport changes handled by Redux state changes
         // Route display is determined by Redux state, not spatial queries
+
+        // Notify overlay coordinator of viewport changes for memory management
+        overlayCoordinator?.onViewportChanged(viewport)
     }
 
     override fun onReduxStateChanged(state: MapState) {
@@ -215,6 +229,23 @@ class RouteOverlayManager(
      */
     fun getRouteCacheStats(): Map<String, Any> {
         return routeCache?.getCacheStats() ?: emptyMap()
+    }
+
+    /**
+     * Enhanced performance statistics for RouteOverlayManager
+     */
+    override fun getPerformanceStats(): Map<String, Any> {
+        val baseStats = super.getPerformanceStats().toMutableMap()
+        val cacheStats = routeCache?.getCacheStats() ?: emptyMap()
+
+        baseStats.putAll(cacheStats)
+        baseStats["route_overlays_active"] = routeOverlays.size
+        baseStats["current_routes_count"] = currentRoutes.size
+        baseStats["has_selected_waypoint"] = currentSelectedWaypoint != null
+        baseStats["has_selected_route"] = currentSelectedRouteId != null
+        baseStats["overlay_coordinator_connected"] = overlayCoordinator != null
+
+        return baseStats
     }
 
     /**

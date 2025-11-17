@@ -131,12 +131,24 @@ class OverlayCoordinator {
                     manager.setOverlayCoordinator(this) // Connect for Hilbert ordering
                     // Log.d(TAG, "✅ Connected PGSpotOverlayManager to universal country cache and coordinator")
                 }
+                is com.madanala.tern.ui.overlays.RouteOverlayManager -> {
+                    // RouteOverlayManager doesn't need country cache but needs coordinator for lifecycle
+                    manager.setOverlayCoordinator(this) // Connect for Hilbert ordering and lifecycle management
+                    // Log.d(TAG, "✅ Connected RouteOverlayManager to coordinator (routes don't need country cache)")
+                }
                 else -> {
                     // Handle other overlay manager types that don't need country cache
                     // Log.d(TAG, "Connected ${manager.overlayType} overlay manager (no country cache needed)")
                 }
             }
-        } ?: Log.w(TAG, "Country cache manager not available")
+        } ?: run {
+            // If no country cache manager, still connect RouteOverlayManager to coordinator
+            if (manager is com.madanala.tern.ui.overlays.RouteOverlayManager) {
+                manager.setOverlayCoordinator(this)
+                // Log.d(TAG, "✅ Connected RouteOverlayManager to coordinator (no country cache available)")
+            }
+            Log.w(TAG, "Country cache manager not available")
+        }
 
     }
 
