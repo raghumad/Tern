@@ -2,15 +2,7 @@
 
 ## Technology Stack
 
-### iOS Development (Tern/)
-- **Language**: Swift 5.x+
-- **UI Framework**: SwiftUI with MapKit integration
-- **Build System**: Xcode with standard project configuration
-- **Platform APIs**: MapKit, CoreLocation, URLSession
-- **Entitlements**: Location services, network access
-- **Assets**: Custom icon set and branded fonts (Gruppo-Regular.ttf)
-
-### Android Development (tern-android/)
+### Android Development (PRIMARY PLATFORM - tern-android/)
 - **Language**: Kotlin 1.8.x+
 - **UI Framework**: Jetpack Compose with osmdroid maps
 - **Build System**: Gradle with Kotlin DSL (build.gradle.kts)
@@ -20,6 +12,11 @@
 - **Performance Targets**: <10 Redux dispatches/sec, <75% memory usage, 60fps UI
 - **Testing**: JUnit, Espresso, Mockito with JaCoCo coverage
 - **Dependencies**: Compose BOM, Lifecycle, Coroutines, osmdroid, FlexBuffers
+
+### iOS Development (ARCHIVED - Tern/)
+- **Status**: No active development - substantial feature gaps identified in parity assessment
+- **Gaps vs Android MVP**: Missing Redux state management, FlatBuffers caching, overlay system, interactive editing
+- **Recommendation**: Avoid development to prevent resource waste on duplicative effort
 
 ### Cross-Platform Shared Components
 - **Models**: Weather forecasts, airspaces, hotspots, waypoints
@@ -31,16 +28,16 @@
 ## Development Environment
 
 ### Setup Requirements
-- **macOS/iOS**: Xcode 14+ for iOS development
-- **Android**: JDK 11+, Android SDK (auto-download via scripts)
+- **Android**: JDK 11+, Android SDK (auto-download via scripts) - PRIMARY DEVELOPMENT ENVIRONMENT
+- **macOS/iOS**: Xcode 14+ available but NO ACTIVE iOS DEVELOPMENT
 - **Git**: Version control with remote repository
 - **IDE**: VS Code with platform extensions
 
 ### Build and Test Commands
-- **iOS**: `xcodebuild` (via Xcode)
 - **Android Manual**: `./gradlew assembleDebug`
-- **Android Automated**: `./gradlew runAutomatedTests`
+- **Android Automated**: `./gradlew runAutomatedTests` (PRIMARY DEVELOPMENT WORKFLOW)
 - **Coverage**: `./gradlew testWithCoverage`
+- **iOS**: No active build commands (development halted)
 
 ## Dependencies and Libraries
 
@@ -51,11 +48,6 @@
 - `com.google.flatbuffers:flatbuffers-java` - Serialization
 - `androidx.test:*` - Testing framework
 
-### iOS Frameworks
-- SwiftUI (built-in)
-- MapKit (built-in)
-- Combine (built-in)
-- Foundation/CFNetwork (built-in)
 
 ### External APIs
 - **NWS Weather**: US National Weather Service API
@@ -63,6 +55,9 @@
 - **Airspace Data**: Aviation databases (implementation needed)
 
 ## UI/UX Design Principles
+
+### Architecture Decisions (Android-Focused)
+All architecture decisions (Redux, FlatBuffers, overlay management, testing) are designed and validated for Android implementation. The Android-first approach ensures optimal performance, user experience, and maintainability on the primary platform.
 
 ### Intuitive Interaction Patterns (Android)
 - **Contextual Gesture Behavior**: Interactions adapt based on proximity and state
@@ -83,10 +78,9 @@
 - **Coverage**: JaCoCo integration with thresholds
 - **Automation**: Python scripts for full test execution
 
-### iOS Testing (To Be Assessed)
-- XCUnit framework capabilities
-- UI testing integration
-- Coverage tools integration needed
+### iOS Testing (ARCHIVED)
+- No active testing framework (development halted)
+- Parity assessment revealed substantial gaps vs Android MVP testing capabilities
 
 ## Deployment and Distribution
 
@@ -95,10 +89,9 @@
 - Automated testing pipeline
 - Store distribution via Google Play
 
-### iOS
-- IPA generation via Xcode
-- TestFlight for beta distribution
-- App Store distribution
+### iOS (ARCHIVED)
+- No active deployment pipeline (development halted)
+- Parity assessment identified substantial feature gaps requiring duplicative development effort
 
 ### Aviation Standards Compliance
 - Safety-critical software practices

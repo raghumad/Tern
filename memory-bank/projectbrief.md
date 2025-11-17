@@ -1,6 +1,6 @@
 # Project Brief
 
-Tern is a paragliding flight deck application designed to assist paragliders in flight planning, navigation, and execution. The app provides cross-platform support (iOS SwiftUI and Android Compose/Kotlin) with essential flight deck features including airspace management, hotspot identification, weather forecasting, and route planning.
+Tern is a paragliding flight deck application designed to assist paragliders in flight planning, navigation, and execution. The app provides **Android-only cross-platform functionality** (via Android implementation) with essential flight deck features including airspace management, hotspot identification, weather forecasting, and route planning.
 
 ## Purpose
 - **Aviation-grade safety standards** for paragliders from student to competition pilots
@@ -10,7 +10,7 @@ Tern is a paragliding flight deck application designed to assist paragliders in 
 
 ## Core Goals
 - Provide comprehensive flight deck functionality for paragliders
-- Ensure cross-platform consistency between iOS and Android
+- **Android-only focus**: No iOS development planned (iOS parity assessment identified substantial gaps requiring 6-12 months of duplicative effort)
 - Maintain high safety standards by incorporating airspace restrictions and weather data
 - Deliver intuitive user experience for flight planning and in-flight navigation
 - Support smooth performance and visual continuity during aviation operations
@@ -26,7 +26,7 @@ Tern is a paragliding flight deck application designed to assist paragliders in 
 - Progressive zoning overlay system (CORE → NEAR → MID → FAR → EXTREME)
 
 ## Key Files and Structure
-- iOS app in Tern/ directory (SwiftUI)
-- Android app in tern-android/ directory (Kotlin, Redux-first)
-- Shared models for data structures (airspaces, weather, routes)
-- Cross-platform models for weather, routes, waypoints
+- **Primary**: Android app in tern-android/ directory (Kotlin, Redux-first) - ACTIVE DEVELOPMENT
+- **Archived**: iOS app in Tern/ directory (SwiftUI) - NO FURTHER DEVELOPMENT
+- Shared models for data structures (airspaces, weather, routes) - MAINTAINED FOR POTENTIAL FUTURE USE
+- Cross-platform models for weather, routes, waypoints - MAINTAINED FOR POTENTIAL FUTURE USE

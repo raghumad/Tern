@@ -203,6 +203,13 @@ abstract class BaseOverlayManager(
         store?.state?.value?.let { onReduxStateChanged(it) }
     }
 
+    /**
+      * Set the overlay coordinator (for RouteOverlayManager integration with Hilbert ordering)
+      */
+    open fun setOverlayCoordinator(coordinator: OverlayCoordinator) {
+        // Default implementation - RouteOverlayManager will override this
+    }
+
 
     /**
      * Check if this overlay is currently enabled
