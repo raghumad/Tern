@@ -295,6 +295,31 @@ object MemoryErrorRecovery {
         lastErrorTime.set(0)
         Log.d(TAG, "Error history cleared")
     }
+
+    /**
+     * Attempt recovery from memory pressure
+     */
+    fun attemptRecovery(pressureLevel: MemoryPressureLevel): Boolean {
+        return try {
+            Log.i(TAG, "Attempting recovery from memory pressure: ${pressureLevel.name}")
+
+            // Clear error history to reset state
+            clearErrorHistory()
+
+            // Force garbage collection
+            System.gc()
+            System.runFinalization()
+
+            // Wait briefly for GC to complete
+            Thread.sleep(100)
+
+            Log.i(TAG, "Memory recovery attempt completed successfully")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Memory recovery attempt failed", e)
+            false
+        }
+    }
 }
 
 /**

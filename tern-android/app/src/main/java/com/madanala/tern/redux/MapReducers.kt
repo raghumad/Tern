@@ -508,6 +508,11 @@ fun weatherReducer(state: MapState, action: WeatherActions): MapState = when (ac
         )
         state.copy(weatherState = newWeatherState)
     }
+
+    // Test actions
+    is WeatherActions.RequestWeatherUpdate -> state // No-op for testing
+    is WeatherActions.WeatherDataLoaded -> state // No-op for testing
+    is WeatherActions.WeatherError -> state // No-op for testing
 }
 
 /**

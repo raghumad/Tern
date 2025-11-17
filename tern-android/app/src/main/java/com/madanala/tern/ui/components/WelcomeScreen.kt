@@ -95,6 +95,10 @@ fun WelcomeScreen(
                     // GPS active but location not ready yet (final acquisition phase)
                     AcquiringGpsView(gruppoFont, isFinalAcquisition = true)
                 }
+                com.madanala.tern.redux.GpsStatus.SEARCHING -> {
+                    // GPS searching for satellites
+                    AcquiringGpsView(gruppoFont, isFinalAcquisition = false)
+                }
             }
         }
     }
