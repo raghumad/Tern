@@ -20,6 +20,12 @@ enum class GpsStatus(
         isOperational = false
     ),
 
+    SEARCHING(
+        description = "GPS searching for satellite fix",
+        userMessage = "Searching for GPS satellites...",
+        isOperational = false
+    ),
+
     ACTIVE(
         description = "GPS fix acquired and updating",
         userMessage = "GPS location active",

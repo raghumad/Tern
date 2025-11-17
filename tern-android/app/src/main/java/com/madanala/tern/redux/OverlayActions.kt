@@ -31,4 +31,9 @@ sealed class WeatherActions {
 
     // API availability monitoring
     data class WeatherAPIStatus(val apiAvailable: Boolean) : WeatherActions()
+
+    // Additional weather actions for testing
+    data object RequestWeatherUpdate : WeatherActions()
+    data class WeatherDataLoaded(val data: List<Any>) : WeatherActions()
+    data class WeatherError(val error: String) : WeatherActions()
 }
