@@ -154,6 +154,7 @@ dependencies {
     // Mocking Framework
     testImplementation("org.mockito:mockito-core:5.14.2")
     testImplementation("org.mockito.kotlin:mockito-kotlin:5.4.0")
+    testImplementation("io.mockk:mockk:1.13.13")
 
     // Coroutines Testing
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
@@ -253,9 +254,10 @@ tasks.register<JacocoCoverageVerification>("jacocoTestCoverageVerification") {
     sourceDirectories.setFrom(files(coverageSourceDirs))
 
     executionData.setFrom(
-        fileTree(project.layout.buildDirectory.get().asFile) {
-            include("jacoco/testDebugUnitTest.exec")
-            include("outputs/code_coverage/debugAndroidTest/connected/**/*.ec")
+        fileTree(project.layout.buildDirectory.dir("outputs/unit_test_code_coverage/debugUnitTest")) {
+            include("**/*.exec")
+        } + fileTree(project.layout.buildDirectory.dir("outputs/code_coverage/debugAndroidTest/connected")) {
+            include("**/*.ec")
         }
     )
 }
@@ -279,7 +281,9 @@ tasks.register<JacocoReport>("jacocoTestReport") {
 
     classDirectories.setFrom(files(javaClasses, kotlinClasses))
     sourceDirectories.setFrom(files("${project.projectDir}/src/main/java", "${project.projectDir}/src/main/kotlin"))
-    executionData.setFrom(file("${project.layout.buildDirectory.get()}/jacoco/testDebugUnitTest.exec"))
+    executionData.setFrom(fileTree(project.layout.buildDirectory.dir("outputs/unit_test_code_coverage/debugUnitTest")) {
+        include("**/*.exec")
+    })
 }
 
 // Enhanced JaCoCo report with detailed breakdown by package
@@ -320,9 +324,10 @@ tasks.register<JacocoReport>("jacocoDetailedReport") {
     sourceDirectories.setFrom(files(coverageSourceDirs))
 
     executionData.setFrom(
-        fileTree(project.layout.buildDirectory.get().asFile) {
-            include("jacoco/testDebugUnitTest.exec")
-            include("outputs/code_coverage/debugAndroidTest/connected/**/*.ec")
+        fileTree(project.layout.buildDirectory.dir("outputs/unit_test_code_coverage/debugUnitTest")) {
+            include("**/*.exec")
+        } + fileTree(project.layout.buildDirectory.dir("outputs/code_coverage/debugAndroidTest/connected")) {
+            include("**/*.ec")
         }
     )
 
@@ -370,9 +375,10 @@ tasks.register<JacocoReport>("testWithCoverage") {
 
     // Include both unit test and instrumentation test coverage data
     executionData.setFrom(
-        fileTree(project.layout.buildDirectory.get().asFile) {
-            include("jacoco/testDebugUnitTest.exec")
-            include("outputs/code_coverage/debugAndroidTest/connected/**/*.ec")
+        fileTree(project.layout.buildDirectory.dir("outputs/unit_test_code_coverage/debugUnitTest")) {
+            include("**/*.exec")
+        } + fileTree(project.layout.buildDirectory.dir("outputs/code_coverage/debugAndroidTest/connected")) {
+            include("**/*.ec")
         }
     )
 
