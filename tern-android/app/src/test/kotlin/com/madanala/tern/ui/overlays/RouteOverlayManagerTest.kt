@@ -14,6 +14,8 @@ import android.content.Context
 import android.os.Looper
 import io.mockk.*
 import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
@@ -24,10 +26,11 @@ import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 
-@OptIn(ExperimentalCoroutinesApi::class)
 class RouteOverlayManagerTest {
 
-    private lateinit var manager: RouteOverlayManager
+private val testDispatcher = StandardTestDispatcher()
+
+private lateinit var manager: RouteOverlayManager
     private lateinit var mockMapStore: MapStore
     private lateinit var mockMapView: MapView
     private lateinit var mockCoordinator: OverlayCoordinator
@@ -35,8 +38,13 @@ class RouteOverlayManagerTest {
     private lateinit var mockCacheDir: File
     private lateinit var mockLooper: Looper
 
+    private lateinit var mockOverlays: MutableList<org.osmdroid.views.overlay.Overlay>
+
     @BeforeEach
     fun setUp() {
+        // Set up test dispatcher for coroutines
+        Dispatchers.setMain(testDispatcher)
+
         mockkStatic(Looper::class)
         mockLooper = mockk(relaxed = true)
         every { Looper.getMainLooper() } returns mockLooper
@@ -87,7 +95,8 @@ class RouteOverlayManagerTest {
         mockMapView = mockk(relaxed = true)
         mockCoordinator = mockk(relaxed = true)
 
-        every { mockMapView.overlays } returns mockk(relaxed = true)
+        mockOverlays = mockk(relaxed = true)
+        every { mockMapView.overlays } returns mockOverlays
         every { mockMapView.projection } returns mockk(relaxed = true)
         every { mockMapView.mapCenter } returns GeoPoint(0.0, 0.0)
 
@@ -115,7 +124,7 @@ class RouteOverlayManagerTest {
         val state = createStateWithRoutes(2, enabled = true)
         manager.onReduxStateChanged(state)
 
-        verify(exactly = 2) { mockMapView.overlays.add(any()) }
+        verify(exactly = 2) { mockOverlays.add(any()) }
         verify { mockMapView.invalidate() }
     }
 
@@ -127,7 +136,8 @@ class RouteOverlayManagerTest {
         manager.onReduxStateChanged(enabledState)
         manager.onReduxStateChanged(disabledState)
 
-        verify(exactly = 1) { mockMapView.overlays.clear() }
+        // The manager removes overlays individually, it doesn't clear the whole map overlay list
+        verify(exactly = 2) { mockOverlays.remove(any()) }
     }
 
     @Test
