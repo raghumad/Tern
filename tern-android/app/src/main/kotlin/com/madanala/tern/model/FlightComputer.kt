@@ -56,6 +56,17 @@ class FlightComputer {
     )
 
     /**
+     * Thermal strength classification
+     */
+    enum class ThermalStrength {
+        NONE,       // < -2 m/s (strong sink)
+        WEAK,       // -2 to -0.5 m/s (sink/weak)
+        MODERATE,   // -0.5 to 1.0 m/s (neutral/weak lift)
+        STRONG,     // 1.0 to 3.0 m/s (good lift)
+        EXTREME     // > 3.0 m/s (strong lift)
+    }
+
+    /**
      * Lift trend analysis
      */
     enum class LiftTrend {
@@ -203,9 +214,11 @@ class FlightComputer {
      * Calculate final glide to reach a goal
      */
     fun calculateFinalGlide(
-        currentPosition: GeoPoint,
+        currentLat: Double,
+        currentLon: Double,
         currentAltitude: Double, // meters MSL
-        goalPosition: GeoPoint,
+        goalLat: Double,
+        goalLon: Double,
         goalAltitude: Double, // meters MSL
         currentGlideRatio: Double,
         wind: WindCalculation? = null,
@@ -214,17 +227,17 @@ class FlightComputer {
 
         // Calculate horizontal distance to goal
         val distanceToGoal = calculateDistance(
-            currentPosition.latitude, currentPosition.longitude,
-            goalPosition.latitude, goalPosition.longitude
+            currentLat, currentLon,
+            goalLat, goalLon
         )
 
         // Calculate height difference (positive if goal is higher)
         val heightDifference = goalAltitude - currentAltitude
 
-        // Required glide ratio to reach goal
-        val requiredGlideRatio = if (distanceToGoal > 0) {
-            abs(heightDifference) / distanceToGoal
-        } else 0.0
+        // Required glide ratio to reach goal (L/D = Distance / Height)
+        val requiredGlideRatio = if (abs(heightDifference) > 0) {
+            distanceToGoal / abs(heightDifference)
+        } else Double.MAX_VALUE
 
         // Adjust for wind (simplified)
         val windAdjustedGlideRatio = if (wind != null) {
@@ -233,8 +246,13 @@ class FlightComputer {
         } else currentGlideRatio
 
         // Calculate arrival height above goal
-        val altitudeAtGoal = currentAltitude + (distanceToGoal * windAdjustedGlideRatio) - heightDifference
+        // Altitude change = Distance / GlideRatio (L/D)
+        // We subtract the loss from current altitude
+        val altitudeLoss = if (windAdjustedGlideRatio > 0) distanceToGoal / windAdjustedGlideRatio else Double.MAX_VALUE
+        val altitudeAtGoal = currentAltitude - altitudeLoss
         val arrivalHeight = altitudeAtGoal - goalAltitude
+        
+        System.err.println("DEBUG: Dist=$distanceToGoal, Glide=$windAdjustedGlideRatio, Loss=$altitudeLoss, AltAtGoal=$altitudeAtGoal, Arrival=$arrivalHeight")
 
         // Determine if goal can be reached
         val canReachGoal = arrivalHeight >= safetyMargin
@@ -380,9 +398,9 @@ class FlightComputer {
         distanceToGoal: Double,
         heightDifference: Double
     ): Double {
-        return if (distanceToGoal > 0) {
-            abs(heightDifference) / distanceToGoal
-        } else 0.0
+        return if (abs(heightDifference) > 0) {
+            distanceToGoal / abs(heightDifference)
+        } else Double.MAX_VALUE
     }
 
     /**
