@@ -24,7 +24,8 @@ data class Route(
     val createdAt: Instant = Instant.now(),
     val updatedAt: Instant = Instant.now(),
     val totalDistanceKm: Double = 0.0,
-    val estimatedFlightTimeMinutes: Int = 0
+    val estimatedFlightTimeMinutes: Int = 0,
+    val isVisible: Boolean = true
 ) {
 
     /**
