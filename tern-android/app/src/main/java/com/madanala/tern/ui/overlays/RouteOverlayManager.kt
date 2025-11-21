@@ -119,14 +119,24 @@ class RouteOverlayManager(
     }
 
     init {
-        // Initialize route cache
-        mapView?.context?.let { context ->
-            routeCache = RouteCache(context)
-        }
+        // Route cache initialized in onOverlayAttached when context is available
     }
 
     override fun onOverlayAttached() {
         Log.d(TAG, "Route overlay manager attached")
+        
+        // Initialize route cache now that we have context
+        if (routeCache == null) {
+            mapView?.context?.let { context ->
+                try {
+                    routeCache = RouteCache(context)
+                    Log.d(TAG, "RouteCache initialized successfully")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to initialize RouteCache", e)
+                }
+            }
+        }
+        
         // Routes will be loaded via Redux state changes
     }
 
@@ -209,9 +219,11 @@ class RouteOverlayManager(
 
         // Create new overlays for current routes
         currentRoutes.forEach { route ->
-            val routeOverlay = RouteOverlay(route)
-            routeOverlays.add(routeOverlay)
-            mapView.overlays.add(routeOverlay)
+            if (route.isVisible) {
+                val routeOverlay = RouteOverlay(route)
+                routeOverlays.add(routeOverlay)
+                mapView.overlays.add(routeOverlay)
+            }
         }
 
         // Force map redraw

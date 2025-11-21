@@ -43,6 +43,10 @@ import com.madanala.tern.redux.MapStore
 import com.madanala.tern.route.Route
 import java.time.Instant
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+
 @Composable
 fun RouteListScreen(
     modifier: Modifier = Modifier,
@@ -138,6 +142,21 @@ fun RouteListScreen(
                                     modifier = Modifier.weight(1f)
                                 )
                                 Row {
+                                    IconButton(
+                                        onClick = {
+                                            val updatedRoute = route.copy(
+                                                isVisible = !route.isVisible,
+                                                updatedAt = Instant.now()
+                                            )
+                                            store.dispatch(MapAction.UpdateRoute(updatedRoute))
+                                        }
+                                    ) {
+                                        Icon(
+                                            imageVector = if (route.isVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                            contentDescription = if (route.isVisible) "Hide route" else "Show route",
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
                                     IconButton(
                                         onClick = {
                                             routeToRename = route

@@ -256,6 +256,7 @@ class RouteCache(private val context: Context) {
             val firstFeature = features.first()
             val properties = firstFeature.feature["properties"] as? Map<*, *>
             val routeName = properties?.get("routeName") as? String ?: "Reconstructed Route"
+            val isVisible = properties?.get("isVisible") as? Boolean ?: true
 
             // Extract waypoints from features
             val waypoints = features.mapNotNull { feature ->
@@ -291,7 +292,8 @@ class RouteCache(private val context: Context) {
                 return Route(
                     id = routeId,
                     name = routeName,
-                    waypoints = waypoints
+                    waypoints = waypoints,
+                    isVisible = isVisible
                 )
             }
 
@@ -322,7 +324,10 @@ class RouteCache(private val context: Context) {
                     "routeId" to route.id,
                     "waypointType" to waypoint.type.name,
                     "label" to (waypoint.label ?: ""),
-                    "routeName" to route.name
+                    "waypointType" to waypoint.type.name,
+                    "label" to (waypoint.label ?: ""),
+                    "routeName" to route.name,
+                    "isVisible" to route.isVisible
                 )
             )
 

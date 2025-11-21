@@ -404,23 +404,25 @@ tasks.register<JacocoReport>("testWithCoverage") {
         println("   - Unit tests (business logic, utilities)")
         println("   - Instrumentation tests (UI, integration, Android framework)")
     }
-
     doLast {
         println("✅ Combined coverage report and test summary generated!")
         println("📁 HTML Coverage Report: ${reports.html.outputLocation.get()}/index.html")
         println("📄 XML Coverage Report: ${reports.xml.outputLocation.get()}")
-        println("� Test Summary Report: ${project.layout.buildDirectory.get()}/reports/test-summary.md")
+        println(" Test Summary Report: ${project.layout.buildDirectory.get()}/reports/test-summary.md")
         println("💡 Tip: Check the test summary for quality metrics and recommendations")
     }
+}
+
+// Configure all Test tasks to have the correct environment
+tasks.withType<Test> {
+    environment("ANDROID_HOME", "/home/raghu/Android/Sdk")
+    environment("PATH", System.getenv("PATH"))
+    environment("BUILD_NUMBER", System.getenv("BUILD_NUMBER") ?: "dev")
 }
 
 tasks.register("testAll") {
     group = "verification"
     description = "Run comprehensive tests with conditional execution modes (use -PincludePerformanceTests=true, -PincludeRegressionTests=true, -PincludeFullAutomation=true)"
-    // Set required environment variables for the test pipeline
-    environment("ANDROID_HOME", "/home/raghu/Android/Sdk")
-    environment("PATH", System.getenv("PATH"))
-    environment("BUILD_NUMBER", System.getenv("BUILD_NUMBER") ?: "dev")
 
     // Core testing always runs
     dependsOn("testDebugUnitTest", "runManualInstrumentation", "jacocoTestCoverageVerification", "generateTestSummary")
@@ -747,15 +749,16 @@ tasks.register("runManualInstrumentation") {
         outputFile.parentFile.mkdirs()
         
         try {
-            val output = ByteArrayOutputStream()
-            exec {
+            val stdout = ByteArrayOutputStream()
+            val execResult = providers.exec {
                 commandLine("adb", "shell", "am", "instrument", "-w", "-r", 
                     "-e", "debug", "false",
                     "-e", "class", "com.madanala.tern.ui.NavigationTest",
                     "com.madanala.tern.test/androidx.test.runner.AndroidJUnitRunner")
-                standardOutput = output
-            }
-            val result = output.toString()
+                standardOutput = stdout
+                isIgnoreExitValue = true
+            }.result.get()
+            val result = stdout.toString()
             outputFile.writeText(result)
             System.out.println(result)
             
@@ -787,10 +790,10 @@ tasks.register("pullScreenshots") {
 
         println("📸 Pulling screenshots from device...")
         try {
-            exec {
+            providers.exec {
                 commandLine("adb", "pull", "/sdcard/Pictures/screenshots/.", screenshotsDir.absolutePath)
-                isIgnoreExitValue = true
-            }
+                isIgnoreExitValue = true // Ignore if no screenshots found
+            }.result.get()
             println("✅ Screenshots saved to: ${screenshotsDir.absolutePath}")
         } catch (e: Exception) {
             println("⚠️ Failed to pull screenshots: ${e.message}")
@@ -1073,7 +1076,8 @@ fun generateQualityMetrics(): String {
     // Calculate dynamic score based on actual metrics
     val testResultsDir = file("${project.layout.buildDirectory.get()}/test-results")
     val jacocoReportDir = file("${project.layout.buildDirectory.get()}/reports/jacoco")
-    val xmlReport = File(jacocoReportDir, "testDebugUnitTest/jacocoTestReport.xml")
+    // XML report is generated automatically by jacocoTestReport
+
 
     // Base score components
     var score = 0.0
