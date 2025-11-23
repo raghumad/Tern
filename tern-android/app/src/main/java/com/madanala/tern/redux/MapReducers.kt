@@ -80,7 +80,8 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
     is MapAction.AddWaypointToRoute,
     is MapAction.RemoveWaypoint,
     is MapAction.UpdateWaypoint,
-    is MapAction.UpdateWaypointType -> handleWaypointActions(state, action)
+    is MapAction.UpdateWaypointType,
+    is MapAction.ReorderWaypoint -> handleWaypointActions(state, action)
 
     // Interactive Editing
     is MapAction.SelectWaypoint,
@@ -327,6 +328,14 @@ private fun handleWaypointActions(state: MapState, action: MapAction): MapState 
         val newRoutes = state.routes.map { route ->
             if (route.id == action.routeId) {
                 route.updateWaypoint(action.waypointId, null, null, action.type)
+            } else route
+        }
+        state.copy(routes = newRoutes)
+    }
+    is MapAction.ReorderWaypoint -> {
+        val newRoutes = state.routes.map { route ->
+            if (route.id == action.routeId) {
+                route.reorderWaypoint(action.fromIndex, action.toIndex)
             } else route
         }
         state.copy(routes = newRoutes)

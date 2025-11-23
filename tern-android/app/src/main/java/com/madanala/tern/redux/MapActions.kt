@@ -101,6 +101,7 @@ sealed class MapAction {
     data class RemoveWaypoint(val routeId: String, val waypointId: String) : MapAction()
     data class UpdateWaypoint(val routeId: String, val waypointId: String, val lat: Double? = null, val lon: Double? = null, val type: Waypoint.Type? = null, val label: String? = null) : MapAction()
     data class UpdateWaypointType(val routeId: String, val waypointId: String, val type: Waypoint.Type) : MapAction()
+    data class ReorderWaypoint(val routeId: String, val fromIndex: Int, val toIndex: Int) : MapAction()
 
     // Interactive editing actions (Phase 7.1)
     data class SelectWaypoint(val routeId: String, val waypointId: String) : MapAction()

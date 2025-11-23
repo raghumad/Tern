@@ -191,6 +191,10 @@ dependencies {
 
     // UI Automator for screenshots and device interaction
     androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0")
+
+    // QR Code Support (ZXing)
+    implementation("com.google.zxing:core:3.5.3")
+    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
 }
 
 // JaCoCo Configuration for Code Coverage
