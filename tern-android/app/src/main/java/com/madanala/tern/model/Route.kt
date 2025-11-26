@@ -46,13 +46,14 @@ data class Route(
     /**
      * Add a waypoint to this route
      */
-    fun addWaypoint(lat: Double, lon: Double, type: Waypoint.Type = Waypoint.Type.TURNPOINT, label: String? = null): Route {
+    fun addWaypoint(lat: Double, lon: Double, type: Waypoint.Type = Waypoint.Type.TURNPOINT, label: String? = null, id: String? = null): Route {
         val newWaypoint = Waypoint(
             lat = lat,
             lon = lon,
             type = type,
             label = label,
-            routeId = this.id
+            routeId = this.id,
+            id = id ?: UUID.randomUUID().toString()
         )
         return copy(
             waypoints = waypoints + newWaypoint,

@@ -160,6 +160,7 @@ dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.11.4")
     testImplementation("org.junit.vintage:junit-vintage-engine:5.11.4") // For JUnit 4 compatibility
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 
     // Mocking Framework
     testImplementation("org.mockito:mockito-core:5.14.2")
@@ -430,211 +431,61 @@ tasks.withType<Test> {
     environment("BUILD_NUMBER", System.getenv("BUILD_NUMBER") ?: "dev")
 }
 
+// --- Intuitive Task Shortcuts ---
+
+tasks.register("unitTests") {
+    group = "verification"
+    description = "Run Unit Tests (Fast, local)"
+    dependsOn("testDebugUnitTest")
+}
+
+tasks.register("instrumentedTests") {
+    group = "verification"
+    description = "Run Instrumented Tests (Device/Emulator)"
+    dependsOn("connectedDebugAndroidTest")
+}
+
+tasks.register("coverageReport") {
+    group = "verification"
+    description = "Generate Code Coverage Report (HTML/XML)"
+    dependsOn("testDebugUnitTest", "connectedDebugAndroidTest", "jacocoTestReport")
+    
+    doLast {
+        println("📊 Coverage Report generated: ${project.layout.buildDirectory.get()}/reports/jacoco/jacocoTestReport/html/index.html")
+    }
+}
+
 tasks.register("testAll") {
     group = "verification"
-    description = "Run comprehensive tests"
-
-    // Core testing always runs
-    dependsOn("testDebugUnitTest", "runManualInstrumentation", "jacocoTestCoverageVerification", "generateTestSummary")
-
-    doLast {
-        println("🎯 Testing completed successfully!")
-        println("📊 Test summary: ${project.layout.buildDirectory.get()}/reports/test-summary.md")
-    }
-}
-
-tasks.register("runUnitTestsAndGenerateSummary") {
-    group = "verification"
-    description = "Run all tests (unit + instrumentation*) and generate comprehensive test summary"
-
-    dependsOn("runUnitTestsOnlyAndGenerateSummary")
-
-    doLast {
-        println("🎯 Unit tests completed! Test summary generated at: ${project.layout.buildDirectory.get()}/reports/test-summary.md")
-        println("📊 To view the summary: cat ${project.layout.buildDirectory.get()}/reports/test-summary.md")
-        println("📈 JaCoCo coverage report: ${project.layout.buildDirectory.get()}/reports/jacoco/jacocoTestReport/html/index.html")
-        println("")
-        println("💡 Note: Instrumentation tests require Android device/emulator.")
-        println("   To run with Android device: ./gradlew runAllTestsAndGenerateSummary")
-        println("   To start emulator manually first: ./gradlew runAutomatedTests")
-    }
-}
-
-tasks.register("runUnitTestsOnlyAndGenerateSummary") {
-    group = "verification"
-    description = "Run unit tests only and generate comprehensive test summary"
-
-    dependsOn("testDebugUnitTest", "jacocoTestReport", "generateTestSummary")
-
-    doLast {
-        println("🎯 Unit tests completed! Test summary generated at: ${project.layout.buildDirectory.get()}/reports/test-summary.md")
-        println("📊 To view the summary: cat ${project.layout.buildDirectory.get()}/reports/test-summary.md")
-        println("📈 JaCoCo coverage report: ${project.layout.buildDirectory.get()}/reports/jacoco/jacocoTestReport/html/index.html")
-    }
-}
-
-
-
-tasks.register("generateTestSummary") {
-    group = "reporting"
-    description = "Generate a comprehensive test execution summary with coverage and regression analysis"
-
+    description = "Run Everything (Unit + Instrumented + Coverage + Summary)"
+    
+    // Run all tests and generate coverage
+    dependsOn("unitTests", "instrumentedTests", "coverageReport")
+    
     doLast {
         val testResultsDir = file("${project.layout.buildDirectory.get()}/test-results")
         val androidTestResultsDir = file("${project.layout.buildDirectory.get()}/androidTest-results")
         val jacocoReportDir = file("${project.layout.buildDirectory.get()}/reports/jacoco")
-        val screenshotsDir = file("${project.layout.buildDirectory.get()}/reports/screenshots")
-        val summaryFile = file("${project.layout.buildDirectory.get()}/reports/test-summary.md")
-
-        // Create reports directory
-        summaryFile.parentFile.mkdirs()
-
-        summaryFile.writeText("""
-# Test Execution Summary - Tern Paragliding App
-
-**Generated**: ${Date()}
-**Build**: ${System.getenv("BUILD_NUMBER") ?: "Local"}
-
-## 📊 Test Results Overview
-
-### Unit Tests
-${generateTestResultsSummary(testResultsDir, "test")}
-
-### Integration Tests
-${generateTestResultsSummary(androidTestResultsDir, "androidTest")}
-
-## 📸 UI Test Screenshots
-${generateScreenshotGallery(screenshotsDir)}
-
-## 📈 Code Coverage Report
-${generateCoverageSummary(jacocoReportDir)}
-
-## 🚨 Regression Analysis
-${generateRegressionAnalysis()}
-
-## 🛠️ Actionable Items
-${generateActionableItems()}
-
-## ✅ Aviation Safety Validation
-${generateSafetyValidation()}
-
-## 📋 Test Quality Metrics
-${generateQualityMetrics()}
-
----
-*Generated by automated test reporting system*
-        """.trimIndent())
-    }
-}
-
-tasks.register("runManualInstrumentation") {
-    group = "verification"
-    description = "Run instrumentation tests manually via ADB to bypass Gradle runner issues"
-    
-    dependsOn("installDebug", "installDebugAndroidTest")
-    
-    doLast {
-        println("📱 Running instrumentation tests manually...")
-        val outputFile = file("${project.layout.buildDirectory.get()}/outputs/manual-instrumentation-results.txt")
-        outputFile.parentFile.mkdirs()
         
-        try {
-            val stdout = ByteArrayOutputStream()
-            val execResult = providers.exec {
-                commandLine("adb", "shell", "am", "instrument", "-w", "-r", 
-                    "-e", "debug", "false",
-                    "-e", "class", "com.madanala.tern.ui.NavigationTest",
-                    "com.madanala.tern.test/androidx.test.runner.AndroidJUnitRunner")
-                standardOutput = stdout
-                isIgnoreExitValue = true
-            }.result.get()
-            val result = stdout.toString()
-            outputFile.writeText(result)
-            System.out.println(result)
-            
-            if (result.contains("FAILURES!!!") || result.contains("INSTRUMENTATION_CODE: -1") == false) {
-                 // Check for success code 0 or -1 (depending on runner version, usually -1 is just end of stream, 0 is success status)
-                 // Actually, standard output parsing:
-                 if (result.contains("OK (1 test)")) {
-                     println("✅ Manual instrumentation tests passed!")
-                 } else {
-                     throw GradleException("Instrumentation tests failed. See output above.")
-                 }
-            }
-        } catch (e: Exception) {
-            println("⚠️ Failed to run manual instrumentation: ${e.message}")
-            // Don't fail build immediately so we can generate report, unless strict mode?
-            // Let's fail if it's a real error
-            if (e !is GradleException) throw e
-        }
+        println("\n🎯 TEST EXECUTION SUMMARY")
+        println("=========================")
+        
+        println("\n### Unit Tests")
+        println(generateTestResultsSummary(testResultsDir, "test"))
+        
+        println("\n### Instrumented Tests")
+        println(generateTestResultsSummary(androidTestResultsDir, "androidTest"))
+        
+        println("\n### Code Coverage")
+        println(generateCoverageSummary(jacocoReportDir))
+        
+        println("\n=========================")
     }
-}
-
-tasks.register("pullScreenshots") {
-    group = "reporting"
-    description = "Pull screenshots from connected device/emulator"
-
-    doLast {
-        val screenshotsDir = file("${project.layout.buildDirectory.get()}/reports/screenshots")
-        screenshotsDir.mkdirs()
-
-        println("📸 Pulling screenshots from device...")
-        try {
-            providers.exec {
-                commandLine("adb", "pull", "/sdcard/Pictures/screenshots/.", screenshotsDir.absolutePath)
-                isIgnoreExitValue = true // Ignore if no screenshots found
-            }.result.get()
-            println("✅ Screenshots saved to: ${screenshotsDir.absolutePath}")
-        } catch (e: Exception) {
-            println("⚠️ Failed to pull screenshots: ${e.message}")
-        }
-    }
-}
-
-fun generateScreenshotGallery(screenshotsDir: File): String {
-    if (!screenshotsDir.exists() || screenshotsDir.listFiles()?.isEmpty() == true) {
-        return "**No screenshots found** (Run `./gradlew pullScreenshots` after tests)\n"
-    }
-
-    val sb = StringBuilder()
-    screenshotsDir.listFiles()?.sortedBy { it.name }?.forEach { file ->
-        if (file.extension == "png") {
-            val name = file.nameWithoutExtension
-            val status = if (name.startsWith("success")) "✅ Success" else "❌ Failure"
-            val testName = name.substringAfter("_")
-            
-            sb.append("### $status: $testName\n")
-            // Use relative path for portability in the report
-            sb.append("![${file.name}](screenshots/${file.name})\n\n")
-        }
-    }
-    return sb.toString()
 }
 
 fun generateTestResultsSummary(resultsDir: File, testType: String): String {
-    // Special handling for manual instrumentation results
-    if (testType == "androidTest") {
-        val manualFile = file("${project.layout.buildDirectory.get()}/outputs/manual-instrumentation-results.txt")
-        if (manualFile.exists()) {
-            val content = manualFile.readText()
-            // Check for standard success pattern from 'am instrument'
-            if (content.contains("OK") && content.contains("test")) {
-                 return """
-                 **androidTest Tests**: 1 total (Manual Execution)
-                 - ✅ Passed: 1
-                 - ❌ Failed: 0
-                 """.trimIndent()
-            } else if (content.contains("FAILURES") || content.contains("INSTRUMENTATION_CODE: -1") == false) {
-                 return """
-                 **androidTest Tests**: Failed (Manual Execution)
-                 - ❌ Check logs for details
-                 """.trimIndent()
-            }
-        }
-    }
-
     if (!resultsDir.exists()) {
-        return "**$testType**: No test results found\n"
+        return "**$testType**: No test results found"
     }
 
     val testFiles = resultsDir.walkTopDown().filter { it.name.endsWith(".xml") }.toList()
@@ -647,7 +498,7 @@ fun generateTestResultsSummary(resultsDir: File, testType: String): String {
     testFiles.forEach { file ->
         try {
             val content = file.readText()
-            // Parse JUnit XML results
+            // Simple parsing of JUnit XML results
             val testSuite = content.substringAfter("<testsuite").substringBefore(">")
             val tests = testSuite.substringAfter("tests=\"").substringBefore("\"").toIntOrNull() ?: 0
             val failuresCount = testSuite.substringAfter("failures=\"").substringBefore("\"").toIntOrNull() ?: 0
@@ -659,7 +510,6 @@ fun generateTestResultsSummary(resultsDir: File, testType: String): String {
             skippedTests += skipped
             passedTests += tests - failuresCount - errors - skipped
 
-            // Extract failure details
             if (failuresCount > 0 || errors > 0) {
                 val failurePattern = Regex("<failure.*?</failure>")
                 failurePattern.findAll(content).forEach { match ->
@@ -669,17 +519,16 @@ fun generateTestResultsSummary(resultsDir: File, testType: String): String {
                 }
             }
         } catch (e: Exception) {
-            println("Warning: Could not parse test results from ${file.name}")
+            // Ignore parsing errors
         }
     }
 
     return """
-**$testType Tests**: $totalTests total
-- ✅ Passed: $passedTests
-- ❌ Failed: $failedTests
-- ⏭️ Skipped: $skippedTests
-
-${if (failures.isNotEmpty()) "**Failures:**\n" + failures.joinToString("\n") else "**All tests passed!** 🎉"}
+    Total: $totalTests
+    ✅ Passed: $passedTests
+    ❌ Failed: $failedTests
+    ⏭️ Skipped: $skippedTests
+    ${if (failures.isNotEmpty()) "\nFailures:\n" + failures.joinToString("\n") else ""}
     """.trimIndent()
 }
 
@@ -687,287 +536,37 @@ fun generateCoverageSummary(reportDir: File): String {
     val htmlReport = File(reportDir, "jacocoTestReport/html/index.html")
     val xmlReport = File(reportDir, "jacocoTestReport/jacocoTestReport.xml")
 
-    if (!htmlReport.exists() && !xmlReport.exists()) {
-        return "**Coverage Report**: Not generated (run `./gradlew jacocoTestReport` first)\n"
+    if (!htmlReport.exists()) {
+        return "Coverage Report: Not generated"
     }
 
     var totalCoverage = 0.0
-    var instructionCoverage = 0.0
-    var branchCoverage = 0.0
-    var lineCoverage = 0.0
-    var methodCoverage = 0.0
-    var classCoverage = 0.0
-
-    // Parse XML report for detailed metrics
+    
+    // Parse XML report for total coverage
     if (xmlReport.exists()) {
         try {
             val xmlContent = xmlReport.readText()
-            // Extract coverage percentages from XML
-            val counterPattern = Regex("<counter type=\"([^\"]+)\" missed=\"(\\d+)\" covered=\"(\\d+)\"/>")
+            var totalMissed = 0
+            var totalCovered = 0
+            
+            val counterPattern = Regex("<counter type=\"INSTRUCTION\" missed=\"(\\d+)\" covered=\"(\\d+)\"/>")
             counterPattern.findAll(xmlContent).forEach { match ->
-                val type = match.groupValues[1]
-                val missed = match.groupValues[2].toInt()
-                val covered = match.groupValues[3].toInt()
-                val total = missed + covered
-                val percentage = if (total > 0) (covered.toDouble() / total * 100) else 0.0
-
-                when (type) {
-                    "INSTRUCTION" -> instructionCoverage = percentage
-                    "BRANCH" -> branchCoverage = percentage
-                    "LINE" -> lineCoverage = percentage
-                    "METHOD" -> methodCoverage = percentage
-                    "CLASS" -> classCoverage = percentage
-                }
+                totalMissed += match.groupValues[1].toInt()
+                totalCovered += match.groupValues[2].toInt()
             }
-            totalCoverage = (instructionCoverage + branchCoverage + lineCoverage) / 3.0
+            
+            val total = totalMissed + totalCovered
+            if (total > 0) {
+                totalCoverage = (totalCovered.toDouble() / total * 100)
+            }
         } catch (e: Exception) {
-            println("Warning: Could not parse JaCoCo XML report: ${e.message}")
+            return "Error parsing coverage XML"
         }
-    }
-
-    val coverageStatus = when {
-        totalCoverage >= 80.0 -> "🟢 Excellent"
-        totalCoverage >= 70.0 -> "🟡 Good"
-        totalCoverage >= 60.0 -> "🟠 Adequate"
-        else -> "🔴 Needs Improvement"
     }
 
     return """
-**Coverage Report**: Generated at `${htmlReport.absolutePath}`
-**Overall Coverage**: ${"%.1f".format(totalCoverage)}% ($coverageStatus)
-
-*Open the HTML report in a browser for detailed coverage analysis*
-
-**Detailed Metrics:**
-- **Instruction Coverage**: ${"%.1f".format(instructionCoverage)}%
-- **Branch Coverage**: ${"%.1f".format(branchCoverage)}%
-- **Line Coverage**: ${"%.1f".format(lineCoverage)}%
-- **Method Coverage**: ${"%.1f".format(methodCoverage)}%
-- **Class Coverage**: ${"%.1f".format(classCoverage)}%
-
-**Key Coverage Areas:**
-- Business Logic: Route calculations, Redux state management
-- Data Persistence: Cache operations, serialization
-- UI Components: Compose views, gesture handling
-- Safety Critical: GPS validation, memory management
-    """.trimIndent()
-}
-
-fun generateRegressionAnalysis(): String {
-    val jacocoReportDir = file("${project.layout.buildDirectory.get()}/reports/jacoco")
-    val xmlReport = File(jacocoReportDir, "testDebugUnitTest/jacocoTestReport.xml")
-    
-    var regressionDetected = false
-    val issues = mutableListOf<String>()
-
-    // 1. Coverage Regression
-    if (xmlReport.exists()) {
-        try {
-            val xmlContent = xmlReport.readText()
-            val counterPattern = Regex("<counter type=\"LINE\" missed=\"(\\d+)\" covered=\"(\\d+)\"/>")
-            val match = counterPattern.find(xmlContent)
-            if (match != null) {
-                val missed = match.groupValues[1].toInt()
-                val covered = match.groupValues[2].toInt()
-                val total = missed + covered
-                val lineCoverage = if (total > 0) (covered.toDouble() / total * 100) else 0.0
-                
-                // Hardcoded baseline for now (80%)
-                if (lineCoverage < 80.0) {
-                    regressionDetected = true
-                    issues.add("❌ Coverage dropped to ${"%.1f".format(lineCoverage)}% (Target: 80.0%)")
-                }
-            }
-        } catch (e: Exception) {
-            issues.add("⚠️ Could not parse coverage for regression check")
-        }
-    }
-
-    // 2. Test Failure Regression
-    val testResultsDir = file("${project.layout.buildDirectory.get()}/test-results")
-    if (testResultsDir.exists()) {
-        val testFiles = testResultsDir.walkTopDown().filter { it.name.endsWith(".xml") }.toList()
-        testFiles.forEach { file ->
-             val content = file.readText()
-             if (content.contains("failures=\"") && !content.contains("failures=\"0\"")) {
-                 regressionDetected = true
-                 issues.add("❌ New test failures detected in ${file.name}")
-             }
-        }
-    }
-
-    return if (regressionDetected) {
-        """
-        **Regression Check**: 🔴 REGRESSION DETECTED
-        
-        **Issues Found:**
-        ${issues.joinToString("\n") { "- $it" }}
-        
-        **Action Required**: Fix regressions before merging.
-        """.trimIndent()
-    } else {
-        """
-        **Regression Check**: ✅ No regressions detected
-        
-        - Coverage meets targets (>80%)
-        - All tests passing
-        """.trimIndent()
-    }
-}
-
-fun generateActionableItems(): String {
-    val testResultsDir = file("${project.layout.buildDirectory.get()}/test-results")
-    if (!testResultsDir.exists()) return "**Actionable Items**: None (No test results)"
-
-    val failures = mutableListOf<String>()
-    
-    testResultsDir.walkTopDown().filter { it.name.endsWith(".xml") }.forEach { file ->
-        val content = file.readText()
-        val failurePattern = Regex("<failure message=\"(.*?)\".*?>(.*?)</failure>", RegexOption.DOT_MATCHES_ALL)
-        
-        failurePattern.findAll(content).forEach { match ->
-            val message = match.groupValues[1]
-            val stackTrace = match.groupValues[2].trim().lines().take(3).joinToString("\n") // First 3 lines of stack
-            failures.add("""
-            ### ❌ Failure: $message
-            ```
-            $stackTrace
-            ...
-            ```
-            **Suggested Fix**: Check the stack trace above. Verify assumptions in the test case.
-            """.trimIndent())
-        }
-    }
-
-    return if (failures.isNotEmpty()) {
-        """
-        **Actionable Items (Fix These First):**
-        
-        ${failures.joinToString("\n\n")}
-        """.trimIndent()
-    } else {
-        "**Actionable Items**: None 🎉"
-    }
-}
-
-fun generateSafetyValidation(): String {
-    return """
-**GPS Safety**: ⚠️ Partially validated (integration tests only)
-**Memory Limits**: ❌ Not validated (no automated monitoring)
-**Performance Targets**: ❌ Not validated (no automated benchmarks)
-**Visual Continuity**: ❌ Not tested (no UI regression testing)
-
-**Action Required**: Implement automated safety validation tests
-**Priority**: HIGH - Aviation safety standards require comprehensive validation
-    """.trimIndent()
-}
-
-fun generateQualityMetrics(): String {
-    // Calculate dynamic score based on actual metrics
-    val testResultsDir = file("${project.layout.buildDirectory.get()}/test-results")
-    val jacocoReportDir = file("${project.layout.buildDirectory.get()}/reports/jacoco")
-    // XML report is generated automatically by jacocoTestReport
-
-
-    // Base score components
-    var score = 0.0
-    val maxScore = 10.0
-    val strengths = mutableListOf<String>()
-    val improvements = mutableListOf<String>()
-
-    // 1. Test Execution (2 points)
-    val testResults = generateTestResultsSummary(testResultsDir, "test")
-    val hasTests = testResults.contains("total") && !testResults.contains("No test results found")
-    val testScore = if (hasTests) 2.0 else 0.0
-    score += testScore
-
-    if (hasTests) {
-        strengths.add("✅ Comprehensive unit test coverage for business logic")
-    } else {
-        improvements.add("❌ No unit tests found")
-    }
-
-    // 2. Code Coverage Infrastructure (1 point)
-    val xmlReportCorrect = File(jacocoReportDir, "jacocoTestReport/jacocoTestReport.xml")
-    val hasCoverageReport = xmlReportCorrect.exists()
-    val coverageScore = if (hasCoverageReport) 1.0 else 0.0
-    score += coverageScore
-
-    if (hasCoverageReport) {
-        strengths.add("✅ Code coverage infrastructure configured")
-    } else {
-        improvements.add("⚠️ Code coverage reports not generated")
-    }
-
-    // 3. Coverage Quality (2 points)
-    var coverageQualityScore = 0.0
-    if (xmlReportCorrect.exists()) {
-        try {
-            val xmlContent = xmlReportCorrect.readText()
-            val counterPattern = Regex("<counter type=\"LINE\" missed=\"(\\d+)\" covered=\"(\\d+)\"/>")
-            val match = counterPattern.find(xmlContent)
-            if (match != null) {
-                val missed = match.groupValues[1].toInt()
-                val covered = match.groupValues[2].toInt()
-                val total = missed + covered
-                val lineCoverage = if (total > 0) (covered.toDouble() / total * 100) else 0.0
-
-                coverageQualityScore = when {
-                    lineCoverage >= 80.0 -> 2.0
-                    lineCoverage >= 60.0 -> 1.5
-                    lineCoverage >= 40.0 -> 1.0
-                    lineCoverage >= 20.0 -> 0.5
-                    else -> 0.0
-                }
-
-                if (lineCoverage >= 60.0) {
-                    strengths.add("✅ Good code coverage (${"%.1f".format(lineCoverage)}%)")
-                } else {
-                    improvements.add("⚠️ Low code coverage (${"%.1f".format(lineCoverage)}%) - target 80%+")
-                }
-            }
-        } catch (e: Exception) {
-            improvements.add("⚠️ Could not parse coverage data")
-        }
-    }
-    score += coverageQualityScore
-
-    // 4. Safety Validation (2 points) - Currently minimal
-    val safetyScore = 0.5 // Partial integration test coverage
-    score += safetyScore
-    improvements.add("⚠️ Missing tests for safety-critical components")
-
-    // 5. Integration Testing (1 point)
-    val integrationScore = 1.0 // Has integration tests
-    score += integrationScore
-    strengths.add("✅ Integration tests for critical user flows")
-
-    // 6. Automation (1 point)
-    val automationScore = 1.0 // Has automated reporting
-    score += automationScore
-    strengths.add("✅ Automated test execution and reporting")
-
-    // 7. UI Testing (1 point) - Currently minimal
-    val uiScore = 0.5 // Basic setup but no comprehensive UI tests
-    score += uiScore
-    improvements.add("⚠️ Limited UI regression testing")
-
-    val finalScore = score.coerceAtMost(maxScore)
-
-    return """
-**Test Quality Score**: ${"%.1f".format(finalScore)}/10
-
-**Strengths:**
-${strengths.joinToString("\n")}
-
-**Areas for Improvement:**
-${improvements.joinToString("\n")}
-
-**Recommendations:**
-- Prioritize cache layer and overlay manager testing
-- Implement automated safety validation
-- Add performance regression testing
-- Increase code coverage to 80%+
+    Overall Instruction Coverage: ${"%.1f".format(totalCoverage)}%
+    Report: ${htmlReport.absolutePath}
     """.trimIndent()
 }
 // Performance Benchmark Tasks

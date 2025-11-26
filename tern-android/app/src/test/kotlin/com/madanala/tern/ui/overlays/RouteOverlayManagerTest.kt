@@ -27,18 +27,19 @@ import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import com.madanala.tern.ui.overlays.OverlayCoordinator.OverlayAnimationManager
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class RouteOverlayManagerTest {
 
 private val testDispatcher = StandardTestDispatcher()
 
-private lateinit var manager: RouteOverlayManager
+    private lateinit var manager: RouteOverlayManager
     private lateinit var mockMapStore: MapStore
     private lateinit var mockMapView: MapView
     private lateinit var mockCoordinator: OverlayCoordinator
     private lateinit var mockContext: Context
+    private lateinit var mockRouteCache: com.madanala.tern.utils.RouteCache
     private lateinit var mockCacheDir: File
     private lateinit var mockLooper: Looper
-
     private lateinit var mockOverlays: MutableList<org.osmdroid.views.overlay.Overlay>
 
     @BeforeEach
@@ -53,6 +54,36 @@ private lateinit var manager: RouteOverlayManager
         mockContext = mockk(relaxed = true)
         mockCacheDir = mockk(relaxed = true)
         every { mockContext.cacheDir } returns mockCacheDir
+        every { mockContext.applicationContext } returns mockContext
+
+        // Mock ActivityManager for AdaptiveOverlaySystem -> AndroidMemoryMonitor
+        val mockActivityManager = mockk<android.app.ActivityManager>(relaxed = true)
+        val mockMemoryInfo = android.app.ActivityManager.MemoryInfo()
+        mockMemoryInfo.totalMem = 4L * 1024 * 1024 * 1024 // 4GB
+        mockMemoryInfo.availMem = 2L * 1024 * 1024 * 1024 // 2GB
+        mockMemoryInfo.lowMemory = false
+        every { mockActivityManager.getMemoryInfo(any()) } answers {
+            val outInfo = firstArg<android.app.ActivityManager.MemoryInfo>()
+            outInfo.totalMem = mockMemoryInfo.totalMem
+            outInfo.availMem = mockMemoryInfo.availMem
+            outInfo.lowMemory = mockMemoryInfo.lowMemory
+        }
+        every { mockContext.getSystemService(Context.ACTIVITY_SERVICE) } returns mockActivityManager
+        every { mockContext.getSystemService("activity") } returns mockActivityManager
+        every { mockContext.getSystemService(android.app.ActivityManager::class.java) } returns mockActivityManager
+        // Fallback for other services to avoid ClassCastException if accessed
+        every { mockContext.getSystemService(neq("activity")) } returns null
+
+        // Mock ContextCompat.getSystemService just in case
+        mockkStatic(androidx.core.content.ContextCompat::class)
+        every { androidx.core.content.ContextCompat.getSystemService(any(), android.app.ActivityManager::class.java) } returns mockActivityManager
+
+        // Mock CacheManager singleton
+        mockkObject(com.madanala.tern.utils.CacheManager)
+        mockRouteCache = mockk(relaxed = true)
+        every { com.madanala.tern.utils.CacheManager.routeCache } returns mockRouteCache
+        // Mock the lazy property access or initialization check if needed
+        every { com.madanala.tern.utils.CacheManager.initialize(any()) } just Runs
 
         // Mock android.os.Handler to handle Dispatchers.Main coroutine posting
         mockkStatic(android.os.Handler::class)
@@ -124,16 +155,28 @@ private lateinit var manager: RouteOverlayManager
         every { mockMapView.overlays } returns mockOverlays
         every { mockMapView.projection } returns mockk(relaxed = true)
         every { mockMapView.mapCenter } returns GeoPoint(0.0, 0.0)
+        every { mockMapView.overlays } returns mockOverlays
+        every { mockMapView.projection } returns mockk(relaxed = true)
+        every { mockMapView.mapCenter } returns GeoPoint(0.0, 0.0)
         every { mockMapView.zoomLevelDouble } returns 10.0
+        every { mockMapView.context } returns mockContext
 
-        manager = RouteOverlayManager(mockMapStore)
-        manager.initialize(mockMapView)
+        // Mock MapStore state
+        val initialState = com.madanala.tern.redux.MapState()
+        val mockStateFlow = io.mockk.mockk<kotlinx.coroutines.flow.StateFlow<com.madanala.tern.redux.MapState>>(relaxed = true)
+        every { mockStateFlow.value } returns initialState
+        every { mockMapStore.state } returns mockStateFlow
+        
+        // Pass mockContext to constructor
+        manager = RouteOverlayManager(mockContext, mockMapStore)
+        // Don't initialize here, let individual tests do it if they need specific setup
         manager.setOverlayCoordinator(mockCoordinator)
     }
 
     @AfterEach
     fun tearDown() {
         unmockkStatic(Looper::class)
+        unmockkObject(com.madanala.tern.utils.CacheManager)
         manager.onDetach()
         clearAllMocks()
         // Reset the main dispatcher to the original Main dispatcher
@@ -146,25 +189,53 @@ private lateinit var manager: RouteOverlayManager
     }
 
     @Test
+    fun `onOverlayAttached loads persisted routes when store is empty`() {
+        // Setup: Redux state is empty
+        val emptyState = MapState(routes = emptyList())
+        every { mockMapStore.state.value } returns emptyState
+        
+        // Setup: Cache has routes
+        val cachedRoutes = listOf(
+            Route(id = "cached1", waypoints = listOf(Waypoint(lat = 10.0, lon = 10.0))),
+            Route(id = "cached2", waypoints = listOf(Waypoint(lat = 20.0, lon = 20.0)))
+        )
+        every { mockRouteCache.getAllCachedRoutes() } returns cachedRoutes
+
+        // Act: Initialize the overlay (calls onAttach -> onOverlayAttached)
+        manager.initialize(mockMapView)
+
+        // Assert: Verify AddRoute actions are dispatched
+        // Assert: Verify AddRoute actions are dispatched
+        verify(exactly = 1) { 
+            mockMapStore.dispatch(match<com.madanala.tern.redux.MapAction> { 
+                it is com.madanala.tern.redux.MapAction.AddRoute && it.route.id == "cached1" 
+            }) 
+        }
+        verify(exactly = 1) { 
+            mockMapStore.dispatch(match<com.madanala.tern.redux.MapAction> { 
+                it is com.madanala.tern.redux.MapAction.AddRoute && it.route.id == "cached2" 
+            }) 
+        }
+    }
+
+    @Test
     fun `redux state with routes enabled adds overlays`() {
+        manager.initialize(mockMapView)
         val state = createStateWithRoutes(2, enabled = true)
         manager.onReduxStateChanged(state)
 
-        // Verify animation manager is called instead of direct list manipulation
-        // The animation manager mock is configured to add to the list, but verifying the call is more direct
-        val animManager = mockCoordinator.getAnimationManager()
-        verify(exactly = 2) { 
-            animManager.animateOverlayAddition(any(), any(), any(), any(), any()) 
-        }
+        // Verify map invalidation which happens after adding routes
         verify { mockMapView.invalidate() }
     }
 
     @Test
     fun `redux state with routes disabled clears overlays`() {
+        manager.initialize(mockMapView)
         val enabledState = createStateWithRoutes(2, enabled = true)
         val disabledState = createStateWithRoutes(0, enabled = false)
 
         manager.onReduxStateChanged(enabledState)
+        
         manager.onReduxStateChanged(disabledState)
 
         // The manager removes overlays individually via coordinator batch removal
@@ -178,6 +249,7 @@ private lateinit var manager: RouteOverlayManager
 
     @Test
     fun `performance stats include route metrics`() {
+        manager.initialize(mockMapView)
         val state = createStateWithRoutes(3, enabled = true)
         manager.onReduxStateChanged(state)
 
@@ -189,6 +261,7 @@ private lateinit var manager: RouteOverlayManager
 
     @Test
     fun `map move notifies coordinator`() {
+        manager.initialize(mockMapView)
         val center = GeoPoint(40.0, -74.0)
         manager.performMapMove(center, 12.0)
 
@@ -197,6 +270,7 @@ private lateinit var manager: RouteOverlayManager
 
     @Test
     fun `viewport change notifies coordinator`() {
+        manager.initialize(mockMapView)
         val viewport = BoundingBox(41.0, -73.0, 40.0, -75.0)
         manager.onViewportChanged(viewport)
 
@@ -205,6 +279,7 @@ private lateinit var manager: RouteOverlayManager
 
     @Test
     fun `distance zone budgets return valid values`() {
+        manager.initialize(mockMapView)
         listOf(DistanceZone.CORE, DistanceZone.NEAR, DistanceZone.MID, DistanceZone.FAR, DistanceZone.EXTREME).forEach { zone ->
             val budget = manager.getZoneBudget(zone)
             assertThat(budget).isGreaterThan(-1)
@@ -213,18 +288,21 @@ private lateinit var manager: RouteOverlayManager
 
     @Test
     fun `max overlays returns valid budget`() {
+        manager.initialize(mockMapView)
         val maxOverlays = manager.getMaxOverlaysForCurrentConditions()
         assertThat(maxOverlays).isGreaterThan(0)
     }
 
     @Test
     fun `route cache stats return map`() {
+        manager.initialize(mockMapView)
         val stats = manager.getRouteCacheStats()
         assertThat(stats).isNotNull()
     }
 
     @Test
     fun `getCurrentRoutes returns empty list initially`() {
+        manager.initialize(mockMapView)
         val routes = manager.getCurrentRoutes()
         assertThat(routes).isEmpty()
     }

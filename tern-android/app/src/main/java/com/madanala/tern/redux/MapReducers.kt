@@ -302,7 +302,7 @@ private fun handleWaypointActions(state: MapState, action: MapAction): MapState 
     is MapAction.AddWaypointToRoute -> {
         val newRoutes = state.routes.map { route ->
             if (route.id == action.routeId) {
-                route.addWaypoint(action.lat, action.lon, action.type, action.label)
+                route.addWaypoint(action.lat, action.lon, action.type, action.label, action.id)
             } else route
         }
         state.copy(routes = newRoutes)

@@ -19,6 +19,7 @@ import org.osmdroid.views.overlay.Overlay
  * Extends BaseOverlayManager for Redux integration and memory management
  */
 class RouteOverlayManager(
+    context: android.content.Context,
     mapStore: MapStore?
 ) : BaseOverlayManager(OverlayType.ROUTES, mapStore) {
 
@@ -46,6 +47,19 @@ class RouteOverlayManager(
     }
 
     private var routeCache: RouteCache? = null
+
+    init {
+        try {
+            // Ensure CacheManager is initialized
+            if (!isCacheManagerInitialized()) {
+                CacheManager.initialize(context.applicationContext)
+            }
+            routeCache = CacheManager.routeCache
+            Log.d(TAG, "RouteCache initialized successfully from CacheManager in constructor")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to initialize RouteCache in constructor", e)
+        }
+    }
     
     // Helper to check if CacheManager is initialized (reflection-based check or try-catch)
     private fun isCacheManagerInitialized(): Boolean {
@@ -133,25 +147,43 @@ class RouteOverlayManager(
     override fun onOverlayAttached() {
         Log.d(TAG, "Route overlay manager attached")
         
-        // Initialize route cache now that we have context
-        if (routeCache == null) {
-            mapView?.context?.let { context ->
-                try {
-                    // Ensure CacheManager is initialized
-                    if (!isCacheManagerInitialized()) {
-                        CacheManager.initialize(context.applicationContext)
-                    }
-                    routeCache = CacheManager.routeCache
-                    Log.d(TAG, "RouteCache initialized successfully from CacheManager")
-                } catch (e: Exception) {
-                    Log.e(TAG, "Failed to initialize RouteCache", e)
+        // Force initial render of existing routes from Redux state
+        mapStore?.state?.value?.let { currentState ->
+            Log.d(TAG, "Forcing initial route render with ${currentState.routes.size} routes")
+            onReduxStateChanged(currentState)
+        }
+
+        // Load persisted routes if Redux state is empty (initial launch)
+        if (mapStore?.state?.value?.routes?.isEmpty() == true) {
+            loadPersistedRoutes()
+        }
+    }
+
+    /**
+     * Load persisted routes from cache and populate Redux state
+     */
+    private fun loadPersistedRoutes() {
+        try {
+            val persistedRoutes = routeCache?.getAllCachedRoutes()
+
+            if (!persistedRoutes.isNullOrEmpty()) {
+                // Dispatch Redux actions to add each persisted route
+                persistedRoutes.forEach { route ->
+                    mapStore?.dispatch(com.madanala.tern.redux.MapAction.AddRoute(route))
                 }
+                Log.d(TAG, "Loaded ${persistedRoutes.size} persisted routes into Redux state")
+            } else {
+                Log.d(TAG, "No persisted routes found in cache")
             }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error loading persisted routes", e)
         }
     }
 
     override fun setOverlayCoordinator(coordinator: OverlayCoordinator) {
+        println("SYSTEM_OUT: RouteOverlayManager.setOverlayCoordinator called with $coordinator")
         this.overlayCoordinator = coordinator
+        Log.d(TAG, "DEBUG: setOverlayCoordinator called. Coordinator: $coordinator")
         Log.d(TAG, "RouteOverlayManager connected to OverlayCoordinator for lifecycle management")
     }
 
@@ -170,19 +202,47 @@ class RouteOverlayManager(
                 // Single source of truth: Only display routes from Redux state
                 if (state.routes != currentRoutes || state.selectedWaypoint != currentSelectedWaypoint || state.selectedRouteId != currentSelectedRouteId) {
                     
+                    // Calculate differences for persistence
+                    val newRouteIds = state.routes.map { it.id }.toSet()
+                    val oldRouteIds = currentRoutes.map { it.id }.toSet()
+                    val removedRouteIds = oldRouteIds - newRouteIds
+                    
+                    // Update local state
                     currentRoutes = state.routes
                     currentSelectedWaypoint = state.selectedWaypoint
                     currentSelectedRouteId = state.selectedRouteId
+                    
                     updateRouteOverlays()
                     
-                    // Persistence as side effect
+                    // Handle removals from cache
+                    removedRouteIds.forEach { routeId ->
+                        try {
+                            routeCache?.clearCacheForRoute(routeId)
+                            Log.d(TAG, "Removed route $routeId from cache")
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Failed to remove route $routeId from cache", e)
+                        }
+                    }
+                    
+                    // Handle additions/updates to cache and overlays
                     currentRoutes.forEach { route ->
                         try {
-                            if (routeCache?.isCached(route.id) != true) {
-                                routeCache?.cacheRoute(route)
+                            // Update existing overlay if present
+                            val existingOverlay = currentlyRenderedRoutes[route.id]
+                            if (existingOverlay != null) {
+                                if (existingOverlay.route != route) {
+                                    existingOverlay.updateRoute(route)
+                                    // Log.d(TAG, "Updated existing overlay for route ${route.id}")
+                                }
+                            } else {
+                                // New route will be handled by updateRouteOverlays()
                             }
+
+                            // Always update cache to ensure latest state (visibility, waypoints) is persisted
+                            routeCache?.cacheRoute(route)
+                            // Log.d(TAG, "Cached route ${route.id}: visible=${route.isVisible}, waypoints=${route.waypoints.size}")
                         } catch (e: Exception) {
-                            Log.w(TAG, "Failed to cache route ${route.id}", e)
+                            Log.w(TAG, "Failed to cache/update route ${route.id}", e)
                         }
                     }
                 }
@@ -291,7 +351,6 @@ class RouteOverlayManager(
         if (ids.isEmpty()) return
 
         val coordinator = overlayCoordinator
-        // println("DEBUG_PRINT: removeRoutes called with ${ids.size} ids. Map size: ${currentlyRenderedRoutes.size}")
         
         if (coordinator != null) {
             ids.forEach { id ->
@@ -302,7 +361,6 @@ class RouteOverlayManager(
                     } else {
                         GeoPoint(0.0, 0.0)
                     }
-                    // println("DEBUG_PRINT: Removing overlay $id via coordinator")
                     coordinator.removeOverlayFromBatch(overlay, id, centroid)
                 }
             }
@@ -321,7 +379,6 @@ class RouteOverlayManager(
 
     private fun addRoutes(routes: List<Route>) {
         val coordinator = overlayCoordinator
-        // println("DEBUG_PRINT: addRoutes called with ${routes.size} routes")
         if (routes.isNotEmpty()) {
              // throw RuntimeException("DEBUG_EXCEPTION: addRoutes called with ${routes.size} routes. Map size: ${currentlyRenderedRoutes.size}")
         }
@@ -331,7 +388,6 @@ class RouteOverlayManager(
                 val overlay = RouteOverlay(route)
                 currentlyRenderedRoutes[route.id] = overlay
                 
-                // println("DEBUG_PRINT: Adding overlay ${route.id} via coordinator. Map size now: ${currentlyRenderedRoutes.size}")
                 coordinator.getAnimationManager().animateOverlayAddition(
                     overlay = overlay,
                     overlayId = route.id,
@@ -377,6 +433,11 @@ class RouteOverlayManager(
     }
 
     /**
+     * Get the route cache instance safely
+     */
+    fun getRouteCache(): RouteCache? = routeCache
+
+    /**
      * Enhanced performance statistics for RouteOverlayManager
      */
     override fun getPerformanceStats(): Map<String, Any> {
@@ -389,14 +450,18 @@ class RouteOverlayManager(
         baseStats["has_selected_waypoint"] = currentSelectedWaypoint != null
         baseStats["has_selected_route"] = currentSelectedRouteId != null
         baseStats["overlay_coordinator_connected"] = overlayCoordinator != null
-
+        
         return baseStats
     }
 
     /**
      * Inner class for individual route overlay rendering and interaction
      */
-    private inner class RouteOverlay(val route: Route) : Overlay() {
+    private inner class RouteOverlay(var route: Route) : Overlay() {
+
+        fun updateRoute(newRoute: Route) {
+            this.route = newRoute
+        }
 
         override fun onSingleTapConfirmed(e: MotionEvent?, mapView: MapView?): Boolean {
             if (e == null || mapView == null) return false
@@ -500,7 +565,7 @@ class RouteOverlayManager(
 
                 val projection = mapView.projection
 
-                // Draw route line
+                // Draw route line and leg labels
                 if (route.waypoints.size >= 2) {
                     val path = Path()
 
@@ -511,7 +576,27 @@ class RouteOverlayManager(
                         if (index == 0) {
                             path.moveTo(screenPoint.x.toFloat(), screenPoint.y.toFloat())
                         } else {
+                            val prevWaypoint = route.waypoints[index - 1]
+                            val prevPoint = GeoPoint(prevWaypoint.lat, prevWaypoint.lon)
+                            val prevScreenPoint = projection.toPixels(prevPoint, null)
+                            
                             path.lineTo(screenPoint.x.toFloat(), screenPoint.y.toFloat())
+
+                            // Draw leg distance label
+                            val distanceMeters = point.distanceToAsDouble(prevPoint)
+                            if (distanceMeters > 100) { // Only draw if segment is significant
+                                val distanceKm = distanceMeters / 1000.0
+                                val labelText = String.format("%.1f km", distanceKm)
+                                
+                                // Calculate midpoint
+                                val midX = (prevScreenPoint.x + screenPoint.x) / 2f
+                                val midY = (prevScreenPoint.y + screenPoint.y) / 2f
+                                
+                                // Draw label background (optional, for readability)
+                                // canvas.drawCircle(midX, midY, 20f, backgroundPaint) 
+                                
+                                canvas.drawText(labelText, midX, midY - 10f, labelPaint)
+                            }
                         }
                     }
 
