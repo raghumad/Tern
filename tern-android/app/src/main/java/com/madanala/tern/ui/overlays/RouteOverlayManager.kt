@@ -48,7 +48,8 @@ class RouteOverlayManager(
     private var currentRoutes: List<Route> = emptyList()
     private var currentSelectedWaypoint: WaypointSelection? = null
     private var currentSelectedRouteId: String? = null
-    private val routeOverlays = mutableListOf<RouteOverlay>()
+    // Changed to Map for better tracking and incremental updates
+    private val currentlyRenderedRoutes = mutableMapOf<String, RouteOverlay>()
 
     // Overlay coordinator for Hilbert ordering and lifecycle management
     private var overlayCoordinator: OverlayCoordinator? = null
@@ -118,10 +119,6 @@ class RouteOverlayManager(
         }
     }
 
-    init {
-        // Route cache initialized in onOverlayAttached when context is available
-    }
-
     override fun onOverlayAttached() {
         Log.d(TAG, "Route overlay manager attached")
         
@@ -136,8 +133,6 @@ class RouteOverlayManager(
                 }
             }
         }
-        
-        // Routes will be loaded via Redux state changes
     }
 
     override fun setOverlayCoordinator(coordinator: OverlayCoordinator) {
@@ -150,43 +145,26 @@ class RouteOverlayManager(
         clearRouteOverlays()
     }
 
-    override fun performMapMove(center: GeoPoint, zoom: Double) {
-        // Map movement handled by Redux state changes
-        // Route display is determined by Redux state, not spatial queries
-
-        // Notify overlay coordinator of map movement for distance-based zoning
-        overlayCoordinator?.onMapMoved(center.latitude, center.longitude, zoom)
-    }
-
-    override fun onViewportChangedInternal(viewport: org.osmdroid.util.BoundingBox) {
-        // Viewport changes handled by Redux state changes
-        // Route display is determined by Redux state, not spatial queries
-
-        // Notify overlay coordinator of viewport changes for memory management
-        overlayCoordinator?.onViewportChanged(viewport)
-    }
-
     override fun onReduxStateChanged(state: MapState) {
         try {
-            Log.d(TAG, "Redux state changed - routes enabled: ${state.overlayState.routes.enabled}, route count: ${state.routes.size}, selected waypoint: ${state.selectedWaypoint}, selected route: ${state.selectedRouteId}")
+            // Log.d(TAG, "Redux state changed - routes enabled: ${state.overlayState.routes.enabled}")
 
             val config = state.overlayState.routes
 
             if (config.enabled) {
                 // Single source of truth: Only display routes from Redux state
                 if (state.routes != currentRoutes || state.selectedWaypoint != currentSelectedWaypoint || state.selectedRouteId != currentSelectedRouteId) {
+                    
                     currentRoutes = state.routes
                     currentSelectedWaypoint = state.selectedWaypoint
                     currentSelectedRouteId = state.selectedRouteId
                     updateRouteOverlays()
-                    Log.d(TAG, "Routes updated from Redux state: ${currentRoutes.size} routes, selected waypoint: ${currentSelectedWaypoint}, selected route: ${currentSelectedRouteId}")
-
-                    // Persistence as side effect: Cache routes for app restart recovery
+                    
+                    // Persistence as side effect
                     currentRoutes.forEach { route ->
                         try {
                             if (routeCache?.isCached(route.id) != true) {
                                 routeCache?.cacheRoute(route)
-                                Log.d(TAG, "Persisted route to cache: ${route.id}")
                             }
                         } catch (e: Exception) {
                             Log.w(TAG, "Failed to cache route ${route.id}", e)
@@ -194,7 +172,6 @@ class RouteOverlayManager(
                     }
                 }
             } else {
-                // Clear routes when disabled
                 clearRouteOverlays()
             }
         } catch (e: Exception) {
@@ -206,28 +183,159 @@ class RouteOverlayManager(
         clearRouteOverlays()
     }
 
+    override fun performMapMove(center: GeoPoint, zoom: Double) {
+        // LOD Check
+        if (!isZoomLevelSufficient(zoom)) {
+            if (currentlyRenderedRoutes.isNotEmpty()) {
+                clearRouteOverlays()
+            }
+            return
+        }
 
+        // Notify overlay coordinator of map movement for distance-based zoning
+        overlayCoordinator?.onMapMoved(center.latitude, center.longitude, zoom)
+        
+        // Trigger update to respect new center for prioritization
+        updateRouteOverlays()
+    }
+
+    override fun onViewportChangedInternal(viewport: org.osmdroid.util.BoundingBox) {
+        // LOD Check
+        if (mapView != null && !isZoomLevelSufficient(mapView!!.zoomLevelDouble)) {
+            if (currentlyRenderedRoutes.isNotEmpty()) {
+                clearRouteOverlays()
+            }
+            return
+        }
+
+        // Notify overlay coordinator of viewport changes for memory management
+        overlayCoordinator?.onViewportChanged(viewport)
+    }
 
     /**
-     * Update route overlays on map
+     * Update route overlays on map with incremental updates and prioritization
      */
     private fun updateRouteOverlays() {
         val mapView = mapView ?: return
+        val center = mapView.mapCenter as GeoPoint
+        
+        // LOD Check
+        if (!isZoomLevelSufficient(mapView.zoomLevelDouble)) {
+            clearRouteOverlays()
+            return
+        }
 
-        // Clear existing overlays
-        clearRouteOverlays()
-
-        // Create new overlays for current routes
-        currentRoutes.forEach { route ->
-            if (route.isVisible) {
-                val routeOverlay = RouteOverlay(route)
-                routeOverlays.add(routeOverlay)
-                mapView.overlays.add(routeOverlay)
+        // 🎯 STEP 0: Prioritize routes (Distance-based sorting + Limit)
+        val visibleRoutes = currentRoutes.filter { it.isVisible }
+        
+        val prioritizedRoutes = prioritizeFeatures(
+            visibleRoutes,
+            center,
+            10 // Limit to 10 routes to prevent clutter
+        ) { route ->
+            if (route.waypoints.isNotEmpty()) {
+                GeoPoint(route.waypoints[0].lat, route.waypoints[0].lon)
+            } else {
+                center
             }
         }
 
+        // 🎯 STEP 1: Determine desired state
+        val desiredIds = prioritizedRoutes.map { it.id }.toSet()
+        val currentIds = currentlyRenderedRoutes.keys
+
+        val toRemoveIds = currentIds - desiredIds
+        val toAddRoutes = prioritizedRoutes.filter { !currentIds.contains(it.id) }
+
+        // 🎯 STEP 2: Remove old routes (Outside -> Center)
+        val sortedRemovals = sortForRemoval(toRemoveIds.toList(), center) { id ->
+            val overlay = currentlyRenderedRoutes[id]
+            if (overlay != null && overlay.route.waypoints.isNotEmpty()) {
+                GeoPoint(overlay.route.waypoints[0].lat, overlay.route.waypoints[0].lon)
+            } else {
+                center
+            }
+        }
+        removeRoutes(sortedRemovals)
+
+        // 🎯 STEP 3: Add new routes (Center -> Outside)
+        val sortedAdditions = sortForAddition(toAddRoutes, center) { route ->
+            if (route.waypoints.isNotEmpty()) {
+                GeoPoint(route.waypoints[0].lat, route.waypoints[0].lon)
+            } else {
+                center
+            }
+        }
+        addRoutes(sortedAdditions)
+
         // Force map redraw
         mapView.invalidate()
+    }
+
+    private fun removeRoutes(ids: List<String>) {
+        if (ids.isEmpty()) return
+
+        val coordinator = overlayCoordinator
+        // println("DEBUG_PRINT: removeRoutes called with ${ids.size} ids. Map size: ${currentlyRenderedRoutes.size}")
+        
+        if (coordinator != null) {
+            ids.forEach { id ->
+                currentlyRenderedRoutes[id]?.let { overlay ->
+                    // Use first waypoint as centroid approximation
+                    val centroid = if (overlay.route.waypoints.isNotEmpty()) {
+                        GeoPoint(overlay.route.waypoints[0].lat, overlay.route.waypoints[0].lon)
+                    } else {
+                        GeoPoint(0.0, 0.0)
+                    }
+                    // println("DEBUG_PRINT: Removing overlay $id via coordinator")
+                    coordinator.removeOverlayFromBatch(overlay, id, centroid)
+                }
+            }
+            coordinator.removeOverlayFromBatch()
+            ids.forEach { currentlyRenderedRoutes.remove(it) }
+        } else {
+            ids.forEach { id ->
+                currentlyRenderedRoutes[id]?.let { overlay ->
+                    animationManager?.animateOverlayRemoval(overlay, id, mapView!!) {
+                        currentlyRenderedRoutes.remove(id)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun addRoutes(routes: List<Route>) {
+        val coordinator = overlayCoordinator
+        // println("DEBUG_PRINT: addRoutes called with ${routes.size} routes")
+        if (routes.isNotEmpty()) {
+             // throw RuntimeException("DEBUG_EXCEPTION: addRoutes called with ${routes.size} routes. Map size: ${currentlyRenderedRoutes.size}")
+        }
+
+        if (coordinator != null) {
+            routes.forEach { route ->
+                val overlay = RouteOverlay(route)
+                currentlyRenderedRoutes[route.id] = overlay
+                
+                // println("DEBUG_PRINT: Adding overlay ${route.id} via coordinator. Map size now: ${currentlyRenderedRoutes.size}")
+                coordinator.getAnimationManager().animateOverlayAddition(
+                    overlay = overlay,
+                    overlayId = route.id,
+                    mapView = mapView!!
+                ) {}
+            }
+        } else {
+            routes.forEachIndexed { index, route ->
+                val overlay = RouteOverlay(route)
+                currentlyRenderedRoutes[route.id] = overlay
+                
+                animationManager?.animateOverlayAddition(
+                    overlay = overlay,
+                    overlayId = route.id,
+                    mapView = mapView!!,
+                    staggerDelay = index * 100L
+                ) {}
+            }
+        }
     }
 
     /**
@@ -235,15 +343,11 @@ class RouteOverlayManager(
      */
     private fun clearRouteOverlays() {
         val mapView = mapView ?: return
-
-        routeOverlays.forEach { overlay ->
-            mapView.overlays.remove(overlay)
-        }
-        routeOverlays.clear()
-        mapView.invalidate()
+        
+        // Use animation for clearing if possible
+        val ids = currentlyRenderedRoutes.keys.toList()
+        removeRoutes(ids)
     }
-
-
 
     /**
      * Get current routes
@@ -265,7 +369,7 @@ class RouteOverlayManager(
         val cacheStats = routeCache?.getCacheStats() ?: emptyMap()
 
         baseStats.putAll(cacheStats)
-        baseStats["route_overlays_active"] = routeOverlays.size
+        baseStats["route_overlays_active"] = currentlyRenderedRoutes.size
         baseStats["current_routes_count"] = currentRoutes.size
         baseStats["has_selected_waypoint"] = currentSelectedWaypoint != null
         baseStats["has_selected_route"] = currentSelectedRouteId != null
@@ -277,7 +381,7 @@ class RouteOverlayManager(
     /**
      * Inner class for individual route overlay rendering and interaction
      */
-    private inner class RouteOverlay(private val route: Route) : Overlay() {
+    private inner class RouteOverlay(val route: Route) : Overlay() {
 
         override fun onSingleTapConfirmed(e: MotionEvent?, mapView: MapView?): Boolean {
             if (e == null || mapView == null) return false

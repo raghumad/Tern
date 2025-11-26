@@ -200,6 +200,14 @@ class PGSpotOverlayManager(
             }
         }
 
+        // Check zoom level (LOD)
+        if (!isZoomLevelSufficient(zoom)) {
+            if (currentlyRenderedPGSpots.isNotEmpty()) {
+                clearOverlays()
+            }
+            return
+        }
+
         checkAndLoadPGSpots(center)
     }
 
@@ -207,14 +215,24 @@ class PGSpotOverlayManager(
      * Abstract method implementation from BaseOverlayManager
      */
     override fun onViewportChangedInternal(viewport: BoundingBox) {
-        // Log.d(TAG, "Viewport changed internal: $viewport")
-        // Abstract method required by base class - implementation handled in onViewportChanged
+        // Check zoom level (LOD)
+        if (mapView != null && !isZoomLevelSufficient(mapView!!.zoomLevelDouble)) {
+            if (currentlyRenderedPGSpots.isNotEmpty()) {
+                clearOverlays()
+            }
+            return
+        }
     }
 
     override fun onViewportChanged(viewport: BoundingBox) {
         super.onViewportChanged(viewport)
 
         if (!isEnabled()) return
+
+        // Check zoom level (LOD)
+        if (mapView != null && !isZoomLevelSufficient(mapView!!.zoomLevelDouble)) {
+            return
+        }
 
         // Aviation intelligence: Weather orchestration triggered by viewport changes
         updateViewportWeatherIntelligence(viewport)
@@ -524,27 +542,40 @@ class PGSpotOverlayManager(
        * RENDER PG SPOTS WITH WEATHER CAPABILITY
        * Initial static display with future dynamic weather integration
        */
+    /**
+       * RENDER PG SPOTS WITH WEATHER CAPABILITY
+       * Initial static display with future dynamic weather integration
+       */
     private fun renderPGSpotFeaturesWithWeather(features: List<OverlayFeature>) {
-        features.forEach { feature ->
+        val center = mapView?.mapCenter as? GeoPoint ?: return
+
+        // 🎯 STEP 0: Prioritize features (Distance-based sorting + Limit)
+        val prioritizedFeatures = prioritizeFeatures(
+            features,
+            center,
+            getMaxOverlaysForCurrentConditions()
+        ) { it.centroid }
+
+        // 🎯 STEP 1: Determine desired state
+        val desiredIds = prioritizedFeatures.map { generatePGSpotId(it) }.toSet()
+        val currentIds = currentlyRenderedPGSpots.keys
+
+        val toRemoveIds = currentIds - desiredIds
+        val toAddFeatures = prioritizedFeatures.filter { !currentIds.contains(generatePGSpotId(it)) }
+
+        // 🎯 STEP 2: Remove old spots (Outside -> Center)
+        val sortedRemovals = sortForRemoval(toRemoveIds.toList(), center) { id ->
+            currentlyRenderedPGSpots[id]?.center ?: center
+        }
+        removePGSpots(sortedRemovals)
+
+        // 🎯 STEP 3: Add new spots (Center -> Outside)
+        val sortedAdditions = sortForAddition(toAddFeatures, center) { it.centroid }
+        sortedAdditions.forEach { feature ->
             addPGSpotIfNotExists(feature)
         }
 
-        val center = mapView?.mapCenter
-        val centerStr = if (center != null) {
-            String.format("@ %.4f,%.4f", center.latitude, center.longitude)
-        } else "@ unknown"
-
-        // Essential logging for debugging
-        mapView?.overlays?.let { overlays ->
-            val totalOverlays = overlays.size
-            val pgSpotCount = overlays.count { overlay ->
-                overlay is org.osmdroid.views.overlay.Marker &&
-                currentlyRenderedPGSpots.values.any { it.marker == overlay }
-            }
-
-        }
-
-        mapView?.invalidate()
+        val centerStr = String.format("@ %.4f,%.4f", center.latitude, center.longitude)
 
         // Check visibility after rendering
         val actuallyVisibleAfterRender = currentlyRenderedPGSpots.count { (_, markerData) ->
@@ -554,10 +585,35 @@ class PGSpotOverlayManager(
 
         Log.d(TAG, String.format(
             "PG spots rendered: %d total, %d visible %s",
-            features.size,
+            prioritizedFeatures.size,
             actuallyVisibleAfterRender,
             centerStr
         ))
+    }
+
+    /**
+     * Remove PG spots with animation
+     */
+    private fun removePGSpots(ids: List<String>) {
+        val coordinator = getOverlayCoordinator()
+        if (coordinator != null) {
+             ids.forEach { id ->
+                 currentlyRenderedPGSpots[id]?.let { markerData ->
+                     coordinator.removeOverlayFromBatch(markerData.marker, id, markerData.center)
+                 }
+             }
+             coordinator.removeOverlayFromBatch()
+             ids.forEach { currentlyRenderedPGSpots.remove(it) }
+        } else {
+            // Fallback
+            ids.forEach { id ->
+                currentlyRenderedPGSpots[id]?.let { markerData ->
+                    animationManager?.animateOverlayRemoval(markerData.marker, id, mapView!!) {
+                        currentlyRenderedPGSpots.remove(id)
+                    }
+                }
+            }
+        }
     }
 
     /**

@@ -23,13 +23,24 @@ data class Route(
     val waypoints: List<Waypoint> = emptyList(),
     val createdAt: Instant = Instant.now(),
     val updatedAt: Instant = Instant.now(),
-    val totalDistanceKm: Double = 0.0,
-    val estimatedFlightTimeMinutes: Int = 0,
-    val isVisible: Boolean = true,
-    val legDistances: List<Double> = emptyList(),
-    val routeType: RouteType = RouteType.OPEN_DISTANCE,
-    val faiPoints: Double = 0.0
+    val isVisible: Boolean = true
 ) {
+    // Computed properties derived from waypoints
+    val totalDistanceKm: Double
+        get() = calculateTotalDistance()
+
+    val estimatedFlightTimeMinutes: Int
+        get() = (totalDistanceKm / AVERAGE_FLIGHT_SPEED_KMH * MINUTES_PER_HOUR).toInt()
+
+    val legDistances: List<Double>
+        get() = calculateLegDistances()
+
+    val routeType: RouteType
+        get() = calculateRouteType()
+
+    val faiPoints: Double
+        get() = calculateFaiPoints()
+
     enum class RouteType { OPEN_DISTANCE, FLAT_TRIANGLE, FAI_TRIANGLE }
 
     /**
@@ -46,7 +57,7 @@ data class Route(
         return copy(
             waypoints = waypoints + newWaypoint,
             updatedAt = Instant.now()
-        ).calculateRouteMetrics()
+        )
     }
 
     /**
@@ -56,7 +67,7 @@ data class Route(
         return copy(
             waypoints = waypoints.filter { it.id != waypointId },
             updatedAt = Instant.now()
-        ).calculateRouteMetrics()
+        )
     }
 
     /**
@@ -74,7 +85,7 @@ data class Route(
                 } else it
             },
             updatedAt = Instant.now()
-        ).calculateRouteMetrics()
+        )
     }
 
     /**
@@ -92,49 +103,46 @@ data class Route(
         return copy(
             waypoints = mutableWaypoints,
             updatedAt = Instant.now()
-        ).calculateRouteMetrics()
+        )
     }
 
-    /**
-     * Calculate route metrics (distance, flight time, scoring)
-     */
-    private fun calculateRouteMetrics(): Route {
-        if (waypoints.size < 2) {
-            return copy(
-                totalDistanceKm = 0.0,
-                estimatedFlightTimeMinutes = 0,
-                legDistances = emptyList(),
-                routeType = RouteType.OPEN_DISTANCE,
-                faiPoints = 0.0
-            )
-        }
-
+    private fun calculateTotalDistance(): Double {
+        if (waypoints.size < 2) return 0.0
         var distance = 0.0
-        val legs = mutableListOf<Double>()
-
         for (i in 0 until waypoints.size - 1) {
             val p1 = waypoints[i]
             val p2 = waypoints[i + 1]
-            val legDist = calculateDistance(p1.lat, p1.lon, p2.lat, p2.lon)
-            distance += legDist
-            legs.add(legDist)
+            distance += calculateDistance(p1.lat, p1.lon, p2.lat, p2.lon)
         }
+        return distance
+    }
 
+    private fun calculateLegDistances(): List<Double> {
+        if (waypoints.size < 2) return emptyList()
+        val legs = mutableListOf<Double>()
+        for (i in 0 until waypoints.size - 1) {
+            val p1 = waypoints[i]
+            val p2 = waypoints[i + 1]
+            legs.add(calculateDistance(p1.lat, p1.lon, p2.lat, p2.lon))
+        }
+        return legs
+    }
+
+    private fun calculateRouteType(): RouteType {
+        if (waypoints.size < 3) return RouteType.OPEN_DISTANCE
+        
         // Check for closing the loop (Triangle)
-        val isClosedLoop = if (waypoints.size >= 3) {
-            val start = waypoints.first()
-            val end = waypoints.last()
-            val gap = calculateDistance(start.lat, start.lon, end.lat, end.lon)
-            // Rule: Gap must be less than 20% of total distance to be considered a closed triangle attempt
-            // For simplicity in this MVP, let's say if start and end are very close (< 400m) it's a closed loop
-            gap < 0.4
-        } else false
-
-        var type = RouteType.OPEN_DISTANCE
-        var points = distance // 1 point per km for open distance
+        val start = waypoints.first()
+        val end = waypoints.last()
+        val gap = calculateDistance(start.lat, start.lon, end.lat, end.lon)
+        // Rule: Gap must be less than 20% of total distance to be considered a closed triangle attempt
+        // For simplicity in this MVP, let's say if start and end are very close (< 400m) it's a closed loop
+        val isClosedLoop = gap < 0.4
 
         if (isClosedLoop && waypoints.size == 4) { // Start -> TP1 -> TP2 -> Start (3 legs)
-             // Triangle logic
+             val legs = legDistances
+             if (legs.size < 3) return RouteType.OPEN_DISTANCE // Should not happen if size is 4
+             
              val leg1 = legs[0]
              val leg2 = legs[1]
              val leg3 = legs[2]
@@ -143,24 +151,21 @@ data class Route(
              // FAI Triangle rule: Shortest leg must be at least 28% of total distance
              val shortest = minOf(leg1, minOf(leg2, leg3))
              if (shortest >= 0.28 * totalTriDist) {
-                 type = RouteType.FAI_TRIANGLE
-                 points = totalTriDist * 2.0 // FAI triangles often worth more, e.g. 2.0 multiplier (simplified)
+                 return RouteType.FAI_TRIANGLE
              } else {
-                 type = RouteType.FLAT_TRIANGLE
-                 points = totalTriDist * 1.5 // Flat triangles worth 1.5 (simplified)
+                 return RouteType.FLAT_TRIANGLE
              }
         }
+        return RouteType.OPEN_DISTANCE
+    }
 
-        // Estimate flight time (assuming avg speed of 30 km/h for paraglider)
-        val timeMinutes = (distance / 30.0 * 60).toInt()
-
-        return copy(
-            totalDistanceKm = distance,
-            estimatedFlightTimeMinutes = timeMinutes,
-            legDistances = legs,
-            routeType = type,
-            faiPoints = points
-        )
+    private fun calculateFaiPoints(): Double {
+        val dist = totalDistanceKm
+        return when (routeType) {
+            RouteType.FAI_TRIANGLE -> dist * 2.0
+            RouteType.FLAT_TRIANGLE -> dist * 1.5
+            RouteType.OPEN_DISTANCE -> dist
+        }
     }
 
     private fun calculateDistance(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
@@ -185,7 +190,7 @@ data class Route(
                 id = routeId,
                 name = name,
                 waypoints = routeWaypoints
-            ).calculateRouteMetrics()
+            )
         }
     }
 }

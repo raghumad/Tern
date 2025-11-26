@@ -106,6 +106,13 @@ class UniversalCountryCacheManager(
             } else {
                 // Same country - just update access time if cached
                 updateCountryAccess(newCountry)
+                
+                // Aviation Safety: Continuously check for border proximity
+                // This ensures that if we approach a border without crossing it yet,
+                // the adjacent airspace is preloaded (critical for X-Alps style flights)
+                coroutineScope.launch {
+                    preloadAdjacentCountries(newCountry, location)
+                }
             }
         }
     }

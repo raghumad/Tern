@@ -180,6 +180,14 @@ class AirspaceOverlayManager(
             }
         }
 
+        // Check zoom level (LOD)
+        if (!isZoomLevelSufficient(zoom)) {
+            if (currentlyRenderedAirspaces.isNotEmpty()) {
+                clearOverlays()
+            }
+            return
+        }
+
         checkAndLoadAirspaceData(center)
     }
 
@@ -188,6 +196,13 @@ class AirspaceOverlayManager(
     }
 
     override fun onViewportChangedInternal(viewport: BoundingBox) {
+        // Check zoom level (LOD)
+        if (mapView != null && !isZoomLevelSufficient(mapView!!.zoomLevelDouble)) {
+            if (currentlyRenderedAirspaces.isNotEmpty()) {
+                clearOverlays()
+            }
+            return
+        }
         manageViewportAirspaces(viewport)
     }
 
@@ -202,6 +217,14 @@ class AirspaceOverlayManager(
         } else if (mapView != null) {
             // Postpone Redux-triggered overlay operations until GPS fix is available
             if (!hasValidGPSFix) {
+                return
+            }
+
+            // Check zoom level (LOD)
+            if (!isZoomLevelSufficient(mapView!!.zoomLevelDouble)) {
+                if (currentlyRenderedAirspaces.isNotEmpty()) {
+                    clearOverlays()
+                }
                 return
             }
 
@@ -551,13 +574,18 @@ class AirspaceOverlayManager(
        * Nearby feature algorithm determines WHAT should exist, animation manager handles HOW
        */
     private fun updateAirspaceOverlaysIncrementally(map: MapView, features: List<OverlayFeature>) {
-        // 🎯 STEP 1: Determine desired state (what SHOULD exist)
-        val desiredAirspaceIds = determineDesiredAirspaceState(features)
+        // 🎯 STEP 0: Prioritize features (Distance-based sorting + Limit)
+        val center = map.mapCenter as GeoPoint
+        val prioritizedFeatures = prioritizeFeatures(
+            features,
+            center,
+            getMaxOverlaysForCurrentConditions()
+        ) { it.centroid }
 
-        val center = mapView?.mapCenter
-        val centerStr = if (center != null) {
-            String.format("@ %.4f,%.4f", center.latitude, center.longitude)
-        } else "@ unknown"
+        // 🎯 STEP 1: Determine desired state (what SHOULD exist)
+        val desiredAirspaceIds = determineDesiredAirspaceState(prioritizedFeatures)
+
+        val centerStr = String.format("@ %.4f,%.4f", center.latitude, center.longitude)
 
         // Get actually visible airspaces before sync
         val visibleBeforeSync = currentlyRenderedAirspaces.count { (_, polygon) ->
@@ -565,8 +593,9 @@ class AirspaceOverlayManager(
         }
 
         Log.d(TAG, String.format(
-            "Airspace sync: Desired: %d, Current: %d, Visible: %d %s",
+            "Airspace sync: Desired: %d (from %d features), Current: %d, Visible: %d %s",
             desiredAirspaceIds.size,
+            features.size,
             currentlyRenderedAirspaces.size,
             visibleBeforeSync,
             centerStr
@@ -631,17 +660,25 @@ class AirspaceOverlayManager(
      * Animation manager is the single source of truth for overlay lifecycle
      */
     private fun executeOverlayChangesThroughAnimationManager(map: MapView, changes: OverlayChanges) {
-        // 🗑️ REMOVE overlays that shouldn't exist anymore
-        removeOverlaysThroughAnimationManager(map, changes.toRemove)
+        val center = map.mapCenter as GeoPoint
 
-        // ➕ ADD new overlays that should exist
-        addOverlaysThroughAnimationManager(map, changes.toAdd)
+        // 🗑️ REMOVE overlays (Outside -> Center)
+        val sortedRemovals = sortForRemoval(changes.toRemove.toList(), center) { id ->
+            currentlyRenderedAirspaces[id]?.let { getPolygonCentroid(it) } ?: center
+        }
+        removeOverlaysThroughAnimationManager(map, sortedRemovals)
+
+        // ➕ ADD new overlays (Center -> Outside)
+        val sortedAdditions = sortForAddition(changes.toAdd.entries.toList(), center) { entry ->
+            entry.value.centroid
+        }
+        addOverlaysThroughAnimationManager(map, sortedAdditions)
     }
 
     /**
      * Remove overlays through animation manager only (fade-out → remove)
      */
-    private fun removeOverlaysThroughAnimationManager(map: MapView, airspaceIdsToRemove: Set<String>) {
+    private fun removeOverlaysThroughAnimationManager(map: MapView, airspaceIdsToRemove: List<String>) {
         val coordinator = getOverlayCoordinator()
 
         if (coordinator != null) {
@@ -650,8 +687,6 @@ class AirspaceOverlayManager(
                 val polygon = currentlyRenderedAirspaces[airspaceId]
                 if (polygon != null) {
                     // Add to Hilbert-ordered batch for removal (outside to center)
-                    // Note: We need to extract centroid from the polygon or feature
-                    // For now, use a default centroid - in production this should be stored
                     val centroid = getPolygonCentroid(polygon)
                     coordinator.removeOverlayFromBatch(polygon, airspaceId, centroid)
                 }
@@ -684,12 +719,12 @@ class AirspaceOverlayManager(
     /**
      * Add overlays through animation manager only (invisible → fade-in)
      */
-    private fun addOverlaysThroughAnimationManager(map: MapView, airspacesToAdd: Map<String, OverlayFeature>) {
+    private fun addOverlaysThroughAnimationManager(map: MapView, airspacesToAdd: List<Map.Entry<String, OverlayFeature>>) {
         val coordinator = getOverlayCoordinator()
 
         if (coordinator != null) {
             // Use Hilbert-ordered batch addition for smooth center-to-outside addition
-            airspacesToAdd.entries.forEachIndexed { index, (airspaceId, feature) ->
+            airspacesToAdd.forEachIndexed { index, (airspaceId, feature) ->
                 // Create overlay WITHOUT adding to map
                 val overlays = GeoJsonUtils.createAirspaceOverlays(map, listOf(feature))
                 if (overlays.isNotEmpty()) {
@@ -698,7 +733,7 @@ class AirspaceOverlayManager(
                     // Add to our tracking immediately
                     currentlyRenderedAirspaces[airspaceId] = polygon
 
-                    // ✅ FIXED: Process each overlay immediately with animation (no batching)
+                    // Process each overlay immediately with animation (no batching)
                     coordinator.getAnimationManager().animateOverlayAddition(
                         overlay = polygon,
                         overlayId = airspaceId,
@@ -709,7 +744,7 @@ class AirspaceOverlayManager(
             }
         } else {
             // Fallback to direct animation manager if coordinator not available
-            airspacesToAdd.entries.forEachIndexed { index, (airspaceId, feature) ->
+            airspacesToAdd.forEachIndexed { index, (airspaceId, feature) ->
                 // Create overlay WITHOUT adding to map
                 val overlays = GeoJsonUtils.createAirspaceOverlays(map, listOf(feature))
                 if (overlays.isNotEmpty()) {

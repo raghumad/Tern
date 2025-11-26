@@ -25,6 +25,7 @@ import org.junit.jupiter.api.Test
 import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
+import com.madanala.tern.ui.overlays.OverlayCoordinator.OverlayAnimationManager
 
 class RouteOverlayManagerTest {
 
@@ -84,21 +85,46 @@ private lateinit var manager: RouteOverlayManager
 
         // Mock Android Log methods
         mockkStatic(android.util.Log::class)
-        every { android.util.Log.d(any<String>(), any<String>()) } returns 0
+        every { android.util.Log.d(any<String>(), any<String>()) } answers {
+            println("DEBUG: ${firstArg<String>()}: ${secondArg<String>()}")
+            0
+        }
         every { android.util.Log.w(any<String>(), any<String>()) } returns 0
-        every { android.util.Log.e(any<String>(), any<String>()) } returns 0
-        every { android.util.Log.e(any<String>(), any<String>(), any<Throwable>()) } returns 0
+        every { android.util.Log.e(any<String>(), any<String>()) } answers {
+            println("ERROR: ${firstArg<String>()}: ${secondArg<String>()}")
+            0
+        }
+        every { android.util.Log.e(any<String>(), any<String>(), any<Throwable>()) } answers {
+            println("ERROR: ${firstArg<String>()}: ${secondArg<String>()}")
+            lastArg<Throwable>().printStackTrace()
+            0
+        }
         every { android.util.Log.i(any<String>(), any<String>()) } returns 0
 
 
         mockMapStore = mockk(relaxed = true)
         mockMapView = mockk(relaxed = true)
         mockCoordinator = mockk(relaxed = true)
+        val mockAnimManager = mockk<OverlayAnimationManager>(relaxed = true)
+        every { mockCoordinator.getAnimationManager() } returns mockAnimManager
+        
+        // Mock animation manager to actually add overlays to the list
+        every { mockAnimManager.animateOverlayAddition(any(), any(), any(), any(), any()) } answers {
+            val overlay = firstArg<org.osmdroid.views.overlay.Overlay>()
+            mockOverlays.add(overlay)
+        }
+        every { mockAnimManager.animateOverlayRemoval(any(), any(), any(), any()) } answers {
+            val overlay = firstArg<org.osmdroid.views.overlay.Overlay>()
+            mockOverlays.remove(overlay)
+            val callback = lastArg<() -> Unit>()
+            callback()
+        }
 
         mockOverlays = mockk(relaxed = true)
         every { mockMapView.overlays } returns mockOverlays
         every { mockMapView.projection } returns mockk(relaxed = true)
         every { mockMapView.mapCenter } returns GeoPoint(0.0, 0.0)
+        every { mockMapView.zoomLevelDouble } returns 10.0
 
         manager = RouteOverlayManager(mockMapStore)
         manager.initialize(mockMapView)
@@ -124,7 +150,12 @@ private lateinit var manager: RouteOverlayManager
         val state = createStateWithRoutes(2, enabled = true)
         manager.onReduxStateChanged(state)
 
-        verify(exactly = 2) { mockOverlays.add(any()) }
+        // Verify animation manager is called instead of direct list manipulation
+        // The animation manager mock is configured to add to the list, but verifying the call is more direct
+        val animManager = mockCoordinator.getAnimationManager()
+        verify(exactly = 2) { 
+            animManager.animateOverlayAddition(any(), any(), any(), any(), any()) 
+        }
         verify { mockMapView.invalidate() }
     }
 
@@ -136,8 +167,13 @@ private lateinit var manager: RouteOverlayManager
         manager.onReduxStateChanged(enabledState)
         manager.onReduxStateChanged(disabledState)
 
-        // The manager removes overlays individually, it doesn't clear the whole map overlay list
-        verify(exactly = 2) { mockOverlays.remove(any()) }
+        // The manager removes overlays individually via coordinator batch removal
+        verify(exactly = 2) { 
+            mockCoordinator.removeOverlayFromBatch(any(), any(), any()) 
+        }
+        verify(exactly = 1) {
+            mockCoordinator.removeOverlayFromBatch() // Commit batch
+        }
     }
 
     @Test
