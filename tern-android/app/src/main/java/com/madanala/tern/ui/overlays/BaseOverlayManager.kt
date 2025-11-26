@@ -43,6 +43,11 @@ abstract class BaseOverlayManager(
     protected var mapStore: MapStore?
 ) : OverlayManager {
 
+    companion object {
+        // Minimum zoom level to show overlays (Region/County level)
+        const val MIN_ZOOM_FOR_OVERLAYS = 9.0
+    }
+
     protected val TAG = "OverlayManager-${overlayType.name}"
     protected var mapView: MapView? = null
     protected var isAttached = false
@@ -67,6 +72,59 @@ abstract class BaseOverlayManager(
 
     // Redux state subscription
     private var stateJob: kotlinx.coroutines.Job? = null
+
+    /**
+     * Check if the current zoom level is sufficient to show overlays
+     */
+    protected fun isZoomLevelSufficient(zoom: Double): Boolean {
+        return zoom >= MIN_ZOOM_FOR_OVERLAYS
+    }
+
+    /**
+     * Prioritize features based on distance from center and limit count
+     * @param items List of items to prioritize
+     * @param center Map center
+     * @param limit Maximum number of items to return
+     * @param locationSelector Function to extract GeoPoint from item
+     */
+    protected fun <T> prioritizeFeatures(
+        items: List<T>,
+        center: GeoPoint,
+        limit: Int,
+        locationSelector: (T) -> GeoPoint
+    ): List<T> {
+        return items.sortedBy { item ->
+            locationSelector(item).distanceToAsDouble(center)
+        }.take(limit)
+    }
+
+    /**
+     * Sort items for addition: Center -> Outside (Ascending distance)
+     * This creates a "growing from center" effect when combined with staggered animation
+     */
+    protected fun <T> sortForAddition(
+        items: List<T>,
+        center: GeoPoint,
+        locationSelector: (T) -> GeoPoint
+    ): List<T> {
+        return items.sortedBy { item ->
+            locationSelector(item).distanceToAsDouble(center)
+        }
+    }
+
+    /**
+     * Sort items for removal: Outside -> Center (Descending distance)
+     * This creates a "shrinking to center" effect when combined with staggered animation
+     */
+    protected fun <T> sortForRemoval(
+        items: List<T>,
+        center: GeoPoint,
+        locationSelector: (T) -> GeoPoint
+    ): List<T> {
+        return items.sortedByDescending { item ->
+            locationSelector(item).distanceToAsDouble(center)
+        }
+    }
 
     override fun onAttach(mapView: MapView) {
         if (isAttached) {

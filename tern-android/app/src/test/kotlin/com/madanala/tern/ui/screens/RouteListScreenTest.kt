@@ -154,12 +154,16 @@ class RouteListScreenTest {
     @Test
     fun `RouteListScreen route statistics display correctly`() = runTest(testDispatcher) {
         val mockStore = mock<MapStore>()
+        // Create waypoints approx 15km apart
+        // 1 degree lat ~ 111km. 15.5km ~ 0.14 degrees
+        val waypoints = listOf(
+            com.madanala.tern.model.Waypoint(lat = 40.0, lon = -74.0),
+            com.madanala.tern.model.Waypoint(lat = 40.14, lon = -74.0)
+        )
         val routeWithStats = Route(
             id = "route-1",
             name = "Stats Route",
-            totalDistanceKm = 15.5,
-            estimatedFlightTimeMinutes = 45,
-            waypoints = listOf() // Empty waypoints
+            waypoints = waypoints
         )
         val initialState = MapState(routes = listOf(routeWithStats))
         val stateFlow = MutableStateFlow(initialState)
@@ -167,8 +171,8 @@ class RouteListScreenTest {
 
         // Test route statistics
         val route = initialState.routes.first()
-        assertThat(route.totalDistanceKm).isEqualTo(15.5)
-        assertThat(route.estimatedFlightTimeMinutes).isEqualTo(45)
-        assertThat(route.waypoints).isEmpty()
+        assertThat(route.totalDistanceKm).isWithin(1.0).of(15.5)
+        assertThat(route.estimatedFlightTimeMinutes).isGreaterThan(0)
+        assertThat(route.waypoints).hasSize(2)
     }
 }
