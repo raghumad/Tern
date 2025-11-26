@@ -117,7 +117,8 @@ fun TernMapScreen(
     if (showRouteListScreen) {
         RouteListScreen(
             store = store,
-            onRouteSelected = { showRouteListScreen = false }
+            onRouteSelected = { showRouteListScreen = false },
+            onDismiss = { showRouteListScreen = false }
         )
     }
 

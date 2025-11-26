@@ -167,7 +167,7 @@ object RouteIOManager {
                 val lon = wpJson.getDouble("lon")
                 val typeStr = wpJson.optString("t", "TURNPOINT")
                 val type = try { Waypoint.Type.valueOf(typeStr) } catch (e: Exception) { Waypoint.Type.TURNPOINT }
-                val label = wpJson.optString("l", null)
+                val label = wpJson.optString("l").ifEmpty { null }
                 
                 waypoints.add(Waypoint(
                     lat = lat,
