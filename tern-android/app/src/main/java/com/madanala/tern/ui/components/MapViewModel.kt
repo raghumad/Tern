@@ -334,42 +334,8 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
         val pgSpotManager = PGSpotOverlayManager(getApplication<Application>().applicationContext, store)
         overlayCoordinator.addOverlayManager(pgSpotManager)
 
-        val routeManager = RouteOverlayManager(store)
+        val routeManager = RouteOverlayManager(getApplication<Application>().applicationContext, store)
         overlayCoordinator.addOverlayManager(routeManager)
-
-        // Load persisted routes and populate Redux state
-        loadPersistedRoutesIntoRedux(routeManager, store)
-    }
-
-    /**
-     * Load persisted routes and populate Redux state
-     */
-    private fun loadPersistedRoutesIntoRedux(routeManager: RouteOverlayManager, store: com.madanala.tern.redux.MapStore) {
-        try {
-            // Get route cache from RouteOverlayManager using reflection (temporary)
-            val routeCacheField = routeManager.javaClass.getDeclaredField("routeCache")
-            routeCacheField.isAccessible = true
-            val routeCache = routeCacheField.get(routeManager) as? com.madanala.tern.utils.RouteCache
-
-            if (routeCache != null) {
-                val persistedRoutes = routeCache.getAllCachedRoutes()
-
-                if (persistedRoutes.isNotEmpty()) {
-                    // Dispatch Redux actions to add each persisted route
-                    persistedRoutes.forEach { route ->
-                        store.dispatch(com.madanala.tern.redux.MapAction.AddRoute(route))
-                    }
-
-                    Log.d(TAG, "Loaded ${persistedRoutes.size} persisted routes into Redux state")
-                } else {
-                    Log.d(TAG, "No persisted routes found")
-                }
-            } else {
-                Log.w(TAG, "RouteCache not available in RouteOverlayManager")
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error loading persisted routes into Redux", e)
-        }
     }
 
     /**
