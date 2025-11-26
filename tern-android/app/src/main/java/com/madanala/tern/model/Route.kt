@@ -1,4 +1,4 @@
-package com.madanala.tern.route
+package com.madanala.tern.model
 
 import com.madanala.tern.model.Waypoint
 import java.time.Instant

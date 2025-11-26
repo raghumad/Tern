@@ -49,7 +49,7 @@ import com.journeyapps.barcodescanner.ScanOptions
 import com.madanala.tern.R
 import com.madanala.tern.redux.MapAction
 import com.madanala.tern.redux.MapStore
-import com.madanala.tern.route.Route
+import com.madanala.tern.model.Route
 import com.madanala.tern.utils.RouteIOManager
 import java.time.Instant
 import kotlin.math.atan2

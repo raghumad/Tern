@@ -27,7 +27,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.madanala.tern.redux.MapStore
 import com.madanala.tern.redux.MapAction
-import com.madanala.tern.route.Route
+import com.madanala.tern.model.Route
 import com.madanala.tern.model.Waypoint
 import com.madanala.tern.ui.components.Compass
 import org.osmdroid.util.GeoPoint

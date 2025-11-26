@@ -22,6 +22,11 @@ object CacheManager {
         PGSpotCache(appContext)
     }
 
+    val routeCache: RouteCache by lazy {
+        ensureInitialized()
+        RouteCache(appContext)
+    }
+
     /**
      * Initialize with application context
      * Must be called once during app startup
@@ -44,7 +49,8 @@ object CacheManager {
         ensureInitialized()
         return mapOf(
             "airspaceCache" to airspaceCache.getCacheStats(),
-            "pgSpotCache" to pgSpotCache.getCacheStats()
+            "pgSpotCache" to pgSpotCache.getCacheStats(),
+            "routeCache" to routeCache.getCacheStats()
         )
     }
 
@@ -55,6 +61,7 @@ object CacheManager {
         ensureInitialized()
         airspaceCache.clearCache()
         pgSpotCache.clearCache()
+        routeCache.clearCache()
         android.util.Log.d("CacheManager", "All caches cleared")
     }
 }

@@ -7,8 +7,9 @@ import com.madanala.tern.redux.MapState
 import com.madanala.tern.redux.MapStore
 import com.madanala.tern.redux.OverlayType
 import com.madanala.tern.redux.WaypointSelection
-import com.madanala.tern.route.Route
+import com.madanala.tern.model.Route
 import com.madanala.tern.utils.RouteCache
+import com.madanala.tern.utils.CacheManager
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Overlay
@@ -45,6 +46,16 @@ class RouteOverlayManager(
     }
 
     private var routeCache: RouteCache? = null
+    
+    // Helper to check if CacheManager is initialized (reflection-based check or try-catch)
+    private fun isCacheManagerInitialized(): Boolean {
+        return try {
+            CacheManager.airspaceCache // Accessing any lazy property triggers check
+            true
+        } catch (e: IllegalStateException) {
+            false
+        }
+    }
     private var currentRoutes: List<Route> = emptyList()
     private var currentSelectedWaypoint: WaypointSelection? = null
     private var currentSelectedRouteId: String? = null
@@ -126,8 +137,12 @@ class RouteOverlayManager(
         if (routeCache == null) {
             mapView?.context?.let { context ->
                 try {
-                    routeCache = RouteCache(context)
-                    Log.d(TAG, "RouteCache initialized successfully")
+                    // Ensure CacheManager is initialized
+                    if (!isCacheManagerInitialized()) {
+                        CacheManager.initialize(context.applicationContext)
+                    }
+                    routeCache = CacheManager.routeCache
+                    Log.d(TAG, "RouteCache initialized successfully from CacheManager")
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to initialize RouteCache", e)
                 }

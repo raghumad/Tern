@@ -8,7 +8,7 @@ import com.madanala.tern.model.FlightMetrics
 import com.madanala.tern.model.FlightMode
 import com.madanala.tern.model.SensorConfig
 import com.madanala.tern.model.Waypoint
-import com.madanala.tern.route.Route
+import com.madanala.tern.model.Route
 
 /**
  * Redux actions for map functionality
