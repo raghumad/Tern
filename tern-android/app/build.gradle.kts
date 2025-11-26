@@ -54,6 +54,16 @@ android {
             }
         }
         execution = "ANDROIDX_TEST_ORCHESTRATOR"
+        
+        managedDevices {
+            devices {
+                create<com.android.build.api.dsl.ManagedVirtualDevice>("pixel5api34") {
+                    device = "Pixel 5"
+                    apiLevel = 34
+                    systemImageSource = "aosp"
+                }
+            }
+        }
     }
 
     buildTypes {
@@ -193,6 +203,10 @@ dependencies {
     androidTestImplementation("com.google.truth:truth:1.4.4")
 
     // AndroidX Benchmark Library for Performance Testing
+    androidTestImplementation("androidx.benchmark:benchmark-junit4:1.3.3")
+
+    // Android Test Orchestrator
+    androidTestUtil("androidx.test:orchestrator:1.5.1")
     androidTestImplementation("androidx.benchmark:benchmark-junit4:1.3.3")
     androidTestImplementation("androidx.benchmark:benchmark-macro-junit4:1.3.3")
 
