@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -61,7 +62,8 @@ import kotlin.math.sqrt
 fun RouteListScreen(
     modifier: Modifier = Modifier,
     store: MapStore,
-    onRouteSelected: () -> Unit = {} // Callback to navigate to map screen
+    onRouteSelected: () -> Unit = {}, // Callback to navigate to map screen
+    onDismiss: () -> Unit = {} // Callback to dismiss the screen
 ) {
     val state by store.state.collectAsState()
     val routes = state.routes
@@ -116,7 +118,26 @@ fun RouteListScreen(
     var routeToRename by remember { mutableStateOf<Route?>(null) }
     var newRouteName by remember { mutableStateOf("") }
 
-    Column(modifier = modifier.fillMaxSize()) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) { onDismiss() } // Dismiss on tap outside
+    ) {
+        // Main Content Card (Surface)
+        Card(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth()
+                .heightIn(max = 600.dp) // Limit height
+                .align(Alignment.Center)
+                .clickable(enabled = false) {}, // Consume clicks inside the card
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        ) {
+            Column(modifier = Modifier.fillMaxSize()) {
         // Header with Actions
         Row(
             modifier = Modifier
@@ -318,7 +339,9 @@ fun RouteListScreen(
                 )
             }
         }
+        }
     }
+}
 
     // Delete confirmation dialog
     if (showDeleteDialog && routeToDelete != null) {

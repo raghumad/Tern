@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
@@ -156,7 +157,7 @@ fun RouteDetailPanel(
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
-                    Divider()
+                    HorizontalDivider()
                     Spacer(modifier = Modifier.height(12.dp))
 
                     Text(

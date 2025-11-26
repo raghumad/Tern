@@ -259,8 +259,7 @@ class AirspaceCache(private val context: Context) {
                     @Suppress("UNCHECKED_CAST")
                     val feature = when {
                         rawFeature is Map<*, *> -> rawFeature as Map<String, Any>
-                        featureData is Map<*, *> -> featureData as Map<String, Any>
-                        else -> emptyMap<String, Any>()
+                        else -> featureData
                     }
 
                     val centroidRaw = featureData["centroid"]
