@@ -4,7 +4,7 @@ import com.google.common.truth.Truth.assertThat
 import com.madanala.tern.redux.MapAction
 import com.madanala.tern.redux.MapState
 import com.madanala.tern.redux.MapStore
-import com.madanala.tern.route.Route
+import com.madanala.tern.model.Route
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest

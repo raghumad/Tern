@@ -415,7 +415,7 @@ private fun handleRouteSelectionActions(state: MapState, action: MapAction): Map
  */
 private fun updateSelectionAfterRouteChange(
     currentSelection: WaypointSelection?,
-    routes: List<com.madanala.tern.route.Route>,
+    routes: List<com.madanala.tern.model.Route>,
     changedRouteId: String
 ): WaypointSelection? {
     if (currentSelection == null) return null

@@ -2,7 +2,7 @@ package com.madanala.tern
 
 import com.google.common.truth.Truth.assertThat
 import com.madanala.tern.model.Waypoint
-import com.madanala.tern.route.Route
+import com.madanala.tern.model.Route
 import org.junit.jupiter.api.Test
 
 /**

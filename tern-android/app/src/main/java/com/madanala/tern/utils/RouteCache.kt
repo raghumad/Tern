@@ -4,7 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.madanala.tern.route.Route
+import com.madanala.tern.model.Route
 import com.madanala.tern.model.Waypoint
 import org.osmdroid.util.GeoPoint
 import java.io.*
@@ -271,6 +271,8 @@ class RouteCache(private val context: Context) {
                     } catch (e: Exception) {
                         Waypoint.Type.TURNPOINT // Default fallback for invalid types
                     }
+                    
+                    val sequence = (props?.get("sequence") as? Number)?.toInt() ?: 0
 
                     Waypoint(
                         id = waypointId,
@@ -279,14 +281,13 @@ class RouteCache(private val context: Context) {
                         type = waypointType,
                         label = if (label.isNullOrEmpty()) null else label,
                         routeId = routeId
-                    )
+                    ) to sequence
                 } else {
                     null
                 }
-            }.sortedBy { waypoint ->
-                // Sort by Hilbert index to maintain original order approximately
-                MapOverlayCacheUtils.computeHilbertIndex(GeoPoint(waypoint.lat, waypoint.lon), HILBERT_BITS_PRECISION)
-            }
+            }.sortedBy { (_, sequence) ->
+                sequence
+            }.map { it.first }
 
             if (waypoints.isNotEmpty()) {
                 return Route(
@@ -324,10 +325,9 @@ class RouteCache(private val context: Context) {
                     "routeId" to route.id,
                     "waypointType" to waypoint.type.name,
                     "label" to (waypoint.label ?: ""),
-                    "waypointType" to waypoint.type.name,
-                    "label" to (waypoint.label ?: ""),
                     "routeName" to route.name,
-                    "isVisible" to route.isVisible
+                    "isVisible" to route.isVisible,
+                    "sequence" to route.waypoints.indexOf(waypoint) // Add sequence for ordering
                 )
             )
 

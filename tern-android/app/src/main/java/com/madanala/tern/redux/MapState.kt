@@ -6,7 +6,7 @@ import com.madanala.tern.model.SensorState
 import com.madanala.tern.model.FlightComputerData
 import com.madanala.tern.model.FlightMetrics
 import com.madanala.tern.model.FlightMode
-import com.madanala.tern.route.Route
+import com.madanala.tern.model.Route
 
 /**
  * Global state for map functionality using Redux pattern

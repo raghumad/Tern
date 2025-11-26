@@ -103,6 +103,12 @@ android {
     }
 
     buildToolsVersion = "36.0.0"
+
+    sourceSets {
+        getByName("androidTest") {
+            setRoot("src/instrumentedTests")
+        }
+    }
 }
 
 dependencies {
@@ -426,74 +432,14 @@ tasks.withType<Test> {
 
 tasks.register("testAll") {
     group = "verification"
-    description = "Run comprehensive tests with conditional execution modes (use -PincludePerformanceTests=true, -PincludeRegressionTests=true, -PincludeFullAutomation=true)"
+    description = "Run comprehensive tests"
 
     // Core testing always runs
     dependsOn("testDebugUnitTest", "runManualInstrumentation", "jacocoTestCoverageVerification", "generateTestSummary")
 
-    // Conditional dependencies based on properties
-    val includePerformanceTests = providers.gradleProperty("includePerformanceTests").forUseAtConfigurationTime().getOrElse("false").toBoolean()
-    val includeRegressionTests = providers.gradleProperty("includeRegressionTests").forUseAtConfigurationTime().getOrElse("false").toBoolean()
-    val includeFullAutomation = providers.gradleProperty("includeFullAutomation").forUseAtConfigurationTime().getOrElse("false").toBoolean()
-
-    if (includePerformanceTests) {
-        // Performance benchmarks are optional - check if task exists before adding dependency
-        try {
-            tasks.named("runPerformanceBenchmarks")
-            dependsOn("runPerformanceBenchmarks")
-            println("⚡ Performance benchmarks included (-PincludePerformanceTests=true)")
-        } catch (e: Exception) {
-            println("⚠️ Performance benchmarks task not available - skipping")
-        }
-    }
-
-    if (includeRegressionTests) {
-        // Regression analysis is optional - check if task exists before adding dependency
-        try {
-            tasks.named("runCoverageTrendAnalysis")
-            dependsOn("runCoverageTrendAnalysis")
-            println("📈 Regression analysis included (-PincludeRegressionTests=true)")
-        } catch (e: Exception) {
-            println("⚠️ Regression analysis task not available - skipping")
-        }
-    }
-    // Always run basic coverage dashboard for standard tests
-    dependsOn("generateCoverageDashboard")
-
-    if (includeFullAutomation) {
-        // Full automation is optional - check if task exists before adding dependency
-        try {
-            tasks.named("runAutomatedTests")
-            dependsOn("runAutomatedTests")
-            println("🤖 Full automation included (-PincludeFullAutomation=true)")
-        } catch (e: Exception) {
-            println("⚠️ Full automation task not available - skipping")
-        }
-    }
-
     doLast {
         println("🎯 Testing completed successfully!")
         println("📊 Test summary: ${project.layout.buildDirectory.get()}/reports/test-summary.md")
-        println("🌐 Coverage dashboard: coverage-dashboard/index.html")
-
-        if (includePerformanceTests) {
-            println("🏃 Performance benchmarks: app/build/reports/benchmarks/")
-        }
-
-        if (includeRegressionTests) {
-            println("📈 Trend analysis: coverage-trend-report.md")
-        }
-
-        if (includeFullAutomation) {
-            println("🤖 Automation results: build/reports/automation/")
-        }
-
-        println("\n🔧 Available testing modes:")
-        println("   Standard: ./gradlew testAll")
-        println("   + Performance: ./gradlew testAll -PincludePerformanceTests=true")
-        println("   + Regression: ./gradlew testAll -PincludeRegressionTests=true")
-        println("   + Full Automation: ./gradlew testAll -PincludeFullAutomation=true")
-        println("   Combined: ./gradlew testAll -PincludePerformanceTests=true -PincludeRegressionTests=true -PincludeFullAutomation=true")
     }
 }
 
@@ -527,167 +473,7 @@ tasks.register("runUnitTestsOnlyAndGenerateSummary") {
     }
 }
 
-tasks.register("runAutomatedTests") {
-    group = "verification"
-    description = "Run fully automated Android testing with zero manual steps (SDK setup, emulator, tests, cleanup)"
 
-    doLast {
-        println("🤖 Starting fully automated Android testing...")
-        println("📋 This will:")
-        println("   1. Download and configure Android SDK (if needed)")
-        println("   2. Create Pixel Pro emulator (if needed)")
-        println("   3. Launch emulator with performance optimizations")
-        println("   4. Run ./gradlew testWithCoverage with coverage")
-        println("   5. Generate comprehensive test summary (test-summary.md)")
-        println("   6. Clean up emulator and resources")
-        println()
-
-        // Check if Python is available
-        val pythonResult = providers.exec {
-            commandLine("python3", "--version")
-            isIgnoreExitValue = true
-        }
-
-        if (pythonResult.result.get().exitValue != 0) {
-            val python2Result = providers.exec {
-                commandLine("python", "--version")
-                isIgnoreExitValue = true
-            }
-            if (python2Result.result.get().exitValue != 0) {
-                println("⚠️ Python not available - automated testing requires Python 3.6+")
-                println("✅ Falling back to manual testing mode")
-                println("💡 Run: ./gradlew testWithCoverage")
-                return@doLast
-            }
-        }
-
-        // Run the Python automation script
-        val scriptPath = "${project.rootDir}/scripts/android_test_automation.py"
-        val scriptFile = file(scriptPath)
-
-        if (!scriptFile.exists()) {
-            println("⚠️ Automation script not found: $scriptPath")
-            println("✅ Falling back to manual testing mode")
-            println("💡 Run: ./gradlew testWithCoverage")
-            return@doLast
-        }
-
-        println("🔧 Executing automation script: $scriptPath")
-
-        val automationResult = providers.exec {
-            workingDir = project.rootDir
-            commandLine("python3", scriptPath)
-            isIgnoreExitValue = true
-        }
-
-        val exitCode = automationResult.result.get().exitValue
-
-        if (exitCode == 0) {
-            println("\n🎉 SUCCESS: Automated testing completed successfully!")
-            println("📋 Test summary: build/reports/test-summary.md")
-            println("📊 JaCoCo coverage: build/reports/jacoco/combined/html/index.html")
-        } else {
-            println("\n⚠️ Automated testing failed (exit code: $exitCode)")
-            println("📋 Falling back to manual testing mode")
-            println("💡 Run: ./gradlew testWithCoverage")
-        }
-    }
-}
-
-// Coverage Dashboard Generation Task
-tasks.register("generateCoverageDashboard") {
-    group = "reporting"
-    description = "Generate comprehensive coverage dashboard with analytics and visualizations"
-    dependsOn("jacocoDetailedReport")
-
-    doLast {
-        println("📊 Generating coverage dashboard...")
-
-        // Check if Python is available
-        val pythonResult = providers.exec {
-            commandLine("python3", "--version")
-            isIgnoreExitValue = true
-        }
-
-        if (pythonResult.result.get().exitValue != 0) {
-            println("⚠️ Python not available - skipping advanced dashboard features")
-            println("✅ Basic coverage report available: ${project.layout.buildDirectory.get()}/reports/jacoco/detailed/html/index.html")
-            return@doLast
-        }
-
-        // Run the dashboard generation script
-        val scriptPath = "${project.rootDir}/scripts/coverage_dashboard.py"
-        val scriptFile = file(scriptPath)
-
-        if (!scriptFile.exists()) {
-            println("⚠️ Dashboard script not found - using basic coverage report")
-            println("✅ Basic coverage report: ${project.layout.buildDirectory.get()}/reports/jacoco/detailed/html/index.html")
-            return@doLast
-        }
-
-        val dashboardResult = providers.exec {
-            workingDir = project.rootDir
-            commandLine("python3", scriptPath)
-            isIgnoreExitValue = true
-        }
-
-        val exitCode = dashboardResult.result.get().exitValue
-
-        if (exitCode == 0) {
-            println("✅ Coverage dashboard generated successfully!")
-            println("🌐 Open dashboard: coverage-dashboard/index.html")
-        } else {
-            println("⚠️ Dashboard generation failed - using basic coverage report")
-            println("✅ Basic coverage report: ${project.layout.buildDirectory.get()}/reports/jacoco/detailed/html/index.html")
-        }
-    }
-}
-
-// Coverage Trend Analysis Task
-tasks.register("runCoverageTrendAnalysis") {
-    group = "reporting"
-    description = "Run coverage trend analysis for regression detection"
-    dependsOn("jacocoDetailedReport")
-
-    doLast {
-        println("📈 Running coverage trend analysis...")
-
-        // Check if Python is available
-        val pythonResult = providers.exec {
-            commandLine("python3", "--version")
-            isIgnoreExitValue = true
-        }
-
-        if (pythonResult.result.get().exitValue != 0) {
-            println("⚠️ Python not available - skipping trend analysis")
-            return@doLast
-        }
-
-        // Run the trend analysis script
-        val scriptPath = "${project.rootDir}/scripts/coverage_trend_analysis.py"
-        val scriptFile = file(scriptPath)
-
-        if (!scriptFile.exists()) {
-            println("⚠️ Trend analysis script not found - skipping analysis")
-            return@doLast
-        }
-
-        val trendResult = providers.exec {
-            workingDir = project.rootDir
-            commandLine("python3", scriptPath)
-            isIgnoreExitValue = true
-        }
-
-        val exitCode = trendResult.result.get().exitValue
-
-        if (exitCode == 0) {
-            println("✅ Coverage trend analysis completed!")
-            println("📄 Trend report: coverage-trend-report.md")
-        } else {
-            println("⚠️ Trend analysis failed (exit code: $exitCode)")
-        }
-    }
-}
 
 tasks.register("generateTestSummary") {
     group = "reporting"

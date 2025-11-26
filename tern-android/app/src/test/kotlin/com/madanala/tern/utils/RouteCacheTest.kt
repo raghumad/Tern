@@ -2,7 +2,7 @@ package com.madanala.tern.utils
 
 import android.content.Context
 import android.util.Log
-import com.madanala.tern.route.Route
+import com.madanala.tern.model.Route
 import com.madanala.tern.model.Waypoint
 import io.mockk.every
 import io.mockk.mockk
@@ -69,5 +69,29 @@ class RouteCacheTest {
         val cachedRoute = routeCache.getCachedRoute(route.id)
         assertTrue(cachedRoute != null, "Cached route should not be null")
         assertEquals(true, cachedRoute?.isVisible, "isVisible should be true")
+    }
+    @Test
+    fun `test cache and retrieve route preserves waypoint order`() {
+        // Create a route with multiple waypoints in a specific order
+        val waypoint1 = Waypoint(id = "wp1", lat = 10.0, lon = 20.0, routeId = "test_route_order")
+        val waypoint2 = Waypoint(id = "wp2", lat = 11.0, lon = 21.0, routeId = "test_route_order")
+        val waypoint3 = Waypoint(id = "wp3", lat = 12.0, lon = 22.0, routeId = "test_route_order")
+        
+        val route = Route(
+            id = "test_route_order",
+            name = "Ordered Route",
+            waypoints = listOf(waypoint1, waypoint2, waypoint3)
+        )
+
+        routeCache.cacheRoute(route)
+
+        val cachedRoute = routeCache.getCachedRoute(route.id)
+        assertTrue(cachedRoute != null, "Cached route should not be null")
+        assertEquals(3, cachedRoute?.waypoints?.size)
+        
+        // Verify order is preserved
+        assertEquals("wp1", cachedRoute?.waypoints?.get(0)?.id)
+        assertEquals("wp2", cachedRoute?.waypoints?.get(1)?.id)
+        assertEquals("wp3", cachedRoute?.waypoints?.get(2)?.id)
     }
 }

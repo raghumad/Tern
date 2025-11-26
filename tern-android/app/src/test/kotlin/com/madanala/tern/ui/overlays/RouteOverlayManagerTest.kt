@@ -7,7 +7,7 @@ import com.madanala.tern.redux.MapStore
 import com.madanala.tern.redux.OverlayConfig
 import com.madanala.tern.redux.OverlayState
 import com.madanala.tern.redux.WaypointSelection
-import com.madanala.tern.route.Route
+import com.madanala.tern.model.Route
 import com.madanala.tern.utils.DistanceZone
 import com.madanala.tern.redux.OverlayType
 import android.content.Context

@@ -2,7 +2,7 @@ package com.madanala.tern.redux
 
 import com.google.common.truth.Truth.assertThat
 import com.madanala.tern.model.Waypoint
-import com.madanala.tern.route.Route
+import com.madanala.tern.model.Route
 import org.junit.Test
 
 import java.time.Instant

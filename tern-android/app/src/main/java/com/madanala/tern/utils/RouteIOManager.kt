@@ -12,7 +12,7 @@ import com.google.zxing.MultiFormatReader
 import com.google.zxing.MultiFormatWriter
 import com.google.zxing.RGBLuminanceSource
 import com.google.zxing.common.HybridBinarizer
-import com.madanala.tern.route.Route
+import com.madanala.tern.model.Route
 import com.madanala.tern.model.Waypoint
 import org.json.JSONObject
 import java.io.File

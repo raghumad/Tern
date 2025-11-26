@@ -287,7 +287,8 @@ object MapOverlayCacheUtils {
                 "hilbertIndex" to feature.hilbertIndex,
                 "overlayType" to feature.overlayType
             )
-            val jsonBytes = mapper.writeValueAsBytes(featureData)
+            val jsonString = mapper.writeValueAsString(featureData) + "\n"
+            val jsonBytes = jsonString.toByteArray(Charsets.UTF_8)
             val entry = HilbertIndexEntry(feature.hilbertIndex, currentOffset, jsonBytes.size)
             indexEntries.add(entry)
             currentOffset += jsonBytes.size
