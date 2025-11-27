@@ -195,7 +195,7 @@ class MapInteractionTest : BddTest() {
                 composeTestRule.waitForIdle()
             }
 
-            then("The existing waypoint is selected (Edit Waypoint screen appears)", takeScreenshot = true) {
+            then("The existing waypoint is selected (Edit Waypoint screen appears)") {
                 // Verify "Edit Waypoint" screen appears
                 composeTestRule.waitUntil(timeoutMillis = 5000) {
                     composeTestRule.onAllNodesWithText("Edit Waypoint").fetchSemanticsNodes().isNotEmpty()
