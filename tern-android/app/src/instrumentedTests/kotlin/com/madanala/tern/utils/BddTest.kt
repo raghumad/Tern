@@ -45,11 +45,11 @@ open class BddTest {
         step("WHEN", description, takeScreenshot, block)
     }
 
-    fun then(description: String, takeScreenshot: Boolean = false, block: () -> Unit) {
+    fun then(description: String, takeScreenshot: Boolean = true, block: () -> Unit) {
         step("THEN", description, takeScreenshot, block)
     }
 
-    fun and(description: String, takeScreenshot: Boolean = false, block: () -> Unit) {
+    fun and(description: String, takeScreenshot: Boolean = true, block: () -> Unit) {
         step("AND", description, takeScreenshot, block)
     }
 
