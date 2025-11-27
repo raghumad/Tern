@@ -46,7 +46,7 @@ android {
         }
     }
 
-    testOptions {
+        testOptions {
         unitTests {
             isReturnDefaultValues = true
             all {
@@ -61,6 +61,8 @@ android {
                     device = "Pixel 5"
                     apiLevel = 34
                     systemImageSource = "aosp"
+                    // Explicitly set ABI to x86_64 to avoid warning and ensure fast emulation on x86 host
+                    testedAbi = "x86_64"
                 }
             }
         }
@@ -166,6 +168,9 @@ dependencies {
     implementation("androidx.compose.animation:animation")
     debugImplementation("androidx.compose.ui:ui-tooling")
     
+    // Startup (Explicitly added to fix ClassNotFoundException in tests)
+    implementation("androidx.startup:startup-runtime:1.2.0")
+    
     // Unit Testing - JUnit 5 (modern testing framework)
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.11.4")
@@ -196,17 +201,17 @@ dependencies {
     androidTestImplementation("androidx.test:rules:1.6.1")
 
     // Compose Testing
+    androidTestImplementation("androidx.test.services:storage:1.5.0")
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
+    
+    // Android Test Orchestrator
+    androidTestUtil("androidx.test:orchestrator:1.5.1")
 
     // Truth Assertions for Android tests
     androidTestImplementation("com.google.truth:truth:1.4.4")
 
     // AndroidX Benchmark Library for Performance Testing
-    androidTestImplementation("androidx.benchmark:benchmark-junit4:1.3.3")
-
-    // Android Test Orchestrator
-    androidTestUtil("androidx.test:orchestrator:1.5.1")
     androidTestImplementation("androidx.benchmark:benchmark-junit4:1.3.3")
     androidTestImplementation("androidx.benchmark:benchmark-macro-junit4:1.3.3")
 
@@ -216,6 +221,9 @@ dependencies {
     // QR Code Support (ZXing)
     implementation("com.google.zxing:core:3.5.3")
     implementation("com.journeyapps:zxing-android-embedded:4.3.0")
+
+    // Startup (Explicitly added to fix ClassNotFoundException in tests)
+    androidTestImplementation("androidx.startup:startup-runtime:1.2.0")
 }
 
 // JaCoCo Configuration for Code Coverage
@@ -453,16 +461,24 @@ tasks.register("unitTests") {
     dependsOn("testDebugUnitTest")
 }
 
+tasks.register("emulatedDeviceTest") {
+    group = "verification"
+    description = "Run tests on all configured managed devices"
+    // specific device task: pixel5api34DebugAndroidTest
+    // all devices task: allDevicesDebugAndroidTest
+    dependsOn("allDevicesDebugAndroidTest")
+}
+
 tasks.register("instrumentedTests") {
     group = "verification"
-    description = "Run Instrumented Tests (Device/Emulator)"
-    dependsOn("connectedDebugAndroidTest")
+    description = "Run Instrumented Tests (Managed Devices)"
+    dependsOn("emulatedDeviceTest")
 }
 
 tasks.register("coverageReport") {
     group = "verification"
     description = "Generate Code Coverage Report (HTML/XML)"
-    dependsOn("testDebugUnitTest", "connectedDebugAndroidTest", "jacocoTestReport")
+    dependsOn("testDebugUnitTest", "emulatedDeviceTest", "jacocoTestReport")
     
     doLast {
         println("📊 Coverage Report generated: ${project.layout.buildDirectory.get()}/reports/jacoco/jacocoTestReport/html/index.html")
@@ -478,7 +494,11 @@ tasks.register("testAll") {
     
     doLast {
         val testResultsDir = file("${project.layout.buildDirectory.get()}/test-results")
-        val androidTestResultsDir = file("${project.layout.buildDirectory.get()}/androidTest-results")
+        // Standard connected android test results
+        val connectedTestResultsDir = file("${project.layout.buildDirectory.get()}/outputs/androidTest-results/connected")
+        // Gradle Managed Device results
+        val managedDeviceResultsDir = file("${project.layout.buildDirectory.get()}/outputs/androidTest-results/managedDevice")
+        
         val jacocoReportDir = file("${project.layout.buildDirectory.get()}/reports/jacoco")
         
         println("\n🎯 TEST EXECUTION SUMMARY")
@@ -488,7 +508,97 @@ tasks.register("testAll") {
         println(generateTestResultsSummary(testResultsDir, "test"))
         
         println("\n### Instrumented Tests")
-        println(generateTestResultsSummary(androidTestResultsDir, "androidTest"))
+        if (managedDeviceResultsDir.exists()) {
+             println(generateTestResultsSummary(managedDeviceResultsDir, "managedDevice"))
+             val reportPath = file("${project.layout.buildDirectory.get()}/reports/androidTests/managedDevice/debug/allDevices/index.html")
+             if (reportPath.exists()) {
+                 println("Report: ${reportPath.absolutePath}")
+             }
+            val resultsDir = file("build/outputs/androidTest-results/managedDevice")
+            if (resultsDir.exists()) {
+                val deviceDirs = resultsDir.listFiles()?.filter { it.isDirectory }
+                deviceDirs?.forEach { deviceDir ->
+                    val indexHtml = File(deviceDir, "index.html")
+                    if (indexHtml.exists()) {
+                        println("Test Report for ${deviceDir.name}: file://${indexHtml.absolutePath}")
+                    }
+                }
+            }
+            
+            // Copy BDD Reports and Inject into Standard Report
+            val bddOutputDir = file("build/outputs/managed_device_android_test_additional_output/debug/pixel5api34")
+            val bddReportDir = file("build/reports/bdd-report")
+            
+            if (bddOutputDir.exists()) {
+                // 1. Copy raw BDD files to a clean directory
+                copy {
+                    from(bddOutputDir)
+                    into(bddReportDir)
+                }
+                println("BDD Report generated at: file://${bddReportDir.absolutePath}")
+
+                // 2. Inject BDD content into Standard Report
+                val standardReportDir = file("build/reports/androidTests/managedDevice/debug/allDevices")
+                
+                if (standardReportDir.exists()) {
+                    // Iterate over all class report files
+                    standardReportDir.listFiles { _, name -> name.endsWith(".html") && name != "index.html" }?.forEach { classReportFile ->
+                        var htmlContent = classReportFile.readText()
+                        var modified = false
+                        
+                        // Iterate over BDD reports to find matches
+                        bddOutputDir.listFiles { _, name -> name.startsWith("report_") && name.endsWith(".html") }?.forEach { bddFile ->
+                            val methodName = bddFile.name.removePrefix("report_").removeSuffix(".html")
+                            val bddContent = bddFile.readText()
+                            
+                            // Extract body content from BDD report (simple regex)
+                            val bodyMatch = Regex("<body>(.*?)</body>", RegexOption.DOT_MATCHES_ALL).find(bddContent)
+                            val bodyContent = bodyMatch?.groupValues?.get(1) ?: ""
+                            
+                            // Find the row for this method in standard report
+                            // Pattern: <tr><td>methodName</td><td class="success">...</td></tr>
+                            val rowPattern = Regex("<tr>\\s*<td>$methodName</td>\\s*<td class=\".*?\">.*?</td>\\s*</tr>", RegexOption.DOT_MATCHES_ALL)
+                            
+                            if (rowPattern.containsMatchIn(htmlContent)) {
+                                // Inject a new row with the BDD content (Collapsible)
+                                val injection = """
+                                    <tr class="bdd-report-row">
+                                        <td colspan="2" style="padding: 0; border: none;">
+                                            <details style="margin: 5px 10px; border: 1px solid #ddd; border-radius: 4px; background-color: #f9f9f9;">
+                                                <summary style="cursor: pointer; padding: 10px; font-weight: bold; background-color: #eee;">View BDD Scenario Details</summary>
+                                                <div style="padding: 10px; border-top: 1px solid #ddd;">
+                                                    $bodyContent
+                                                </div>
+                                            </details>
+                                        </td>
+                                    </tr>
+                                """.trimIndent()
+                                
+                                htmlContent = htmlContent.replace(rowPattern) { matchResult ->
+                                    matchResult.value + "\n" + injection
+                                }
+                                println("Injected BDD report for $methodName into ${classReportFile.name}")
+                                modified = true
+                            }
+                        }
+                        
+                        if (modified) {
+                            classReportFile.writeText(htmlContent)
+                            println("Updated Standard Report: file://${classReportFile.absolutePath}")
+                        }
+                    }
+                    
+                    // Copy images to standard report directory so they display
+                    copy {
+                        from(bddOutputDir)
+                        include("*.png")
+                        into(standardReportDir)
+                    }
+                }
+            }
+        } else {
+             println(generateTestResultsSummary(connectedTestResultsDir, "connected"))
+        }
         
         println("\n### Code Coverage")
         println(generateCoverageSummary(jacocoReportDir))

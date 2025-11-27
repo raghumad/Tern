@@ -12,7 +12,8 @@ object ScreenshotHelper {
 
     fun takeScreenshot(name: String) {
         val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
-        val path = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "screenshots")
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val path = File(context.getExternalFilesDir(Environment.DIRECTORY_PICTURES), "screenshots")
         if (!path.exists()) {
             path.mkdirs()
         }
