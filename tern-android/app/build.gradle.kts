@@ -57,9 +57,9 @@ android {
         
         managedDevices {
             devices {
-                create<com.android.build.api.dsl.ManagedVirtualDevice>("pixel5api34") {
-                    device = "Pixel 5"
-                    apiLevel = 34
+                create<com.android.build.api.dsl.ManagedVirtualDevice>("pixel9proapi35") {
+                    device = "Pixel 9 Pro"
+                    apiLevel = 35
                     systemImageSource = "aosp"
                     // Explicitly set ABI to x86_64 to avoid warning and ensure fast emulation on x86 host
                     testedAbi = "x86_64"
@@ -526,7 +526,7 @@ tasks.register("testAll") {
             }
             
             // Copy BDD Reports and Inject into Standard Report
-            val bddOutputDir = file("build/outputs/managed_device_android_test_additional_output/debug/pixel5api34")
+            val bddOutputDir = file("build/outputs/managed_device_android_test_additional_output/debug/pixel9proapi35")
             val bddReportDir = file("build/reports/bdd-report")
             
             if (bddOutputDir.exists()) {
@@ -577,14 +577,14 @@ tasks.register("testAll") {
                                 htmlContent = htmlContent.replace(rowPattern) { matchResult ->
                                     matchResult.value + "\n" + injection
                                 }
-                                println("Injected BDD report for $methodName into ${classReportFile.name}")
+                                // println("Injected BDD report for $methodName into ${classReportFile.name}")
                                 modified = true
                             }
                         }
                         
                         if (modified) {
                             classReportFile.writeText(htmlContent)
-                            println("Updated Standard Report: file://${classReportFile.absolutePath}")
+                            //println("Updated Standard Report: file://${classReportFile.absolutePath}")
                         }
                     }
                     

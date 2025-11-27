@@ -35,6 +35,10 @@ open class BddTest {
         step("THEN", description, block)
     }
 
+    fun and(description: String, block: () -> Unit) {
+        step("AND", description, block)
+    }
+
     private fun step(type: String, description: String, block: () -> Unit) {
         try {
             block()
