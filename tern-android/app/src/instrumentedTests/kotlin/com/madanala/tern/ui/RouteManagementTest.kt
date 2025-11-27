@@ -32,6 +32,7 @@ class RouteManagementTest : BddTest() {
 
         scenario("testCreateRenameDeleteRoute") {
             given("I have a fresh map store and RouteListScreen is visible") {
+                com.madanala.tern.utils.ReportGenerator.logStep("SETUP", "Initializing RouteListScreen with fresh store")
                 composeTestRule.setContent {
                     RouteListScreen(
                         store = store,
@@ -40,64 +41,77 @@ class RouteManagementTest : BddTest() {
                     )
                 }
                 // Verify initial state
+                com.madanala.tern.utils.ReportGenerator.logStep("VERIFY", "Checking for empty state message")
                 composeTestRule.onNodeWithText("No nearby routes found").assertIsDisplayed()
             }
 
             `when`("I create a new route named 'New Route 1'") {
+                com.madanala.tern.utils.ReportGenerator.logStep("ACTION", "Dispatching AddRoute action")
                 val newRoute = com.madanala.tern.model.Route(name = "New Route 1")
                 store.dispatch(MapAction.AddRoute(newRoute))
 
                 // Wait for UI update
+                com.madanala.tern.utils.ReportGenerator.logStep("WAIT", "Waiting for 'New Route 1' to appear")
                 composeTestRule.waitUntil(timeoutMillis = 5000) {
                     composeTestRule.onAllNodesWithText("New Route 1").fetchSemanticsNodes().isNotEmpty()
                 }
             }
 
             then("I see 'New Route 1' in the list") {
+                com.madanala.tern.utils.ReportGenerator.logStep("VERIFY", "Asserting 'New Route 1' is displayed")
                 composeTestRule.onNodeWithText("New Route 1").assertIsDisplayed()
             }
 
             `when`("I rename the route to 'My Awesome Flight'") {
+                com.madanala.tern.utils.ReportGenerator.logStep("ACTION", "Dispatching UpdateRoute action (Rename)")
                 val route = store.state.value.routes.first()
                 val renamedRoute = route.copy(name = "My Awesome Flight")
                 store.dispatch(MapAction.UpdateRoute(renamedRoute))
 
                 // Wait for UI update
+                com.madanala.tern.utils.ReportGenerator.logStep("WAIT", "Waiting for 'My Awesome Flight' to appear")
                 composeTestRule.waitUntil(timeoutMillis = 5000) {
                     composeTestRule.onAllNodesWithText("My Awesome Flight").fetchSemanticsNodes().isNotEmpty()
                 }
             }
 
             then("I see the route renamed to 'My Awesome Flight'") {
+                com.madanala.tern.utils.ReportGenerator.logStep("VERIFY", "Asserting 'My Awesome Flight' is displayed")
                 composeTestRule.onNodeWithText("My Awesome Flight").assertIsDisplayed()
             }
 
             `when`("I toggle visibility of the route") {
+                com.madanala.tern.utils.ReportGenerator.logStep("ACTION", "Dispatching UpdateRoute action (Visibility)")
                 val route = store.state.value.routes.first()
                 val hiddenRoute = route.copy(isVisible = false)
                 store.dispatch(MapAction.UpdateRoute(hiddenRoute))
 
                 // Wait for icon update
+                com.madanala.tern.utils.ReportGenerator.logStep("WAIT", "Waiting for visibility icon update")
                 composeTestRule.waitUntil(timeoutMillis = 5000) {
                     composeTestRule.onAllNodesWithContentDescription("Show route").fetchSemanticsNodes().isNotEmpty()
                 }
             }
 
             then("I see the 'Show route' icon indicating it is hidden") {
+                com.madanala.tern.utils.ReportGenerator.logStep("VERIFY", "Asserting 'Show route' icon is displayed")
                 composeTestRule.onNodeWithContentDescription("Show route").assertIsDisplayed()
             }
 
             `when`("I delete the route") {
+                com.madanala.tern.utils.ReportGenerator.logStep("ACTION", "Dispatching RemoveRoute action")
                 val route = store.state.value.routes.first()
                 store.dispatch(MapAction.RemoveRoute(route.id))
 
                 // Wait for UI update
+                com.madanala.tern.utils.ReportGenerator.logStep("WAIT", "Waiting for empty state message")
                 composeTestRule.waitUntil(timeoutMillis = 5000) {
                     composeTestRule.onAllNodesWithText("No nearby routes found").fetchSemanticsNodes().isNotEmpty()
                 }
             }
 
             then("I see the empty state 'No nearby routes found'") {
+                com.madanala.tern.utils.ReportGenerator.logStep("VERIFY", "Asserting empty state message is displayed")
                 composeTestRule.onNodeWithText("No nearby routes found").assertIsDisplayed()
             }
         }
@@ -117,6 +131,7 @@ class RouteManagementTest : BddTest() {
 
         scenario("testReorderWaypoints") {
             given("I have a route with 2 waypoints and RouteDetailPanel is visible") {
+                com.madanala.tern.utils.ReportGenerator.logStep("SETUP", "Initializing RouteDetailPanel with 2 waypoints")
                 composeTestRule.setContent {
                     com.madanala.tern.ui.components.RouteDetailPanel(
                         store = store,
@@ -124,20 +139,24 @@ class RouteManagementTest : BddTest() {
                         onDismiss = {}
                     )
                 }
+                com.madanala.tern.utils.ReportGenerator.logStep("VERIFY", "Checking initial order: Start, End")
                 composeTestRule.onNodeWithText("1. Start").assertIsDisplayed()
                 composeTestRule.onNodeWithText("2. End").assertIsDisplayed()
             }
 
             `when`("I move 'Start' down to the second position") {
+                com.madanala.tern.utils.ReportGenerator.logStep("ACTION", "Dispatching ReorderWaypoint action")
                 store.dispatch(MapAction.ReorderWaypoint(route.id, 0, 1))
 
                 // Wait for UI update
+                com.madanala.tern.utils.ReportGenerator.logStep("WAIT", "Waiting for reorder update")
                 composeTestRule.waitUntil(timeoutMillis = 5000) {
                     composeTestRule.onAllNodesWithText("1. End").fetchSemanticsNodes().isNotEmpty()
                 }
             }
 
             then("I see 'End' at position 1 and 'Start' at position 2") {
+                com.madanala.tern.utils.ReportGenerator.logStep("VERIFY", "Asserting new order: End, Start")
                 composeTestRule.onNodeWithText("1. End").assertIsDisplayed()
                 composeTestRule.onNodeWithText("2. Start").assertIsDisplayed()
             }

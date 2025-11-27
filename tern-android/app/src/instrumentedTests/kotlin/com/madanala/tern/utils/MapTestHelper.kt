@@ -30,48 +30,31 @@ object MapTestHelper {
     }
 
     fun longPressOnGeoPoint(activity: Activity, lat: Double, lon: Double) {
-        val mapView = findMapView(activity.window.decorView) ?: throw IllegalStateException("MapView not found")
-        val point = android.graphics.Point()
-        mapView.projection.toPixels(GeoPoint(lat, lon), point)
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        var x = 0f
+        var y = 0f
         
-        // Convert local coordinates to screen coordinates
-        val locationOnScreen = IntArray(2)
-        mapView.getLocationOnScreen(locationOnScreen)
-        val x = (locationOnScreen[0] + point.x).toFloat()
-        val y = (locationOnScreen[1] + point.y).toFloat()
+        instrumentation.runOnMainSync {
+            val mapView = findMapView(activity.window.decorView) ?: throw IllegalStateException("MapView not found")
+            val point = android.graphics.Point()
+            mapView.projection.toPixels(GeoPoint(lat, lon), point)
+            
+            // Convert local coordinates to screen coordinates
+            val locationOnScreen = IntArray(2)
+            mapView.getLocationOnScreen(locationOnScreen)
+            x = (locationOnScreen[0] + point.x).toFloat()
+            y = (locationOnScreen[1] + point.y).toFloat()
+        }
         
         ReportGenerator.logStep("ACTION", "Long press at lat=$lat, lon=$lon -> screen x=$x, y=$y")
 
-        val instrumentation = InstrumentationRegistry.getInstrumentation()
-        val downTime = SystemClock.uptimeMillis()
-        val eventTime = SystemClock.uptimeMillis()
+        val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
+        // Simulate long press using swipe with 0 distance and long duration
+        // 100 steps * 5ms = 500ms. Let's use 200 steps for 1000ms.
+        val steps = 200 
+        device.swipe(x.toInt(), y.toInt(), x.toInt(), y.toInt(), steps)
         
-        val downEvent = MotionEvent.obtain(downTime, eventTime, MotionEvent.ACTION_DOWN, x, y, 0)
-        try {
-            instrumentation.sendPointerSync(downEvent)
-            ReportGenerator.logStep("DEBUG", "Sent ACTION_DOWN")
-        } catch (e: Exception) {
-            ReportGenerator.logStep("ERROR", "Failed to send ACTION_DOWN: ${e.message}", "FAIL")
-        }
-        
-        // Wait for long press timeout (usually 500ms, wait 1000ms to be safe)
-        ReportGenerator.logStep("ACTION", "Waiting for long press timeout (1000ms)")
-        try {
-            Thread.sleep(1000)
-        } catch (e: InterruptedException) {
-            e.printStackTrace()
-        }
-        
-        val upEvent = MotionEvent.obtain(downTime, SystemClock.uptimeMillis(), MotionEvent.ACTION_UP, x, y, 0)
-        try {
-            instrumentation.sendPointerSync(upEvent)
-            ReportGenerator.logStep("DEBUG", "Sent ACTION_UP")
-        } catch (e: Exception) {
-            ReportGenerator.logStep("ERROR", "Failed to send ACTION_UP: ${e.message}", "FAIL")
-        }
-        
-        downEvent.recycle()
-        upEvent.recycle()
+        ReportGenerator.logStep("DEBUG", "Performed long press via UiDevice.swipe")
     }
 
     fun waitForMapTiles(timeoutMillis: Long = 3000) {
