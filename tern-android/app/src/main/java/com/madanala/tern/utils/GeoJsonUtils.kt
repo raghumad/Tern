@@ -396,6 +396,26 @@ object GeoJsonUtils {
     }
 
     /**
+     * Check if a point is strictly inside a polygon using Ray Casting algorithm
+     * @param polygon The polygon to check
+     * @param point The point to check
+     * @return true if the point is inside the polygon
+     */
+    fun isPointInPolygon(polygon: Polygon, point: GeoPoint): Boolean {
+        val points = polygon.points ?: return false
+        var result = false
+        var j = points.size - 1
+        for (i in points.indices) {
+            if ((points[i].latitude > point.latitude) != (points[j].latitude > point.latitude) &&
+                (point.longitude < (points[j].longitude - points[i].longitude) * (point.latitude - points[i].latitude) / (points[j].latitude - points[i].latitude) + points[i].longitude)) {
+                result = !result
+            }
+            j = i
+        }
+        return result
+    }
+
+    /**
      * Check if a polygon is within the map viewport
      * @param polygon The polygon to check
      * @param boundingBox The map's bounding box

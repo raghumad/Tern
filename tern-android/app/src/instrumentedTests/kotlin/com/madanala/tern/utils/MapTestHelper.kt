@@ -25,6 +25,7 @@ object MapTestHelper {
         val screenY = locationOnScreen[1] + point.y
         
         val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
+        ReportGenerator.logStep("ACTION", "Click on GeoPoint: $lat, $lon (Screen: $screenX, $screenY)")
         device.click(screenX, screenY)
     }
 
@@ -39,7 +40,7 @@ object MapTestHelper {
         val x = (locationOnScreen[0] + point.x).toFloat()
         val y = (locationOnScreen[1] + point.y).toFloat()
         
-        println("MapTestHelper: Long press at lat=$lat, lon=$lon -> screen x=$x, y=$y")
+        ReportGenerator.logStep("ACTION", "Long press at lat=$lat, lon=$lon -> screen x=$x, y=$y")
 
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val downTime = SystemClock.uptimeMillis()
@@ -48,12 +49,13 @@ object MapTestHelper {
         val downEvent = MotionEvent.obtain(downTime, eventTime, MotionEvent.ACTION_DOWN, x, y, 0)
         try {
             instrumentation.sendPointerSync(downEvent)
-            println("MapTestHelper: Sent ACTION_DOWN")
+            ReportGenerator.logStep("DEBUG", "Sent ACTION_DOWN")
         } catch (e: Exception) {
-            println("MapTestHelper: Failed to send ACTION_DOWN: ${e.message}")
+            ReportGenerator.logStep("ERROR", "Failed to send ACTION_DOWN: ${e.message}", "FAIL")
         }
         
         // Wait for long press timeout (usually 500ms, wait 1000ms to be safe)
+        ReportGenerator.logStep("ACTION", "Waiting for long press timeout (1000ms)")
         try {
             Thread.sleep(1000)
         } catch (e: InterruptedException) {
@@ -63,9 +65,9 @@ object MapTestHelper {
         val upEvent = MotionEvent.obtain(downTime, SystemClock.uptimeMillis(), MotionEvent.ACTION_UP, x, y, 0)
         try {
             instrumentation.sendPointerSync(upEvent)
-            println("MapTestHelper: Sent ACTION_UP")
+            ReportGenerator.logStep("DEBUG", "Sent ACTION_UP")
         } catch (e: Exception) {
-            println("MapTestHelper: Failed to send ACTION_UP: ${e.message}")
+            ReportGenerator.logStep("ERROR", "Failed to send ACTION_UP: ${e.message}", "FAIL")
         }
         
         downEvent.recycle()
