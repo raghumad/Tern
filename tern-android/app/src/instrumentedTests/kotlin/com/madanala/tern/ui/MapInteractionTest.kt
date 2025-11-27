@@ -27,7 +27,6 @@ class MapInteractionTest : BddTest() {
     @get:Rule
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
-    @org.junit.Ignore("Flaky map interaction on emulator")
     @Test
     fun testMapLongPressCreatesRoute() {
         scenario("testMapLongPressCreatesRoute") {
@@ -91,7 +90,7 @@ class MapInteractionTest : BddTest() {
                 composeTestRule.waitForIdle()
             }
 
-            then("A new route is created") {
+            then("A new route is created", takeScreenshot = true) {
                 // Check for Smart Suggestion dialog (it might appear if cache has data or logic triggers it)
                 // We use onAllNodes to check existence without crashing
                 if (composeTestRule.onAllNodesWithText("Nearby", substring = true).fetchSemanticsNodes().isNotEmpty()) {
@@ -100,7 +99,20 @@ class MapInteractionTest : BddTest() {
                     composeTestRule.waitForIdle()
                 }
                 
-                // Verify "Route 1" is displayed (RouteDetailPanel or RouteList)
+                // Verify "Edit Waypoint" screen appears (auto-selected new waypoint)
+                composeTestRule.waitUntil(timeoutMillis = 5000) {
+                    composeTestRule.onAllNodesWithText("Edit Waypoint").fetchSemanticsNodes().isNotEmpty()
+                }
+                composeTestRule.onNodeWithText("Edit Waypoint").assertIsDisplayed()
+                
+                // Dismiss Edit Waypoint screen
+                composeTestRule.onNodeWithText("Done").performClick()
+                composeTestRule.waitForIdle()
+                
+                // Verify "Route 1" is displayed (RouteDetailPanel)
+                composeTestRule.waitUntil(timeoutMillis = 5000) {
+                    composeTestRule.onAllNodesWithText("Route 1").fetchSemanticsNodes().isNotEmpty()
+                }
                 composeTestRule.onNodeWithText("Route 1").assertIsDisplayed()
             }
         }

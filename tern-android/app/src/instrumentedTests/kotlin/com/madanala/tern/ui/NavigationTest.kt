@@ -29,6 +29,7 @@ class NavigationTest : BddTest() {
     fun verifyNavigationToMap() {
         scenario("verifyNavigationToMap") {
             given("the app is initialized") {
+                com.madanala.tern.utils.ReportGenerator.logStep("SETUP", "Initializing CacheManager and OSMDroid")
                 // Initialize CacheManager
                 com.madanala.tern.utils.CacheManager.initialize(composeTestRule.activity.applicationContext)
                 
@@ -39,6 +40,7 @@ class NavigationTest : BddTest() {
             }
 
             and("I have location permissions") {
+                com.madanala.tern.utils.ReportGenerator.logStep("SETUP", "Granting location permissions")
                 val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
                 val uiAutomation = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation
                 uiAutomation.grantRuntimePermission(context.packageName, android.Manifest.permission.ACCESS_FINE_LOCATION)
@@ -46,6 +48,7 @@ class NavigationTest : BddTest() {
             }
 
             and("I inject Mock Location (Boulder, CO)") {
+                com.madanala.tern.utils.ReportGenerator.logStep("SETUP", "Injecting mock GPS location: Boulder, CO")
                 val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
                 val locationManager = context.getSystemService(android.content.Context.LOCATION_SERVICE) as android.location.LocationManager
                 try {
@@ -70,6 +73,7 @@ class NavigationTest : BddTest() {
             }
 
             `when`("the app content is set") {
+                com.madanala.tern.utils.ReportGenerator.logStep("ACTION", "Setting content to TernMapScreen")
                 composeTestRule.setContent {
                     TernTheme {
                         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -77,16 +81,20 @@ class NavigationTest : BddTest() {
                         }
                     }
                 }
+                com.madanala.tern.utils.ReportGenerator.logStep("VERIFY", "Checking for map view existence")
                 composeTestRule.onNodeWithTag("map_view").assertExists()
             }
 
             `when`("I interact with the map") {
+                com.madanala.tern.utils.ReportGenerator.logStep("ACTION", "Interacting with map (Placeholder)")
                 // Placeholder for future interactions
             }
 
             then("I see the Map screen") {
+                com.madanala.tern.utils.ReportGenerator.logStep("VERIFY", "Asserting map view exists")
                 composeTestRule.onNodeWithTag("map_view").assertExists()
                 
+                com.madanala.tern.utils.ReportGenerator.logStep("WAIT", "Waiting for map tiles to load")
                 // Wait for tiles to load so screenshot is not empty
                 com.madanala.tern.utils.MapTestHelper.waitForMapTiles()
             }

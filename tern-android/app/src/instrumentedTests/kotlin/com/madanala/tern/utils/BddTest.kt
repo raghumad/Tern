@@ -37,28 +37,33 @@ open class BddTest {
         }
     }
 
-    fun given(description: String, block: () -> Unit) {
-        step("GIVEN", description, block)
+    fun given(description: String, takeScreenshot: Boolean = false, block: () -> Unit) {
+        step("GIVEN", description, takeScreenshot, block)
     }
 
-    fun `when`(description: String, block: () -> Unit) {
-        step("WHEN", description, block)
+    fun `when`(description: String, takeScreenshot: Boolean = false, block: () -> Unit) {
+        step("WHEN", description, takeScreenshot, block)
     }
 
-    fun then(description: String, block: () -> Unit) {
-        step("THEN", description, block)
+    fun then(description: String, takeScreenshot: Boolean = false, block: () -> Unit) {
+        step("THEN", description, takeScreenshot, block)
     }
 
-    fun and(description: String, block: () -> Unit) {
-        step("AND", description, block)
+    fun and(description: String, takeScreenshot: Boolean = false, block: () -> Unit) {
+        step("AND", description, takeScreenshot, block)
     }
 
-    private fun step(type: String, description: String, block: () -> Unit) {
+    private fun step(type: String, description: String, takeScreenshot: Boolean, block: () -> Unit) {
         try {
             block()
-            ReportGenerator.logStep(type, description, "PASS")
+            val screenshot = if (takeScreenshot) {
+                ReportGenerator.captureScreenshot("step_${type}_${description.take(20).replace(" ", "_")}")
+            } else {
+                null
+            }
+            ReportGenerator.logStep(type, description, "PASS", screenshot)
         } catch (e: Throwable) {
-            val screenshot = ReportGenerator.captureScreenshot("failure_${type}_${description.take(10).replace(" ", "_")}")
+            val screenshot = ReportGenerator.captureScreenshot("failure_${type}_${description.take(20).replace(" ", "_")}")
             ReportGenerator.logStep(type, description, "FAIL", screenshot)
             throw e
         }
