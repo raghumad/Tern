@@ -39,12 +39,19 @@ object MapTestHelper {
         val x = (locationOnScreen[0] + point.x).toFloat()
         val y = (locationOnScreen[1] + point.y).toFloat()
         
+        println("MapTestHelper: Long press at lat=$lat, lon=$lon -> screen x=$x, y=$y")
+
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val downTime = SystemClock.uptimeMillis()
         val eventTime = SystemClock.uptimeMillis()
         
         val downEvent = MotionEvent.obtain(downTime, eventTime, MotionEvent.ACTION_DOWN, x, y, 0)
-        instrumentation.sendPointerSync(downEvent)
+        try {
+            instrumentation.sendPointerSync(downEvent)
+            println("MapTestHelper: Sent ACTION_DOWN")
+        } catch (e: Exception) {
+            println("MapTestHelper: Failed to send ACTION_DOWN: ${e.message}")
+        }
         
         // Wait for long press timeout (usually 500ms, wait 1000ms to be safe)
         try {
@@ -54,7 +61,12 @@ object MapTestHelper {
         }
         
         val upEvent = MotionEvent.obtain(downTime, SystemClock.uptimeMillis(), MotionEvent.ACTION_UP, x, y, 0)
-        instrumentation.sendPointerSync(upEvent)
+        try {
+            instrumentation.sendPointerSync(upEvent)
+            println("MapTestHelper: Sent ACTION_UP")
+        } catch (e: Exception) {
+            println("MapTestHelper: Failed to send ACTION_UP: ${e.message}")
+        }
         
         downEvent.recycle()
         upEvent.recycle()
@@ -65,6 +77,37 @@ object MapTestHelper {
             Thread.sleep(timeoutMillis)
         } catch (e: InterruptedException) {
             e.printStackTrace()
+        }
+    }
+
+    fun grantLocationPermissions() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val uiAutomation = InstrumentationRegistry.getInstrumentation().uiAutomation
+        uiAutomation.grantRuntimePermission(context.packageName, android.Manifest.permission.ACCESS_FINE_LOCATION)
+        uiAutomation.grantRuntimePermission(context.packageName, android.Manifest.permission.ACCESS_COARSE_LOCATION)
+    }
+
+    fun injectMockLocation(composeTestRule: androidx.compose.ui.test.junit4.AndroidComposeTestRule<*, *>, lat: Double, lon: Double) {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val locationManager = context.getSystemService(android.content.Context.LOCATION_SERVICE) as android.location.LocationManager
+        try {
+            locationManager.addTestProvider(
+                android.location.LocationManager.GPS_PROVIDER,
+                false, false, false, false, true, true, true, 1, 1
+            )
+            locationManager.setTestProviderEnabled(android.location.LocationManager.GPS_PROVIDER, true)
+            
+            val mockLocation = android.location.Location(android.location.LocationManager.GPS_PROVIDER).apply {
+                latitude = lat
+                longitude = lon
+                altitude = 1600.0
+                time = System.currentTimeMillis()
+                elapsedRealtimeNanos = android.os.SystemClock.elapsedRealtimeNanos()
+                accuracy = 1.0f
+            }
+            locationManager.setTestProviderLocation(android.location.LocationManager.GPS_PROVIDER, mockLocation)
+        } catch (e: SecurityException) {
+            println("Warning: Could not set mock location: ${e.message}")
         }
     }
 

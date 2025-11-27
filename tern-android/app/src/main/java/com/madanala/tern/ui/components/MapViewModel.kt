@@ -78,6 +78,13 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
     val isLocationReady = reduxBridge.isLocationReady
     val mapRotation = reduxBridge.mapRotation
 
+    // Smart Suggestion State
+    private val _nearbyPGSpot = MutableStateFlow<com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature?>(null)
+    val nearbyPGSpot = _nearbyPGSpot.asStateFlow()
+
+    private val _pendingWaypointCreation = MutableStateFlow<GeoPoint?>(null)
+    val pendingWaypointCreation = _pendingWaypointCreation.asStateFlow()
+
     // Overlay Coordinator - Our new advanced overlay system with memory limits
     private val overlayCoordinator = OverlayCoordinator()
 
@@ -352,6 +359,54 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
         // Log.d(TAG, "Redux Status - Store connected: ${reduxStore != null}")
         // Log.d(TAG, "Redux Status - Location ready: ${reduxState.isLocationReady}")
         // Log.d(TAG, "Redux Status - Has location permission: ${reduxState.hasLocationPermission}")
+    }
+
+    /**
+     * Check for smart suggestions (nearby PG spots)
+     * Moved from MapViewContainer to allow unit testing and better separation of concerns
+     */
+    /**
+     * Check for smart suggestions (nearby PG spots)
+     * Updates state flows which drive the UI
+     */
+    fun checkForSmartSuggestion(
+        context: Context,
+        geoPoint: GeoPoint,
+        onNoNearby: () -> Unit = {}
+    ) {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                Log.d(TAG, "Smart Suggestion: Checking for spots near ${geoPoint.latitude}, ${geoPoint.longitude}")
+                val countryCode = com.madanala.tern.utils.CountryUtils.getCountryCodeFromGeoPoint(context, geoPoint)
+                
+                if (countryCode != null) {
+                    val nearbySpots = com.madanala.tern.utils.CacheManager.pgSpotCache.queryNearbyPGSpots(countryCode, geoPoint, 15.5)
+                    
+                    if (nearbySpots.isNotEmpty()) {
+                        val closest = nearbySpots.minByOrNull { it.centroid.distanceToAsDouble(geoPoint) }
+                        if (closest != null) {
+                            _pendingWaypointCreation.value = geoPoint
+                            _nearbyPGSpot.value = closest
+                            return@launch
+                        }
+                    }
+                }
+                
+                launch(kotlinx.coroutines.Dispatchers.Main) {
+                    onNoNearby()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error checking nearby spots", e)
+                launch(kotlinx.coroutines.Dispatchers.Main) {
+                    onNoNearby()
+                }
+            }
+        }
+    }
+
+    fun clearSmartSuggestionState() {
+        _nearbyPGSpot.value = null
+        _pendingWaypointCreation.value = null
     }
 
     override fun onCleared() {

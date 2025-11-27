@@ -23,12 +23,16 @@ class MapGestureHandler(
 
     private val gestureListener = object : GestureDetector.SimpleOnGestureListener() {
         override fun onLongPress(e: MotionEvent) {
+            Log.e("TEST_DEBUG", "onLongPress detected at ${e.x}, ${e.y}")
             try {
                 // Only handle long press if not in drag mode
                 if (!isDragging && !isHoldPending) {
                     // Convert screen coordinates to GeoPoint
                     val geoPoint = screenToGeoPoint(e.x.toInt(), e.y.toInt())
+                    Log.e("TEST_DEBUG", "onLongPress converted to GeoPoint: $geoPoint")
                     geoPoint?.let { onLongPress(it) }
+                } else {
+                    Log.e("TEST_DEBUG", "onLongPress ignored: isDragging=$isDragging, isHoldPending=$isHoldPending")
                 }
             } catch (t: Throwable) {
                 Log.w(TAG, "onLongPress failed: ${t.message}")

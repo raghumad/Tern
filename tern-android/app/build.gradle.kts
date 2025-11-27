@@ -604,6 +604,54 @@ tasks.register("testAll") {
         println(generateCoverageSummary(jacocoReportDir))
         
         println("\n=========================")
+
+        // Inject Console Summary into Main Index Report
+        val mainReportFile = file("${project.layout.buildDirectory.get()}/reports/androidTests/managedDevice/debug/allDevices/index.html")
+        if (mainReportFile.exists()) {
+            val summaryText = generateTestResultsSummary(managedDeviceResultsDir, "managedDevice")
+            val coverageText = generateCoverageSummary(jacocoReportDir)
+            
+            val summaryHtml = """
+                <div style="margin: 20px 0; padding: 15px; background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px;">
+                    <details>
+                        <summary style="cursor: pointer; font-weight: bold; font-size: 1.1em; margin-bottom: 10px;">View Console Summary & Coverage</summary>
+                        <pre style="white-space: pre-wrap; font-family: monospace; background-color: #2b2b2b; color: #f8f8f2; padding: 15px; border-radius: 4px;">
+TEST EXECUTION SUMMARY
+=========================
+
+### Instrumented Tests
+$summaryText
+
+### Code Coverage
+$coverageText
+                        </pre>
+                    </details>
+                </div>
+            """.trimIndent()
+            
+            var htmlContent = mainReportFile.readText()
+            
+            // Check if summary is already injected to avoid duplication
+            if (!htmlContent.contains("View Console Summary & Coverage")) {
+                // Inject after the header or before the content div
+                if (htmlContent.contains("<body>")) {
+                    htmlContent = htmlContent.replace("<body>", "<body>\n$summaryHtml")
+                    mainReportFile.writeText(htmlContent)
+                    println("✅ Injected Console Summary into Main Report: file://${mainReportFile.absolutePath}")
+                }
+            } else {
+                 // Update existing summary if needed (regex replace)
+                 // For now, just skip if already present, or we could try to replace the existing block.
+                 // Since the report is usually regenerated, presence implies we are running testAll multiple times without clean.
+                 // Better to replace the existing block to ensure it's up to date.
+                 val pattern = Regex("<div style=\"margin: 20px 0;.*?</details>\\s*</div>", RegexOption.DOT_MATCHES_ALL)
+                 if (pattern.containsMatchIn(htmlContent)) {
+                     htmlContent = htmlContent.replace(pattern, summaryHtml)
+                     mainReportFile.writeText(htmlContent)
+                     println("🔄 Updated Console Summary in Main Report: file://${mainReportFile.absolutePath}")
+                 }
+            }
+        }
     }
 }
 

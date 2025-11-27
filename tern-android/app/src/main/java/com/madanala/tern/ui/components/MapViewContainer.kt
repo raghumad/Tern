@@ -57,13 +57,15 @@ fun MapViewContainer(
     val state by store.state.collectAsState()
     val hasLocationPermission = handleLocationPermissions(store)
 
-    // Smart Waypoint Creation State
-    var nearbyPGSpot by remember { mutableStateOf<com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature?>(null) }
-    var pendingWaypointCreation by remember { mutableStateOf<GeoPoint?>(null) }
-    val coroutineScope = rememberCoroutineScope()
-
     // Core components
     val mapViewModel: MapViewModel = viewModel()
+
+    // Smart Waypoint Creation State (Managed by MapViewModel)
+    val nearbyPGSpot by mapViewModel.nearbyPGSpot.collectAsState()
+    val pendingWaypointCreation by mapViewModel.pendingWaypointCreation.collectAsState()
+    val coroutineScope = rememberCoroutineScope()
+
+    // gestureHandler definition follows...
     val gestureHandler = remember {
         MapGestureHandler(
             context,
@@ -77,14 +79,9 @@ fun MapViewContainer(
                     createWaypointAtLocation(store, geoPoint)
                 } else {
                     // No route selected -> New route -> Try Smart Suggestion
-                    handleWaypointCreationRequest(
+                    mapViewModel.checkForSmartSuggestion(
                         context,
                         geoPoint,
-                        coroutineScope,
-                        onFoundNearby = { feature ->
-                            pendingWaypointCreation = geoPoint
-                            nearbyPGSpot = feature
-                        },
                         onNoNearby = {
                             createWaypointAtLocation(store, geoPoint)
                         }
@@ -126,8 +123,7 @@ fun MapViewContainer(
                 pendingWaypointCreation?.let { geoPoint ->
                     createWaypointAtLocation(store, geoPoint)
                 }
-                nearbyPGSpot = null
-                pendingWaypointCreation = null
+                mapViewModel.clearSmartSuggestionState()
             },
             title = { Text("Nearby ${spotType.capitalize()}") },
             text = { Text("Found nearby paragliding spot: \"$spotName\".\n\nDo you want to use this spot as your waypoint?") },
@@ -140,8 +136,7 @@ fun MapViewContainer(
                             val type = if (spotType.equals("landing", ignoreCase = true)) Waypoint.Type.LANDING else Waypoint.Type.LAUNCH
                             createWaypointAtLocation(store, centroid, type, spotName)
                         }
-                        nearbyPGSpot = null
-                        pendingWaypointCreation = null
+                        mapViewModel.clearSmartSuggestionState()
                     }
                 ) {
                     Text("Use Spot")
@@ -154,8 +149,7 @@ fun MapViewContainer(
                         pendingWaypointCreation?.let { geoPoint ->
                             createWaypointAtLocation(store, geoPoint)
                         }
-                        nearbyPGSpot = null
-                        pendingWaypointCreation = null
+                        mapViewModel.clearSmartSuggestionState()
                     }
                 ) {
                     Text("Use Clicked Location")
@@ -197,54 +191,7 @@ fun MapViewContainer(
 // Helper to trigger the check
 private const val SMART_SUGGESTION_RADIUS_MILES = 15.5 // ~25km
 
-private fun handleWaypointCreationRequest(
-    context: android.content.Context,
-    geoPoint: GeoPoint,
-    coroutineScope: kotlinx.coroutines.CoroutineScope,
-    onFoundNearby: (com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature) -> Unit,
-    onNoNearby: () -> Unit
-) {
-    coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-        try {
-            Log.d("MapViewContainer", "Smart Suggestion: Checking for spots near ${geoPoint.latitude}, ${geoPoint.longitude}")
-            val countryCode = com.madanala.tern.utils.CountryUtils.getCountryCodeFromGeoPoint(context, geoPoint)
-            
-            if (countryCode != null) {
-                Log.d("MapViewContainer", "Smart Suggestion: Country detected: $countryCode")
-                // Query cache for nearby spots
-                val nearbySpots = com.madanala.tern.utils.CacheManager.pgSpotCache.queryNearbyPGSpots(countryCode, geoPoint, SMART_SUGGESTION_RADIUS_MILES)
-                Log.d("MapViewContainer", "Smart Suggestion: Found ${nearbySpots.size} spots within $SMART_SUGGESTION_RADIUS_MILES miles")
-                
-                if (nearbySpots.isNotEmpty()) {
-                    // Find the closest one
-                    val closest = nearbySpots.minByOrNull { it.centroid.distanceToAsDouble(geoPoint) }
-                    if (closest != null) {
-                        val name = closest.feature["properties"]?.let { (it as? Map<*, *>)?.get("name") } ?: "Unknown"
-                        Log.d("MapViewContainer", "Smart Suggestion: Closest spot is '$name' at ${closest.centroid}")
-                        
-                        withContext(kotlinx.coroutines.Dispatchers.Main) {
-                            onFoundNearby(closest)
-                        }
-                        return@launch
-                    }
-                } else {
-                    Log.d("MapViewContainer", "Smart Suggestion: No spots found in cache for $countryCode nearby")
-                }
-            } else {
-                Log.w("MapViewContainer", "Smart Suggestion: Could not determine country code for location")
-            }
-            
-            withContext(kotlinx.coroutines.Dispatchers.Main) {
-                onNoNearby()
-            }
-        } catch (e: Exception) {
-            Log.e("MapViewContainer", "Error checking nearby spots", e)
-            withContext(kotlinx.coroutines.Dispatchers.Main) {
-                onNoNearby()
-            }
-        }
-    }
-}
+// handleWaypointCreationRequest moved to MapViewModel.checkForSmartSuggestion
 
 // Helper functions for composable lifecycle management
 

@@ -18,11 +18,19 @@ object CountryUtils {
      * @param longitude Longitude coordinate
      * @return Two-letter country code (ISO 3166-1 alpha-2) or null if not found
      */
+    private var testCountryCode: String? = null
+
+    @androidx.annotation.VisibleForTesting
+    fun setTestCountryCode(code: String?) {
+        testCountryCode = code
+    }
+
     fun getCountryCodeFromCoordinates(
         context: Context,
         latitude: Double,
         longitude: Double
     ): String? {
+        if (testCountryCode != null) return testCountryCode
         return try {
             val geocoder = Geocoder(context, Locale.getDefault())
             @Suppress("DEPRECATION")
