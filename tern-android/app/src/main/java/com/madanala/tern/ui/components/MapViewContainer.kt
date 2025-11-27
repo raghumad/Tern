@@ -266,6 +266,17 @@ private fun createWaypointAtLocation(store: MapStore, geoPoint: GeoPoint, type: 
         // NOTE: We removed "findNearbyWaypoint" here to allow creating overlapping routes.
         // Selection is handled by single tap (RouteOverlayManager).
         // Long press ALWAYS creates a new waypoint/route.
+        
+        // RESTORED: Smart Select logic to prevent accidental duplicates when long-pressing near an existing waypoint.
+        // Tolerance: 0.05 degrees (~5km) - Increased for test stability due to emulator projection issues
+        val nearbyResult = findNearbyWaypoint(currentState.routes, geoPoint, 0.05)
+        if (nearbyResult != null) {
+            val (route, waypoint) = nearbyResult
+            Log.d("MapViewContainer", "Smart Select: Found nearby waypoint ${waypoint.label}, selecting it.")
+            store.dispatch(MapAction.SelectRoute(route.id))
+            store.dispatch(MapAction.SelectWaypoint(route.id, waypoint.id))
+            return
+        }
 
         if (currentState.routes.isEmpty()) {
             // No routes exist - create a new route with the first waypoint
@@ -369,7 +380,7 @@ private fun addWaypointToSelectedRoute(store: MapStore, geoPoint: GeoPoint, sele
  * Find existing waypoint within tolerance distance from geoPoint
  * Uses Hilbert-aware spatial reasoning (following established pattern)
  */
-private fun findNearbyWaypoint(routes: List<Route>, geoPoint: GeoPoint, toleranceDegrees: Double): com.madanala.tern.model.Waypoint? {
+private fun findNearbyWaypoint(routes: List<Route>, geoPoint: GeoPoint, toleranceDegrees: Double): Pair<Route, com.madanala.tern.model.Waypoint>? {
     // Hilbert pattern: compute index for target point for spatial reasoning consistency
     val targetHilbertIndex = com.madanala.tern.utils.MapOverlayCacheUtils.computeHilbertIndex(geoPoint, 16)
 
@@ -390,7 +401,7 @@ private fun findNearbyWaypoint(routes: List<Route>, geoPoint: GeoPoint, toleranc
 
             // Combined check: exact distance within tolerance
             if (distanceDegrees <= toleranceDegrees) {
-                return waypoint
+                return Pair(route, waypoint)
             }
         }
     }
