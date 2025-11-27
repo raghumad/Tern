@@ -6,6 +6,9 @@ import org.junit.runners.model.Statement
 
 open class BddTest {
 
+    @get:org.junit.Rule
+    val testNameRule = org.junit.rules.TestName()
+
     @org.junit.Before
     fun clearLogCat() {
         try {
@@ -29,7 +32,8 @@ open class BddTest {
             throw e
         } finally {
             val logCatOutput = ReportGenerator.captureLogCat()
-            ReportGenerator.generateReport(name.replace(" ", "_"), logCatOutput)
+            // Use the actual test method name for the report filename to enable auto-linking
+            ReportGenerator.generateReport(testNameRule.methodName, logCatOutput)
         }
     }
 

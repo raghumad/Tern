@@ -219,7 +219,30 @@ class PGSpotCache(context: Context) {
      * Query nearby PG spots using Hilbert spatial indexing
      * Zero-copy performance with memory-mapped I/O
      */
+    // Test hooks
+    private val testSpots = ConcurrentHashMap<String, List<OverlayFeature>>()
+
+    @androidx.annotation.VisibleForTesting
+    fun setTestSpots(countryCode: String, spots: List<OverlayFeature>) {
+        testSpots[countryCode] = spots
+    }
+
+    @androidx.annotation.VisibleForTesting
+    fun clearTestSpots() {
+        testSpots.clear()
+    }
+
+    /**
+     * Query nearby PG spots using Hilbert spatial indexing
+     * Zero-copy performance with memory-mapped I/O
+     */
     fun queryNearbyPGSpots(countryCode: String, center: GeoPoint, maxDistanceMiles: Double): List<OverlayFeature> {
+        // Check test spots first
+        testSpots[countryCode]?.let { spots ->
+            val maxDistanceMeters = maxDistanceMiles * 1609.34
+            return spots.filter { it.centroid.distanceToAsDouble(center) <= maxDistanceMeters }
+        }
+
         try {
             // Verify cached data exists
             if (!isCached(countryCode)) {
