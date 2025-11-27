@@ -20,6 +20,7 @@ import com.madanala.tern.utils.BddTest
 import com.madanala.tern.utils.CacheManager
 import com.madanala.tern.utils.MapOverlayCacheUtils
 import com.madanala.tern.utils.MapTestHelper
+import com.madanala.tern.utils.ReportGenerator
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -45,10 +46,12 @@ class SmartSuggestionTest : BddTest() {
         scenario("Smart Suggestion Logic") {
             given("the app is initialized with a mock PG spot") {
                 // Initialize CacheManager
+                ReportGenerator.logStep("SETUP", "Initializing CacheManager")
                 val context = InstrumentationRegistry.getInstrumentation().targetContext
                 CacheManager.initialize(context)
 
                 // Create a mock OverlayFeature
+                ReportGenerator.logStep("SETUP", "Creating mock PG spot: $spotName")
                 val featureMap = mapOf(
                     "type" to "Feature",
                     "properties" to mapOf(
@@ -69,9 +72,11 @@ class SmartSuggestionTest : BddTest() {
                 )
 
                 // Inject into cache (LOWERCASE "us" to match CountryUtils override)
+                ReportGenerator.logStep("SETUP", "Injecting spot into PGSpotCache")
                 CacheManager.pgSpotCache.setTestSpots("us", listOf(mockSpot))
                 
                 // Force CountryUtils to return "us" (mocking Geocoder)
+                ReportGenerator.logStep("SETUP", "Mocking CountryUtils to return 'us'")
                 com.madanala.tern.utils.CountryUtils.setTestCountryCode("us")
             }
 
