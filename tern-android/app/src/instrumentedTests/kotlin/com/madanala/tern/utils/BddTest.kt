@@ -6,6 +6,15 @@ import org.junit.runners.model.Statement
 
 open class BddTest {
 
+    @org.junit.Before
+    fun clearLogCat() {
+        try {
+            Runtime.getRuntime().exec("logcat -c")
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
     fun scenario(name: String, block: () -> Unit) {
         ReportGenerator.logStep("SCENARIO", name)
         try {
@@ -19,7 +28,8 @@ open class BddTest {
             ReportGenerator.logStep("RESULT", "Scenario Failed: ${e.message}", "FAIL", screenshot)
             throw e
         } finally {
-            ReportGenerator.generateReport(name.replace(" ", "_"))
+            val logCatOutput = ReportGenerator.captureLogCat()
+            ReportGenerator.generateReport(name.replace(" ", "_"), logCatOutput)
         }
     }
 
