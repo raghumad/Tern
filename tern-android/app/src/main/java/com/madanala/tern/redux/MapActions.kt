@@ -114,4 +114,15 @@ sealed class MapAction {
     // Route selection actions
     data class SelectRoute(val routeId: String) : MapAction()
     object DeselectRoute : MapAction()
+
+    // Smart Suggestion actions
+    data class SetSmartSuggestion(val nearbyPGSpot: com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature?, val pendingWaypointCreation: GeoPoint?) : MapAction()
+    object ClearSmartSuggestion : MapAction()
+
+    // Map Interaction actions
+    data class LongPressMap(
+        val geoPoint: GeoPoint,
+        val type: Waypoint.Type = Waypoint.Type.TURNPOINT,
+        val label: String? = null
+    ) : MapAction()
 }

@@ -94,6 +94,160 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
     // Route Selection
     is MapAction.SelectRoute,
     MapAction.DeselectRoute -> handleRouteSelectionActions(state, action)
+
+    // Smart Suggestion
+    is MapAction.SetSmartSuggestion,
+    MapAction.ClearSmartSuggestion -> handleSmartSuggestionActions(state, action)
+
+    // Map Interaction
+    is MapAction.LongPressMap -> handleLongPressMap(state, action)
+}
+
+// Route Planning Constants
+private const val DEFAULT_ROUTE_NAME_PREFIX = "Route"
+private const val WAYPOINT_LABEL_PREFIX = "WP"
+private const val WAYPOINT_LABEL_SEPARATOR = "-"
+private const val FIRST_ROUTE_INDEX = 1
+
+/**
+ * Handle long press map action (Waypoint Creation / Smart Select)
+ */
+private fun handleLongPressMap(state: MapState, action: MapAction.LongPressMap): MapState {
+    // 1. Smart Select: Check for nearby waypoints
+    val nearbyResult = findNearbyWaypoint(state.routes, action.geoPoint, 0.05)
+    if (nearbyResult != null) {
+        val (route, waypoint) = nearbyResult
+        return state.copy(
+            selectedRouteId = route.id,
+            selectedWaypoint = WaypointSelection(route.id, waypoint.id)
+        )
+    }
+
+    // 2. Create New Waypoint/Route
+    if (state.routes.isEmpty()) {
+        // Create first route
+        val newRoute = createFirstRoute(action.geoPoint, 1, action.type, action.label)
+        return state.copy(
+            routes = state.routes + newRoute,
+            selectedRouteId = newRoute.id,
+            selectedWaypoint = WaypointSelection(newRoute.id, newRoute.waypoints.first().id)
+        )
+    } else {
+        val selectedRouteId = state.selectedRouteId
+        if (selectedRouteId != null) {
+            // Add to selected route
+            val selectedRoute = state.routes.find { it.id == selectedRouteId }
+            if (selectedRoute != null) {
+                val (updatedRoutes, newWaypointId) = addWaypointToRouteState(state.routes, selectedRoute, action.geoPoint, action.type, action.label)
+                return state.copy(
+                    routes = updatedRoutes,
+                    selectedWaypoint = WaypointSelection(selectedRouteId, newWaypointId)
+                )
+            }
+        }
+        
+        // No route selected or selected route not found -> Create new route
+        val newRouteIndex = state.routes.size + 1
+        val newRoute = createFirstRoute(action.geoPoint, newRouteIndex, action.type, action.label)
+        return state.copy(
+            routes = state.routes + newRoute,
+            selectedRouteId = newRoute.id,
+            selectedWaypoint = WaypointSelection(newRoute.id, newRoute.waypoints.first().id)
+        )
+    }
+}
+
+/**
+ * Helper: Add waypoint to a route and return updated routes list + new waypoint ID
+ */
+private fun addWaypointToRouteState(
+    routes: List<com.madanala.tern.model.Route>,
+    targetRoute: com.madanala.tern.model.Route,
+    geoPoint: GeoPoint,
+    type: com.madanala.tern.model.Waypoint.Type = com.madanala.tern.model.Waypoint.Type.TURNPOINT,
+    label: String? = null
+): Pair<List<com.madanala.tern.model.Route>, String> {
+    val waypointNumber = targetRoute.waypoints.size + 1
+    val routeIndex = routes.indexOf(targetRoute) + 1
+    val finalLabel = label ?: "$WAYPOINT_LABEL_PREFIX$routeIndex$WAYPOINT_LABEL_SEPARATOR$waypointNumber"
+    val newWaypointId = java.util.UUID.randomUUID().toString()
+
+    val updatedRoutes = routes.map { route ->
+        if (route.id == targetRoute.id) {
+            route.addWaypoint(
+                lat = geoPoint.latitude,
+                lon = geoPoint.longitude,
+                type = type,
+                label = finalLabel,
+                id = newWaypointId
+            )
+        } else route
+    }
+    return Pair(updatedRoutes, newWaypointId)
+}
+
+/**
+ * Helper: Create the first route with a single waypoint
+ */
+private fun createFirstRoute(
+    geoPoint: GeoPoint,
+    routeIndex: Int,
+    type: com.madanala.tern.model.Waypoint.Type = com.madanala.tern.model.Waypoint.Type.TURNPOINT,
+    label: String? = null
+): com.madanala.tern.model.Route {
+    val waypointLabel = label ?: "$WAYPOINT_LABEL_PREFIX$routeIndex$WAYPOINT_LABEL_SEPARATOR$FIRST_ROUTE_INDEX"
+    val routeName = "$DEFAULT_ROUTE_NAME_PREFIX $routeIndex"
+
+    return com.madanala.tern.model.Route(
+        name = routeName,
+        waypoints = listOf(
+            com.madanala.tern.model.Waypoint(
+                lat = geoPoint.latitude,
+                lon = geoPoint.longitude,
+                type = type,
+                label = waypointLabel
+            )
+        )
+    )
+}
+
+/**
+ * Helper: Find existing waypoint within tolerance distance
+ */
+private fun findNearbyWaypoint(
+    routes: List<com.madanala.tern.model.Route>,
+    geoPoint: GeoPoint,
+    toleranceDegrees: Double
+): Pair<com.madanala.tern.model.Route, com.madanala.tern.model.Waypoint>? {
+    val targetHilbertIndex = com.madanala.tern.utils.MapOverlayCacheUtils.computeHilbertIndex(geoPoint, 16)
+
+    routes.forEach { route ->
+        route.waypoints.forEach { waypoint ->
+            val dLat = waypoint.lat - geoPoint.latitude
+            val dLon = waypoint.lon - geoPoint.longitude
+            val distanceDegrees = kotlin.math.sqrt(dLat * dLat + dLon * dLon)
+
+            if (distanceDegrees <= toleranceDegrees) {
+                return Pair(route, waypoint)
+            }
+        }
+    }
+    return null
+}
+
+/**
+ * Handle smart suggestion actions
+ */
+private fun handleSmartSuggestionActions(state: MapState, action: MapAction): MapState = when (action) {
+    is MapAction.SetSmartSuggestion -> state.copy(smartSuggestionState = SmartSuggestionState(
+        nearbyPGSpot = action.nearbyPGSpot,
+        pendingWaypointCreation = action.pendingWaypointCreation
+    ))
+    MapAction.ClearSmartSuggestion -> state.copy(smartSuggestionState = SmartSuggestionState(
+        nearbyPGSpot = null,
+        pendingWaypointCreation = null
+    ))
+    else -> state
 }
 
 /**

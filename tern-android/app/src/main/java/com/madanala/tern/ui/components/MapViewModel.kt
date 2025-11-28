@@ -78,12 +78,11 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
     val isLocationReady = reduxBridge.isLocationReady
     val mapRotation = reduxBridge.mapRotation
 
-    // Smart Suggestion State
-    private val _nearbyPGSpot = MutableStateFlow<com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature?>(null)
-    val nearbyPGSpot = _nearbyPGSpot.asStateFlow()
-
-    private val _pendingWaypointCreation = MutableStateFlow<GeoPoint?>(null)
-    val pendingWaypointCreation = _pendingWaypointCreation.asStateFlow()
+    // Smart Suggestion State - Migrated to Redux
+    // private val _nearbyPGSpot = MutableStateFlow<com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature?>(null)
+    // val nearbyPGSpot = _nearbyPGSpot.asStateFlow()
+    // private val _pendingWaypointCreation = MutableStateFlow<GeoPoint?>(null)
+    // val pendingWaypointCreation = _pendingWaypointCreation.asStateFlow()
 
     // Overlay Coordinator - Our new advanced overlay system with memory limits
     private val overlayCoordinator = OverlayCoordinator()
@@ -107,9 +106,10 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
         initializeRouteEditingSystem()
     }
 
-    fun updateMapStyle(style: Int) {
+    fun applyMapStyle(style: Int) {
         mapStyle = style
-        reduxBridge.dispatchMapStyleChange(style)
+        // Redux dispatch removed - this function is now a reaction to Redux state change
+        // reduxBridge.dispatchMapStyleChange(style)
 
         val tileSource = if (style == MAP_VIEW_SATELLITE) {
             TileSourceFactory.USGS_SAT
@@ -233,7 +233,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
      * Setup Redux bridge callbacks
      */
     private fun setupReduxBridgeCallbacks() {
-        reduxBridge.onMapStyleChange = { style -> updateMapStyle(style) }
+        reduxBridge.onMapStyleChange = { style -> applyMapStyle(style) }
         reduxBridge.onLocationPermissionGranted = {
             initializeLocationOverlay()
             startLocationUpdates()
@@ -385,8 +385,8 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
                     if (nearbySpots.isNotEmpty()) {
                         val closest = nearbySpots.minByOrNull { it.centroid.distanceToAsDouble(geoPoint) }
                         if (closest != null) {
-                            _pendingWaypointCreation.value = geoPoint
-                            _nearbyPGSpot.value = closest
+                            // Dispatch Redux action instead of local state update
+                            reduxBridge.mapStore?.dispatch(com.madanala.tern.redux.MapAction.SetSmartSuggestion(closest, geoPoint))
                             return@launch
                         }
                     }
@@ -405,8 +405,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun clearSmartSuggestionState() {
-        _nearbyPGSpot.value = null
-        _pendingWaypointCreation.value = null
+        reduxBridge.mapStore?.dispatch(com.madanala.tern.redux.MapAction.ClearSmartSuggestion)
     }
 
     override fun onCleared() {

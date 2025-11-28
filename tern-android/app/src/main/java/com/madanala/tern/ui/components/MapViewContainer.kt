@@ -43,10 +43,11 @@ import org.osmdroid.util.GeoPoint
 private val COMPASS_PADDING = 16.dp
 
 // Route Planning Constants
-private const val DEFAULT_ROUTE_NAME_PREFIX = "Route"
-private const val WAYPOINT_LABEL_PREFIX = "WP"
-private const val WAYPOINT_LABEL_SEPARATOR = "-"
-private const val FIRST_ROUTE_INDEX = 1
+// Route Planning Constants
+// private const val DEFAULT_ROUTE_NAME_PREFIX = "Route"
+// private const val WAYPOINT_LABEL_PREFIX = "WP"
+// private const val WAYPOINT_LABEL_SEPARATOR = "-"
+// private const val FIRST_ROUTE_INDEX = 1
 
 @Composable
 fun MapViewContainer(
@@ -60,9 +61,10 @@ fun MapViewContainer(
     // Core components
     val mapViewModel: MapViewModel = viewModel()
 
-    // Smart Waypoint Creation State (Managed by MapViewModel)
-    val nearbyPGSpot by mapViewModel.nearbyPGSpot.collectAsState()
-    val pendingWaypointCreation by mapViewModel.pendingWaypointCreation.collectAsState()
+    // Smart Waypoint Creation State (Managed by Redux)
+    val smartSuggestionState = state.smartSuggestionState
+    val nearbyPGSpot = smartSuggestionState.nearbyPGSpot
+    val pendingWaypointCreation = smartSuggestionState.pendingWaypointCreation
     val coroutineScope = rememberCoroutineScope()
 
     // gestureHandler definition follows...
@@ -76,14 +78,15 @@ fun MapViewContainer(
                 
                 if (selectedRouteId != null) {
                     // Route selected -> Add directly (skip smart suggestion)
-                    createWaypointAtLocation(store, geoPoint)
+                    // Route selected -> Add directly (skip smart suggestion)
+                    store.dispatch(MapAction.LongPressMap(geoPoint))
                 } else {
                     // No route selected -> New route -> Try Smart Suggestion
                     mapViewModel.checkForSmartSuggestion(
                         context,
                         geoPoint,
                         onNoNearby = {
-                            createWaypointAtLocation(store, geoPoint)
+                            store.dispatch(MapAction.LongPressMap(geoPoint))
                         }
                     )
                 }
@@ -121,7 +124,7 @@ fun MapViewContainer(
             onDismissRequest = {
                 // Dismiss: Create at original clicked location
                 pendingWaypointCreation?.let { geoPoint ->
-                    createWaypointAtLocation(store, geoPoint)
+                    store.dispatch(MapAction.LongPressMap(geoPoint))
                 }
                 mapViewModel.clearSmartSuggestionState()
             },
@@ -134,7 +137,7 @@ fun MapViewContainer(
                         nearbyPGSpot?.let { feature ->
                             val centroid = feature.centroid
                             val type = if (spotType.equals("landing", ignoreCase = true)) Waypoint.Type.LANDING else Waypoint.Type.LAUNCH
-                            createWaypointAtLocation(store, centroid, type, spotName)
+                            store.dispatch(MapAction.LongPressMap(centroid, type, spotName))
                         }
                         mapViewModel.clearSmartSuggestionState()
                     }
@@ -147,7 +150,7 @@ fun MapViewContainer(
                     onClick = {
                         // Dismiss: Create at original clicked location
                         pendingWaypointCreation?.let { geoPoint ->
-                            createWaypointAtLocation(store, geoPoint)
+                            store.dispatch(MapAction.LongPressMap(geoPoint))
                         }
                         mapViewModel.clearSmartSuggestionState()
                     }
@@ -251,168 +254,4 @@ private fun syncLocationState(userLocation: GeoPoint?, isLocationReady: Boolean)
     }
 }
 
-/**
- * Handle waypoint creation for route planning
- * Multi-waypoint routes: Adds to most recent route, or creates new route if none exist
- * Smart selection: Long press near existing waypoint selects it instead of creating duplicate
- */
-private fun createWaypointAtLocation(store: MapStore, geoPoint: GeoPoint, type: Waypoint.Type = Waypoint.Type.TURNPOINT, label: String? = null) {
-    try {
-        Log.d("MapViewContainer", "Long press detected at: ${geoPoint.latitude}, ${geoPoint.longitude}")
-
-        val currentState = store.state.value
-        Log.d("MapViewContainer", "Current routes count: ${currentState.routes.size}")
-
-        // NOTE: We removed "findNearbyWaypoint" here to allow creating overlapping routes.
-        // Selection is handled by single tap (RouteOverlayManager).
-        // Long press ALWAYS creates a new waypoint/route.
-        
-        // RESTORED: Smart Select logic to prevent accidental duplicates when long-pressing near an existing waypoint.
-        // Tolerance: 0.05 degrees (~5km) - Increased for test stability due to emulator projection issues
-        val nearbyResult = findNearbyWaypoint(currentState.routes, geoPoint, 0.05)
-        if (nearbyResult != null) {
-            val (route, waypoint) = nearbyResult
-            Log.d("MapViewContainer", "Smart Select: Found nearby waypoint ${waypoint.label}, selecting it.")
-            store.dispatch(MapAction.SelectRoute(route.id))
-            store.dispatch(MapAction.SelectWaypoint(route.id, waypoint.id))
-            return
-        }
-
-        if (currentState.routes.isEmpty()) {
-            // No routes exist - create a new route with the first waypoint
-            val newRoute = createFirstRoute(geoPoint, 1, type, label)
-
-            Log.d("MapViewContainer", "Creating first route: ${newRoute.name}")
-            store.dispatch(MapAction.AddRoute(newRoute))
-            store.dispatch(MapAction.SelectRoute(newRoute.id)) // Auto-select route
-            
-            // Auto-select the waypoint to allow immediate editing (e.g. changing type)
-            val firstWaypointId = newRoute.waypoints.first().id
-            store.dispatch(MapAction.SelectWaypoint(newRoute.id, firstWaypointId))
-            
-            Log.d("MapViewContainer", "Created new route: ${newRoute.name} at ${geoPoint.latitude}, ${geoPoint.longitude}")
-        } else {
-            // Check if a route is selected
-            val selectedRouteId = currentState.selectedRouteId
-            if (selectedRouteId != null) {
-                // Add waypoint to the selected route
-                addWaypointToSelectedRoute(store, geoPoint, selectedRouteId, currentState.routes, type, label)
-            } else {
-                // No route selected - create a NEW route instead of appending to "most recent"
-                // This prevents "random waypoints" appearing on old/zombie routes
-                val newRouteIndex = currentState.routes.size + 1
-                val newRoute = createFirstRoute(geoPoint, newRouteIndex, type, label)
-                
-                Log.d("MapViewContainer", "Creating new route (no selection): ${newRoute.name}")
-                store.dispatch(MapAction.AddRoute(newRoute))
-                store.dispatch(MapAction.SelectRoute(newRoute.id)) // Auto-select route
-                
-                // Auto-select the waypoint to allow immediate editing (e.g. changing type)
-                val firstWaypointId = newRoute.waypoints.first().id
-                store.dispatch(MapAction.SelectWaypoint(newRoute.id, firstWaypointId))
-            }
-        }
-
-    } catch (e: Exception) {
-        Log.e("MapViewContainer", "Error handling waypoint creation", e)
-    }
-}
-
-/**
- * Create the first route with a single waypoint
- */
-private fun createFirstRoute(geoPoint: GeoPoint, routeIndex: Int, type: Waypoint.Type = Waypoint.Type.TURNPOINT, label: String? = null): Route {
-    // Use routeIndex for correct labeling (e.g. WP2-1 for Route 2)
-    val waypointLabel = label ?: "$WAYPOINT_LABEL_PREFIX$routeIndex$WAYPOINT_LABEL_SEPARATOR$FIRST_ROUTE_INDEX"
-    val routeName = "$DEFAULT_ROUTE_NAME_PREFIX $routeIndex"
-
-    return Route(
-        name = routeName,
-        waypoints = listOf(
-            Waypoint(
-                lat = geoPoint.latitude,
-                lon = geoPoint.longitude,
-                type = type,
-                label = waypointLabel
-            )
-        )
-    )
-}
-
-
-
-/**
- * Add a waypoint to the selected route
- */
-private fun addWaypointToSelectedRoute(store: MapStore, geoPoint: GeoPoint, selectedRouteId: String, routes: List<Route>, type: Waypoint.Type = Waypoint.Type.TURNPOINT, label: String? = null) {
-    val selectedRoute = routes.find { it.id == selectedRouteId }
-    if (selectedRoute != null) {
-        val waypointNumber = selectedRoute.waypoints.size + 1
-        // Find the index of the route in the list to maintain consistent naming (Route 1 -> WP1-X)
-        // Note: This assumes routes are ordered. If they can be reordered, we might need a persistent ID-to-Index map or store the index in the Route object.
-        // For now, using list index + 1 is consistent with createFirstRoute logic.
-        val routeIndex = routes.indexOf(selectedRoute) + 1
-        
-        // Generate label if not provided
-        val finalLabel = label ?: "$WAYPOINT_LABEL_PREFIX$routeIndex$WAYPOINT_LABEL_SEPARATOR$waypointNumber"
-
-        Log.d("MapViewContainer", "Adding waypoint to selected route: ${selectedRoute.name} (${selectedRoute.waypoints.size} existing waypoints)")
-        
-        val newWaypointId = java.util.UUID.randomUUID().toString()
-        
-        store.dispatch(MapAction.AddWaypointToRoute(
-            routeId = selectedRoute.id,
-            lat = geoPoint.latitude,
-            lon = geoPoint.longitude,
-            type = type,
-            label = finalLabel,
-            id = newWaypointId
-        ))
-        
-        // Auto-select the new waypoint to allow immediate editing (e.g. changing type)
-        store.dispatch(MapAction.SelectWaypoint(selectedRoute.id, newWaypointId))
-        
-        Log.d("MapViewContainer", "Added waypoint $finalLabel to selected route: ${selectedRoute.name}")
-    }
-}
-
-/**
- * Find existing waypoint within tolerance distance from geoPoint
- * Uses Hilbert-aware spatial reasoning (following established pattern)
- */
-private fun findNearbyWaypoint(routes: List<Route>, geoPoint: GeoPoint, toleranceDegrees: Double): Pair<Route, com.madanala.tern.model.Waypoint>? {
-    // Hilbert pattern: compute index for target point for spatial reasoning consistency
-    val targetHilbertIndex = com.madanala.tern.utils.MapOverlayCacheUtils.computeHilbertIndex(geoPoint, 16)
-
-    routes.forEach { route ->
-        route.waypoints.forEach { waypoint ->
-            // Primary: Exact distance calculation (following Hilbert query pattern)
-            val distanceDegrees = calculateDistanceDegrees(
-                waypoint.lat, waypoint.lon,
-                geoPoint.latitude, geoPoint.longitude
-            )
-
-            // Secondary: Hilbert index proximity check for spatial reasoning consistency
-            val waypointHilbertIndex = com.madanala.tern.utils.MapOverlayCacheUtils.computeHilbertIndex(
-                org.osmdroid.util.GeoPoint(waypoint.lat, waypoint.lon), 16
-            )
-
-            val hilbertDistance = kotlin.math.abs(targetHilbertIndex - waypointHilbertIndex)
-
-            // Combined check: exact distance within tolerance
-            if (distanceDegrees <= toleranceDegrees) {
-                return Pair(route, waypoint)
-            }
-        }
-    }
-    return null
-}
-
-/**
- * Calculate distance between two points in degrees (following Hilbert validation pattern)
- */
-private fun calculateDistanceDegrees(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
-    val dLat = lat1 - lat2
-    val dLon = lon1 - lon2
-    return kotlin.math.sqrt(dLat * dLat + dLon * dLon)
-}
+// Legacy createWaypointAtLocation and helpers removed - Migrated to MapReducers (LongPressMap action)
