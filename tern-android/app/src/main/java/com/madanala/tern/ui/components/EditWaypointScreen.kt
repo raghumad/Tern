@@ -141,6 +141,9 @@ fun EditWaypointScreen(
                             text = when (type) {
                                 Waypoint.Type.LAUNCH -> "Launch"
                                 Waypoint.Type.TURNPOINT -> "Turnpoint"
+                                Waypoint.Type.SSS -> "Start Speed Section"
+                                Waypoint.Type.ESS -> "End Speed Section"
+                                Waypoint.Type.GOAL -> "Goal"
                                 Waypoint.Type.LANDING -> "Landing"
                             },
                             style = MaterialTheme.typography.bodyMedium,
@@ -151,7 +154,7 @@ fun EditWaypointScreen(
             }
         }
 
-        // Cylinder parameters (placeholder for future implementation)
+        // Cylinder parameters
         Card(
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -160,13 +163,82 @@ fun EditWaypointScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
-                    text = "Cylinder Parameters",
+                    text = "Task Parameters",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold
                 )
+
+                // Altitude
+                OutlinedTextField(
+                    value = waypoint.alt?.toString() ?: "",
+                    onValueChange = { newValue ->
+                        val alt = newValue.toDoubleOrNull()
+                        store.dispatch(MapAction.UpdateWaypointAltitude(
+                            selectedWaypoint.routeId,
+                            selectedWaypoint.waypointId,
+                            alt
+                        ))
+                    },
+                    label = { Text("Altitude (m)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                // Time Gates
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = waypoint.openTime ?: "",
+                        onValueChange = { newValue ->
+                            store.dispatch(MapAction.UpdateWaypointTimeGates(
+                                selectedWaypoint.routeId,
+                                selectedWaypoint.waypointId,
+                                newValue.takeIf { it.isNotBlank() },
+                                waypoint.closeTime
+                            ))
+                        },
+                        label = { Text("Open (HH:mm)") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        value = waypoint.closeTime ?: "",
+                        onValueChange = { newValue ->
+                            store.dispatch(MapAction.UpdateWaypointTimeGates(
+                                selectedWaypoint.routeId,
+                                selectedWaypoint.waypointId,
+                                waypoint.openTime,
+                                newValue.takeIf { it.isNotBlank() }
+                            ))
+                        },
+                        label = { Text("Close (HH:mm)") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true
+                    )
+                }
+                
+                OutlinedTextField(
+                    value = waypoint.radius?.toString() ?: "400.0",
+                    onValueChange = { newValue ->
+                        val radius = newValue.toDoubleOrNull()
+                        if (radius != null) {
+                            store.dispatch(MapAction.UpdateWaypointRadius(
+                                selectedWaypoint.routeId,
+                                selectedWaypoint.waypointId,
+                                radius
+                            ))
+                        }
+                    },
+                    label = { Text("Radius (m)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                
                 Text(
-                    text = "Cylinder radius and altitude parameters will be configurable here.",
-                    style = MaterialTheme.typography.bodyMedium,
+                    text = "Standard radii: Turnpoint (400m), Start/Goal (1000m+)",
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
