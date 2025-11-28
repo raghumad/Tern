@@ -92,14 +92,14 @@ class SmartSuggestionTest : BddTest() {
                 InstrumentationRegistry.getInstrumentation().runOnMainSync {
                     val viewModel = androidx.lifecycle.ViewModelProvider(composeTestRule.activity).get(com.madanala.tern.ui.components.MapViewModel::class.java)
                     
-                    // Launch a collector on the ViewModel's scope or a test scope
-                    // Since we are in runOnMainSync, we are on Main thread.
-                    // We can use a simple observer if it was LiveData, but it is StateFlow.
-                    
-                    // We can launch a coroutine in the test scope if we had one.
-                    // Let's use GlobalScope for simplicity in this specific test context, ensuring we cancel it.
+                    // Initialize Redux Store and connect it
+                    val store = com.madanala.tern.redux.MapStore()
+                    viewModel.setMapStore(store)
+
+                    // Launch a collector on the Store's state
                     kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.Main) {
-                        viewModel.nearbyPGSpot.collect { spot ->
+                        store.state.collect { state ->
+                            val spot = state.smartSuggestionState.nearbyPGSpot
                             if (spot != null) {
                                 foundFeature = spot
                                 latch.countDown()

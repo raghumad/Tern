@@ -82,5 +82,16 @@ data class MapState(
     val selectedWaypoint: WaypointSelection? = null,
 
     // Selected route for viewing/editing
-    val selectedRouteId: String? = null
+    val selectedRouteId: String? = null,
+
+    // Smart Suggestion State - for nearby PG spot detection
+    val smartSuggestionState: SmartSuggestionState = SmartSuggestionState()
+)
+
+/**
+ * State for smart waypoint suggestions (nearby PG spots)
+ */
+data class SmartSuggestionState(
+    val nearbyPGSpot: com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature? = null,
+    val pendingWaypointCreation: GeoPoint? = null
 )
