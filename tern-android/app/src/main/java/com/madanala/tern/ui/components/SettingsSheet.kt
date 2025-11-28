@@ -36,6 +36,8 @@ import com.madanala.tern.ui.screens.MAP_VIEW_SATELLITE
 import com.madanala.tern.ui.screens.MAP_VIEW_TERRAIN
 
 
+import androidx.compose.ui.platform.testTag
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsSheet(
@@ -148,7 +150,11 @@ private fun SettingsToggleRow(
     ) {
         icon()
         Text(text, modifier = Modifier.weight(1f), fontSize = 16.sp)
-        Switch(checked = isChecked, onCheckedChange = onCheckedChange)
+        Switch(
+            checked = isChecked,
+            onCheckedChange = onCheckedChange,
+            modifier = Modifier.testTag("toggle_$text")
+        )
     }
 }
 
@@ -177,6 +183,7 @@ private fun SettingsPickerRow(
                     modifier = Modifier
                         .height(36.dp)
                         .padding(horizontal = 2.dp)
+                        .testTag("btn_${label}_$item")
                 ) {
                     Text(item, fontSize = 12.sp)
                 }
