@@ -46,14 +46,28 @@ data class Route(
     /**
      * Add a waypoint to this route
      */
-    fun addWaypoint(lat: Double, lon: Double, type: Waypoint.Type = Waypoint.Type.TURNPOINT, label: String? = null, id: String? = null): Route {
+    fun addWaypoint(
+        lat: Double, 
+        lon: Double, 
+        type: Waypoint.Type = Waypoint.Type.TURNPOINT, 
+        label: String? = null, 
+        id: String? = null, 
+        radius: Double? = 400.0,
+        alt: Double? = null,
+        openTime: String? = null,
+        closeTime: String? = null
+    ): Route {
         val newWaypoint = Waypoint(
             lat = lat,
             lon = lon,
             type = type,
             label = label,
             routeId = this.id,
-            id = id ?: UUID.randomUUID().toString()
+            id = id ?: UUID.randomUUID().toString(),
+            radius = radius,
+            alt = alt,
+            openTime = openTime,
+            closeTime = closeTime
         )
         return copy(
             waypoints = waypoints + newWaypoint,
@@ -74,14 +88,27 @@ data class Route(
     /**
      * Update a waypoint in this route
      */
-    fun updateWaypoint(waypointId: String, lat: Double? = null, lon: Double? = null, type: Waypoint.Type? = null): Route {
+    fun updateWaypoint(
+        waypointId: String, 
+        lat: Double? = null, 
+        lon: Double? = null, 
+        type: Waypoint.Type? = null, 
+        radius: Double? = null,
+        alt: Double? = null,
+        openTime: String? = null,
+        closeTime: String? = null
+    ): Route {
         return copy(
             waypoints = waypoints.map {
                 if (it.id == waypointId) {
                     it.copy(
                         lat = lat ?: it.lat,
                         lon = lon ?: it.lon,
-                        type = type ?: it.type
+                        type = type ?: it.type,
+                        radius = radius ?: it.radius,
+                        alt = alt ?: it.alt,
+                        openTime = openTime ?: it.openTime,
+                        closeTime = closeTime ?: it.closeTime
                     )
                 } else it
             },

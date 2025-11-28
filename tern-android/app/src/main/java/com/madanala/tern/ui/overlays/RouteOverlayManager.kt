@@ -559,11 +559,44 @@ class RouteOverlayManager(
             }
         }
 
+    private val cylinderPaint by lazy {
+        Paint().apply {
+            color = Color.argb(40, 0, 255, 0) // Transparent Green
+            style = Paint.Style.FILL
+            isAntiAlias = true
+        }
+    }
+
+    private val cylinderStrokePaint by lazy {
+        Paint().apply {
+            color = Color.argb(150, 0, 255, 0) // Semi-transparent Green Stroke
+            style = Paint.Style.STROKE
+            strokeWidth = 2f
+            isAntiAlias = true
+        }
+    }
+
+    private val arrowPaint by lazy {
+        Paint().apply {
+            color = Color.BLUE
+            style = Paint.Style.FILL_AND_STROKE
+            strokeWidth = 4f
+            isAntiAlias = true
+        }
+    }
+
+    // ... existing paints ...
+
         override fun draw(canvas: Canvas, mapView: MapView, shadow: Boolean) {
             try {
                 if (shadow) return
 
                 val projection = mapView.projection
+
+                // Draw cylinders first (so they are behind the line)
+                route.waypoints.forEach { waypoint ->
+                    drawCylinder(canvas, projection, waypoint)
+                }
 
                 // Draw route line and leg labels
                 if (route.waypoints.size >= 2) {
@@ -582,6 +615,9 @@ class RouteOverlayManager(
                             
                             path.lineTo(screenPoint.x.toFloat(), screenPoint.y.toFloat())
 
+                            // Draw directional arrow
+                            drawDirectionalArrow(canvas, prevScreenPoint.x.toFloat(), prevScreenPoint.y.toFloat(), screenPoint.x.toFloat(), screenPoint.y.toFloat())
+
                             // Draw leg distance label
                             val distanceMeters = point.distanceToAsDouble(prevPoint)
                             if (distanceMeters > 100) { // Only draw if segment is significant
@@ -591,9 +627,6 @@ class RouteOverlayManager(
                                 // Calculate midpoint
                                 val midX = (prevScreenPoint.x + screenPoint.x) / 2f
                                 val midY = (prevScreenPoint.y + screenPoint.y) / 2f
-                                
-                                // Draw label background (optional, for readability)
-                                // canvas.drawCircle(midX, midY, 20f, backgroundPaint) 
                                 
                                 canvas.drawText(labelText, midX, midY - 10f, labelPaint)
                             }
@@ -607,6 +640,7 @@ class RouteOverlayManager(
 
                     canvas.drawPath(path, routePaint)
                 }
+
 
                 // Draw waypoints
                 route.waypoints.forEach { waypoint ->
@@ -694,6 +728,58 @@ class RouteOverlayManager(
             } catch (e: Exception) {
                 Log.e(TAG, "Error drawing route overlay for route ${route.id}", e)
             }
+        }
+        /**
+         * Draw FAI cylinder around waypoint
+         */
+        private fun drawCylinder(canvas: Canvas, projection: org.osmdroid.views.Projection, waypoint: com.madanala.tern.model.Waypoint) {
+            val radiusMeters = waypoint.radius ?: 400.0
+            val point = GeoPoint(waypoint.lat, waypoint.lon)
+            val screenPoint = projection.toPixels(point, null)
+            
+            // Calculate radius in pixels at current zoom level
+            val radiusPixels = projection.metersToEquatorPixels(radiusMeters.toFloat())
+            
+            if (radiusPixels > 2f) { // Only draw if visible
+                canvas.drawCircle(screenPoint.x.toFloat(), screenPoint.y.toFloat(), radiusPixels, cylinderPaint)
+                canvas.drawCircle(screenPoint.x.toFloat(), screenPoint.y.toFloat(), radiusPixels, cylinderStrokePaint)
+            }
+        }
+
+        /**
+         * Draw directional arrow on route segment
+         */
+        private fun drawDirectionalArrow(canvas: Canvas, startX: Float, startY: Float, endX: Float, endY: Float) {
+            val dx = endX - startX
+            val dy = endY - startY
+            val distance = kotlin.math.sqrt(dx * dx + dy * dy)
+            
+            if (distance < 50) return // Don't draw arrow on very short segments
+            
+            // Calculate midpoint
+            val midX = (startX + endX) / 2
+            val midY = (startY + endY) / 2
+            
+            // Calculate angle
+            val angle = kotlin.math.atan2(dy, dx)
+            
+            // Arrow dimensions
+            val arrowLength = 30f
+            val arrowWidth = 15f
+            
+            val path = Path()
+            path.moveTo(midX, midY)
+            path.lineTo(
+                midX - arrowLength * kotlin.math.cos(angle - kotlin.math.PI / 6).toFloat(),
+                midY - arrowLength * kotlin.math.sin(angle - kotlin.math.PI / 6).toFloat()
+            )
+            path.moveTo(midX, midY)
+            path.lineTo(
+                midX - arrowLength * kotlin.math.cos(angle + kotlin.math.PI / 6).toFloat(),
+                midY - arrowLength * kotlin.math.sin(angle + kotlin.math.PI / 6).toFloat()
+            )
+            
+            canvas.drawPath(path, arrowPaint)
         }
     }
 }

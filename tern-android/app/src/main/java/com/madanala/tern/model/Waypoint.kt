@@ -13,7 +13,11 @@ data class Waypoint(
     val type: Type = Type.TURNPOINT,
     val label: String? = null,
     val createdAt: Instant = Instant.now(),
-    val routeId: String? = null
+    val routeId: String? = null,
+    val radius: Double? = 400.0, // Default FAI cylinder radius in meters
+    val alt: Double? = null, // Altitude in meters
+    val openTime: String? = null, // HH:mm
+    val closeTime: String? = null // HH:mm
 ) {
-    enum class Type { LAUNCH, TURNPOINT, LANDING }
+    enum class Type { LAUNCH, TURNPOINT, SSS, ESS, GOAL, LANDING }
 }

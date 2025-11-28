@@ -200,7 +200,14 @@ fun RouteDetailPanel(
                                                 fontWeight = FontWeight.SemiBold
                                             )
                                             Text(
-                                                text = "${"%.4f".format(waypoint.lat)}, ${"%.4f".format(waypoint.lon)}",
+                                                text = buildString {
+                                                    append("${"%.4f".format(waypoint.lat)}, ${"%.4f".format(waypoint.lon)}")
+                                                    append(" • r${waypoint.radius?.toInt() ?: 400}m")
+                                                    if (waypoint.alt != null) append(" • A${waypoint.alt.toInt()}m")
+                                                    if (waypoint.openTime != null) append(" • O:${waypoint.openTime}")
+                                                    if (waypoint.closeTime != null) append(" • C:${waypoint.closeTime}")
+                                                    if (waypoint.type != com.madanala.tern.model.Waypoint.Type.TURNPOINT) append(" • ${waypoint.type.name}")
+                                                },
                                                 style = MaterialTheme.typography.bodySmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
