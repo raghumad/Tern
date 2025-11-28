@@ -43,6 +43,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -176,7 +177,9 @@ fun RouteDetailPanel(
                         )
                     } else {
                         LazyColumn(
-                            modifier = Modifier.heightIn(max = 200.dp),
+                            modifier = Modifier
+                                .heightIn(max = 200.dp)
+                                .testTag("WaypointList"),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             itemsIndexed(route.waypoints) { index, waypoint ->
@@ -206,7 +209,17 @@ fun RouteDetailPanel(
                                                     if (waypoint.alt != null) append(" • A${waypoint.alt.toInt()}m")
                                                     if (waypoint.openTime != null) append(" • O:${waypoint.openTime}")
                                                     if (waypoint.closeTime != null) append(" • C:${waypoint.closeTime}")
-                                                    if (waypoint.type != com.madanala.tern.model.Waypoint.Type.TURNPOINT) append(" • ${waypoint.type.name}")
+                                                    if (waypoint.type != com.madanala.tern.model.Waypoint.Type.TURNPOINT) {
+                                                        val typeName = when (waypoint.type) {
+                                                            com.madanala.tern.model.Waypoint.Type.LAUNCH -> "Launch"
+                                                            com.madanala.tern.model.Waypoint.Type.TURNPOINT -> "Turnpoint"
+                                                            com.madanala.tern.model.Waypoint.Type.SSS -> "Start Speed Section"
+                                                            com.madanala.tern.model.Waypoint.Type.ESS -> "End Speed Section"
+                                                            com.madanala.tern.model.Waypoint.Type.GOAL -> "Goal"
+                                                            com.madanala.tern.model.Waypoint.Type.LANDING -> "Landing"
+                                                        }
+                                                        append(" • $typeName")
+                                                    }
                                                 },
                                                 style = MaterialTheme.typography.bodySmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
