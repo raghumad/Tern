@@ -17,10 +17,13 @@ import java.io.File
  * - ComposeTestRule for UI interaction
  * - MockServer for API mocking
  */
+import androidx.activity.ComponentActivity
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
+
 abstract class BaseUITest {
 
     @get:Rule
-    val composeTestRule = createComposeRule()
+    val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
     val mockServer = MockServer()
 

@@ -369,39 +369,8 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
      * Check for smart suggestions (nearby PG spots)
      * Updates state flows which drive the UI
      */
-    fun checkForSmartSuggestion(
-        context: Context,
-        geoPoint: GeoPoint,
-        onNoNearby: () -> Unit = {}
-    ) {
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            try {
-                Log.d(TAG, "Smart Suggestion: Checking for spots near ${geoPoint.latitude}, ${geoPoint.longitude}")
-                val countryCode = com.madanala.tern.utils.CountryUtils.getCountryCodeFromGeoPoint(context, geoPoint)
-                
-                if (countryCode != null) {
-                    val nearbySpots = com.madanala.tern.utils.CacheManager.pgSpotCache.queryNearbyPGSpots(countryCode, geoPoint, 15.5)
-                    
-                    if (nearbySpots.isNotEmpty()) {
-                        val closest = nearbySpots.minByOrNull { it.centroid.distanceToAsDouble(geoPoint) }
-                        if (closest != null) {
-                            // Dispatch Redux action instead of local state update
-                            reduxBridge.mapStore?.dispatch(com.madanala.tern.redux.MapAction.SetSmartSuggestion(closest, geoPoint))
-                            return@launch
-                        }
-                    }
-                }
-                
-                launch(kotlinx.coroutines.Dispatchers.Main) {
-                    onNoNearby()
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error checking nearby spots", e)
-                launch(kotlinx.coroutines.Dispatchers.Main) {
-                    onNoNearby()
-                }
-            }
-        }
+    fun checkForSmartSuggestion(geoPoint: GeoPoint) {
+        reduxBridge.mapStore?.dispatch(com.madanala.tern.redux.MapAction.CheckSmartSuggestion(geoPoint))
     }
 
     fun clearSmartSuggestionState() {

@@ -19,8 +19,7 @@ import java.util.UUID
 @RunWith(AndroidJUnit4::class)
 class FAIEndToEndTest : BddTest() {
 
-    @get:Rule
-    val composeTestRule = createComposeRule()
+    // composeTestRule is inherited from BaseUITest via BddTest
 
     @Test
     fun scenarioFullFAILifecycle() {

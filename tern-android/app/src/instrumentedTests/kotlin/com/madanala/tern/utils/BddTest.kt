@@ -4,7 +4,9 @@ import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
 
-open class BddTest {
+import com.madanala.tern.BaseUITest
+
+open class BddTest : BaseUITest() {
 
     @get:org.junit.Rule
     val testNameRule = org.junit.rules.TestName()

@@ -13,8 +13,7 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class FlightModeLogicTest : BddTest() {
 
-    @get:org.junit.Rule
-    val composeTestRule = androidx.compose.ui.test.junit4.createAndroidComposeRule<androidx.activity.ComponentActivity>()
+    // composeTestRule is inherited from BaseUITest via BddTest
 
     @Test
     fun testFlightModeStateTransition() {

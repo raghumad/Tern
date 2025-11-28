@@ -100,6 +100,7 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
 
     // Smart Suggestion
     is MapAction.SetSmartSuggestion,
+    is MapAction.CheckSmartSuggestion,
     MapAction.ClearSmartSuggestion -> handleSmartSuggestionActions(state, action)
 
     // Map Interaction
@@ -250,6 +251,7 @@ private fun handleSmartSuggestionActions(state: MapState, action: MapAction): Ma
         nearbyPGSpot = null,
         pendingWaypointCreation = null
     ))
+    is MapAction.CheckSmartSuggestion -> state
     else -> state
 }
 
