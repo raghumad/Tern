@@ -9,136 +9,126 @@ import org.junit.runner.RunWith
 import java.util.UUID
 
 @RunWith(AndroidJUnit4::class)
-class RouteIOManagerTest {
+class RouteIOManagerTest : BddTest() {
 
     @Test
     fun scenarioExportAndImportFAITask() {
-        // Given I have a route "Competition Task" with waypoints
-        val routeId = UUID.randomUUID().toString()
-        val waypoints = listOf(
-            Waypoint(
-                lat = 46.0, lon = 11.0, 
-                type = Waypoint.Type.LAUNCH, 
-                label = "Takeoff", 
-                radius = 400.0,
-                routeId = routeId
-            ),
-            Waypoint(
-                lat = 46.1, lon = 11.1, 
-                type = Waypoint.Type.SSS, 
-                label = "Start", 
-                radius = 2000.0, 
-                alt = 1000.0, 
-                openTime = "12:00", 
-                closeTime = "14:00",
-                routeId = routeId
-            ),
-            Waypoint(
-                lat = 46.2, lon = 11.2, 
-                type = Waypoint.Type.TURNPOINT, 
-                label = "Turnpoint", 
-                radius = 400.0,
-                routeId = routeId
-            ),
-            Waypoint(
-                lat = 46.3, lon = 11.3, 
-                type = Waypoint.Type.ESS, 
-                label = "End", 
-                radius = 400.0,
-                routeId = routeId
-            ),
-            Waypoint(
-                lat = 46.4, lon = 11.4, 
-                type = Waypoint.Type.GOAL, 
-                label = "Goal", 
-                radius = 1000.0, 
-                closeTime = "17:00",
-                routeId = routeId
-            )
-        )
-        val route = Route(id = routeId, name = "Competition Task", waypoints = waypoints)
+        scenario("Export and Import FAI Task (Verbose)") {
+            var route: Route? = null
+            var xctskContent: String? = null
+            var importedRoute: Route? = null
 
-        // When I export the route to XCTSK format (Verbose for file export)
-        val xctskContent = RouteIOManager.generateXctskContent(route)
+            given("I have a route 'Competition Task' with waypoints") {
+                val routeId = UUID.randomUUID().toString()
+                val waypoints = listOf(
+                    Waypoint(
+                        lat = 46.0, lon = 11.0, 
+                        type = Waypoint.Type.LAUNCH, 
+                        label = "Takeoff", 
+                        radius = 400.0,
+                        routeId = routeId
+                    ),
+                    Waypoint(
+                        lat = 46.1, lon = 11.1, 
+                        type = Waypoint.Type.SSS, 
+                        label = "Start", 
+                        radius = 2000.0, 
+                        alt = 1000.0, 
+                        openTime = "12:00", 
+                        closeTime = "14:00",
+                        routeId = routeId
+                    ),
+                    Waypoint(
+                        lat = 46.2, lon = 11.2, 
+                        type = Waypoint.Type.TURNPOINT, 
+                        label = "Turnpoint", 
+                        radius = 400.0,
+                        routeId = routeId
+                    ),
+                    Waypoint(
+                        lat = 46.3, lon = 11.3, 
+                        type = Waypoint.Type.ESS, 
+                        label = "End", 
+                        radius = 400.0,
+                        routeId = routeId
+                    ),
+                    Waypoint(
+                        lat = 46.4, lon = 11.4, 
+                        type = Waypoint.Type.GOAL, 
+                        label = "Goal", 
+                        radius = 1000.0, 
+                        closeTime = "17:00",
+                        routeId = routeId
+                    )
+                )
+                route = Route(id = routeId, name = "Competition Task", waypoints = waypoints)
+            }
 
-        // And I import the route from the exported XCTSK content
-        val importedRoute = RouteIOManager.parseXctskContent(xctskContent)
+            `when`("I export the route to XCTSK format") {
+                xctskContent = RouteIOManager.generateXctskContent(route!!)
+            }
 
-        // Then the imported route should have 5 waypoints
-        assertNotNull(importedRoute)
-        assertEquals(5, importedRoute!!.waypoints.size)
+            and("I import the route from the exported XCTSK content") {
+                importedRoute = RouteIOManager.parseXctskContent(xctskContent!!)
+            }
 
-        // And the waypoint "Start" should have type "SSS" and radius 2000
-        val startWp = importedRoute.waypoints.find { it.label == "Start" }
-        assertNotNull(startWp)
-        assertEquals(Waypoint.Type.SSS, startWp!!.type)
-        assertEquals(2000.0, startWp.radius!!, 0.1)
+            then("the imported route should have correct waypoints and parameters") {
+                assertNotNull(importedRoute)
+                assertEquals(5, importedRoute!!.waypoints.size)
 
-        // And the waypoint "Start" should have open time "12:00"
-        // Note: generateXctskContent (verbose) might not fully support time gates yet in my implementation,
-        // but I added logic to parse it if present.
-        // Let's verify if my implementation of generateXctskContent included time gates.
-        // Looking at my code: I added a comment "Time Gates (Start) ... if (wp.type == Waypoint.Type.SSS && wp.openTime != null) { ... }"
-        // But I didn't actually implement the JSON put for it in generateXctskContent!
-        // I only implemented it for generateXctskCompressed.
-        // So this assertion might fail if I use generateXctskContent.
-        
-        // Let's test the QR Code flow (Compressed) as well, which I implemented fully.
-        
-        // Test QR Code Flow (Compressed XCTSK)
-        val qrContent = RouteIOManager.generateQRCode(route) // Returns Bitmap, but internally uses generateXctskCompressed
-        // I can't easily test the Bitmap -> String decode without a real QR decoder library interaction which might be flaky in unit test.
-        // But I can test the internal methods if I make them accessible or use reflection.
-        // Or I can test `importRouteFromQrString` with the string generated by `generateXctskCompressed`.
-        // But `generateXctskCompressed` is private.
-        
-        // Let's stick to testing `generateXctskContent` (Verbose) and FIX it to include time gates if possible,
-        // OR test the compressed flow by making `generateXctskCompressed` internal/visible for testing.
-        
-        // Since I can't change visibility easily now without another edit, I will try to use `generateQRCode`?
-        // No, that returns Bitmap.
-        
-        // I will update the test to use reflection to call `generateXctskCompressed`?
-        // Or I will update `RouteIOManager` to make it internal.
-        
-        // Actually, I should fix `generateXctskContent` (Verbose) to support time gates too, as that's good practice.
-        // But for now, let's verify what works.
-        
-        // I'll comment out the openTime assertion for Verbose export if I suspect it fails, 
-        // OR I'll rely on the Goal Close Time which I DID implement in generateXctskContent.
-        
-        // And the waypoint "Goal" should have type "GOAL" and radius 1000
-        val goalWp = importedRoute.waypoints.find { it.label == "Goal" }
-        assertNotNull(goalWp)
-        assertEquals(Waypoint.Type.GOAL, goalWp!!.type)
-        assertEquals(1000.0, goalWp.radius!!, 0.1)
-        
-        // Goal close time IS implemented in generateXctskContent
-        assertEquals("17:00", goalWp.closeTime)
+                // Check Start Waypoint
+                val startWp = importedRoute!!.waypoints.find { it.label == "Start" }
+                assertNotNull(startWp)
+                assertEquals(Waypoint.Type.SSS, startWp!!.type)
+                assertEquals(2000.0, startWp!!.radius!!, 0.1)
+                assertEquals("12:00", startWp!!.openTime) // Now supported in verbose export
+
+                // Check Goal Waypoint
+                val goalWp = importedRoute!!.waypoints.find { it.label == "Goal" }
+                assertNotNull(goalWp)
+                assertEquals(Waypoint.Type.GOAL, goalWp!!.type)
+                assertEquals(1000.0, goalWp!!.radius!!, 0.1)
+                assertEquals("17:00", goalWp!!.closeTime)
+            }
+        }
     }
     
     @Test
     fun testXctskCompressedFlow() {
-        // Reflection to access private generateXctskCompressed
-        val routeId = UUID.randomUUID().toString()
-        val waypoints = listOf(
-            Waypoint(lat = 46.1, lon = 11.1, type = Waypoint.Type.SSS, label = "Start", radius = 2000.0, alt = 1000.0, openTime = "12:00")
-        )
-        val route = Route(id = routeId, name = "Comp Task", waypoints = waypoints)
-        
-        val method = RouteIOManager::class.java.getDeclaredMethod("generateXctskCompressed", Route::class.java)
-        method.isAccessible = true
-        val compressedJson = method.invoke(RouteIOManager, route) as String
-        
-        // Verify it contains "z"
-        assertTrue(compressedJson.contains("\"z\":"))
-        
-        // Import back
-        val importedRoute = RouteIOManager.importRouteFromQrString(compressedJson)
-        assertNotNull(importedRoute)
-        val startWp = importedRoute!!.waypoints.first()
-        assertEquals(Waypoint.Type.SSS, startWp.type)
-        assertEquals(2000.0, startWp.radius!!, 0.1)
-        assertEquals("12:00", startWp.openTime)
+        scenario("XCTSK Compressed Flow (QR Code)") {
+            var route: Route? = null
+            var compressedJson: String? = null
+            var importedRoute: Route? = null
+
+            given("I have a route with SSS and Time Gates") {
+                val routeId = UUID.randomUUID().toString()
+                val waypoints = listOf(
+                    Waypoint(lat = 46.1, lon = 11.1, type = Waypoint.Type.SSS, label = "Start", radius = 2000.0, alt = 1000.0, openTime = "12:00")
+                )
+                route = Route(id = routeId, name = "Comp Task", waypoints = waypoints)
+            }
+
+            `when`("I generate the compressed XCTSK JSON (via reflection)") {
+                val method = RouteIOManager::class.java.getDeclaredMethod("generateXctskCompressed", Route::class.java)
+                method.isAccessible = true
+                compressedJson = method.invoke(RouteIOManager, route) as String
+            }
+
+            then("the JSON should contain compressed data") {
+                assertTrue(compressedJson!!.contains("\"z\":"))
+            }
+
+            and("I import the route from the compressed JSON") {
+                importedRoute = RouteIOManager.importRouteFromQrString(compressedJson!!)
+            }
+
+            then("the imported route should preserve SSS parameters") {
+                assertNotNull(importedRoute)
+                val startWp = importedRoute!!.waypoints.first()
+                assertEquals(Waypoint.Type.SSS, startWp.type)
+                assertEquals(2000.0, startWp.radius!!, 0.1)
+                assertEquals("12:00", startWp.openTime)
+            }
+        }
     }
 }

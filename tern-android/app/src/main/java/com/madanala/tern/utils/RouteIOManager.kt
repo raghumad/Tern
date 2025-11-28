@@ -245,19 +245,16 @@ object RouteIOManager {
             tp.put("waypoint", wpObj)
             
             // Time Gates (Start)
-            if (wp.type == Waypoint.Type.SSS && wp.openTime != null) {
-                 // XCTSK structure for SSS time gates is complex in v2, but v1 (iOS saveXCTSK) doesn't show it clearly.
-                 // iOS saveXCTSKqr (v2) uses "s": { "g": [...] }
-                 // Let's stick to a simple representation or try to match v2 if possible.
-                 // The iOS saveXCTSK (verbose) seems to be v1 and doesn't explicitly show time gates in the snippet.
-                 // However, the user wants import/export to work.
-                 // Let's try to implement a basic v2 structure for verbose as well if possible, or stick to v1.
-                 // Given the test expects openTime, we need to support it.
-                 // Let's add "gates" array if it's SSS?
-                 // XCTrack spec: "gates": [{"time": "12:00:00", "type": "entry"}] ?
-                 // For now, let's just put it in description or ignore for verbose if not standard in v1.
-                 // Wait, the test expects it to work.
-            }
+        if (wp.type == Waypoint.Type.SSS && wp.openTime != null) {
+             val sssObj = JSONObject()
+             sssObj.put("type", "RACE") // Default to RACE
+             sssObj.put("direction", "EXIT") // Default
+             val gates = org.json.JSONArray()
+             // Append :00Z if not present (assuming internal format is HH:mm)
+             gates.put("${wp.openTime}:00Z")
+             sssObj.put("gates", gates)
+             tp.put("sss", sssObj)
+        }
             
             turnpoints.put(tp)
         }
@@ -305,18 +302,28 @@ object RouteIOManager {
                     else -> Waypoint.Type.TURNPOINT
                 }
                 
-                // Try to extract time gates if present (not fully implemented in generate yet)
-                // But for the test scenario, we need to support it.
-                // Let's assume we can parse it if we add it.
-                
-                waypoints.add(Waypoint(
-                    lat = lat, 
-                    lon = lon, 
-                    type = type, 
-                    label = name, 
-                    radius = radius,
-                    alt = alt
-                ))
+                var openTime: String? = null
+            val sssObj = tp.optJSONObject("sss")
+            if (sssObj != null) {
+                val gates = sssObj.optJSONArray("gates")
+                if (gates != null && gates.length() > 0) {
+                    val firstGate = gates.getString(0)
+                    // Parse HH:mm from HH:mm:ssZ or HH:mm:ss
+                    if (firstGate.length >= 5) {
+                        openTime = firstGate.substring(0, 5)
+                    }
+                }
+            }
+            
+            waypoints.add(Waypoint(
+                lat = lat, 
+                lon = lon, 
+                type = type, 
+                label = name, 
+                radius = radius,
+                alt = alt,
+                openTime = openTime
+            ))
             }
             
             // Goal deadline
