@@ -105,6 +105,13 @@ class MapStore : ViewModel() {
         }
     }
 
+    // Middleware support
+    private val middlewares = mutableListOf<Middleware>()
+
+    fun addMiddleware(middleware: Middleware) {
+        middlewares.add(middleware)
+    }
+
     /**
      * Process multiple actions as a single state update
      */
@@ -115,6 +122,9 @@ class MapStore : ViewModel() {
 
         // Apply all actions to state sequentially
         actions.forEach { action ->
+            // Process middleware side effects
+            middlewares.forEach { it.process(action, this) }
+
             currentState = when (action) {
                 is MapAction -> mapReducer(currentState, action)
                 is WeatherActions -> weatherReducer(currentState, action)

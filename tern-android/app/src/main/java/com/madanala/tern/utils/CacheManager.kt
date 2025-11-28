@@ -27,6 +27,11 @@ object CacheManager {
         RouteCache(appContext)
     }
 
+    val weatherCache: WeatherCache by lazy {
+        ensureInitialized()
+        WeatherCache(appContext)
+    }
+
     /**
      * Initialize with application context
      * Must be called once during app startup

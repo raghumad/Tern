@@ -21,7 +21,7 @@ class RoutePersistenceTest : BddTest() {
     private lateinit var testRoute: Route
 
     @Before
-    fun setup() {
+    fun initCache() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         // Initialize CacheManager with context (required for RouteCache)
         com.madanala.tern.utils.ReportGenerator.logStep("SETUP", "Initializing CacheManager and RouteCache")

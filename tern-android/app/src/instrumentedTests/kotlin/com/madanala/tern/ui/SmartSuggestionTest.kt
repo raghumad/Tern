@@ -34,8 +34,7 @@ import kotlinx.coroutines.flow.collect
 @RunWith(AndroidJUnit4::class)
 class SmartSuggestionTest : BddTest() {
 
-    @get:Rule
-    val composeTestRule = createAndroidComposeRule<ComponentActivity>()
+    // composeTestRule is inherited from BaseUITest via BddTest<ComponentActivity>()
 
     @Test
     fun testSmartSuggestionLogic() {
@@ -94,6 +93,7 @@ class SmartSuggestionTest : BddTest() {
                     
                     // Initialize Redux Store and connect it
                     val store = com.madanala.tern.redux.MapStore()
+                    store.addMiddleware(com.madanala.tern.redux.MapMiddleware(context.applicationContext))
                     viewModel.setMapStore(store)
 
                     // Launch a collector on the Store's state
@@ -108,7 +108,6 @@ class SmartSuggestionTest : BddTest() {
                     }
                     
                     viewModel.checkForSmartSuggestion(
-                        context = context,
                         geoPoint = GeoPoint(spotLat, spotLon)
                     )
                 }

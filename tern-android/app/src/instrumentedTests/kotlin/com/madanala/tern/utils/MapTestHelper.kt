@@ -13,6 +13,20 @@ import android.view.MotionEvent
 
 object MapTestHelper {
 
+    fun getScreenCoordinates(activity: Activity, lat: Double, lon: Double): Pair<Float, Float> {
+        var x = 0f
+        var y = 0f
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        instrumentation.runOnMainSync {
+            val mapView = findMapView(activity.window.decorView) ?: throw IllegalStateException("MapView not found")
+            val point = android.graphics.Point()
+            mapView.projection.toPixels(GeoPoint(lat, lon), point)
+            x = point.x.toFloat()
+            y = point.y.toFloat()
+        }
+        return Pair(x, y)
+    }
+
     fun clickOnGeoPoint(activity: Activity, lat: Double, lon: Double) {
         val mapView = findMapView(activity.window.decorView) ?: throw IllegalStateException("MapView not found")
         val point = android.graphics.Point()
@@ -48,13 +62,26 @@ object MapTestHelper {
         
         ReportGenerator.logStep("ACTION", "Long press at lat=$lat, lon=$lon -> screen x=$x, y=$y")
 
-        val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
-        // Simulate long press using swipe with 0 distance and long duration
-        // 100 steps * 5ms = 500ms. Let's use 200 steps for 1000ms.
-        val steps = 200 
-        device.swipe(x.toInt(), y.toInt(), x.toInt(), y.toInt(), steps)
+        val downTime = SystemClock.uptimeMillis()
+        val eventTime = SystemClock.uptimeMillis()
         
-        ReportGenerator.logStep("DEBUG", "Performed long press via UiDevice.swipe")
+        val downEvent = MotionEvent.obtain(downTime, eventTime, MotionEvent.ACTION_DOWN, x, y, 0)
+        instrumentation.sendPointerSync(downEvent)
+        
+        // Wait for long press timeout (usually 500ms) + buffer
+        try {
+            Thread.sleep(1000)
+        } catch (e: InterruptedException) {
+            e.printStackTrace()
+        }
+        
+        val upEvent = MotionEvent.obtain(downTime, SystemClock.uptimeMillis(), MotionEvent.ACTION_UP, x, y, 0)
+        instrumentation.sendPointerSync(upEvent)
+        
+        downEvent.recycle()
+        upEvent.recycle()
+        
+        ReportGenerator.logStep("DEBUG", "Performed long press via MotionEvents")
     }
 
     fun waitForMapTiles(timeoutMillis: Long = 3000) {

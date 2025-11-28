@@ -58,6 +58,11 @@ fun MapViewContainer(
     val state by store.state.collectAsState()
     val hasLocationPermission = handleLocationPermissions(store)
 
+    // Register Middleware
+    LaunchedEffect(store) {
+        store.addMiddleware(com.madanala.tern.redux.MapMiddleware(context.applicationContext))
+    }
+
     // Core components
     val mapViewModel: MapViewModel = viewModel()
 
@@ -82,13 +87,7 @@ fun MapViewContainer(
                     store.dispatch(MapAction.LongPressMap(geoPoint))
                 } else {
                     // No route selected -> New route -> Try Smart Suggestion
-                    mapViewModel.checkForSmartSuggestion(
-                        context,
-                        geoPoint,
-                        onNoNearby = {
-                            store.dispatch(MapAction.LongPressMap(geoPoint))
-                        }
-                    )
+                    mapViewModel.checkForSmartSuggestion(geoPoint)
                 }
             }
         )

@@ -22,8 +22,7 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class NavigationTest : BddTest() {
 
-    @get:Rule
-    val composeTestRule = createAndroidComposeRule<ComponentActivity>()
+    // composeTestRule is inherited from BaseUITest via BddTest<ComponentActivity>()
 
     @Test
     fun verifyNavigationToMap() {

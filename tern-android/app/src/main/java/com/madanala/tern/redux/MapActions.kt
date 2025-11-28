@@ -120,6 +120,7 @@ sealed class MapAction {
 
     // Smart Suggestion actions
     data class SetSmartSuggestion(val nearbyPGSpot: com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature?, val pendingWaypointCreation: GeoPoint?) : MapAction()
+    data class CheckSmartSuggestion(val geoPoint: GeoPoint) : MapAction()
     object ClearSmartSuggestion : MapAction()
 
     // Map Interaction actions
