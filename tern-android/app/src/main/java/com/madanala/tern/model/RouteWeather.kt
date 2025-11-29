@@ -18,14 +18,4 @@ data class WaypointWeather(
     val forecast: WeatherForecast // Forecast at that specific time
 )
 
-data class WeatherForecast(
-    val skewT: SkewTForecast,
-    val cape: List<CapePoint>,
-    val wind: List<WindPoint>
-)
 
-data class WindPoint(
-    val altitude: Double,
-    val speed: Double, // km/h
-    val direction: Double // degrees
-)

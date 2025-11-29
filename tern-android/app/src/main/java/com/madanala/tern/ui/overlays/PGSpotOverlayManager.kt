@@ -418,17 +418,36 @@ class PGSpotOverlayManager(
         // Extract current wind conditions for the gauge
         forecast.current?.wind?.let { wind ->
             try {
-                // Update marker with wind gauge composable
-                // Note: In production, this would use a custom Marker with embedded Composable
-                // For now, update the marker title/info with wind information
+                // Update marker title for accessibility/fallback
                 val windTitle = "PG Spot ${pgSpotId}\n" +
                     "Wind: ${wind.speed.roundToInt()} kt @ ${wind.direction.roundToInt()}°"
                 marker.title = windTitle
 
-                // In production implementation:
-                // marker.setCustomIcon(WindGauge(wind.speed, wind.direction))
-                // This provides the smooth transition from static to dynamic
-
+                // Generate dynamic bitmap from Composable
+                // Must be done on Main thread
+                coroutineScope.launch(Dispatchers.Main) {
+                    try {
+                        val mapView = mapView ?: return@launch
+                        val bitmap = com.madanala.tern.utils.ViewToBitmap.createBitmapFromComposable(
+                            parentView = mapView,
+                            width = 150, 
+                            height = 150
+                        ) {
+                            com.madanala.tern.ui.components.WindGaugeMarker(
+                                speed = wind.speed,
+                                direction = wind.direction,
+                                gust = wind.gust,
+                                isStale = forecast.isStale()
+                            )
+                        }
+                        
+                        marker.icon = android.graphics.drawable.BitmapDrawable(applicationContext.resources, bitmap)
+                        marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER) // Center the gauge
+                        mapView.invalidate()
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to generate bitmap for PG spot $pgSpotId", e)
+                    }
+                }
 
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to update wind gauge for PG spot $pgSpotId", e)

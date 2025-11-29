@@ -88,6 +88,26 @@ private fun WeatherContent(forecast: WeatherForecast) {
             .padding(vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        // Stale Data Warning
+        if (forecast.isStale()) {
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp)
+            ) {
+                Text(
+                    "⚠️ Weather data is stale (>4h old)",
+                    modifier = Modifier.padding(16.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+
         // Current Conditions
         forecast.current?.let { current ->
             CurrentWeatherCard(current)
@@ -163,6 +183,14 @@ private fun CurrentWeatherCard(weather: WeatherData) {
                 WeatherDetail("Pressure", "${weather.pressure.toInt()} hPa")
                 WeatherDetail("Visibility", "${weather.visibility.toInt()} km")
             }
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                WeatherDetail("Gust", "${weather.wind.gust.toInt()} kt")
+                WeatherDetail("Cloud Cover", "${weather.cloudCover.toInt()}%")
+            }
         }
     }
 }
@@ -195,7 +223,7 @@ private fun HourlyWeatherCard(period: ForecastPeriod, label: String) {
 
         // Wind
         Row(modifier = Modifier.weight(2f), verticalAlignment = Alignment.CenterVertically) {
-            WindDisplaySmall(period.weather.wind.speed, period.weather.wind.direction)
+            WindDisplaySmall(period.weather.wind.speed, period.weather.wind.direction, period.weather.wind.gust)
         }
     }
 }
@@ -247,7 +275,7 @@ private fun DailyWeatherCard(period: ForecastPeriod) {
             // Wind
             Row(modifier = Modifier.weight(2f), verticalAlignment = Alignment.CenterVertically) {
                 Spacer(modifier = Modifier.width(8.dp))
-                WindDisplaySmall(period.weather.wind.speed, period.weather.wind.direction)
+                WindDisplaySmall(period.weather.wind.speed, period.weather.wind.direction, period.weather.wind.gust)
             }
         }
     }
@@ -283,9 +311,10 @@ private fun WindDisplay(speed: Double, direction: Double) {
  * Small Wind Display for condensed UI
  */
 @Composable
-private fun WindDisplaySmall(speed: Double, direction: Double) {
+private fun WindDisplaySmall(speed: Double, direction: Double, gust: Double = 0.0) {
+    val gustText = if (gust > speed + 5) " G${gust.toInt()}" else ""
     Text(
-        "${speed.toInt()} kt @ ${direction.toInt()}°",
+        "${speed.toInt()}$gustText kt @ ${direction.toInt()}°",
         style = MaterialTheme.typography.bodySmall,
         fontWeight = FontWeight.Medium
     )

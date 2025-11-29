@@ -53,7 +53,7 @@ android {
                 it.useJUnitPlatform()
             }
         }
-        execution = "ANDROIDX_TEST_ORCHESTRATOR"
+        // execution = "ANDROIDX_TEST_ORCHESTRATOR" // Commented out to run tests in single process
         
         managedDevices {
             devices {

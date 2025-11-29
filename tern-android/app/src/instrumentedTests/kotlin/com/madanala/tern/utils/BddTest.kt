@@ -5,6 +5,8 @@ import org.junit.runner.Description
 import org.junit.runners.model.Statement
 
 import com.madanala.tern.BaseUITest
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.test.onNodeWithTag
 
 open class BddTest : BaseUITest() {
 
@@ -68,6 +70,40 @@ open class BddTest : BaseUITest() {
             val screenshot = ReportGenerator.captureScreenshot("failure_${type}_${description.take(20).replace(" ", "_")}")
             ReportGenerator.logStep(type, description, "FAIL", screenshot)
             throw e
+        }
+    }
+    fun givenAppIsLaunchedOnMap(
+        lat: Double = 40.0150, // Boulder, CO
+        lon: Double = -105.2705
+    ) {
+        step("GIVEN", "App is launched on Map at $lat, $lon", true) {
+             // Initialize CacheManager
+            com.madanala.tern.utils.CacheManager.initialize(composeTestRule.activity.applicationContext)
+            
+            // OSMDroid Config
+            val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
+            org.osmdroid.config.Configuration.getInstance().load(context, androidx.preference.PreferenceManager.getDefaultSharedPreferences(context))
+            org.osmdroid.config.Configuration.getInstance().userAgentValue = context.packageName
+
+            // Permissions & Location
+            MapTestHelper.grantLocationPermissions()
+            MapTestHelper.injectMockLocation(composeTestRule, lat, lon)
+
+            // Set Content
+            composeTestRule.setContent {
+                com.madanala.tern.ui.theme.TernTheme {
+                    androidx.compose.material3.Surface(
+                        modifier = androidx.compose.ui.Modifier.fillMaxSize(),
+                        color = androidx.compose.material3.MaterialTheme.colorScheme.background
+                    ) {
+                        com.madanala.tern.ui.screens.TernMapScreen()
+                    }
+                }
+            }
+
+            // Wait for Map
+            composeTestRule.onNodeWithTag("map_view").assertExists()
+            MapTestHelper.waitForMapTiles()
         }
     }
 }

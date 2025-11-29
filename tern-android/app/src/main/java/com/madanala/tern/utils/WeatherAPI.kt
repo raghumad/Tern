@@ -16,7 +16,8 @@ private val mapper = jacksonObjectMapper()
  */
 data class WindData(
     val speed: Double, // knots
-    val direction: Double // degrees (0-360)
+    val direction: Double, // degrees (0-360)
+    val gust: Double // knots
 )
 
 data class WeatherData(
@@ -25,6 +26,7 @@ data class WeatherData(
     val humidity: Double,
     val visibility: Double,
     val pressure: Double,
+    val cloudCover: Double, // Percentage 0-100
     val timestamp: Long // UTC timestamp
 )
 
@@ -39,7 +41,17 @@ data class WeatherForecast(
     val current: WeatherData?,
     val daily: List<ForecastPeriod>,
     val hourly: List<ForecastPeriod>
-)
+) {
+    fun isStale(): Boolean {
+        // Data is stale if generated more than 4 hours ago
+        // Note: This is a heuristic. Ideally we check the 'generationtime_ms' from API
+        // or the cache timestamp. For now, we check if the first hourly forecast is in the past.
+        val firstHourly = hourly.firstOrNull() ?: return true
+        val now = System.currentTimeMillis() / 1000
+        // If the first forecast hour is more than 4 hours in the past, it's stale
+        return (now - firstHourly.startTime) > (4 * 3600)
+    }
+}
 
 /**
  * WeatherAPI Interface - Supports multiple weather data sources
@@ -75,7 +87,8 @@ class OpenMeteoWeatherAPI : WeatherAPI {
     companion object {
         // OpenMeteo API configuration
         private const val BASE_URL = "https://api.open-meteo.com/v1/forecast"
-        private const val HOURLY_PARAMS = "temperature_2m,relative_humidity_2m,precipitation_probability,pressure_msl,wind_speed_10m,wind_direction_10m"
+        // Updated to include 80m wind, gusts, and cloud cover
+        private const val HOURLY_PARAMS = "temperature_2m,relative_humidity_2m,precipitation_probability,pressure_msl,wind_speed_10m,wind_direction_10m,wind_speed_80m,wind_direction_80m,wind_gusts_10m,cloud_cover"
         private const val DAILY_PARAMS = "temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max,wind_direction_10m_dominant,sunrise,sunset"
         private const val FORECAST_DAYS = 7
         private const val FORECAST_HOURS = 48 // Two days of hourly data
@@ -157,23 +170,29 @@ class OpenMeteoWeatherAPI : WeatherAPI {
             @Suppress("UNCHECKED_CAST")
             val humidities = hourly["relative_humidity_2m"] as? List<Number> ?: return null
             @Suppress("UNCHECKED_CAST")
-            val windSpeeds = hourly["wind_speed_10m"] as? List<Number> ?: return null
+            val windSpeeds = hourly["wind_speed_80m"] as? List<Number> ?: hourly["wind_speed_10m"] as? List<Number> ?: return null
             @Suppress("UNCHECKED_CAST")
-            val windDirections = hourly["wind_direction_10m"] as? List<Number> ?: return null
+            val windDirections = hourly["wind_direction_80m"] as? List<Number> ?: hourly["wind_direction_10m"] as? List<Number> ?: return null
+            @Suppress("UNCHECKED_CAST")
+            val windGusts = hourly["wind_gusts_10m"] as? List<Number> ?: return null
             @Suppress("UNCHECKED_CAST")
             val pressures = hourly["pressure_msl"] as? List<Number> ?: return null
+            @Suppress("UNCHECKED_CAST")
+            val cloudCovers = hourly["cloud_cover"] as? List<Number> ?: return null
 
             if (temperatures.isEmpty()) return null
 
             return WeatherData(
                 wind = WindData(
                     speed = windSpeeds.firstOrNull()?.toDouble() ?: 0.0,
-                    direction = windDirections.firstOrNull()?.toDouble() ?: 0.0
+                    direction = windDirections.firstOrNull()?.toDouble() ?: 0.0,
+                    gust = windGusts.firstOrNull()?.toDouble() ?: 0.0
                 ),
                 temperature = temperatures.first().toDouble(),
                 humidity = humidities.firstOrNull()?.toDouble() ?: 0.0,
                 visibility = 10.0, // OpenMeteo doesn't provide visibility directly
                 pressure = pressures.firstOrNull()?.toDouble() ?: 1013.25,
+                cloudCover = cloudCovers.firstOrNull()?.toDouble() ?: 0.0,
                 timestamp = System.currentTimeMillis() / 1000
             )
         } catch (e: Exception) {
@@ -194,12 +213,17 @@ class OpenMeteoWeatherAPI : WeatherAPI {
             val temperatures = hourly["temperature_2m"] as? List<Number> ?: return emptyList()
             @Suppress("UNCHECKED_CAST")
             val humidities = hourly["relative_humidity_2m"] as? List<Number> ?: return emptyList()
+            // Prefer 80m wind, fallback to 10m
             @Suppress("UNCHECKED_CAST")
-            val windSpeeds = hourly["wind_speed_10m"] as? List<Number> ?: return emptyList()
+            val windSpeeds = hourly["wind_speed_80m"] as? List<Number> ?: hourly["wind_speed_10m"] as? List<Number> ?: return emptyList()
             @Suppress("UNCHECKED_CAST")
-            val windDirections = hourly["wind_direction_10m"] as? List<Number> ?: return emptyList()
+            val windDirections = hourly["wind_direction_80m"] as? List<Number> ?: hourly["wind_direction_10m"] as? List<Number> ?: return emptyList()
+            @Suppress("UNCHECKED_CAST")
+            val windGusts = hourly["wind_gusts_10m"] as? List<Number> ?: return emptyList()
             @Suppress("UNCHECKED_CAST")
             val pressures = hourly["pressure_msl"] as? List<Number> ?: return emptyList()
+            @Suppress("UNCHECKED_CAST")
+            val cloudCovers = hourly["cloud_cover"] as? List<Number> ?: return emptyList()
 
             val maxPeriods = minOf(times.size, FORECAST_HOURS, temperatures.size)
 
@@ -212,12 +236,14 @@ class OpenMeteoWeatherAPI : WeatherAPI {
                     val weather = WeatherData(
                         wind = WindData(
                             speed = windSpeeds.getOrNull(i)?.toDouble() ?: 0.0,
-                            direction = windDirections.getOrNull(i)?.toDouble() ?: 0.0
+                            direction = windDirections.getOrNull(i)?.toDouble() ?: 0.0,
+                            gust = windGusts.getOrNull(i)?.toDouble() ?: 0.0
                         ),
                         temperature = temperatures[i].toDouble(),
                         humidity = humidities.getOrNull(i)?.toDouble() ?: 0.0,
                         visibility = 10.0,
                         pressure = pressures.getOrNull(i)?.toDouble() ?: 1013.25,
+                        cloudCover = cloudCovers.getOrNull(i)?.toDouble() ?: 0.0,
                         timestamp = startTime
                     )
 
@@ -274,12 +300,14 @@ class OpenMeteoWeatherAPI : WeatherAPI {
                     val weather = WeatherData(
                         wind = WindData(
                             speed = windSpeeds.getOrNull(i)?.toDouble() ?: 0.0,
-                            direction = windDirections.getOrNull(i)?.toDouble() ?: 0.0
+                            direction = windDirections.getOrNull(i)?.toDouble() ?: 0.0,
+                            gust = windSpeeds.getOrNull(i)?.toDouble() ?: 0.0 // Daily max wind is closest proxy to gust if not explicit
                         ),
                         temperature = avgTemp,
                         humidity = 50.0, // Approximate
                         visibility = 10.0,
                         pressure = 1013.25, // Approximate
+                        cloudCover = 0.0, // Not in daily params
                         timestamp = startTime
                     )
 
