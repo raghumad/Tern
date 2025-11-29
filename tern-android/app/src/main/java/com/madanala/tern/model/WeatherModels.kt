@@ -6,6 +6,13 @@ data class SkewTPoint(
     val dewpoint: Double // Celsius
 )
 
+data class WindPoint(
+    val altitude: Double,
+    val speed: Double, // km/h
+    val direction: Double, // degrees
+    val gust: Double = 0.0 // km/h
+)
+
 data class SkewTForecast(
     val points: List<SkewTPoint>
 )
@@ -98,3 +105,9 @@ object WeatherAnalyzer {
         return OverdevelopmentRisk(maxPoint.time, maxPoint.cape, risk)
     }
 }
+
+data class WeatherForecast(
+    val skewT: SkewTForecast,
+    val cape: List<CapePoint>,
+    val wind: List<WindPoint>
+)
