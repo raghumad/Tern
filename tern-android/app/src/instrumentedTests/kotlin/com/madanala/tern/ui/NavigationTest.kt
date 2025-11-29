@@ -96,6 +96,11 @@ class NavigationTest : BddTest() {
                 com.madanala.tern.utils.ReportGenerator.logStep("WAIT", "Waiting for map tiles to load")
                 // Wait for tiles to load so screenshot is not empty
                 com.madanala.tern.utils.MapTestHelper.waitForMapTiles()
+
+                // Validate Logcat
+                com.madanala.tern.utils.ReportGenerator.assertLogDoesNotContain("PerformanceDebugger", "STATE UPDATE STORM")
+                com.madanala.tern.utils.ReportGenerator.assertLogDoesNotContain("PerformanceDebugger", "MEMORY_PRESSURE")
+                com.madanala.tern.utils.ReportGenerator.assertLogDoesNotContain("PerformanceDebugger", "VISUAL_DISCONTINUITY")
             }
         }
     }

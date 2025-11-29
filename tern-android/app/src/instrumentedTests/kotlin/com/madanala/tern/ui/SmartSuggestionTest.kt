@@ -118,6 +118,14 @@ class SmartSuggestionTest : BddTest() {
                 
                 val name = foundFeature?.feature?.get("properties")?.let { (it as? Map<*, *>)?.get("name") }
                 assert(name == spotName) { "Expected spot name $spotName, but got $name" }
+
+                // Validate Logcat
+                com.madanala.tern.utils.ReportGenerator.assertLogDoesNotContain("PerformanceDebugger", "STATE UPDATE STORM")
+                com.madanala.tern.utils.ReportGenerator.assertLogDoesNotContain("PerformanceDebugger", "MEMORY_PRESSURE")
+                com.madanala.tern.utils.ReportGenerator.assertLogDoesNotContain("PerformanceDebugger", "VISUAL_DISCONTINUITY")
+                // Note: We can't easily check for "Found X routes" here because this test mocks the cache directly 
+                // and bypasses some of the RouteCache logic that logs that specific message.
+                // Instead, we verify the feature was found via the assertion above.
             }
         }
     }

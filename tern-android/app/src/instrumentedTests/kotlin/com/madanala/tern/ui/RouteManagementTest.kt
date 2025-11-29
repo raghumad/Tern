@@ -112,6 +112,11 @@ class RouteManagementTest : BddTest() {
             then("I see the empty state 'No nearby routes found'") {
                 com.madanala.tern.utils.ReportGenerator.logStep("VERIFY", "Asserting empty state message is displayed")
                 composeTestRule.onNodeWithText("No nearby routes found").assertIsDisplayed()
+
+                // Validate Logcat
+                com.madanala.tern.utils.ReportGenerator.assertLogDoesNotContain("PerformanceDebugger", "STATE UPDATE STORM")
+                com.madanala.tern.utils.ReportGenerator.assertLogDoesNotContain("PerformanceDebugger", "MEMORY_PRESSURE")
+                com.madanala.tern.utils.ReportGenerator.assertLogDoesNotContain("PerformanceDebugger", "VISUAL_DISCONTINUITY")
             }
         }
     }
@@ -158,6 +163,11 @@ class RouteManagementTest : BddTest() {
                 com.madanala.tern.utils.ReportGenerator.logStep("VERIFY", "Asserting new order: End, Start")
                 composeTestRule.onNodeWithText("1. End").assertIsDisplayed()
                 composeTestRule.onNodeWithText("2. Start").assertIsDisplayed()
+
+                // Validate Logcat
+                com.madanala.tern.utils.ReportGenerator.assertLogDoesNotContain("PerformanceDebugger", "STATE UPDATE STORM")
+                com.madanala.tern.utils.ReportGenerator.assertLogDoesNotContain("PerformanceDebugger", "MEMORY_PRESSURE")
+                com.madanala.tern.utils.ReportGenerator.assertLogDoesNotContain("PerformanceDebugger", "VISUAL_DISCONTINUITY")
             }
         }
     }

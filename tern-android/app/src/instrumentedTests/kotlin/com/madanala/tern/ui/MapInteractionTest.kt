@@ -155,6 +155,9 @@ class MapInteractionTest : BddTest() {
                 }
                 composeTestRule.onNodeWithTag("RouteDetailPanel").assertIsDisplayed()
                 composeTestRule.onNodeWithText("Route 1").assertIsDisplayed()
+                
+                // Validate no performance warnings
+                com.madanala.tern.utils.ReportGenerator.assertLogDoesNotContain("PerformanceDebugger", "STATE UPDATE STORM")
             }
         }
     }
