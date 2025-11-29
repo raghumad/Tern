@@ -52,6 +52,22 @@ object ReportGenerator {
         }
     }
 
+    fun assertLogContains(tag: String, messageFragment: String) {
+        val log = captureLogCat()
+        val exists = log.lineSequence().any { it.contains(tag) && it.contains(messageFragment) }
+        if (!exists) {
+            throw AssertionError("Logcat did not contain expected message. Tag: $tag, Fragment: $messageFragment")
+        }
+    }
+
+    fun assertLogDoesNotContain(tag: String, messageFragment: String) {
+        val log = captureLogCat()
+        val exists = log.lineSequence().any { it.contains(tag) && it.contains(messageFragment) }
+        if (exists) {
+            throw AssertionError("Logcat contained unexpected message. Tag: $tag, Fragment: $messageFragment")
+        }
+    }
+
     fun generateReport(testName: String, logCatOutput: String? = null) {
         val reportFilename = "report_${testName}.html"
         

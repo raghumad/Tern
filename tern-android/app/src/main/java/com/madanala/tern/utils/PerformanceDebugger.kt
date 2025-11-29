@@ -96,8 +96,8 @@ object PerformanceDebugger {
 
         reduxMetrics.lastUpdateTime.set(now)
 
-        // Alert if update storm detected (>100 updates/sec)
-        if (reduxMetrics.averageUpdatesPerSecond.get() > 100) {
+        // Alert if update storm detected (>3000 updates/sec)
+        if (reduxMetrics.averageUpdatesPerSecond.get() > 3000) {
             Log.w(TAG, "⚠️ STATE UPDATE STORM: ${reduxMetrics.averageUpdatesPerSecond.get()}/sec")
         }
     }

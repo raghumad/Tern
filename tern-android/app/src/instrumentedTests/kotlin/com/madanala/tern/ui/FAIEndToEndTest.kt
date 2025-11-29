@@ -128,6 +128,11 @@ class FAIEndToEndTest : BddTest() {
                     assertEquals(Waypoint.Type.GOAL, goalWp.type)
                     assertEquals(1000.0, goalWp.radius!!, 0.1)
                     assertEquals("17:00", goalWp.closeTime)
+
+                    // Validate Logcat
+                    com.madanala.tern.utils.ReportGenerator.assertLogDoesNotContain("PerformanceDebugger", "STATE UPDATE STORM")
+                    com.madanala.tern.utils.ReportGenerator.assertLogDoesNotContain("PerformanceDebugger", "MEMORY_PRESSURE")
+                    com.madanala.tern.utils.ReportGenerator.assertLogDoesNotContain("PerformanceDebugger", "VISUAL_DISCONTINUITY")
                 }
             }
         }
