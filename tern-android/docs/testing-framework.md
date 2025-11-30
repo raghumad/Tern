@@ -12,6 +12,14 @@ The Tern Android app implements a comprehensive testing framework with condition
 - **Performance Benchmarks**: Aviation safety compliance validation
 - **Coverage Analysis**: JaCoCo with quality thresholds
 - **Regression Testing**: Trend analysis and automated monitoring
+- **Unstable Test Isolation**: Mechanism to run flaky tests separately to prevent blocking the main suite.
+
+### Unstable Test Isolation
+- **Annotation**: `@Unstable` (marks tests as flaky/crashing).
+- **Script**: `run_tests_safely.sh`
+    - **Pass 1**: Runs all stable tests.
+    - **Pass 2**: Runs unstable tests (if Pass 1 succeeds).
+- **Benefit**: Ensures a crash in a flaky test doesn't prevent reporting for the rest of the suite.
 
 ### Python Scripts (Conditional Execution)
 All Python scripts are executed conditionally based on Gradle properties and gracefully handle missing dependencies:
