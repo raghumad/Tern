@@ -124,7 +124,6 @@ class OverlayCoordinator {
                 is com.madanala.tern.ui.overlays.AirspaceOverlayManager -> {
                     manager.setCountryCacheManager(countryCache)
                     manager.setOverlayCoordinator(this) // Connect for Hilbert ordering
-                    // Log.d(TAG, "✅ Connected AirspaceOverlayManager to universal country cache and coordinator")
                 }
                 is com.madanala.tern.ui.overlays.PGSpotOverlayManager -> {
                     manager.setCountryCacheManager(countryCache)

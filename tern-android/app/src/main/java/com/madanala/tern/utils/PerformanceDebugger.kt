@@ -184,18 +184,12 @@ object PerformanceDebugger {
     /**
      * Manual trigger for testing performance dashboard (development only)
      */
+    /**
+     * Manual trigger for testing performance dashboard (development only)
+     */
     fun triggerTestEvents() {
         if (!isEnabled) return
-
-        Log.d(TAG, "🧪 MANUAL TEST: Triggering performance events for dashboard demo")
-
-        // Simulate some performance events
-        recordStateUpdate(5)
-        recordOverlayCreation("TestAirspace")
-        recordBorderCrossing("US", "CA")
-        recordSmoothTransition()
-
-        Log.d(TAG, "✅ Test events triggered - check logcat for dashboard")
+        // Test events removed for production code cleanliness
     }
 
     /**

@@ -38,6 +38,9 @@ object ViewToBitmap {
         val context = parentView.context
         val view = ComposeView(context)
         
+        // Add to root view to avoid interfering with parent's layout (e.g. MapView)
+        val safeParent = parentView.rootView as? ViewGroup ?: parentView
+
         try {
             // Explicitly propagate lifecycle and view model store owners BEFORE setContent
             val resolvedLifecycleOwner = lifecycleOwner ?: parentView.findViewTreeLifecycleOwner()
@@ -60,8 +63,10 @@ object ViewToBitmap {
             view.layoutParams = ViewGroup.LayoutParams(width, height)
             
             // Add to parent (invisible) so it gets a window attachment and lifecycle
+            // Add to root view to avoid interfering with parent's layout (e.g. MapView)
+            
             view.visibility = View.INVISIBLE
-            parentView.addView(view)
+            safeParent.addView(view)
             
             view.doOnLayout { 
                 try {
@@ -72,12 +77,12 @@ object ViewToBitmap {
                 } catch (e: Exception) {
                     continuation.resumeWithException(e)
                 } finally {
-                    parentView.removeView(view)
+                    safeParent.removeView(view)
                 }
             }
         } catch (e: Exception) {
-            if (parentView.indexOfChild(view) != -1) {
-                parentView.removeView(view)
+            if (safeParent.indexOfChild(view) != -1) {
+                safeParent.removeView(view)
             }
             continuation.resumeWithException(e)
         }

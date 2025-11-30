@@ -95,11 +95,6 @@ class PGSpotOverlayManager(
 
     // Aviation safety thresholds (inherited from airspace system with PG spot optimizations)
     private val checkDistanceKm = 2.0  // Smaller than airspace - PG spots are denser
-    // private var maxPGSpots = 50         // ❌ REMOVED - now managed by BaseOverlayManager
-
-    // ✅ REMOVED: Clustering configuration - may be obsolete with adaptive overlay system
-    // The adaptive system now handles overlay density through memory-based allocation
-    // and zone-based prioritization, potentially eliminating need for manual clustering
 
     data class PGSpotMarker(
          val marker: Marker,
@@ -183,11 +178,7 @@ class PGSpotOverlayManager(
             return
         }
 
-        // Additional validation for reasonable coordinate ranges - simplified for compatibility
-        if (center.latitude < -90.0 || center.latitude > 90.0 || center.longitude < -180.0 || center.longitude > 180.0) {
-            Log.w(TAG, "Coordinates out of valid range: lat=${center.latitude}, lon=${center.longitude}")
-            return
-        }
+
 
         // Check if significant enough movement to warrant reload - simplified distance check
         lastCheckLocation?.let { lastLocation ->
@@ -561,10 +552,6 @@ class PGSpotOverlayManager(
        * RENDER PG SPOTS WITH WEATHER CAPABILITY
        * Initial static display with future dynamic weather integration
        */
-    /**
-       * RENDER PG SPOTS WITH WEATHER CAPABILITY
-       * Initial static display with future dynamic weather integration
-       */
     private fun renderPGSpotFeaturesWithWeather(features: List<OverlayFeature>) {
         val center = mapView?.mapCenter as? GeoPoint ?: return
 
@@ -610,9 +597,9 @@ class PGSpotOverlayManager(
         ))
         
         // Log names for test verification
-        prioritizedFeatures.take(50).forEach { feature ->
-             val name = feature.feature["properties"]?.let { (it as? Map<*, *>)?.get("name") } ?: "Unknown"
-             Log.d(TAG, "Rendered PG Spot: $name")
+        if (prioritizedFeatures.isNotEmpty()) {
+             val name = prioritizedFeatures.first().feature["properties"]?.let { (it as? Map<*, *>)?.get("name") } ?: "Unknown"
+             Log.d(TAG, "Rendered ${prioritizedFeatures.size} PG Spots. First: $name")
         }
     }
 

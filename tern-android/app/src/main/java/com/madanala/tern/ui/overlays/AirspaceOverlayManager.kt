@@ -120,7 +120,6 @@ class AirspaceOverlayManager(
      */
     fun setCountryCacheManager(countryCacheManager: com.madanala.tern.utils.UniversalCountryCacheManager) {
         this.countryCacheManager = countryCacheManager
-        // Log.d(TAG, "Universal country cache manager connected")
     }
 
     /**

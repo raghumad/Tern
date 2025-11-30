@@ -65,8 +65,8 @@ fun RouteWeatherPanel(
                 // This is a simplification. In real app we'd interpolate or find exact match.
                 // For now, we assume the 'forecast' object contains the full series and we pick the closest point.
                 // But WaypointWeather.forecast might be just the slice. 
-                // Let's assume for this UI demo that we just use the existing forecast 
-                // but ideally we would re-query the time series.
+                // Note: Ideally we would re-query the time series or interpolate.
+                // For now, we use the existing forecast slice which is a reasonable approximation for small offsets.
                 
                 wp.copy(estimatedArrival = newArrival)
             } ?: emptyList()
@@ -125,17 +125,19 @@ fun RouteWeatherPanel(
                 value = avgWind,
                 label = "Avg Wind",
                 unit = "km/h",
-                directionDegrees = 315.0, // Mock NW for now, needs real data
+                directionDegrees = 0.0, // TODO: Add direction to RouteWeather model
                 gradientColors = listOf(Color.Blue, Color.Cyan)
             )
 
-            // Gust (Mock data for now as it's not in RouteWeather yet)
+            // Gust - Placeholder until data is available in model
+            /*
             WindGauge(
                 value = avgWind + 10,
                 label = "Gust",
                 unit = "km/h",
                 gradientColors = listOf(Color.Green, Color.Yellow, Color.Red)
             )
+            */
 
             // Risk
             val riskVal = when(currentTrajectory.maxRisk.riskLevel) {
@@ -199,8 +201,9 @@ fun RouteWeatherPanel(
                             val timeStr = timeFormat.format(Date(wp.estimatedArrival))
                             Text(text = "${wp.waypointId} ($timeStr)", style = MaterialTheme.typography.bodyMedium)
                             
-                            // Mock wind for waypoint
-                            Text(text = "NW 10 km/h", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                            // Wind info
+                            val windSpeed = wp.forecast.wind.firstOrNull()?.speed ?: 0.0
+                            Text(text = "${windSpeed.toInt()} km/h", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
                         }
                     }
                 }

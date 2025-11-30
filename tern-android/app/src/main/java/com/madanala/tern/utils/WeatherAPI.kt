@@ -329,12 +329,22 @@ class OpenMeteoWeatherAPI : WeatherAPI {
 
     private fun parseTimeString(timeString: String): Long? {
         return try {
-            // Format: 2025-10-02T13:00
-            val formatter = java.time.format.DateTimeFormatter.ISO_LOCAL_DATE_TIME
-            val dateTime = java.time.LocalDateTime.parse(timeString, formatter)
-            val zoneOffset = java.time.ZoneOffset.UTC
-            val zoned = dateTime.atOffset(zoneOffset)
-            zoned.toEpochSecond()
+            // Try ISO_LOCAL_DATE_TIME first (e.g., 2025-10-02T13:00)
+            try {
+                val formatter = java.time.format.DateTimeFormatter.ISO_LOCAL_DATE_TIME
+                val dateTime = java.time.LocalDateTime.parse(timeString, formatter)
+                val zoneOffset = java.time.ZoneOffset.UTC
+                val zoned = dateTime.atOffset(zoneOffset)
+                zoned.toEpochSecond()
+            } catch (e: java.time.format.DateTimeParseException) {
+                // Fallback to ISO_LOCAL_DATE (e.g., 2025-10-02) for daily forecasts
+                val formatter = java.time.format.DateTimeFormatter.ISO_LOCAL_DATE
+                val date = java.time.LocalDate.parse(timeString, formatter)
+                val dateTime = date.atStartOfDay()
+                val zoneOffset = java.time.ZoneOffset.UTC
+                val zoned = dateTime.atOffset(zoneOffset)
+                zoned.toEpochSecond()
+            }
         } catch (e: Exception) {
             android.util.Log.w("OpenMeteoWeatherAPI", "Failed to parse time: $timeString", e)
             null
