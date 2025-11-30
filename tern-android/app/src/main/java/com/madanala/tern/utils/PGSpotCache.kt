@@ -36,7 +36,7 @@ class PGSpotCache(context: Context) {
 
     private val cacheDir: File = File(context.cacheDir, "pg_spot_cache")
     private val cacheIndexFile = File(cacheDir, "cache_index")
-    private val cacheIndex = ConcurrentHashMap<String, Long>() // countryCode -> timestamp
+    internal val cacheIndex = ConcurrentHashMap<String, Long>() // countryCode -> timestamp
     private val spatialIndexCache = ConcurrentHashMap<String, MapOverlayCacheUtils.SpatialIndex>() // countryCode -> spatial index
     private val memoryMappedBuffers = ConcurrentHashMap<String, MappedByteBuffer>() // countryCode -> memory mapped buffer
     private val downloadInProgress = ConcurrentHashMap<String, Boolean>() // countryCode -> download flag
@@ -219,29 +219,12 @@ class PGSpotCache(context: Context) {
      * Query nearby PG spots using Hilbert spatial indexing
      * Zero-copy performance with memory-mapped I/O
      */
-    // Test hooks
-    private val testSpots = ConcurrentHashMap<String, List<OverlayFeature>>()
-
-    @androidx.annotation.VisibleForTesting
-    fun setTestSpots(countryCode: String, spots: List<OverlayFeature>) {
-        testSpots[countryCode] = spots
-    }
-
-    @androidx.annotation.VisibleForTesting
-    fun clearTestSpots() {
-        testSpots.clear()
-    }
-
     /**
      * Query nearby PG spots using Hilbert spatial indexing
      * Zero-copy performance with memory-mapped I/O
      */
     fun queryNearbyPGSpots(countryCode: String, center: GeoPoint, maxDistanceMiles: Double): List<OverlayFeature> {
-        // Check test spots first
-        testSpots[countryCode]?.let { spots ->
-            val maxDistanceMeters = maxDistanceMiles * 1609.34
-            return spots.filter { it.centroid.distanceToAsDouble(center) <= maxDistanceMeters }
-        }
+        // Production implementation only - no test hooks
 
         try {
             // Verify cached data exists

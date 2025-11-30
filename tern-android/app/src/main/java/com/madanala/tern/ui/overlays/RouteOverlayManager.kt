@@ -79,69 +79,55 @@ class RouteOverlayManager(
     // Overlay coordinator for Hilbert ordering and lifecycle management
     private var overlayCoordinator: OverlayCoordinator? = null
 
-    // Paint objects for route rendering - lazy initialization to avoid Android mocking issues in tests
-    private val routePaint by lazy {
-        Paint().apply {
-            color = Color.BLUE
-            strokeWidth = ROUTE_LINE_WIDTH
-            style = Paint.Style.STROKE
-            strokeCap = Paint.Cap.ROUND
-            strokeJoin = Paint.Join.ROUND
-            isAntiAlias = true
-        }
+    // Paint objects for route rendering
+    private val routePaint = Paint().apply {
+        color = Color.BLUE
+        strokeWidth = ROUTE_LINE_WIDTH
+        style = Paint.Style.STROKE
+        strokeCap = Paint.Cap.ROUND
+        strokeJoin = Paint.Join.ROUND
+        isAntiAlias = true
     }
 
-    private val waypointPaint by lazy {
-        Paint().apply {
-            color = Color.WHITE
-            style = Paint.Style.FILL
-            isAntiAlias = true
-        }
+    private val waypointPaint = Paint().apply {
+        color = Color.WHITE
+        style = Paint.Style.FILL
+        isAntiAlias = true
     }
 
-    private val waypointBorderPaint by lazy {
-        Paint().apply {
-            color = Color.BLUE
-            style = Paint.Style.STROKE
-            strokeWidth = WAYPOINT_BORDER_WIDTH
-            isAntiAlias = true
-        }
+    private val waypointBorderPaint = Paint().apply {
+        color = Color.BLUE
+        style = Paint.Style.STROKE
+        strokeWidth = WAYPOINT_BORDER_WIDTH
+        isAntiAlias = true
     }
 
-    private val labelPaint by lazy {
-        Paint().apply {
-            color = Color.BLACK
-            textSize = LABEL_TEXT_SIZE
-            textAlign = Paint.Align.CENTER
-            isAntiAlias = true
-        }
+    private val labelPaint = Paint().apply {
+        color = Color.BLACK
+        textSize = LABEL_TEXT_SIZE
+        textAlign = Paint.Align.CENTER
+        isAntiAlias = true
     }
 
-    private val selectionPaint by lazy {
-        Paint().apply {
-            color = Color.YELLOW
-            style = Paint.Style.STROKE
-            strokeWidth = SELECTION_HIGHLIGHT_WIDTH
-            isAntiAlias = true
-        }
+    private val selectionPaint = Paint().apply {
+        color = Color.YELLOW
+        style = Paint.Style.STROKE
+        strokeWidth = SELECTION_HIGHLIGHT_WIDTH
+        isAntiAlias = true
     }
 
-    private val dragPaint by lazy {
-        Paint().apply {
-            color = Color.CYAN
-            style = Paint.Style.STROKE
-            strokeWidth = SELECTION_HIGHLIGHT_WIDTH
-            isAntiAlias = true
-        }
+    private val dragPaint = Paint().apply {
+        color = Color.CYAN
+        style = Paint.Style.STROKE
+        strokeWidth = SELECTION_HIGHLIGHT_WIDTH
+        isAntiAlias = true
     }
 
-    private val routeSelectionPaint by lazy {
-        Paint().apply {
-            color = Color.MAGENTA
-            style = Paint.Style.STROKE
-            strokeWidth = ROUTE_SELECTION_HIGHLIGHT_WIDTH
-            isAntiAlias = true
-        }
+    private val routeSelectionPaint = Paint().apply {
+        color = Color.MAGENTA
+        style = Paint.Style.STROKE
+        strokeWidth = ROUTE_SELECTION_HIGHLIGHT_WIDTH
+        isAntiAlias = true
     }
 
     override fun onOverlayAttached() {

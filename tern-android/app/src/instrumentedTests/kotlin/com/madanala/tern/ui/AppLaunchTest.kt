@@ -34,11 +34,12 @@ class AppLaunchTest : BddTest() {
             `when`("Test data is injected and location updates") {
                 // Inject PG Spot
                 val pgSpotFeature = createTestPGSpot("Test Launch", lat, lon)
-                com.madanala.tern.utils.CacheManager.pgSpotCache.setTestSpots("US", listOf(pgSpotFeature))
+                val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
+                com.madanala.tern.utils.TestCacheInjector.injectPGSpots(context, com.madanala.tern.utils.CacheManager.pgSpotCache, "US", listOf(pgSpotFeature))
 
                 // Inject Airspace
                 val airspaceFeature = createTestAirspace("Test Airspace", lat, lon)
-                com.madanala.tern.utils.CacheManager.airspaceCache.setTestFeatures("US", listOf(airspaceFeature))
+                com.madanala.tern.utils.TestCacheInjector.injectAirspaces(context, com.madanala.tern.utils.CacheManager.airspaceCache, "US", listOf(airspaceFeature))
 
                 // Move location slightly to trigger reload
                 com.madanala.tern.utils.MapTestHelper.injectMockLocation(composeTestRule, lat + 0.001, lon - 0.001)
@@ -71,10 +72,11 @@ class AppLaunchTest : BddTest() {
                 "coordinates" to listOf(lon, lat)
             )
         )
+        val centroid = org.osmdroid.util.GeoPoint(lat, lon)
         return com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature(
             feature = featureMap,
-            centroid = org.osmdroid.util.GeoPoint(lat, lon),
-            hilbertIndex = 0L,
+            centroid = centroid,
+            hilbertIndex = com.madanala.tern.utils.MapOverlayCacheUtils.computeHilbertIndex(centroid, 16),
             overlayType = "pgspot"
         )
     }
@@ -94,10 +96,11 @@ class AppLaunchTest : BddTest() {
                 ))
             )
         )
+        val centroid = org.osmdroid.util.GeoPoint(lat, lon)
         return com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature(
             feature = featureMap,
-            centroid = org.osmdroid.util.GeoPoint(lat, lon),
-            hilbertIndex = 0L,
+            centroid = centroid,
+            hilbertIndex = com.madanala.tern.utils.MapOverlayCacheUtils.computeHilbertIndex(centroid, 16),
             overlayType = "airspace"
         )
     }

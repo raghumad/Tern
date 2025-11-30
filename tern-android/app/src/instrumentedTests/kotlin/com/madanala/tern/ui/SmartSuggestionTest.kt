@@ -66,13 +66,13 @@ class SmartSuggestionTest : BddTest() {
                 val mockSpot = MapOverlayCacheUtils.OverlayFeature(
                     feature = featureMap,
                     centroid = centroid,
-                    hilbertIndex = 0L,
+                    hilbertIndex = MapOverlayCacheUtils.computeHilbertIndex(centroid, 16),
                     overlayType = "pgspot"
                 )
 
                 // Inject into cache (LOWERCASE "us" to match CountryUtils override)
                 ReportGenerator.logStep("SETUP", "Injecting spot into PGSpotCache")
-                CacheManager.pgSpotCache.setTestSpots("us", listOf(mockSpot))
+                com.madanala.tern.utils.TestCacheInjector.injectPGSpots(context, com.madanala.tern.utils.CacheManager.pgSpotCache, "us", listOf(mockSpot))
                 
                 // Force CountryUtils to return "us" (mocking Geocoder)
                 ReportGenerator.logStep("SETUP", "Mocking CountryUtils to return 'us'")
