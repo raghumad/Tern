@@ -23,6 +23,9 @@ The performance benchmark suite ensures that critical aviation operations mainta
 - Tests batching effectiveness
 - Validates concurrent operation handling
 - **Safety Standard**: DO-178C Level C
+- **Recent Fixes**: Resolved "State Update Storm" false positives by implementing:
+    - **State Batching**: Grouping updates within 100ms windows.
+    - **Burst Smoothing**: Using Exponential Moving Average (alpha=0.1) for rate calculation to ignore micro-bursts.
 
 ### 2. Memory Usage Benchmarks (`MemoryBenchmark.kt`)
 - Monitors heap usage during data operations
