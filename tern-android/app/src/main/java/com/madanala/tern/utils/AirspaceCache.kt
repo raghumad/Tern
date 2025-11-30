@@ -6,6 +6,7 @@ import android.util.Log
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature
+import com.madanala.tern.utils.GeoJsonUtils
 import org.osmdroid.util.GeoPoint
 import java.io.File
 import java.io.FileInputStream
@@ -148,6 +149,36 @@ class AirspaceCache(private val context: Context) {
         } catch (e: Exception) {
             Log.e(TAG, "Error reading cached airspace features for $countryCode", e)
             null
+        }
+    }
+
+    /**
+     * Download and cache airspace data for a country
+     * @param countryCode Two-letter country code
+     * @return true if successful, false otherwise
+     */
+    suspend fun downloadAndCache(countryCode: String): Boolean {
+        if (isCached(countryCode)) {
+            Log.d(TAG, "Airspaces already cached for $countryCode")
+            return true
+        }
+
+        return try {
+            // Use the official OpenAIP Google Storage bucket
+            val airspaceUrl = "https://storage.googleapis.com/29f98e10-a489-4c82-ae5e-489dbcd4912f/${countryCode.lowercase()}_asp.geojson"
+            Log.d(TAG, "Downloading airspace data for $countryCode from $airspaceUrl")
+
+            val airspaceData = GeoJsonUtils.downloadGeoJson(airspaceUrl)
+            if (airspaceData != null) {
+                cacheData(countryCode, airspaceData)
+                true
+            } else {
+                Log.w(TAG, "Failed to download airspace data for $countryCode")
+                false
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error downloading airspace data for $countryCode", e)
+            false
         }
     }
 

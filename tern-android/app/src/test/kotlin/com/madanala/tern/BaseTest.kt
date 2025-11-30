@@ -26,7 +26,7 @@ abstract class BaseTest {
     val testDispatcher = UnconfinedTestDispatcher()
 
     @BeforeEach
-    fun setup() {
+    open fun setup() {
         Dispatchers.setMain(testDispatcher)
         MockKAnnotations.init(this)
     }
