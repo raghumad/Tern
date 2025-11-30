@@ -36,8 +36,8 @@ class MapStore : ViewModel() {
     fun dispatch(action: MapAction) {
         actionQueue.offer(action)
 
-        // Record for performance monitoring
-        recordStateUpdate()
+        // Record for performance monitoring - REMOVED to avoid double counting with batch processing
+        // recordStateUpdate()
 
         // Trigger immediate processing if not already processing
         if (!isProcessingBatch) {
@@ -48,8 +48,8 @@ class MapStore : ViewModel() {
     fun dispatch(action: WeatherActions) {
         actionQueue.offer(action)
 
-        // Record for performance monitoring (debug only)
-        recordStateUpdate()
+        // Record for performance monitoring (debug only) - REMOVED to avoid double counting
+        // recordStateUpdate()
 
         // Trigger immediate processing if not already processing
         if (!isProcessingBatch) {
