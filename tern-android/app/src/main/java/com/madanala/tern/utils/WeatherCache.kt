@@ -212,6 +212,7 @@ class WeatherCache(context: Context) {
             if (cacheIndexFile.exists()) {
                 FileInputStream(cacheIndexFile).use { fis ->
                     ObjectInputStream(fis).use { ois ->
+                        @Suppress("UNCHECKED_CAST")
                         val loadedIndex = ois.readObject() as? Map<String, Long>
                         if (loadedIndex != null) cacheIndex.putAll(loadedIndex)
                     }

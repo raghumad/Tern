@@ -5,6 +5,7 @@ import android.util.Log
 import com.madanala.tern.redux.MapState
 import com.madanala.tern.redux.MapStore
 import com.madanala.tern.redux.OverlayType
+import com.madanala.tern.utils.AirspaceCache
 import com.madanala.tern.utils.CacheManager
 import com.madanala.tern.utils.CountryUtils
 import com.madanala.tern.utils.GeoJsonUtils
@@ -32,11 +33,9 @@ class InvalidCoordinatesException(
  */
 class AirspaceOverlayManager(
     private val applicationContext: Context,
-    mapStore: MapStore?
+    mapStore: MapStore?,
+    private val airspaceCache: AirspaceCache = CacheManager.airspaceCache
 ) : BaseOverlayManager(OverlayType.AIRSPACE, mapStore) {
-
-    // Use singleton cache instance to prevent duplicate downloads
-    private val airspaceCache = CacheManager.airspaceCache
 
     // Universal country cache manager for intelligent country management (Priority 0 fix)
     private var countryCacheManager: com.madanala.tern.utils.UniversalCountryCacheManager? = null
@@ -486,7 +485,10 @@ class AirspaceOverlayManager(
             // Use universal country cache manager for intelligent country management
             countryCacheManager?.let { countryCache ->
                 // Query multiple countries intelligently using the universal cache manager
-                val nearbyFeatures = countryCache.queryMultiCountryArea(center, spatialQueryRadiusKm)
+                val allFeatures = countryCache.queryMultiCountryArea(center, spatialQueryRadiusKm)
+                
+                // Filter for airspaces only (since UniversalCountryCacheManager returns all types)
+                val nearbyFeatures = allFeatures.filter { it.overlayType == "airspace" }
 
                 if (nearbyFeatures.isNotEmpty()) {
                     mapView?.let { map ->

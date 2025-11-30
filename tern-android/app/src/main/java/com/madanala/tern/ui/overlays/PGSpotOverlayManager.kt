@@ -26,6 +26,8 @@ import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.overlay.Marker
 import kotlin.math.roundToInt
 
+import com.madanala.tern.utils.PGSpotCache
+
 /**
  * ADVANCED AVIATION PG SPOTS MANAGER
  * Dynamic weather-aware overlay system with Redux integration
@@ -39,7 +41,10 @@ import kotlin.math.roundToInt
  */
 class PGSpotOverlayManager(
     private val applicationContext: Context,
-    mapStore: MapStore?
+    mapStore: MapStore?,
+    private val pgSpotCache: PGSpotCache = CacheManager.pgSpotCache,
+    private val weatherAPI: WeatherAPI = OpenMeteoWeatherAPI(),
+    private val weatherCache: PGSpotWeatherCache = PGSpotWeatherCache(applicationContext)
 ) : BaseOverlayManager(OverlayType.PG_SPOTS, mapStore) {
 
     companion object {
@@ -50,9 +55,10 @@ class PGSpotOverlayManager(
     }
 
     // Aviation-grade weather infrastructure - specialized caches for each data type
-    private val pgSpotCache = CacheManager.pgSpotCache // Use singleton to prevent duplicate downloads
-    private val weatherCache = PGSpotWeatherCache(applicationContext)
-    private val weatherAPI: WeatherAPI = OpenMeteoWeatherAPI() // Extensible to multiple APIs
+    // Injected via constructor for testability
+    // private val pgSpotCache = CacheManager.pgSpotCache // Use singleton to prevent duplicate downloads
+    // private val weatherCache = PGSpotWeatherCache(applicationContext)
+    // private val weatherAPI: WeatherAPI = OpenMeteoWeatherAPI() // Extensible to multiple APIs
 
     // State management - aviation safety through tracking
     private var currentCountryCode: String? = null
@@ -490,43 +496,26 @@ class PGSpotOverlayManager(
             // 🗺️ FlexBuffers + Hilbert Caching Architecture for PG Spots
             var nearbyFeatures: List<OverlayFeature>
 
-            if (!pgSpotCache.isCached(countryCode)) {
-                // DOWNLOAD + PARSE + CACHE as FlexBuffers with Hilbert spatial index
-
-                val downloadedFeatures = try {
-                    withContext(Dispatchers.IO) {
-                        pgSpotCache.cachePGSpotsData(countryCode)
-                    }
-                } catch (e: kotlinx.coroutines.CancellationException) {
-                    return // Exit gracefully on cancellation
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error downloading PG spots for $countryCode: ${e.message}", e)
-                    // Try to use stale cache as fallback
-                    pgSpotCache.getCachedPGSpots(countryCode)
-                }
-
-                if (downloadedFeatures != null && downloadedFeatures.isNotEmpty()) {
-                    // Now perform spatial query on the newly cached data
-                    nearbyFeatures = pgSpotCache.queryNearbyPGSpots(countryCode, center, 200.0)
-                } else {
-                    Log.w(TAG, "Failed to download PG spots data for $countryCode, trying fallback")
-
-                    // Try to use existing cache even if stale (better than no data)
-                    val fallbackFeatures = pgSpotCache.getCachedPGSpots(countryCode)
-                    if (fallbackFeatures != null && fallbackFeatures.isNotEmpty()) {
-                        // Log.d(TAG, "Using stale cache as fallback: ${fallbackFeatures.size} PG spots for $countryCode")
-                        nearbyFeatures = fallbackFeatures.filter { feature ->
-                            val distance = center.distanceToAsDouble(feature.centroid) / 1000.0 // Convert to km
-                            distance <= 200.0 // Same 200km radius as fresh data
-                        }
-                    } else {
-                        Log.w(TAG, "No cached or downloaded PG spots available for $countryCode")
-                        return // Graceful degradation - weather works without PG spots
-                    }
-                }
-            } else {
+            // Unified Architecture: UniversalCountryCacheManager handles downloading.
+            // We simply query the cache. If data is not yet available (downloading),
+            // it will be picked up on the next map update or refresh.
+            if (pgSpotCache.isCached(countryCode)) {
                 // CACHED: Use Hilbert spatial query for nearby features only
                 nearbyFeatures = pgSpotCache.queryNearbyPGSpots(countryCode, center, 200.0)
+            } else {
+                // Not cached yet (or download in progress by UniversalCountryCacheManager)
+                // Try to use existing cache even if stale (better than no data)
+                val fallbackFeatures = pgSpotCache.getCachedPGSpots(countryCode)
+                if (fallbackFeatures != null && fallbackFeatures.isNotEmpty()) {
+                    // Log.d(TAG, "Using stale cache as fallback: ${fallbackFeatures.size} PG spots for $countryCode")
+                    nearbyFeatures = fallbackFeatures.filter { feature ->
+                        val distance = center.distanceToAsDouble(feature.centroid) / 1000.0 // Convert to km
+                        distance <= 200.0 // Same 200km radius as fresh data
+                    }
+                } else {
+                    // Log.d(TAG, "PG spots not yet cached for $countryCode (download likely in progress)")
+                    nearbyFeatures = emptyList()
+                }
             }
 
 

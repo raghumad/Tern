@@ -152,7 +152,13 @@ class PGSpotCache(context: Context) {
      * Cache PG spots data from standard GeoJSON API
      * Downloads from paraglidingearth.com, caches as FlexBuffers + Hilbert
      */
-    suspend fun cachePGSpotsData(countryCode: String): List<OverlayFeature>? {
+    suspend fun downloadAndCache(countryCode: String): List<OverlayFeature>? {
+        // Check if already cached to prevent redundant downloads
+        if (isCached(countryCode)) {
+            Log.d(TAG, "PG spots already cached for $countryCode, skipping download")
+            return getCachedPGSpots(countryCode)
+        }
+
         // Use atomic operation to prevent race conditions
         val isAlreadyDownloading = downloadInProgress.putIfAbsent(countryCode, true) != null
 

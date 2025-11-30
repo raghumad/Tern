@@ -15,7 +15,9 @@ import org.osmdroid.util.GeoPoint
  * utilizing Geocoder for location detection and caching strategies for performance.
  */
 class UniversalCountryCacheManager(
-    private val applicationContext: Context
+    private val applicationContext: Context,
+    private val airspaceCache: AirspaceCache = CacheManager.airspaceCache,
+    private val pgSpotCache: PGSpotCache = CacheManager.pgSpotCache
 ) {
 
     private val TAG = "UniversalCountryCache"
@@ -180,16 +182,17 @@ class UniversalCountryCacheManager(
     /**
      * Preload a single country (simplified for working demo)
      */
-    private suspend fun preloadCountry(country: String) {
+    internal suspend fun preloadCountry(country: String) {
         try {
             Log.d(TAG, "Preloading country for all overlay types: $country")
 
-            // In real implementation, this would download the full country data
+            // 1. Download PG Spots (delegated to cache)
+            pgSpotCache.downloadAndCache(country)
+
+            // 2. Download Airspaces (delegated to cache)
+            airspaceCache.downloadAndCache(country)
+
             cachedCountries.add(country)
-
-            // Simulate download delay (in real implementation, this would be network I/O)
-            delay(100)
-
             Log.d(TAG, "Country cached for all overlay types: $country")
         } catch (e: Exception) {
             Log.e(TAG, "Error preloading country: $country", e)
@@ -405,21 +408,26 @@ class UniversalCountryCacheManager(
         countryCode: String,
         radiusKm: Double
     ): List<com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature> {
-        return try {
-            // Use existing CacheManager to get country data
-            val cacheManager = com.madanala.tern.utils.CacheManager.airspaceCache
+        val features = mutableListOf<com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature>()
+        
+        try {
+            // 1. Query Airspaces
+            if (airspaceCache.isCached(countryCode)) {
+                features.addAll(airspaceCache.queryNearbyFeatures(countryCode, center, radiusKm))
+            }
 
-            if (cacheManager.isCached(countryCode)) {
-                // Query features within radius using existing spatial indexing
-                cacheManager.queryNearbyFeatures(countryCode, center, radiusKm)
-            } else {
-                Log.v(TAG, "Country $countryCode not cached, skipping query")
-                emptyList()
+            // 2. Query PG Spots
+            if (pgSpotCache.isCached(countryCode)) {
+                // Use 200.0 miles (approx 320km) or convert radiusKm to miles. 
+                // queryNearbyPGSpots takes miles. radiusKm is in km.
+                val radiusMiles = radiusKm * 0.621371
+                features.addAll(pgSpotCache.queryNearbyPGSpots(countryCode, center, radiusMiles))
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error querying features for country $countryCode", e)
-            emptyList()
         }
+        
+        return features
     }
 
     /**
