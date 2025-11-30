@@ -865,6 +865,12 @@ class PGSpotOverlayManager(
 
         // Dispatch action to show weather details dialog
         mapStore?.dispatch(WeatherActions.ShowWeatherDetails(pgSpotId, forecast))
+
+        // If weather is missing, trigger immediate fetch
+        if (forecast == null) {
+            // Log.d(TAG, "Weather missing for clicked spot $pgSpotId - triggering immediate fetch")
+            launchWeatherFetchingForPGSpots(setOf(pgSpotId))
+        }
     }
 
     private fun initiateWeatherSystem() {

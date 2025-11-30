@@ -28,7 +28,6 @@ import com.madanala.tern.redux.MapAction
 import com.madanala.tern.redux.WeatherActions
 import com.madanala.tern.ui.components.EditWaypointScreen
 import com.madanala.tern.ui.components.MapViewContainer
-import com.madanala.tern.ui.components.MapViewModel
 import com.madanala.tern.ui.components.RouteButton
 import com.madanala.tern.ui.components.SettingsButton
 import com.madanala.tern.ui.components.SettingsSheet
@@ -56,7 +55,6 @@ fun TernMapScreen(
     val state by store.state.collectAsState()
     val isLocationReady = state.isLocationReady
     val gpsStatus = state.gpsStatus
-    val mapViewModel = viewModel<MapViewModel>()
 
     // Show edit waypoint screen when waypoint is selected
     LaunchedEffect(state.selectedWaypoint) {
@@ -193,6 +191,7 @@ fun TernMapScreen(
         WeatherDetailsDialog(
             forecast = forecast,
             spotName = pgSpotId,
+            isLoading = state.weatherState.fetchingSpots.contains(pgSpotId),
             onDismiss = {
                 store.dispatch(WeatherActions.DismissWeatherDetails)
             }

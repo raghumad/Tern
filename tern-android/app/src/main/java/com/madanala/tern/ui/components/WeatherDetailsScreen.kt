@@ -1,6 +1,7 @@
 package com.madanala.tern.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -38,6 +39,7 @@ import java.util.Locale
 fun WeatherDetailsDialog(
     forecast: WeatherForecast?,
     spotName: String = "Launch Site",
+    isLoading: Boolean = false,
     onDismiss: () -> Unit = {}
 ) {
     AlertDialog(
@@ -58,7 +60,14 @@ fun WeatherDetailsDialog(
             }
         },
         text = {
-            if (forecast == null) {
+            if (isLoading) {
+                Box(
+                    modifier = Modifier.fillMaxWidth().height(200.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    androidx.compose.material3.CircularProgressIndicator()
+                }
+            } else if (forecast == null) {
                 Text(
                     "Weather data unavailable",
                     modifier = Modifier.fillMaxWidth(),
