@@ -10,17 +10,21 @@ import java.util.concurrent.ConcurrentLinkedQueue
 object ReportGenerator {
 
     private val testStorage = TestStorage()
-    private val steps = ConcurrentLinkedQueue<Step>()
+    private val currentSteps = ConcurrentLinkedQueue<Step>()
+    private val recordedScenarios = ConcurrentLinkedQueue<ScenarioData>()
     private val screenshots = ConcurrentLinkedQueue<String>()
 
     data class Step(val type: String, val description: String, val status: String = "PASS", val screenshotPath: String? = null)
+    data class ScenarioData(val name: String, val steps: List<Step>, val logcat: String?)
 
     fun logStep(type: String, description: String, status: String = "PASS", screenshotPath: String? = null) {
-        steps.add(Step(type, description, status, screenshotPath))
+        currentSteps.add(Step(type, description, status, screenshotPath))
     }
 
     fun captureScreenshot(name: String): String? {
-        val filename = "${name}_${System.currentTimeMillis()}.png"
+        // Sanitize filename: replace non-alphanumeric characters (except underscores) with underscores
+        val sanitizedName = name.replace(Regex("[^a-zA-Z0-9_]"), "_")
+        val filename = "${sanitizedName}_${System.currentTimeMillis()}.png"
         try {
             val bitmap = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
             if (bitmap != null) {
@@ -68,13 +72,19 @@ object ReportGenerator {
         }
     }
 
-    fun generateReport(testName: String, logCatOutput: String? = null) {
+    fun finishScenario(name: String, logCatOutput: String?) {
+        recordedScenarios.add(ScenarioData(name, currentSteps.toList(), logCatOutput))
+        currentSteps.clear()
+    }
+
+    fun generateFinalReport(testName: String) {
         val reportFilename = "report_${testName}.html"
         
         testStorage.openOutputFile(reportFilename).use { out ->
             val writer = BufferedWriter(OutputStreamWriter(out))
             writer.write("<html><head><style>")
             writer.write("body { font-family: sans-serif; padding: 20px; }")
+            writer.write(".scenario { margin-bottom: 30px; border: 1px solid #ddd; padding: 15px; border-radius: 8px; }")
             writer.write(".step { margin-bottom: 10px; padding: 10px; border-left: 4px solid #ccc; }")
             writer.write(".PASS { border-left-color: green; }")
             writer.write(".FAIL { border-left-color: red; }")
@@ -86,27 +96,39 @@ object ReportGenerator {
             
             writer.write("<h1>Test Report: $testName</h1>")
             
-            steps.forEach { step ->
-                writer.write("<div class='step ${step.status}'>")
-                writer.write("<strong>${step.type}</strong>: ${step.description}")
-                if (step.screenshotPath != null) {
-                    writer.write("<br/><details><summary>Screenshot</summary><img src='${step.screenshotPath}' /></details>")
-                }
-                writer.write("</div>")
+            if (recordedScenarios.isEmpty() && currentSteps.isNotEmpty()) {
+                // Fallback if finishScenario wasn't called (e.g. non-scenario test)
+                finishScenario("Default Scenario", captureLogCat())
             }
 
-            if (logCatOutput != null) {
-                writer.write("<details>")
-                writer.write("<summary>LogCat Output</summary>")
-                writer.write("<pre>${logCatOutput.replace("<", "&lt;").replace(">", "&gt;")}</pre>")
-                writer.write("</details>")
+            recordedScenarios.forEach { scenario ->
+                writer.write("<div class='scenario'>")
+                writer.write("<h2>Scenario: ${scenario.name}</h2>")
+                
+                scenario.steps.forEach { step ->
+                    writer.write("<div class='step ${step.status}'>")
+                    writer.write("<strong>${step.type}</strong>: ${step.description}")
+                    if (step.screenshotPath != null) {
+                        writer.write("<br/><details><summary>Screenshot</summary><img src='${step.screenshotPath}' /></details>")
+                    }
+                    writer.write("</div>")
+                }
+
+                if (scenario.logcat != null) {
+                    writer.write("<details>")
+                    writer.write("<summary>LogCat Output</summary>")
+                    writer.write("<pre>${scenario.logcat.replace("<", "&lt;").replace(">", "&gt;")}</pre>")
+                    writer.write("</details>")
+                }
+                writer.write("</div>") // End scenario div
             }
             
             writer.write("</body></html>")
             writer.flush()
         }
         
-        // Clear steps for next test
-        steps.clear()
+        // Clear for next test
+        recordedScenarios.clear()
+        currentSteps.clear()
     }
 }

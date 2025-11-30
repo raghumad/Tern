@@ -15,18 +15,22 @@ import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import org.junit.Rule
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.activity.ComponentActivity
 
 @RunWith(AndroidJUnit4::class)
 class DynamicMarkerTest {
 
-    @get:org.junit.Rule
-    val composeTestRule = androidx.compose.ui.test.junit4.createAndroidComposeRule<androidx.activity.ComponentActivity>()
+    @get:Rule
+    val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
+    @com.madanala.tern.utils.Unstable("Crashing the runner, running last")
     @Test
     fun testCreateBitmapFromComposable() {
         // GIVEN a context from the activity
         val context = composeTestRule.activity
-        val parent = context.findViewById<ViewGroup>(android.R.id.content)
+        val parent = context.window.decorView as ViewGroup
         val width = 100
         val height = 100
 
@@ -38,7 +42,13 @@ class DynamicMarkerTest {
         composeTestRule.runOnUiThread {
             MainScope().launch {
                 try {
-                    bitmap = ViewToBitmap.createBitmapFromComposable(parent, width, height) {
+                    bitmap = ViewToBitmap.createBitmapFromComposable(
+                        parentView = parent,
+                        width = width,
+                        height = height,
+                        lifecycleOwner = composeTestRule.activity, // Explicitly pass lifecycle owner
+                        viewModelStoreOwner = composeTestRule.activity // Explicitly pass view model store owner
+                    ) {
                         WindGaugeMarker(speed = 10.0, direction = 180.0)
                     }
                 } finally {

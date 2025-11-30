@@ -627,6 +627,12 @@ class AirspaceOverlayManager(
             centerStr
         ))
 
+        // Log names for test verification
+        changes.toAdd.values.take(50).forEach { feature ->
+             val name = feature.feature["properties"]?.let { (it as? Map<*, *>)?.get("name") } ?: "Unknown"
+             Log.d(TAG, "Rendered Airspace: $name")
+        }
+
     }
 
     /**

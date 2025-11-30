@@ -165,6 +165,7 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.4")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("androidx.compose.animation:animation")
     debugImplementation("androidx.compose.ui:ui-tooling")
     
@@ -224,6 +225,7 @@ dependencies {
 
     // Startup (Explicitly added to fix ClassNotFoundException in tests)
     androidTestImplementation("androidx.startup:startup-runtime:1.2.0")
+    androidTestImplementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
 }
 
 // JaCoCo Configuration for Code Coverage
@@ -485,12 +487,9 @@ tasks.register("coverageReport") {
     }
 }
 
-tasks.register("testAll") {
-    group = "verification"
-    description = "Run Everything (Unit + Instrumented + Coverage + Summary)"
-    
-    // Run all tests and generate coverage
-    dependsOn("unitTests", "instrumentedTests", "coverageReport")
+tasks.register("generateTestReport") {
+    group = "reporting"
+    description = "Generates combined test report and summary"
     
     doLast {
         val testResultsDir = file("${project.layout.buildDirectory.get()}/test-results")
@@ -599,6 +598,64 @@ tasks.register("testAll") {
         } else {
              println(generateTestResultsSummary(connectedTestResultsDir, "connected"))
         }
+
+        // --- Inject BDD Reports into Unit Test Reports ---
+        val unitTestBddOutputDir = file("build/outputs/unit_test_bdd_report")
+        val unitTestReportDir = file("build/reports/tests/testDebugUnitTest/classes") // Unit test class reports are here
+
+        if (unitTestBddOutputDir.exists() && unitTestReportDir.exists()) {
+            println("Injecting Unit Test BDD Reports...")
+            
+            // Iterate over all class report files
+            unitTestReportDir.listFiles { _, name -> name.endsWith(".html") }?.forEach { classReportFile ->
+                var htmlContent = classReportFile.readText()
+                var modified = false
+                
+                // Iterate over BDD reports to find matches
+                unitTestBddOutputDir.listFiles { _, name -> name.startsWith("report_") && name.endsWith(".html") }?.forEach { bddFile ->
+                    val methodName = bddFile.name.removePrefix("report_").removeSuffix(".html")
+                    val bddContent = bddFile.readText()
+                    
+                    // Extract body content from BDD report
+                    val bodyMatch = Regex("<body>(.*?)</body>", RegexOption.DOT_MATCHES_ALL).find(bddContent)
+                    val bodyContent = bodyMatch?.groupValues?.get(1) ?: ""
+                    
+                    // Find the row for this method in standard report
+                    // Unit test report format might differ slightly. Usually:
+                    // <tr>
+                    // <td class="success">methodName</td>
+                    // ...
+                    // </tr>
+                    
+                    // Regex to find the row where the first cell contains the method name
+                    val rowPattern = Regex("<tr>\\s*<td class=\".*?\">$methodName</td>.*?</tr>", RegexOption.DOT_MATCHES_ALL)
+                    
+                    if (rowPattern.containsMatchIn(htmlContent)) {
+                        val injection = """
+                            <tr class="bdd-report-row">
+                                <td colspan="3" style="padding: 0; border: none;">
+                                    <details style="margin: 5px 10px; border: 1px solid #ddd; border-radius: 4px; background-color: #f9f9f9;">
+                                        <summary style="cursor: pointer; padding: 10px; font-weight: bold; background-color: #eee;">View BDD Scenario Details</summary>
+                                        <div style="padding: 10px; border-top: 1px solid #ddd;">
+                                            $bodyContent
+                                        </div>
+                                    </details>
+                                </td>
+                            </tr>
+                        """.trimIndent()
+                        
+                        htmlContent = htmlContent.replace(rowPattern) { matchResult ->
+                            matchResult.value + "\n" + injection
+                        }
+                        modified = true
+                    }
+                }
+                
+                if (modified) {
+                    classReportFile.writeText(htmlContent)
+                }
+            }
+        }
         
         println("\n### Code Coverage")
         println(generateCoverageSummary(jacocoReportDir))
@@ -615,6 +672,9 @@ tasks.register("testAll") {
                 <div style="margin: 20px 0; padding: 15px; background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px;">
                     <details>
                         <summary style="cursor: pointer; font-weight: bold; font-size: 1.1em; margin-bottom: 10px;">View Console Summary & Coverage</summary>
+                        <div style="margin-bottom: 10px;">
+                            <a href="../../../../tests/testDebugUnitTest/index.html" style="color: #007bff; text-decoration: none; font-weight: bold;">🔗 Open Unit Test Report (53 Tests)</a>
+                        </div>
                         <pre style="white-space: pre-wrap; font-family: monospace; background-color: #2b2b2b; color: #f8f8f2; padding: 15px; border-radius: 4px;">
 TEST EXECUTION SUMMARY
 =========================
@@ -655,12 +715,40 @@ $coverageText
     }
 }
 
+tasks.register("testAll") {
+    group = "verification"
+    description = "Run Everything (Unit + Instrumented + Coverage + Summary)"
+    
+    // Run all tests and generate coverage
+    dependsOn("unitTests", "instrumentedTests", "coverageReport")
+}
+
+tasks.register<Exec>("testSafely") {
+    group = "verification"
+    description = "Run Stable tests first, then Unstable tests (Isolated execution)"
+    commandLine("sh", "./run_tests_safely.sh")
+}
+
+// Ensure reporting runs even if tests fail
+tasks.withType<Test> {
+    finalizedBy("generateTestReport")
+}
+
+afterEvaluate {
+    tasks.filter { it.name.endsWith("AndroidTest") }.forEach {
+        it.finalizedBy("generateTestReport")
+    }
+}
+
 fun generateTestResultsSummary(resultsDir: File, testType: String): String {
     if (!resultsDir.exists()) {
-        return "**$testType**: No test results found"
+        return "**$testType**: No test results found at ${resultsDir.absolutePath}"
     }
 
     val testFiles = resultsDir.walkTopDown().filter { it.name.endsWith(".xml") }.toList()
+    println("DEBUG: Found ${testFiles.size} XML files in ${resultsDir.absolutePath}")
+    testFiles.forEach { println("DEBUG: Found XML: ${it.name}") }
+
     var totalTests = 0
     var passedTests = 0
     var failedTests = 0
@@ -695,12 +783,42 @@ fun generateTestResultsSummary(resultsDir: File, testType: String): String {
         }
     }
 
+    val sourceDir = if (testType == "managedDevice" || testType == "connected") {
+        file("src/instrumentedTests")
+    } else {
+        file("src/test")
+    }
+
+    val expectedTests = if (sourceDir.exists()) {
+        sourceDir.walkTopDown()
+            .filter { it.extension == "kt" || it.extension == "java" }
+            .sumOf { file ->
+                // Simple regex to count @Test annotations
+                // Matches @Test, @org.junit.Test, @org.junit.jupiter.api.Test
+                Regex("@(org\\.junit\\.|org\\.junit\\.jupiter\\.api\\.)?Test").findAll(file.readText()).count()
+            }
+    } else {
+        0
+    }
+
+    val mismatchWarning = if (totalTests < expectedTests) {
+        """
+        
+        ⚠️ CRITICAL WARNING: POTENTIAL TEST RUNNER CRASH
+        Expected $expectedTests tests (found in source), but only $totalTests were reported.
+        The test runner may have crashed or aborted early.
+        """.trimIndent()
+    } else {
+        ""
+    }
+
     return """
-    Total: $totalTests
+    Total: $totalTests (Expected: ~$expectedTests)
     ✅ Passed: $passedTests
     ❌ Failed: $failedTests
     ⏭️ Skipped: $skippedTests
     ${if (failures.isNotEmpty()) "\nFailures:\n" + failures.joinToString("\n") else ""}
+    $mismatchWarning
     """.trimIndent()
 }
 

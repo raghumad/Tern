@@ -11,6 +11,13 @@ import androidx.core.view.doOnLayout
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
+import androidx.lifecycle.findViewTreeLifecycleOwner
+import androidx.lifecycle.findViewTreeViewModelStoreOwner
+import androidx.lifecycle.setViewTreeLifecycleOwner
+import androidx.lifecycle.setViewTreeViewModelStoreOwner
+
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ViewModelStoreOwner
 
 object ViewToBitmap {
 
@@ -22,13 +29,27 @@ object ViewToBitmap {
         parentView: ViewGroup,
         width: Int,
         height: Int,
+        lifecycleOwner: LifecycleOwner? = null,
+        viewModelStoreOwner: ViewModelStoreOwner? = null,
         content: @Composable () -> Unit
     ): Bitmap = suspendCancellableCoroutine { continuation ->
         val context = parentView.context
         val view = ComposeView(context)
         
         try {
+            // Explicitly propagate lifecycle and view model store owners BEFORE setContent
+            val resolvedLifecycleOwner = lifecycleOwner ?: parentView.findViewTreeLifecycleOwner()
+            val resolvedViewModelStoreOwner = viewModelStoreOwner ?: parentView.findViewTreeViewModelStoreOwner()
+            
+            if (resolvedLifecycleOwner != null) {
+                view.setViewTreeLifecycleOwner(resolvedLifecycleOwner)
+            }
+            if (resolvedViewModelStoreOwner != null) {
+                view.setViewTreeViewModelStoreOwner(resolvedViewModelStoreOwner)
+            }
+
             view.setContent(content)
+
             
             // Set layout params
             view.layoutParams = ViewGroup.LayoutParams(width, height)
