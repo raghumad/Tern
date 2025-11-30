@@ -25,7 +25,6 @@ class DynamicMarkerTest {
     @get:Rule
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
-    @com.madanala.tern.utils.Unstable("Crashing the runner, running last")
     @Test
     fun testCreateBitmapFromComposable() {
         // GIVEN a context from the activity
@@ -47,7 +46,8 @@ class DynamicMarkerTest {
                         width = width,
                         height = height,
                         lifecycleOwner = composeTestRule.activity, // Explicitly pass lifecycle owner
-                        viewModelStoreOwner = composeTestRule.activity // Explicitly pass view model store owner
+                        viewModelStoreOwner = composeTestRule.activity, // Explicitly pass view model store owner
+                        savedStateRegistryOwner = composeTestRule.activity // Explicitly pass saved state registry owner
                     ) {
                         WindGaugeMarker(speed = 10.0, direction = 180.0)
                     }
