@@ -90,7 +90,8 @@ object PerformanceDebugger {
         if (timeDiff > 0) {
             val currentRate = (actionCount * 1000.0 / timeDiff).toLong()
             val currentAverage = reduxMetrics.averageUpdatesPerSecond.get()
-            val newAverage = (currentAverage + currentRate) / 2
+            // Use exponential moving average with lower alpha (0.1) to be less sensitive to bursts
+            val newAverage = (currentAverage * 0.9 + currentRate * 0.1).toLong()
             reduxMetrics.averageUpdatesPerSecond.set(newAverage)
         }
 
