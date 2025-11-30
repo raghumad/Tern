@@ -141,33 +141,7 @@ object RouteIOManager {
 
     // --- Helper Methods for Serialization/Deserialization ---
 
-    // Legacy internal JSON (keep for backward compatibility if needed, or replace usage)
-    private fun serializeRouteToJson(route: Route): String {
-        // ... (existing implementation)
-        return generateXctskCompressed(route) // Use XCTSK compressed for everything now?
-        // No, let's keep legacy for now if we want, but generateQRCode now calls generateXctskCompressed directly.
-        // So this method might be unused or can be deprecated.
-        // For now, I'll leave the existing implementation in the file (it's not in the replacement chunk)
-        // or I can update it to use the new fields if we still use it.
-        // The prompt asked to update it.
-        val json = JSONObject()
-        json.put("n", route.name)
-        val waypointsArray = org.json.JSONArray()
-        route.waypoints.forEach { wp ->
-            val wpJson = JSONObject()
-            wpJson.put("lat", wp.lat)
-            wpJson.put("lon", wp.lon)
-            wpJson.put("t", wp.type.name)
-            if (!wp.label.isNullOrEmpty()) wpJson.put("l", wp.label)
-            wpJson.put("r", wp.radius)
-            if (wp.alt != null) wpJson.put("a", wp.alt)
-            if (wp.openTime != null) wpJson.put("o", wp.openTime)
-            if (wp.closeTime != null) wpJson.put("c", wp.closeTime)
-            waypointsArray.put(wpJson)
-        }
-        json.put("w", waypointsArray)
-        return json.toString()
-    }
+
 
     private fun deserializeRouteFromJson(jsonString: String): Route? {
         return try {
