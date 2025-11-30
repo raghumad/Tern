@@ -7,14 +7,22 @@ package com.madanala.tern.utils
  */
 open class LocalBddTest {
 
+    @get:org.junit.Rule
+    val testNameRule = org.junit.rules.TestName()
+
     fun scenario(name: String, block: () -> Unit) {
+        LocalReportGenerator.logStep("SCENARIO", name)
         println("\nSCENARIO: $name")
         try {
             block()
+            LocalReportGenerator.logStep("RESULT", "Scenario Passed", "PASS")
             println("RESULT: Scenario Passed")
         } catch (e: Throwable) {
+            LocalReportGenerator.logStep("RESULT", "Scenario Failed: ${e.message}", "FAIL")
             println("RESULT: Scenario Failed: ${e.message}")
             throw e
+        } finally {
+            LocalReportGenerator.generateReport(testNameRule.methodName)
         }
     }
 
@@ -37,8 +45,10 @@ open class LocalBddTest {
     private fun step(type: String, description: String, block: () -> Unit) {
         try {
             block()
+            LocalReportGenerator.logStep(type, description, "PASS")
             println("  $type: $description [PASS]")
         } catch (e: Throwable) {
+            LocalReportGenerator.logStep(type, description, "FAIL")
             println("  $type: $description [FAIL]")
             throw e
         }

@@ -216,7 +216,26 @@ class AirspaceCache(private val context: Context) {
      * @param maxDistanceMiles Max distance in miles
      * @return List of nearby OverlayFeature
      */
+    // Test hooks
+    private val testFeatures = ConcurrentHashMap<String, List<OverlayFeature>>()
+
+    @androidx.annotation.VisibleForTesting
+    fun setTestFeatures(countryCode: String, features: List<OverlayFeature>) {
+        testFeatures[countryCode] = features
+    }
+
+    @androidx.annotation.VisibleForTesting
+    fun clearTestFeatures() {
+        testFeatures.clear()
+    }
+
     fun queryNearbyFeatures(countryCode: String, center: GeoPoint, maxDistanceMiles: Double): List<OverlayFeature> {
+        // Check test features first
+        testFeatures[countryCode]?.let { features ->
+            val maxDistanceMeters = maxDistanceMiles * 1609.34
+            return features.filter { it.centroid.distanceToAsDouble(center) <= maxDistanceMeters }
+        }
+
         try {
             // Get or load spatial index
             val spatialIndex = getSpatialIndex(countryCode) ?: return emptyList()

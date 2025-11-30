@@ -36,9 +36,14 @@ open class BddTest : BaseUITest() {
             throw e
         } finally {
             val logCatOutput = ReportGenerator.captureLogCat()
-            // Use the actual test method name for the report filename to enable auto-linking
-            ReportGenerator.generateReport(testNameRule.methodName, logCatOutput)
+            // Finish scenario but don't generate report yet
+            ReportGenerator.finishScenario(name, logCatOutput)
         }
+    }
+
+    @org.junit.After
+    fun generateReport() {
+        ReportGenerator.generateFinalReport(testNameRule.methodName)
     }
 
     fun given(description: String, takeScreenshot: Boolean = false, block: () -> Unit) {
