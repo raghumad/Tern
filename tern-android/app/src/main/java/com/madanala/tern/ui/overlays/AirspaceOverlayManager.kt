@@ -45,7 +45,6 @@ class AirspaceOverlayManager(
     private var overlayCoordinator: com.madanala.tern.ui.overlays.OverlayCoordinator? = null
 
     // State management (extracted from MapViewModel)
-    private var currentCountryCode: String? = null
     private var lastCheckLocation: GeoPoint? = null
     private var loadingJob: Job? = null
 
@@ -147,7 +146,6 @@ class AirspaceOverlayManager(
         loadingJob = null
 
         // Clear state and tracking
-        currentCountryCode = null
         lastCheckLocation = null
         currentlyRenderedAirspaces.clear()
     }
@@ -212,7 +210,6 @@ class AirspaceOverlayManager(
         if (!enabled) {
             // Clear airspaces if disabled
             clearOverlays()
-            currentCountryCode = null
             lastCheckLocation = null
         } else if (mapView != null) {
             // Postpone Redux-triggered overlay operations until GPS fix is available
@@ -481,9 +478,12 @@ class AirspaceOverlayManager(
      * Load airspace data for a specific location using universal country management
      * Now uses UniversalCountryCacheManager for intelligent multi-country handling
      */
+    /**
+     * Load airspace data for a specific location using universal country management
+     * Now uses UniversalCountryCacheManager for intelligent multi-country handling
+     */
     private suspend fun loadAirspaceForLocation(context: Context, center: GeoPoint) {
         try {
-
             // Use universal country cache manager for intelligent country management
             countryCacheManager?.let { countryCache ->
                 // Query multiple countries intelligently using the universal cache manager
@@ -497,15 +497,10 @@ class AirspaceOverlayManager(
                     // Update last location for movement tracking
                     lastCheckLocation = center
                 } else {
-                    // Log.d(TAG, "No airspaces found near $center in cached countries")
-
-                    // Fallback to single country approach if universal cache not available
-                    loadSingleCountryAirspace(context, center)
+                     // Log.d(TAG, "No airspaces found near $center in cached countries")
                 }
             } ?: run {
-                // Fallback if universal cache manager not available
-                Log.w(TAG, "Universal country cache manager not available, using fallback")
-                loadSingleCountryAirspace(context, center)
+                Log.e(TAG, "Universal country cache manager not available - cannot load airspaces")
             }
 
         } catch (e: CancellationException) {
@@ -513,56 +508,6 @@ class AirspaceOverlayManager(
             // Log.d(TAG, "Airspace loading cancelled due to user interaction")
         } catch (e: Exception) {
             Log.e(TAG, "Error loading airspace data", e)
-        }
-    }
-
-    /**
-     * Fallback method for single country loading (original logic)
-     */
-    private suspend fun loadSingleCountryAirspace(context: Context, center: GeoPoint) {
-        try {
-            // Get country code for current location (original approach)
-            val countryCode = CountryUtils.getCountryCodeFromGeoPoint(context, center)
-            if (countryCode == null) {
-                Log.w(TAG, "Could not determine country code for location: $center")
-                return
-            }
-
-
-            // Check if country data is cached (original spatial-first architecture)
-            if (!airspaceCache.isCached(countryCode)) {
-                // Download and cache using spatial indexing (original approach)
-                val url = "https://storage.googleapis.com/29f98e10-a489-4c82-ae5e-489dbcd4912f/${countryCode}_asp.ndgeojson"
-                val ndGeoJsonString = GeoJsonUtils.downloadGeoJson(url)
-
-                if (ndGeoJsonString != null) {
-                    // Log.d(TAG, "Downloaded airspace data for $countryCode (${ndGeoJsonString.length} bytes)")
-                    // Cache with Hilbert spatial indexing (original approach)
-                    airspaceCache.cacheData(countryCode, ndGeoJsonString)
-                } else {
-                    Log.w(TAG, "Failed to download airspace data for $countryCode")
-                    return
-                }
-            } else {
-            }
-
-            // Always use spatial query - never load entire countries (original approach)
-            val nearbyFeatures = airspaceCache.queryNearbyFeatures(countryCode, center, spatialQueryRadiusKm)
-
-            if (nearbyFeatures.isNotEmpty()) {
-                mapView?.let { map ->
-                    updateAirspaceOverlaysIncrementally(map, nearbyFeatures)
-                } ?: Log.w(TAG, "Cannot render airspaces - no map view available")
-
-                // Update current country and last location (original tracking)
-                currentCountryCode = countryCode
-                lastCheckLocation = center
-            } else {
-                // Log.d(TAG, "No airspaces found near $center for $countryCode (fallback)")
-            }
-
-        } catch (e: Exception) {
-            Log.e(TAG, "Error in fallback airspace loading", e)
         }
     }
 

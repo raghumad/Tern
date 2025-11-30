@@ -502,8 +502,91 @@ object RouteIOManager {
     }
 
     private fun parseCupContent(content: String): Route? {
-        // Basic CUP parsing
-        // TODO: Implement robust CUP parsing
-        return null 
+        val waypoints = mutableListOf<Waypoint>()
+        val lines = content.lines()
+        
+        for (line in lines) {
+            if (line.isBlank() || line.startsWith("name,code", ignoreCase = true)) continue
+            
+            try {
+                // Handle quoted strings correctly (basic regex split)
+                // This regex matches commas that are NOT inside quotes
+                val parts = line.split(",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)".toRegex())
+                if (parts.size < 5) continue
+                
+                val name = parts[0].replace("\"", "").trim()
+                // parts[1] is Code, parts[2] is Country
+                val latStr = parts[3].trim()
+                val lonStr = parts[4].trim()
+                val elevStr = parts.getOrNull(5)?.trim()
+                val styleStr = parts.getOrNull(6)?.trim()
+                
+                val lat = parseCupCoord(latStr)
+                val lon = parseCupCoord(lonStr)
+                val alt = elevStr?.replace("m", "")?.replace("ft", "")?.toDoubleOrNull()
+                
+                // Style mapping (1=Waypoint, 2=Airfield, 3=Outlanding, 4=Gliding Site, 5=Turnpoint, etc.)
+                val type = when(styleStr) {
+                    "2", "3", "4", "5" -> Waypoint.Type.TURNPOINT // Treat most as turnpoints for now
+                    else -> Waypoint.Type.TURNPOINT
+                }
+                
+                if (lat != null && lon != null) {
+                    waypoints.add(Waypoint(
+                        lat = lat,
+                        lon = lon,
+                        type = type,
+                        label = name,
+                        alt = alt,
+                        radius = 400.0 // Default radius
+                    ))
+                }
+            } catch (e: Exception) {
+                // Log error but continue parsing other lines
+                e.printStackTrace()
+            }
+        }
+        
+        if (waypoints.isEmpty()) return null
+        
+        return Route(
+            id = UUID.randomUUID().toString(),
+            name = "Imported CUP Route",
+            waypoints = waypoints,
+            createdAt = Instant.now(),
+            updatedAt = Instant.now()
+        )
+    }
+
+    private fun parseCupCoord(coord: String): Double? {
+        // Format: DDMM.mmmH or DDDMM.mmmH (e.g. 4621.167N or 00621.167E)
+        try {
+            if (coord.isEmpty()) return null
+            val lastChar = coord.last().uppercaseChar()
+            val isSouthOrWest = lastChar == 'S' || lastChar == 'W'
+            
+            // Remove suffix and any whitespace
+            val valueStr = coord.dropLast(1).trim()
+            
+            // Find decimal point
+            val dotIndex = valueStr.indexOf('.')
+            if (dotIndex == -1) return null
+            
+            // Minutes is always 2 digits before dot + decimal part
+            // e.g. in 4621.167, minutes is 21.167, degrees is 46
+            val minutesStartIndex = dotIndex - 2
+            if (minutesStartIndex < 0) return null
+            
+            val degreesStr = valueStr.substring(0, minutesStartIndex)
+            val minutesStr = valueStr.substring(minutesStartIndex)
+            
+            val degrees = degreesStr.toDouble()
+            val minutes = minutesStr.toDouble()
+            
+            val decimalDegrees = degrees + (minutes / 60.0)
+            return if (isSouthOrWest) -decimalDegrees else decimalDegrees
+        } catch (e: Exception) {
+            return null
+        }
     }
 }
