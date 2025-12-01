@@ -40,12 +40,16 @@ class WeatherCacheTest {
         cacheDir = File(tempFolder.root, "weather_cache")
 
         weatherCache = WeatherCache(context)
+        
+        io.mockk.mockkObject(CountryUtils)
+        every { CountryUtils.getCountryCodeFromGeoPoint(any(), any()) } returns "CH"
     }
 
     @After
     fun tearDown() {
         weatherCache.clearCache()
         unmockkStatic(Log::class)
+        io.mockk.unmockkObject(CountryUtils)
     }
 
     @Test
@@ -63,11 +67,12 @@ class WeatherCacheTest {
         weatherCache.cacheWeather(id, location, forecast)
 
         // Verify files exist
-        val flexFile = File(cacheDir, "${id}_weather.flex")
-        val idxFile = File(cacheDir, "${id}_weather.idx")
+        // WeatherCache now uses country code as region ID
+        val flexFile = File(cacheDir, "CH_weather.flex")
+        val idxFile = File(cacheDir, "CH_weather.idx")
         
-        assertTrue("Flex file should exist", flexFile.exists())
-        assertTrue("Index file should exist", idxFile.exists())
+        assertTrue("Flex file should exist at ${flexFile.absolutePath}", flexFile.exists())
+        assertTrue("Index file should exist at ${idxFile.absolutePath}", idxFile.exists())
 
         // Query nearby
         val results = weatherCache.queryNearbyWeather(id, location, 10.0)
