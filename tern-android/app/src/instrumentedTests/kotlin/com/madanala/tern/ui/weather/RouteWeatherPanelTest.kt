@@ -18,6 +18,8 @@ import com.madanala.tern.model.WeatherForecast
 import com.madanala.tern.utils.BddTest
 import org.junit.Test
 
+import org.osmdroid.util.GeoPoint
+
 class RouteWeatherPanelTest : BddTest() {
 
     // composeTestRule is inherited from BaseUITest via BddTest
@@ -30,8 +32,8 @@ class RouteWeatherPanelTest : BddTest() {
             given("a route with wind and risk data") {
                 val windPoints = listOf(com.madanala.tern.model.WindPoint(1000.0, 15.0, 315.0))
                 val forecast = WeatherForecast(SkewTForecast(emptyList()), emptyList(), windPoints)
-                val wp1 = WaypointWeather("Launch", System.currentTimeMillis(), forecast)
-                val wp2 = WaypointWeather("Goal", System.currentTimeMillis() + 3600000, forecast)
+                val wp1 = WaypointWeather("Launch", GeoPoint(0.0, 0.0), System.currentTimeMillis(), forecast)
+                val wp2 = WaypointWeather("Goal", GeoPoint(0.0, 0.0), System.currentTimeMillis() + 3600000, forecast)
                 
                 val trajectory = TrajectoryForecast(
                     waypoints = listOf(wp1, wp2),
