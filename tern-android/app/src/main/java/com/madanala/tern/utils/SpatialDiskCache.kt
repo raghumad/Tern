@@ -169,6 +169,9 @@ class SpatialDiskCache(
     /**
      * Query nearby features using Hilbert spatial indexing
      */
+    /**
+     * Query nearby features using Hilbert spatial indexing
+     */
     fun queryNearby(regionId: String, center: GeoPoint, maxDistanceMiles: Double): List<OverlayFeature> {
         try {
             // Verify cached data exists
@@ -192,34 +195,57 @@ class SpatialDiskCache(
             // Deserialize relevant features
             val nearbyFeatures = relevantEntries.mapNotNull { entry ->
                 try {
-                    val featureBytes = ByteArray(entry.byteLength)
+                    // entry.byteOffset points to the start of the record (length prefix)
+                    // entry.byteLength includes the 4-byte length prefix
+                    
+                    // We need to read the data AFTER the length prefix
+                    // The length prefix is 4 bytes
+                    val dataOffset = entry.byteOffset + 4
+                    val dataLength = entry.byteLength - 4
+                    
+                    if (dataLength <= 0) return@mapNotNull null
+
+                    val featureBytes = ByteArray(dataLength)
                     synchronized(mappedBuffer) {
-                        mappedBuffer.position(entry.byteOffset)
-                        mappedBuffer.get(featureBytes, 0, entry.byteLength)
+                        mappedBuffer.position(dataOffset)
+                        mappedBuffer.get(featureBytes, 0, dataLength)
                     }
 
-                    val featureJson = String(featureBytes, Charsets.UTF_8)
-                    val featureData: Map<String, Any> = objectMapper.readValue(featureJson, object : TypeReference<Map<String, Any>>() {})
-
-                    // Extract feature info (handling both formats for backward compatibility)
-                    @Suppress("UNCHECKED_CAST")
-                    val feature = featureData["feature"] as? Map<String, Any> ?: featureData
-                    @Suppress("UNCHECKED_CAST")
-                    val centroidData = featureData["centroid"] as? Map<String, Any>
-                    val latitude = centroidData?.get("latitude") as? Double ?: featureData["lat"] as? Double
-                    val longitude = centroidData?.get("longitude") as? Double ?: featureData["lon"] as? Double
-                    val hilbertIndex = entry.hilbertIndex
-                    val overlayType = featureData["overlayType"] as? String ?: cacheName
-
-                    if (latitude != null && longitude != null) {
-                        val centroid = GeoPoint(latitude, longitude)
-                        val overlayFeature = OverlayFeature(feature, centroid, hilbertIndex, overlayType)
-
-                        // Final distance validation
-                        if (center.distanceToAsDouble(centroid) <= maxDistanceMeters) overlayFeature else null
-                    } else {
-                        null
+                    val root = com.google.flatbuffers.FlexBuffers.getRoot(java.nio.ByteBuffer.wrap(featureBytes))
+                    val map = root.asMap()
+                    
+                    // Helper to deserialize map from FlexBuffers
+                    fun deserializeMap(fbMap: com.google.flatbuffers.FlexBuffers.Map): Map<String, Any> {
+                        val result = mutableMapOf<String, Any>()
+                        val keys = fbMap.keys()
+                        for (i in 0 until keys.size()) {
+                            val key = keys.get(i).toString()
+                            val value = fbMap.get(key)
+                            val convertedValue: Any = when {
+                                value.isString -> value.asString()
+                                value.isInt -> value.asInt()
+                                value.isFloat -> value.asFloat()
+                                value.isBoolean -> value.asBoolean()
+                                value.isMap -> deserializeMap(value.asMap())
+                                else -> value.toString()
+                            }
+                            result[key] = convertedValue
+                        }
+                        return result
                     }
+
+                    val featureMap = deserializeMap(map.get("feature").asMap())
+                    val centroidMap = map.get("centroid").asMap()
+                    val latitude = centroidMap.get("latitude").asFloat()
+                    val longitude = centroidMap.get("longitude").asFloat()
+                    val hilbertIndex = map.get("hilbertIndex").asLong()
+                    val overlayType = map.get("overlayType").asString()
+
+                    val centroid = GeoPoint(latitude, longitude)
+                    val overlayFeature = OverlayFeature(featureMap, centroid, hilbertIndex, overlayType)
+
+                    // Final distance validation
+                    if (center.distanceToAsDouble(centroid) <= maxDistanceMeters) overlayFeature else null
                 } catch (e: Exception) {
                     Log.w(TAG, "Error reading feature at offset ${entry.byteOffset}: ${e.message}")
                     null

@@ -286,76 +286,142 @@ object MapOverlayCacheUtils {
 
         // Create FlexBuffer data and track byte offsets
         val indexEntries = mutableListOf<HilbertIndexEntry>()
-        var currentOffset = 0
+        val outputStream = java.io.ByteArrayOutputStream()
 
-        // For now, serialize as JSON with offsets (will replace with proper FlexBuffer later)
-        val serializedFeatures = sortedFeatures.map { feature ->
-            val featureData = mapOf(
-                "feature" to feature.feature,
-                "centroid" to mapOf(
-                    "latitude" to feature.centroid.latitude,
-                    "longitude" to feature.centroid.longitude
-                ),
-                "hilbertIndex" to feature.hilbertIndex,
-                "overlayType" to feature.overlayType
-            )
-            val jsonString = mapper.writeValueAsString(featureData) + "\n"
-            val jsonBytes = jsonString.toByteArray(Charsets.UTF_8)
-            val entry = HilbertIndexEntry(feature.hilbertIndex, currentOffset, jsonBytes.size)
+        sortedFeatures.forEach { feature ->
+            val builder = com.google.flatbuffers.FlexBuffersBuilder()
+            val mapStart = builder.startMap()
+            
+            // Serialize feature properties
+            val featureMapStart = builder.startMap()
+            serializeMap(builder, feature.feature)
+            builder.endMap("feature", featureMapStart)
+            
+            // Serialize centroid
+            val centroidMapStart = builder.startMap()
+            builder.putFloat("latitude", feature.centroid.latitude)
+            builder.putFloat("longitude", feature.centroid.longitude)
+            builder.endMap("centroid", centroidMapStart)
+            
+            builder.putInt("hilbertIndex", feature.hilbertIndex)
+            builder.putString("overlayType", feature.overlayType)
+            
+            builder.endMap(null, mapStart)
+            val buffer = builder.finish()
+            
+            // Write length prefix (4 bytes) followed by data
+            val length = buffer.remaining()
+            val lengthBytes = java.nio.ByteBuffer.allocate(4).putInt(length).array()
+            
+            val currentOffset = outputStream.size()
+            outputStream.write(lengthBytes)
+            
+            val data = ByteArray(length)
+            buffer.get(data)
+            outputStream.write(data)
+            
+            // Record entry (offset points to the start of the length prefix)
+            // But wait, for random access via memory map, we usually want to point to the data?
+            // Actually, if we point to the length prefix, we can read length then data.
+            // Let's point to the start of the record (length prefix).
+            val entry = HilbertIndexEntry(feature.hilbertIndex, currentOffset, 4 + length)
             indexEntries.add(entry)
-            currentOffset += jsonBytes.size
-            jsonBytes
-        }
-
-        // Combine all feature data into single byte array
-        val totalSize = serializedFeatures.sumOf { it.size }
-        val combinedData = ByteArray(totalSize)
-        var offset = 0
-        serializedFeatures.forEach { bytes ->
-            bytes.copyInto(combinedData, offset)
-            offset += bytes.size
         }
 
         val spatialIndex = SpatialIndex(indexEntries)
-        return Pair(spatialIndex, combinedData)
+        return Pair(spatialIndex, outputStream.toByteArray())
+    }
+
+    private fun serializeMap(builder: com.google.flatbuffers.FlexBuffersBuilder, map: Map<String, Any>) {
+        map.forEach { (key, value) ->
+            when (value) {
+                is String -> builder.putString(key, value)
+                is Int -> builder.putInt(key, value)
+                is Long -> builder.putInt(key, value) // FlexBuffers handles 64-bit ints
+                is Double -> builder.putFloat(key, value)
+                is Float -> builder.putFloat(key, value)
+                is Boolean -> builder.putBoolean(key, value)
+                is Map<*, *> -> {
+                    val mapStart = builder.startMap()
+                    @Suppress("UNCHECKED_CAST")
+                    serializeMap(builder, value as Map<String, Any>)
+                    builder.endMap(key, mapStart)
+                }
+                is List<*> -> {
+                    val vecStart = builder.startVector()
+                    value.forEach { item ->
+                        when (item) {
+                            is String -> builder.putString(item)
+                            is Int -> builder.putInt(item)
+                            is Long -> builder.putInt(item)
+                            is Double -> builder.putFloat(item)
+                            is Float -> builder.putFloat(item)
+                            is Boolean -> builder.putBoolean(item)
+                        }
+                    }
+                    builder.endVector(key, vecStart, false, false)
+                }
+            }
+        }
     }
 
     /**
-     * Deserialize JSON to list of OverlayFeature
+     * Deserialize FlexBuffers blob to list of OverlayFeature
      */
     fun deserializeFlexBuffersToFeatures(data: ByteArray): List<OverlayFeature> {
-        return try {
-            // Parse as concatenated JSON objects, not as JSON array
-            val jsonString = String(data, Charsets.UTF_8)
-            val features = mutableListOf<OverlayFeature>()
+        val features = mutableListOf<OverlayFeature>()
+        val buffer = java.nio.ByteBuffer.wrap(data)
 
-            // Split by newlines and parse each feature individually
-            val lines = jsonString.lines()
-            lines.forEach { line ->
-                if (line.isNotBlank()) {
-                    try {
-                        val item: Map<String, Any> = mapper.readValue(line)
-                        @Suppress("UNCHECKED_CAST")
-                        val feature = item["feature"] as? Map<String, Any> ?: return@forEach
-                        @Suppress("UNCHECKED_CAST")
-                        val centroidData = item["centroid"] as? Map<String, Any> ?: return@forEach
-                        val latitude = centroidData["latitude"] as? Double ?: return@forEach
-                        val longitude = centroidData["longitude"] as? Double ?: return@forEach
-                        val hilbertIndex = item["hilbertIndex"] as? Long ?: return@forEach
-                        val overlayType = item["overlayType"] as? String ?: "generic"
+        while (buffer.hasRemaining()) {
+            try {
+                if (buffer.remaining() < 4) break
+                val length = buffer.getInt()
+                if (length <= 0 || length > buffer.remaining()) break
+                
+                val featureData = ByteArray(length)
+                buffer.get(featureData)
+                
+                val root = com.google.flatbuffers.FlexBuffers.getRoot(java.nio.ByteBuffer.wrap(featureData))
+                val map = root.asMap()
+                
+                val featureMap = deserializeMap(map.get("feature").asMap())
+                val centroidMap = map.get("centroid").asMap()
+                val latitude = centroidMap.get("latitude").asFloat()
+                val longitude = centroidMap.get("longitude").asFloat()
+                val hilbertIndex = map.get("hilbertIndex").asLong()
+                val overlayType = map.get("overlayType").asString()
 
-                        val centroid = GeoPoint(latitude, longitude)
-                        features.add(OverlayFeature(feature, centroid, hilbertIndex, overlayType))
-                    } catch (e: Exception) {
-                        // Skip malformed lines
-                    }
-                }
+                val centroid = GeoPoint(latitude, longitude)
+                features.add(OverlayFeature(featureMap, centroid, hilbertIndex, overlayType))
+                
+            } catch (e: Exception) {
+                android.util.Log.e("MapOverlayCacheUtils", "Error deserializing FlexBuffer", e)
+                break
             }
-
-            features
-        } catch (_: Exception) {
-            emptyList()
         }
+
+        return features
+    }
+
+    private fun deserializeMap(map: com.google.flatbuffers.FlexBuffers.Map): Map<String, Any> {
+        val result = mutableMapOf<String, Any>()
+        val keys = map.keys() // keys() returns KeyVector
+        
+        for (i in 0 until keys.size()) {
+            val key = keys.get(i).toString()
+            val value = map.get(key)
+            
+            val convertedValue: Any = when {
+                value.isString -> value.asString()
+                value.isInt -> value.asInt()
+                value.isFloat -> value.asFloat()
+                value.isBoolean -> value.asBoolean()
+                value.isMap -> deserializeMap(value.asMap())
+                else -> value.toString()
+            }
+            result[key] = convertedValue
+        }
+        return result
     }
 
 

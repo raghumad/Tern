@@ -71,7 +71,7 @@ class RouteWeatherTest : LocalBddTest() {
             
             given("a list of waypoint weather forecasts") {
                 val wp1Forecast = WeatherForecast(SkewTForecast(emptyList()), emptyList(), emptyList())
-                val wp1 = WaypointWeather("wp1", 1000L, wp1Forecast)
+                val wp1 = WaypointWeather("wp1", org.osmdroid.util.GeoPoint(0.0, 0.0), 1000L, wp1Forecast)
                 
                 trajectory = TrajectoryForecast(
                     waypoints = listOf(wp1),

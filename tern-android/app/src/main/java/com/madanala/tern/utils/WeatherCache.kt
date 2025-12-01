@@ -1,29 +1,20 @@
 package com.madanala.tern.utils
 
 import android.content.Context
-
 import android.util.Log
 import com.fasterxml.jackson.core.type.TypeReference
-import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import com.madanala.tern.utils.WeatherForecast
+import com.madanala.tern.model.WaypointWeather
 import com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature
 import org.osmdroid.util.GeoPoint
-import java.io.File
-import java.io.FileInputStream
-import java.io.FileOutputStream
-import java.io.ObjectInputStream
-import java.io.ObjectOutputStream
-import java.io.RandomAccessFile
-import java.nio.MappedByteBuffer
-import java.nio.channels.FileChannel
-import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
 
 /**
  * Weather Cache - FlexBuffers + Hilbert Spatial Indexing
  * Stores weather forecasts spatially for efficient retrieval.
+ * Refactored to group data by Country/Region to prevent file explosion.
  */
-class WeatherCache(context: Context) {
+class WeatherCache(private val context: Context) {
 
     companion object {
         const val WEATHER_CACHE_HOURS = 4 // Default expiration
@@ -36,6 +27,7 @@ class WeatherCache(context: Context) {
     }
 
     // Delegate storage and indexing to generic SpatialDiskCache
+    // Cache name "weather" -> files will be {countryCode}_weather.flex
     private val diskCache = SpatialDiskCache(context, "weather", WEATHER_CACHE_HOURS)
     private val objectMapper = jacksonObjectMapper()
     
@@ -56,9 +48,9 @@ class WeatherCache(context: Context) {
         try {
             // 1. Determine expiration
             val expirationTime = if (forecast.current != null) {
-                System.currentTimeMillis() + java.util.concurrent.TimeUnit.HOURS.toMillis(WEATHER_CACHE_EXPIRATION_HOURS)
+                System.currentTimeMillis() + TimeUnit.HOURS.toMillis(WEATHER_CACHE_EXPIRATION_HOURS)
             } else {
-                System.currentTimeMillis() + java.util.concurrent.TimeUnit.HOURS.toMillis(FORECAST_CACHE_HOURS)
+                System.currentTimeMillis() + TimeUnit.HOURS.toMillis(FORECAST_CACHE_HOURS)
             }
 
             // 2. Cache in Memory (L1)
@@ -72,6 +64,9 @@ class WeatherCache(context: Context) {
             memoryCache.put(cacheKey, cachedData)
 
             // 3. Cache in Disk (L2) via SpatialDiskCache
+            // Determine Country Code for Region ID
+            val countryCode = CountryUtils.getCountryCodeFromGeoPoint(context, location) ?: "unknown"
+            
             // Convert WeatherForecast to Map for OverlayFeature
             val forecastMap = objectMapper.convertValue(forecast, object : TypeReference<Map<String, Any>>() {})
             
@@ -84,13 +79,16 @@ class WeatherCache(context: Context) {
                 overlayType = "weather"
             )
 
-            // Cache as a single-item list
-            diskCache.cacheFeatures(id, listOf(feature))
+            // Cache as a single-item list (appends to country file)
+            diskCache.cacheFeatures(countryCode, listOf(feature))
 
         } catch (e: Exception) {
             Log.e(TAG, "Error caching weather for $id", e)
         }
     }
+    
+    // cacheRouteWeather removed to avoid type mismatch (Model vs Utils Forecast)
+    // TrajectoryAnalyzer handles caching of source data point-by-point.
     
     /**
      * Alias for cacheWeather to match PGSpotWeatherCache API (for easier migration)
@@ -113,7 +111,10 @@ class WeatherCache(context: Context) {
 
         // 2. Check L2 Disk Cache
         try {
-            val features = diskCache.queryNearby(id, center, maxDistanceMiles)
+            // Determine Country Code for Region ID
+            val countryCode = CountryUtils.getCountryCodeFromGeoPoint(context, center) ?: "unknown"
+            
+            val features = diskCache.queryNearby(countryCode, center, maxDistanceMiles)
             
             return features.mapNotNull { feature ->
                 try {

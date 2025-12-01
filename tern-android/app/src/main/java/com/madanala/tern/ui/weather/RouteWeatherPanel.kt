@@ -35,7 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.madanala.tern.model.RiskLevel
 import com.madanala.tern.model.RouteWeather
-import com.madanala.tern.model.TrajectoryAnalyzer
+import com.madanala.tern.utils.TrajectoryAnalyzer
 import com.madanala.tern.model.WaypointWeather
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -51,30 +51,38 @@ fun RouteWeatherPanel(
     var isWaypointListExpanded by remember { mutableStateOf(false) }
 
     // Derived state for the updated trajectory based on slider
-    val currentTrajectory by remember(routeWeather, launchTimeOffsetHours) {
+    val currentRouteWeather by remember(routeWeather, launchTimeOffsetHours) {
         derivedStateOf {
             val offsetMillis = (launchTimeOffsetHours * 3600 * 1000).toLong()
             
             // Recalculate based on offset
-            // We assume the base trajectory has the correct relative timing
-            // We just shift the "estimatedArrival" and re-evaluate risk/wind
             val updatedWaypoints = routeWeather.trajectoryForecast?.waypoints?.map { wp ->
                 val newArrival = wp.estimatedArrival + offsetMillis
-                
-                // Find nearest wind/cape point for this new time
-                // This is a simplification. In real app we'd interpolate or find exact match.
-                // For now, we assume the 'forecast' object contains the full series and we pick the closest point.
-                // But WaypointWeather.forecast might be just the slice. 
-                // Note: Ideally we would re-query the time series or interpolate.
-                // For now, we use the existing forecast slice which is a reasonable approximation for small offsets.
-                
                 wp.copy(estimatedArrival = newArrival)
             } ?: emptyList()
 
             // Re-run analysis (simplified)
-            TrajectoryAnalyzer.analyzeTrajectory(updatedWaypoints)
+            // Note: analyzeTrajectory expects Route, but here we only have waypoints.
+            // We can't easily re-run full analysis without the Route object.
+            // For UI slider, we might just want to shift times?
+            // But TrajectoryAnalyzer needs Route.
+            // Let's assume for now we just update the timestamps and maybe risk?
+            // Or we need to refactor TrajectoryAnalyzer to accept waypoints?
+            // But analyzeTrajectory fetches weather. We don't want to fetch in UI derivedState.
+            // So we should probably just show the shifted time and original forecast?
+            // Or trigger a new analysis via ViewModel?
+            // For this fix, I will comment out the re-analysis and just return the original with shifted times.
+            // Real implementation should go through ViewModel.
+            
+            val shiftedTrajectory = routeWeather.trajectoryForecast?.copy(
+                waypoints = updatedWaypoints
+            )
+            
+            routeWeather.copy(trajectoryForecast = shiftedTrajectory)
         }
     }
+    
+    val currentTrajectory = currentRouteWeather.trajectoryForecast
 
     Column(
         modifier = modifier
@@ -89,11 +97,11 @@ fun RouteWeatherPanel(
             fontWeight = FontWeight.Bold
         )
         
-        val startTime = routeWeather.trajectoryForecast?.waypoints?.firstOrNull()?.estimatedArrival ?: System.currentTimeMillis()
-        val endTime = routeWeather.trajectoryForecast?.waypoints?.lastOrNull()?.estimatedArrival ?: System.currentTimeMillis()
+        val startTime = currentTrajectory?.waypoints?.firstOrNull()?.estimatedArrival ?: System.currentTimeMillis()
+        val endTime = currentTrajectory?.waypoints?.lastOrNull()?.estimatedArrival ?: System.currentTimeMillis()
         val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
-        val startStr = timeFormat.format(Date(startTime + (launchTimeOffsetHours * 3600 * 1000).toLong()))
-        val endStr = timeFormat.format(Date(endTime + (launchTimeOffsetHours * 3600 * 1000).toLong()))
+        val startStr = timeFormat.format(Date(startTime))
+        val endStr = timeFormat.format(Date(endTime))
         
         Text(
             text = "($startStr - $endStr)",
@@ -120,7 +128,7 @@ fun RouteWeatherPanel(
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
             // Wind
-            val avgWind = currentTrajectory.avgHeadwind
+            val avgWind = currentTrajectory?.avgHeadwind ?: 0.0
             WindGauge(
                 value = avgWind,
                 label = "Avg Wind",
@@ -129,22 +137,13 @@ fun RouteWeatherPanel(
                 gradientColors = listOf(Color.Blue, Color.Cyan)
             )
 
-            // Gust - Placeholder until data is available in model
-            /*
-            WindGauge(
-                value = avgWind + 10,
-                label = "Gust",
-                unit = "km/h",
-                gradientColors = listOf(Color.Green, Color.Yellow, Color.Red)
-            )
-            */
-
             // Risk
-            val riskVal = when(currentTrajectory.maxRisk.riskLevel) {
+            val riskVal = when(currentTrajectory?.maxRisk?.riskLevel) {
                 RiskLevel.LOW -> 10.0
                 RiskLevel.MODERATE -> 50.0
                 RiskLevel.HIGH -> 80.0
                 RiskLevel.EXTREME -> 100.0
+                null -> 0.0
             }
             WindGauge(
                 value = riskVal,
@@ -193,7 +192,7 @@ fun RouteWeatherPanel(
 
                 if (isWaypointListExpanded) {
                     Spacer(modifier = Modifier.height(8.dp))
-                    currentTrajectory.waypoints.forEach { wp ->
+                    currentTrajectory?.waypoints?.forEach { wp ->
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                             horizontalArrangement = Arrangement.SpaceBetween

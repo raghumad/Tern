@@ -197,7 +197,9 @@ class UniversalCountryCacheManager(
             Log.d(TAG, "Triggering Airspace download for $country")
             airspaceCache.downloadAndCache(country)
 
-            cachedCountries.add(country)
+            mutex.withLock {
+                cachedCountries.add(country)
+            }
             Log.d(TAG, "Country cached for all overlay types: $country")
             
             // Notify listeners that country data is ready
@@ -212,8 +214,10 @@ class UniversalCountryCacheManager(
     /**
      * Remove country from cache
      */
-    private fun removeCountry(country: String) {
-        cachedCountries.remove(country)
+    private suspend fun removeCountry(country: String) {
+        mutex.withLock {
+            cachedCountries.remove(country)
+        }
         Log.d(TAG, "Removed country from cache: $country")
     }
 
