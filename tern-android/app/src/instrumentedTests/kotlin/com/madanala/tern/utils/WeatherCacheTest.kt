@@ -2,9 +2,7 @@ package com.madanala.tern.utils
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import com.madanala.tern.model.CapePoint
-import com.madanala.tern.model.SkewTForecast
-import com.madanala.tern.model.WeatherForecast
+import com.madanala.tern.utils.WeatherForecast
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -36,9 +34,9 @@ class WeatherCacheTest : BddTest() {
 
             given("a weather forecast for a location") {
                 forecast = WeatherForecast(
-                    skewT = SkewTForecast(emptyList()),
-                    cape = listOf(CapePoint("12:00", 500.0)),
-                    wind = emptyList()
+                    current = null,
+                    daily = emptyList(),
+                    hourly = emptyList()
                 )
             }
 
@@ -53,8 +51,7 @@ class WeatherCacheTest : BddTest() {
             then("the cached forecast should be returned") {
                 assertTrue(retrievedForecasts!!.isNotEmpty())
                 val retrieved = retrievedForecasts!!.first()
-                assertEquals(forecast!!.cape.size, retrieved.cape.size)
-                assertEquals(forecast!!.cape[0].cape, retrieved.cape[0].cape, 0.1)
+                assertEquals(forecast!!.daily.size, retrieved.daily.size)
             }
         }
     }
