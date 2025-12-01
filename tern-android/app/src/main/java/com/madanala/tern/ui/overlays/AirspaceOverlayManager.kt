@@ -153,14 +153,16 @@ class AirspaceOverlayManager(
             return
         }
 
-        // Postpone overlay operations until GPS fix is available
-        if (!hasValidGPSFix) {
-            return
-        }
+
 
         // Validate coordinates for safety and correctness
         try {
             validateCoordinates(center)
+            
+            // Ignore 0,0 coordinates (default/uninitialized state)
+            if (Math.abs(center.latitude) < 0.01 && Math.abs(center.longitude) < 0.01) {
+                return
+            }
         } catch (e: InvalidCoordinatesException) {
             Log.w(TAG, "Invalid coordinates in map move: ${e.message}", e)
             return
@@ -211,9 +213,7 @@ class AirspaceOverlayManager(
             lastCheckLocation = null
         } else if (mapView != null) {
             // Postpone Redux-triggered overlay operations until GPS fix is available
-            if (!hasValidGPSFix) {
-                return
-            }
+
 
             // Check zoom level (LOD)
             if (!isZoomLevelSufficient(mapView!!.zoomLevelDouble)) {
@@ -224,8 +224,10 @@ class AirspaceOverlayManager(
             }
 
             // If enabled and we have a map view, trigger loading
-            val center = mapView!!.mapCenter as GeoPoint
-            checkAndLoadAirspaceData(center)
+            val center = mapView?.mapCenter as? GeoPoint
+            if (center != null) {
+                checkAndLoadAirspaceData(center)
+            }
         }
     }
 

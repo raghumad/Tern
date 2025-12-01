@@ -13,7 +13,7 @@ import com.madanala.tern.redux.WeatherActions
 import com.madanala.tern.utils.CacheManager
 import com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature
 import com.madanala.tern.utils.OpenMeteoWeatherAPI
-import com.madanala.tern.utils.PGSpotWeatherCache
+import com.madanala.tern.utils.WeatherCache
 import com.madanala.tern.utils.WeatherAPI
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -44,7 +44,7 @@ class PGSpotOverlayManager(
     mapStore: MapStore?,
     private val pgSpotCache: PGSpotCache = CacheManager.pgSpotCache,
     private val weatherAPI: WeatherAPI = OpenMeteoWeatherAPI(),
-    private val weatherCache: PGSpotWeatherCache = PGSpotWeatherCache(applicationContext)
+    private val weatherCache: WeatherCache = CacheManager.weatherCache
 ) : BaseOverlayManager(OverlayType.PG_SPOTS, mapStore) {
 
     companion object {
@@ -57,7 +57,7 @@ class PGSpotOverlayManager(
     // Aviation-grade weather infrastructure - specialized caches for each data type
     // Injected via constructor for testability
     // private val pgSpotCache = CacheManager.pgSpotCache // Use singleton to prevent duplicate downloads
-    // private val weatherCache = PGSpotWeatherCache(applicationContext)
+    // private val weatherCache = CacheManager.weatherCache
     // private val weatherAPI: WeatherAPI = OpenMeteoWeatherAPI() // Extensible to multiple APIs
 
     // State management - aviation safety through tracking
@@ -173,10 +173,7 @@ class PGSpotOverlayManager(
             return
         }
 
-        // Postpone overlay operations until GPS fix is available
-        if (!hasValidGPSFix) {
-            return
-        }
+
 
         // Additional coordinate validation for safety
         if (center.latitude < -90.0 || center.latitude > 90.0 || center.longitude < -180.0 || center.longitude > 180.0) {
@@ -477,6 +474,11 @@ class PGSpotOverlayManager(
         try {
 
             // Geographic determination (same as airspace system)
+            // Ignore 0,0 coordinates (default/uninitialized state)
+            if (Math.abs(center.latitude) < 0.01 && Math.abs(center.longitude) < 0.01) {
+                return
+            }
+
             val countryCode = com.madanala.tern.utils.CountryUtils.getCountryCodeFromGeoPoint(context, center)
             if (countryCode == null) {
                 Log.w(TAG, "Could not determine country code for PG spots at: $center")
@@ -884,12 +886,12 @@ class PGSpotOverlayManager(
             visiblePGSpots.clear()
         } else if (mapView != null) {
             // Postpone Redux-triggered overlay operations until GPS fix is available
-            if (!hasValidGPSFix) {
-                return
-            }
 
-            val center = mapView!!.mapCenter as GeoPoint
-            checkAndLoadPGSpots(center)
+
+            val center = mapView?.mapCenter as? GeoPoint
+            if (center != null) {
+                checkAndLoadPGSpots(center)
+            }
         }
     }
 

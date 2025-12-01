@@ -11,8 +11,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.extension.ExtendWith
 import org.junit.jupiter.api.extension.ExtensionContext
 import org.junit.jupiter.api.extension.TestWatcher
-import io.mockk.MockKAnnotations
-import io.mockk.unmockkAll
+import io.mockk.*
 
 /**
  * Base class for all unit tests.
@@ -29,6 +28,16 @@ abstract class BaseTest {
     open fun setup() {
         Dispatchers.setMain(testDispatcher)
         MockKAnnotations.init(this)
+        
+        // Mock android.util.Log
+        mockkStatic(android.util.Log::class)
+        every { android.util.Log.d(any(), any()) } returns 0
+        every { android.util.Log.e(any(), any()) } returns 0
+        every { android.util.Log.e(any(), any(), any()) } returns 0
+        every { android.util.Log.w(any(), any<String>()) } returns 0
+        every { android.util.Log.w(any(), any<Throwable>()) } returns 0
+        every { android.util.Log.i(any(), any()) } returns 0
+        every { android.util.Log.v(any(), any()) } returns 0
     }
 
     @AfterEach

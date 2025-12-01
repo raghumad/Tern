@@ -57,6 +57,9 @@ class UniversalCountryCacheManager(
         Log.d(TAG, "UniversalCountryCacheManager initialized")
     }
 
+    // Callback for when a country is fully loaded
+    var onCountryLoaded: ((String) -> Unit)? = null
+
     // ==================== CORE COUNTRY MANAGEMENT ====================
 
     /**
@@ -187,13 +190,20 @@ class UniversalCountryCacheManager(
             Log.d(TAG, "Preloading country for all overlay types: $country")
 
             // 1. Download PG Spots (delegated to cache)
+            Log.d(TAG, "Triggering PG spot download for $country")
             pgSpotCache.downloadAndCache(country)
 
             // 2. Download Airspaces (delegated to cache)
+            Log.d(TAG, "Triggering Airspace download for $country")
             airspaceCache.downloadAndCache(country)
 
             cachedCountries.add(country)
             Log.d(TAG, "Country cached for all overlay types: $country")
+            
+            // Notify listeners that country data is ready
+            withContext(Dispatchers.Main) {
+                onCountryLoaded?.invoke(country)
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Error preloading country: $country", e)
         }

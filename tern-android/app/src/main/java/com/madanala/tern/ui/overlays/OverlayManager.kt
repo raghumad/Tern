@@ -68,10 +68,7 @@ interface OverlayManager {
      */
     fun setReduxStore(store: com.madanala.tern.redux.MapStore?)
 
-    /**
-     * Update GPS fix status - called when GPS receives valid coordinates
-     */
-    fun updateGPSFixStatus(hasFix: Boolean)
+
 
     /**
      * Get performance statistics

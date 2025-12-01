@@ -254,7 +254,8 @@ class RouteOverlayManager(
         }
 
         // Notify overlay coordinator of map movement for distance-based zoning
-        overlayCoordinator?.onMapMoved(center.latitude, center.longitude, zoom)
+        // REMOVED: This causes infinite recursion as OverlayCoordinator calls this method!
+        // overlayCoordinator?.onMapMoved(center.latitude, center.longitude, zoom)
         
         // Trigger update to respect new center for prioritization
         updateRouteOverlays()
@@ -271,6 +272,34 @@ class RouteOverlayManager(
 
         // Notify overlay coordinator of viewport changes for memory management
         overlayCoordinator?.onViewportChanged(viewport)
+    }
+
+    /**
+     * Handle overlay budget changes with route-specific logging
+     */
+    override fun onOverlayBudgetChanged(budget: com.madanala.tern.utils.OverlayBudget) {
+        super.onOverlayBudgetChanged(budget)
+
+        // Get current map center for geographic context
+        val center = mapView?.mapCenter
+        val centerStr = if (center != null) {
+            String.format("@ %.4f,%.4f", center.latitude, center.longitude)
+        } else {
+            "@ unknown location"
+        }
+
+        // Get actually visible routes (added to map vs just created)
+        val actuallyVisibleRoutes = currentlyRenderedRoutes.count { (_, overlay) ->
+            mapView?.overlays?.contains(overlay) == true
+        }
+
+        Log.d(TAG, String.format(
+            "Route Budget: %d total (Created: %d, Visible: %d %s)",
+            budget.totalOverlays,
+            currentlyRenderedRoutes.size,
+            actuallyVisibleRoutes,
+            centerStr
+        ))
     }
 
     /**

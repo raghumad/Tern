@@ -109,16 +109,28 @@ object MapOverlayCacheUtils {
         val features = mutableListOf<OverlayFeature>()
 
         try {
-            val geoJson: Map<String, Any> = mapper.readValue(geoJsonString)
+            val geoJson: Any = mapper.readValue(geoJsonString)
 
-            val type = geoJson["type"] as? String
-            if (type != "FeatureCollection") {
-                android.util.Log.w("MapOverlayCacheUtils", "Expected FeatureCollection, got $type")
-                return emptyList()
+            val featureList = when (geoJson) {
+                is Map<*, *> -> {
+                    val type = geoJson["type"] as? String
+                    if (type == "FeatureCollection") {
+                        geoJson["features"] as? List<Map<String, Any>> ?: emptyList()
+                    } else {
+                        android.util.Log.w("MapOverlayCacheUtils", "Expected FeatureCollection, got $type")
+                        emptyList()
+                    }
+                }
+                is List<*> -> {
+                    // Handle raw array of features
+                    @Suppress("UNCHECKED_CAST")
+                    geoJson as? List<Map<String, Any>> ?: emptyList()
+                }
+                else -> {
+                    android.util.Log.w("MapOverlayCacheUtils", "Unexpected GeoJSON format: ${geoJson.javaClass.simpleName}")
+                    emptyList()
+                }
             }
-
-            @Suppress("UNCHECKED_CAST")
-            val featureList = geoJson["features"] as? List<Map<String, Any>> ?: emptyList()
 
             featureList.forEach { feature ->
                 @Suppress("UNCHECKED_CAST")

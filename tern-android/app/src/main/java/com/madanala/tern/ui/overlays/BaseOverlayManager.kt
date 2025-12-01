@@ -55,7 +55,7 @@ abstract class BaseOverlayManager(
 
     // Universal animation manager for smooth transitions
     internal var animationManager: com.madanala.tern.ui.overlays.OverlayCoordinator.OverlayAnimationManager? = null
-    protected var hasValidGPSFix = false
+
 
     // Adaptive overlay system for memory-based allocation
     private var adaptiveOverlaySystem: AdaptiveOverlaySystem? = null
@@ -274,16 +274,7 @@ abstract class BaseOverlayManager(
      */
     fun isEnabled(): Boolean = getCurrentConfig()?.enabled ?: true
 
-    /**
-     * Update GPS fix status - called when GPS receives valid coordinates
-     */
-    override fun updateGPSFixStatus(hasFix: Boolean) {
-        val changed = hasValidGPSFix != hasFix
-        hasValidGPSFix = hasFix
-        if (changed && hasFix) {
-            // Log.d(TAG, "GPS fix acquired - overlay operations now enabled")
-        }
-    }
+
 
     /**
      * Start subscribing to Redux state changes

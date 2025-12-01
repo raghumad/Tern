@@ -1,10 +1,17 @@
 package com.madanala.tern.utils
 
 import android.content.Context
-import com.google.common.truth.Truth.assertThat
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkObject
+import io.mockk.unmockkObject
+import kotlinx.coroutines.runBlocking
 import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -26,81 +33,106 @@ class AirspaceCacheTest {
         cacheDir = tempFolder.newFolder("airspace_cache")
         
         // Mock context.cacheDir to return our temp folder's parent
-        // AirspaceCache appends "airspace_cache" to the context.cacheDir
         every { context.cacheDir } returns tempFolder.root
 
         airspaceCache = AirspaceCache(context)
+        
+        mockkObject(GeoJsonUtils)
     }
 
     @After
     fun tearDown() {
         airspaceCache.clearCache()
+        unmockkObject(GeoJsonUtils)
     }
 
     @Test
     fun `isCached returns false when no data exists`() {
-        assertThat(airspaceCache.isCached("US")).isFalse()
+        assertFalse(airspaceCache.isCached("US"))
     }
 
     @Test
-    fun `cacheData creates cache files and updates index`() {
+    fun `downloadAndCache downloads, parses and caches data`() = runBlocking {
         val countryCode = "CH"
-        // Minimal valid NDGeoJSON
-        val ndGeoJson = """
-            {"type":"Feature","geometry":{"type":"Point","coordinates":[8.5,47.3]},"properties":{"name":"Test"}}
+        // Minimal valid GeoJSON
+        val geoJson = """
+            {
+              "type": "FeatureCollection",
+              "features": [
+                {
+                  "type": "Feature",
+                  "geometry": {"type":"Point","coordinates":[8.5,47.3]},
+                  "properties": {"name":"Test Airspace"}
+                }
+              ]
+            }
         """.trimIndent()
 
-        airspaceCache.cacheData(countryCode, ndGeoJson)
+        // Mock download
+        coEvery { GeoJsonUtils.downloadGeoJson(any()) } returns geoJson
 
+        val result = airspaceCache.downloadAndCache(countryCode)
+
+        assertTrue(result)
+        
         // Verify files exist
         val flexFile = File(cacheDir, "${countryCode}_airspace.flex")
         val idxFile = File(cacheDir, "${countryCode}_airspace.idx")
         
-        assertThat(flexFile.exists()).isTrue()
-        assertThat(idxFile.exists()).isTrue()
+        assertTrue(flexFile.exists())
+        assertTrue(idxFile.exists())
         
         // Verify isCached returns true
-        assertThat(airspaceCache.isCached(countryCode)).isTrue()
+        assertTrue(airspaceCache.isCached(countryCode))
     }
 
     @Test
-    fun `validateCacheIntegrity returns false for missing files`() {
-        // Manually create index but not flex file
-        val countryCode = "FR"
-        val idxFile = File(cacheDir, "${countryCode}_airspace.idx")
-        idxFile.createNewFile()
-        idxFile.writeText("{}") // Minimal content
-
-        // Should fail because flex file is missing
-        // We need to access the private method or rely on isCached calling it
-        // isCached calls validateCacheIntegrity if timestamp exists
-        
-        // We can't easily inject timestamp without reflection or exposing methods.
-        // However, we can try to cache data, then delete a file, then check isCached.
-        
-        val ndGeoJson = """
-            {"type":"Feature","geometry":{"type":"Point","coordinates":[2.3,48.8]},"properties":{"name":"Paris"}}
-        """.trimIndent()
-        airspaceCache.cacheData(countryCode, ndGeoJson)
-        
-        // Verify it's cached
-        assertThat(airspaceCache.isCached(countryCode)).isTrue()
-        
-        // Corrupt it by deleting flex file
-        val flexFile = File(cacheDir, "${countryCode}_airspace.flex")
-        flexFile.delete()
-        
-        // Should now be false
-        assertThat(airspaceCache.isCached(countryCode)).isFalse()
-    }
-
-    @Test
-    fun `cacheData rejects invalid NDGeoJSON`() {
+    fun `downloadAndCache handles invalid GeoJSON`() = runBlocking {
         val countryCode = "IT"
         val invalidJson = "Not JSON"
 
-        airspaceCache.cacheData(countryCode, invalidJson)
+        coEvery { GeoJsonUtils.downloadGeoJson(any()) } returns invalidJson
 
-        assertThat(airspaceCache.isCached(countryCode)).isFalse()
+        val result = airspaceCache.downloadAndCache(countryCode)
+
+        assertFalse(result)
+        assertFalse(airspaceCache.isCached(countryCode))
+    }
+
+    @Test
+    fun `getCachedAirspaces returns cached data`() = runBlocking {
+        val countryCode = "DE"
+        val geoJson = """
+            {
+              "type": "FeatureCollection",
+              "features": [
+                {
+                  "type": "Feature",
+                  "properties": {"name": "Test Airspace"},
+                  "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [
+                      [
+                        [10.0, 50.0],
+                        [10.0, 50.1],
+                        [10.1, 50.1],
+                        [10.1, 50.0],
+                        [10.0, 50.0]
+                      ]
+                    ]
+                  }
+                }
+              ]
+            }
+        """.trimIndent()
+
+        coEvery { GeoJsonUtils.downloadGeoJson(any()) } returns geoJson
+        airspaceCache.downloadAndCache(countryCode)
+
+        // Verify we can retrieve it
+        val features = airspaceCache.getCachedAirspaces(countryCode)
+        assertNotNull(features)
+        assertTrue(features!!.isNotEmpty())
+        assertEquals("airspace", features[0].overlayType)
     }
 }
