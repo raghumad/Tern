@@ -78,6 +78,9 @@ class PGSpotCache(context: Context) {
 
             if (geoJsonString != null) {
                 Log.d(TAG, "Downloaded ${geoJsonString.length} bytes of PG spots data for $countryCode")
+                if (geoJsonString.length < 500) {
+                    Log.d(TAG, "PG Spot Data Preview: $geoJsonString")
+                }
 
                 val features = MapOverlayCacheUtils.parseGeoJsonToFeatures(geoJsonString, "pgspot")
                 Log.d(TAG, "Parsed ${features.size} PG spots for $countryCode")
@@ -95,7 +98,7 @@ class PGSpotCache(context: Context) {
                     Log.d(TAG, "Successfully cached ${validFeatures.size} PG spots for $countryCode")
                     return validFeatures
                 } else {
-                    Log.w(TAG, "No valid PG spots found for $countryCode after validation")
+                    Log.w(TAG, "No valid PG spots found for $countryCode after validation. Raw features: ${features.size}")
                     clearCacheForCountry(countryCode)
                 }
             } else {
@@ -118,10 +121,24 @@ class PGSpotCache(context: Context) {
     }
 
     /**
-     * Query nearby PG spots using Hilbert spatial indexing
+     * Query nearby PG spots
+     * Note: Currently uses in-memory filtering of country data as Hilbert range query is being optimized.
+     * Performance is sufficient for country-level datasets (<10k points).
      */
     fun queryNearbyPGSpots(countryCode: String, center: GeoPoint, maxDistanceMiles: Double): List<OverlayFeature> {
-        return diskCache.queryNearby(countryCode, center, maxDistanceMiles)
+        // Retrieve all features for the country
+        val allFeatures = diskCache.getCachedFeatures(countryCode) ?: return emptyList()
+        
+        val maxDistanceMeters = maxDistanceMiles * 1609.34
+        
+        // Filter by distance in memory
+        return allFeatures.filter { feature ->
+            try {
+                center.distanceToAsDouble(feature.centroid) <= maxDistanceMeters
+            } catch (e: Exception) {
+                false
+            }
+        }
     }
 
     /**

@@ -84,12 +84,25 @@ class RouteCache(context: Context) {
                 // So we can use queryNearby to find relevant route IDs, OR just iterate cached routes.
                 // Given routes are "long" objects, spatial query on waypoints is better.
                 
-                val nearbyWaypoints = diskCache.queryNearby(routeId, center, maxDistanceMiles)
-                if (nearbyWaypoints.isNotEmpty()) {
-                    // If any waypoint is nearby, load the full route
-                    val route = getCachedRoute(routeId)
-                    if (route != null) {
-                        nearbyRoutes.add(route)
+                // Use in-memory filtering to bypass potential SpatialDiskCache issues
+                val allFeatures = diskCache.getCachedFeatures(routeId)
+                if (allFeatures != null) {
+                    val maxDistanceMeters = maxDistanceMiles * MAX_DISTANCE_METERS_PER_MILE
+                    
+                    val hasNearby = allFeatures.any { feature ->
+                        try {
+                            center.distanceToAsDouble(feature.centroid) <= maxDistanceMeters
+                        } catch (e: Exception) {
+                            false
+                        }
+                    }
+                    
+                    if (hasNearby) {
+                        // If any waypoint is nearby, load the full route
+                        val route = reconstructRouteFromFeatures(routeId, allFeatures)
+                        if (route != null) {
+                            nearbyRoutes.add(route)
+                        }
                     }
                 }
             }

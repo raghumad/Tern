@@ -14,6 +14,7 @@ data class TrajectoryForecast(
 
 data class WaypointWeather(
     val waypointId: String,
+    val location: org.osmdroid.util.GeoPoint,
     val estimatedArrival: Long, // Timestamp
     val forecast: WeatherForecast // Forecast at that specific time
 )

@@ -53,7 +53,7 @@ class AirspaceCache(context: Context) {
 
         try {
             // OpenAIP URL structure (example)
-            val url = "https://storage.googleapis.com/29f98e10-a489-4c82-ae5e-489dbcd4912f/${countryCode.lowercase()}_airspace.geojson"
+            val url = "https://storage.googleapis.com/29f98e10-a489-4c82-ae5e-489dbcd4912f/${countryCode.lowercase()}_asp.geojson"
             Log.d(TAG, "Starting airspace download for $countryCode from: $url")
 
             val geoJsonString = GeoJsonUtils.downloadGeoJson(url)
@@ -93,10 +93,25 @@ class AirspaceCache(context: Context) {
     }
 
     /**
-     * Query nearby airspaces using Hilbert spatial indexing
+     * Query nearby airspaces
+     * Note: Uses in-memory filtering to bypass potential SpatialDiskCache issues.
      */
     fun queryNearbyFeatures(countryCode: String, center: GeoPoint, maxDistanceMiles: Double): List<OverlayFeature> {
-        return diskCache.queryNearby(countryCode, center, maxDistanceMiles)
+        // Retrieve all features for the country
+        val allFeatures = diskCache.getCachedFeatures(countryCode) ?: return emptyList()
+        
+        val maxDistanceMeters = maxDistanceMiles * 1609.34
+        
+        // Filter by distance in memory
+        return allFeatures.filter { feature ->
+            try {
+                // For airspaces (polygons), centroid distance is a good enough approximation for "nearby"
+                // The actual intersection check happens in the overlay manager/renderer
+                center.distanceToAsDouble(feature.centroid) <= maxDistanceMeters
+            } catch (e: Exception) {
+                false
+            }
+        }
     }
 
     /**
