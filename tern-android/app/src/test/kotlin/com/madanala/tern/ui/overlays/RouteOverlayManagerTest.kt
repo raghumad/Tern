@@ -260,12 +260,12 @@ private val testDispatcher = StandardTestDispatcher()
     }
 
     @Test
-    fun `map move notifies coordinator`() {
+    fun `map move does NOT notify coordinator to avoid recursion`() {
         manager.initialize(mockMapView)
         val center = GeoPoint(40.0, -74.0)
         manager.performMapMove(center, 12.0)
 
-        verify { mockCoordinator.onMapMoved(40.0, -74.0, 12.0) }
+        verify(exactly = 0) { mockCoordinator.onMapMoved(any(), any(), any()) }
     }
 
     @Test

@@ -127,7 +127,7 @@ fun MapViewContainer(
                 }
                 mapViewModel.clearSmartSuggestionState()
             },
-            title = { Text("Nearby ${spotType.capitalize()}") },
+            title = { Text("Nearby ${spotType.replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.getDefault()) else it.toString() }}") },
             text = { Text("Found nearby paragliding spot: \"$spotName\".\n\nDo you want to use this spot as your waypoint?") },
             confirmButton = {
                 androidx.compose.material3.TextButton(

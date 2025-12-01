@@ -4,7 +4,7 @@ import android.content.Context
 import com.madanala.tern.BaseTest
 import com.madanala.tern.redux.MapStore
 import com.madanala.tern.utils.PGSpotCache
-import com.madanala.tern.utils.PGSpotWeatherCache
+import com.madanala.tern.utils.WeatherCache
 import com.madanala.tern.utils.WeatherAPI
 import com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature
 import com.madanala.tern.utils.UniversalCountryCacheManager
@@ -21,7 +21,7 @@ class PGSpotOverlayManagerTest : BaseTest() {
     private lateinit var mapStore: MapStore
     private lateinit var pgSpotCache: PGSpotCache
     private lateinit var weatherAPI: WeatherAPI
-    private lateinit var weatherCache: PGSpotWeatherCache
+    private lateinit var weatherCache: WeatherCache
     private lateinit var countryCacheManager: UniversalCountryCacheManager
     private lateinit var overlayCoordinator: OverlayCoordinator
     private lateinit var mapView: MapView
@@ -50,12 +50,12 @@ class PGSpotOverlayManagerTest : BaseTest() {
         val mockStateFlow = kotlinx.coroutines.flow.MutableStateFlow(mockState)
         every { mapStore.state } returns mockStateFlow
 
+        // Mock static CountryUtils
+        mockkObject(com.madanala.tern.utils.CountryUtils)
+        every { com.madanala.tern.utils.CountryUtils.getCountryCodeFromGeoPoint(any(), any()) } returns "US"
+
         manager = PGSpotOverlayManager(context, mapStore, pgSpotCache, weatherAPI, weatherCache)
         manager.setCountryCacheManager(countryCacheManager)
-        manager.setOverlayCoordinator(overlayCoordinator)
-        manager.initialize(mapView)
-        manager.updateGPSFixStatus(true) // Enable GPS fix for testing
-        
         // Mock MapView center
         every { mapView.mapCenter } returns GeoPoint(0.0, 0.0)
         every { mapView.zoomLevelDouble } returns 12.0
@@ -71,12 +71,11 @@ class PGSpotOverlayManagerTest : BaseTest() {
         // Mock country cache response
         val pgSpotFeature = OverlayFeature(mapOf("name" to "Spot1"), center, 456L, "pgspot")
         
-        // Mock static CountryUtils
-        mockkObject(com.madanala.tern.utils.CountryUtils)
-        every { com.madanala.tern.utils.CountryUtils.getCountryCodeFromGeoPoint(any(), any()) } returns "US"
-        
         every { pgSpotCache.isCached("US") } returns true
         every { pgSpotCache.queryNearbyPGSpots("US", center, any()) } returns listOf(pgSpotFeature)
+
+        manager.setOverlayCoordinator(overlayCoordinator)
+        manager.initialize(mapView)
 
         // When
         manager.performMapMove(center, zoom)
@@ -87,8 +86,6 @@ class PGSpotOverlayManagerTest : BaseTest() {
         // Then
         // Verify that pgSpotCache was queried
         verify { pgSpotCache.queryNearbyPGSpots("US", center, any()) }
-        
-        unmockkObject(com.madanala.tern.utils.CountryUtils)
     }
     
     @Test
@@ -97,10 +94,30 @@ class PGSpotOverlayManagerTest : BaseTest() {
         val center = GeoPoint(47.0, 8.0)
         val zoom = 5.0 // Too low
         
+        manager.setOverlayCoordinator(overlayCoordinator)
+        manager.initialize(mapView)
+
         // When
         manager.performMapMove(center, zoom)
         
         // Then
         coVerify(exactly = 0) { countryCacheManager.queryMultiCountryArea(any(), any()) }
+    }
+
+    @Test
+    fun `performMapMove ignores 0,0 coordinates`() = runTest {
+        // Given
+        val center = GeoPoint(0.0, 0.0)
+        val zoom = 12.0
+        
+        manager.setOverlayCoordinator(overlayCoordinator)
+        manager.initialize(mapView)
+
+        // When
+        manager.performMapMove(center, zoom)
+        
+        // Then
+        coVerify(exactly = 0) { countryCacheManager.queryMultiCountryArea(any(), any()) }
+        verify(exactly = 0) { pgSpotCache.queryNearbyPGSpots(any(), any(), any()) }
     }
 }

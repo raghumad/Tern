@@ -87,7 +87,8 @@ object GeoJsonUtils {
         }
 
         // For NDGeoJSON files (newline-delimited), check if it's properly formatted
-        if (url.contains("ndgeojson")) {
+        // Also handle _asp.geojson files which are NDGeoJSON
+        if (url.contains("ndgeojson") || url.endsWith("_asp.geojson")) {
             return validateNdGeoJsonContent(content, url)
         }
 

@@ -82,6 +82,21 @@ class OverlayCoordinator {
 
         // Initialize universal country cache manager for all overlay types (Priority 0 fix)
         countryCacheManager = com.madanala.tern.utils.UniversalCountryCacheManager(context)
+        
+        // Set up callback to refresh overlays when country data is loaded
+        countryCacheManager?.onCountryLoaded = { countryCode ->
+            // Log.d(TAG, "Country loaded: $countryCode - refreshing overlays")
+            mapView?.let { map ->
+                val center = map.mapCenter as? org.osmdroid.util.GeoPoint
+                if (center != null) {
+                    val zoom = map.zoomLevelDouble
+                    activeManagers.values.forEach { manager ->
+                        manager.performMapMove(center, zoom)
+                    }
+                }
+            }
+        }
+        
         // Log.d(TAG, "Universal country cache manager initialized for all overlay types")
 
         // Trigger performance debugger initialization for development monitoring

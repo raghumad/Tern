@@ -160,9 +160,9 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
                         reduxBridge.dispatchLocationReady(true)
                         reduxBridge.dispatchUserLocation(myLocation)
 
-                        // Notify overlay managers that GPS fix is now available
-                        overlayCoordinator.getOverlayManager(com.madanala.tern.redux.OverlayType.AIRSPACE)?.updateGPSFixStatus(true)
-                        overlayCoordinator.getOverlayManager(com.madanala.tern.redux.OverlayType.PG_SPOTS)?.updateGPSFixStatus(true)
+                        // Dispatch Redux actions for location state
+                        reduxBridge.dispatchLocationReady(true)
+                        reduxBridge.dispatchUserLocation(myLocation)
 
                         // Note: Overlay managers handle data loading through Redux state
                     }
@@ -284,6 +284,14 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
         pendingReduxUpdate = Runnable {
             // Use single combined action instead of 3 separate dispatches
             reduxBridge.dispatchMapMovement(rotation, center, zoom)
+            
+            // Notify overlay coordinator of map movement to trigger data loading
+            if (center != null && zoom != null) {
+                overlayCoordinator.onMapMoved(center.latitude, center.longitude, zoom)
+            } else if (center != null && mapView != null) {
+                // Fallback if zoom not provided (e.g. scroll event)
+                overlayCoordinator.onMapMoved(center.latitude, center.longitude, mapView.zoomLevelDouble)
+            }
         }
         mainHandler.postDelayed(pendingReduxUpdate!!, MAP_MOVE_DEBOUNCE_MS)
     }

@@ -72,6 +72,23 @@ object ReportGenerator {
         }
     }
 
+    fun assertLogMatchesRegex(tag: String, regexPattern: String, validator: (MatchResult) -> Boolean) {
+        val log = captureLogCat()
+        val regex = Regex(regexPattern)
+        val match = log.lineSequence()
+            .filter { it.contains(tag) }
+            .mapNotNull { regex.find(it) }
+            .firstOrNull()
+
+        if (match == null) {
+            throw AssertionError("Logcat did not contain message matching regex. Tag: $tag, Pattern: $regexPattern")
+        }
+
+        if (!validator(match)) {
+            throw AssertionError("Log message matched pattern but failed validation. Match: ${match.value}")
+        }
+    }
+
     fun finishScenario(name: String, logCatOutput: String?) {
         recordedScenarios.add(ScenarioData(name, currentSteps.toList(), logCatOutput))
         currentSteps.clear()
