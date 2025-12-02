@@ -43,8 +43,13 @@ class TrajectoryAnalyzerTest {
         val result = analyzer.analyzeTrajectory(route, startTime)
 
         // Then
-        assertNotNull(result.trajectoryForecast)
+        assertNotNull(result)
         assertEquals(2, result.trajectoryForecast?.waypoints?.size)
+        
+        val startWp = result.trajectoryForecast?.waypoints?.first()
+        assertNotNull(startWp)
+        // Verify cloud cover is mapped (even if empty list from mock, the field exists)
+        assertNotNull(startWp?.forecast?.cloudCover)
         
         val wp1 = result.trajectoryForecast!!.waypoints[0]
         assertEquals(startTime, wp1.estimatedArrival)

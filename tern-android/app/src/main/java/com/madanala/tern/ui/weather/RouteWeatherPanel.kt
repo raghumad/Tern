@@ -192,6 +192,19 @@ fun RouteWeatherPanel(
 
                 if (isWaypointListExpanded) {
                     Spacer(modifier = Modifier.height(8.dp))
+                    
+                    // Hourly Trend Chart
+                    if (currentTrajectory != null && currentTrajectory.waypoints.size > 1) {
+                        HourlyTrendChart(
+                            trajectory = currentTrajectory,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(200.dp)
+                                .padding(vertical = 8.dp)
+                        )
+                    }
+
+                    // Waypoint list
                     currentTrajectory?.waypoints?.forEach { wp ->
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),

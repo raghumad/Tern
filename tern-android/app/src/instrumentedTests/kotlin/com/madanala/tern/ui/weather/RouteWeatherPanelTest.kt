@@ -62,8 +62,9 @@ class RouteWeatherPanelTest : BddTest() {
                 composeTestRule.onAllNodesWithTag("WindGaugeValue")[0].assertTextEquals("15")
             }
             
-            and("expanding the waypoint list should show Launch and Goal") {
+            and("expanding the waypoint list should show the trend chart") {
                 composeTestRule.onNodeWithText("Waypoint Breakdown").performClick()
+                composeTestRule.onNodeWithText("Wind & Cloud Trend").assertIsDisplayed()
                 composeTestRule.onNodeWithText("Launch (", substring = true).assertIsDisplayed()
                 composeTestRule.onNodeWithText("Goal (", substring = true).assertIsDisplayed()
             }
