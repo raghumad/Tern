@@ -163,6 +163,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
                         // Dispatch Redux actions for location state
                         reduxBridge.dispatchLocationReady(true)
                         reduxBridge.dispatchUserLocation(myLocation)
+                        Log.i(TAG, "Location Ready: Initial zoom and center set")
 
                         // Note: Overlay managers handle data loading through Redux state
                     }
@@ -318,6 +319,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
         val reduxState = reduxBridge.getReduxState()
         if (reduxState.hasLocationPermission) {
             initializeLocationOverlay()
+            startLocationUpdates()
         }
     }
 

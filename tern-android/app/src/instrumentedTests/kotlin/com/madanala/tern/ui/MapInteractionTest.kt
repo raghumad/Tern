@@ -11,7 +11,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onAllNodesWithTag
-import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.printToLog
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
@@ -117,9 +117,7 @@ class MapInteractionTest : BddTest() {
                 }
 
                 // Verify "Edit Waypoint" screen appears (auto-selected new waypoint)
-                composeTestRule.waitUntil(timeoutMillis = 5000) {
-                    composeTestRule.onAllNodesWithText("Edit Waypoint").fetchSemanticsNodes().isNotEmpty()
-                }
+                composeTestRule.onNodeWithText("Edit Waypoint").assertIsDisplayed()
                 composeTestRule.onNodeWithText("Edit Waypoint").assertIsDisplayed()
                 
                 // Dismiss Edit Waypoint screen
@@ -149,7 +147,7 @@ class MapInteractionTest : BddTest() {
                         composeTestRule.onAllNodesWithTag("RouteDetailPanel").fetchSemanticsNodes().isNotEmpty()
                     }
                 } catch (e: androidx.compose.ui.test.ComposeTimeoutException) {
-                    composeTestRule.onRoot().printToLog("DEBUG_TREE_FAILURE")
+
                     println("DEBUG_STATE: Routes=${store.state.value.routes.size}, SelectedRoute=${store.state.value.selectedRouteId}, SelectedWaypoint=${store.state.value.selectedWaypoint}")
                     throw e
                 }

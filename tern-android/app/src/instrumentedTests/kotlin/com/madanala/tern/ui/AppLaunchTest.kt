@@ -147,4 +147,5 @@ class AppLaunchTest : BddTest() {
             overlayType = "airspace"
         )
     }
+
 }
