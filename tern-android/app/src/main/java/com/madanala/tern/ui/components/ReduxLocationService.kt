@@ -44,6 +44,7 @@ class ReduxLocationService(private val store: MapStore) {
      * Set location ready when we receive the first valid GPS fix
      */
     fun updateLocation(location: org.osmdroid.util.GeoPoint?) {
+        Log.d("DEBUG_LOC", "Received location: $location")
         store.dispatch(MapAction.UpdateUserLocation(location))
 
         // Set location ready when we receive the first valid location

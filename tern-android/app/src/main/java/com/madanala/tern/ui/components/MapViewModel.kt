@@ -104,6 +104,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
 
         // Initialize route editing system immediately (Redux store connected later)
         initializeRouteEditingSystem()
+        Log.i(TAG, "MapViewModel Created: $this")
     }
 
     fun applyMapStyle(style: Int) {
@@ -146,11 +147,13 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
         val context = getApplication<Application>().applicationContext
 
         try {
-            myLocationOverlay = MyLocationNewOverlay(GpsMyLocationProvider(context), mapView).apply {
+            val provider = locationProviderFactory(context)
+            myLocationOverlay = MyLocationNewOverlay(provider, mapView).apply {
                 isDrawAccuracyEnabled = true
 
                 // This is the key: Set the center INSTANTLY on first fix
                 runOnFirstFix {
+                    Log.e(TAG, "runOnFirstFix triggered. initialZoomDone: $initialZoomDone")
                     if (!initialZoomDone) {
                         mapView.controller.setZoom(USER_LOCATION_ZOOM)
                         mapView.controller.setCenter(myLocation)
@@ -163,7 +166,8 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
                         // Dispatch Redux actions for location state
                         reduxBridge.dispatchLocationReady(true)
                         reduxBridge.dispatchUserLocation(myLocation)
-                        Log.i(TAG, "Location Ready: Initial zoom and center set")
+                        val provider = myLocationOverlay?.lastFix?.provider ?: "unknown"
+                        Log.i(TAG, "Location Ready: Initial zoom and center set to $myLocation from provider: $provider")
 
                         // Note: Overlay managers handle data loading through Redux state
                     }
@@ -298,7 +302,13 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     companion object {
-
+        /**
+         * Factory for creating the location provider.
+         * Can be overridden in tests to inject a mock provider.
+         */
+        var locationProviderFactory: (Context) -> org.osmdroid.views.overlay.mylocation.IMyLocationProvider = { 
+            org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider(it) 
+        }
     }
 
 
@@ -395,5 +405,6 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
         // Important to release map resources
         mapView.onDetach()
         super.onCleared()
+        Log.i(TAG, "MapViewModel Cleared: $this")
     }
 }

@@ -10,6 +10,43 @@ import org.osmdroid.views.MapView
 
 import android.os.SystemClock
 import android.view.MotionEvent
+import com.madanala.tern.ui.components.MapViewModel
+
+class MockLocationProvider(private val lat: Double, private val lon: Double) : org.osmdroid.views.overlay.mylocation.IMyLocationProvider {
+    private var consumer: org.osmdroid.views.overlay.mylocation.IMyLocationConsumer? = null
+
+    override fun startLocationProvider(myLocationConsumer: org.osmdroid.views.overlay.mylocation.IMyLocationConsumer?): Boolean {
+        consumer = myLocationConsumer
+        val location = android.location.Location("mock").apply {
+            latitude = lat
+            longitude = lon
+            altitude = 1600.0
+            time = System.currentTimeMillis()
+            accuracy = 1.0f
+            elapsedRealtimeNanos = android.os.SystemClock.elapsedRealtimeNanos()
+        }
+        // Deliver location immediately
+        consumer?.onLocationChanged(location, this)
+        return true
+    }
+
+    override fun stopLocationProvider() {
+        consumer = null
+    }
+
+    override fun getLastKnownLocation(): android.location.Location {
+        return android.location.Location("mock").apply {
+            latitude = lat
+            longitude = lon
+            altitude = 1600.0
+            time = System.currentTimeMillis()
+            accuracy = 1.0f
+            elapsedRealtimeNanos = android.os.SystemClock.elapsedRealtimeNanos()
+        }
+    }
+
+    override fun destroy() {}
+}
 
 object MapTestHelper {
 
@@ -100,16 +137,89 @@ object MapTestHelper {
     }
 
     fun injectMockLocation(composeTestRule: androidx.compose.ui.test.junit4.AndroidComposeTestRule<*, *>, lat: Double, lon: Double) {
+        // Set the custom provider factory in MapViewModel
+        MapViewModel.locationProviderFactory = { MockLocationProvider(lat, lon) }
+        
+        // Also try to mock system location for completeness (though likely bypassed now)
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val locationManager = context.getSystemService(android.content.Context.LOCATION_SERVICE) as android.location.LocationManager
-        try {
-            locationManager.addTestProvider(
-                android.location.LocationManager.GPS_PROVIDER,
-                false, false, false, false, true, true, true, 1, 1
-            )
-            locationManager.setTestProviderEnabled(android.location.LocationManager.GPS_PROVIDER, true)
+            try {
+                // Remove existing providers to ensure clean state
+                try {
+                    locationManager.removeTestProvider(android.location.LocationManager.GPS_PROVIDER)
+                } catch (e: Exception) { /* Ignore */ }
+                
+                try {
+                    locationManager.removeTestProvider(android.location.LocationManager.NETWORK_PROVIDER)
+                } catch (e: Exception) { /* Ignore */ }
+
+                locationManager.addTestProvider(
+                    android.location.LocationManager.GPS_PROVIDER,
+                    false,
+                    false,
+                    false,
+                    false,
+                    true,
+                    true,
+                    true,
+                    android.location.Criteria.POWER_LOW,
+                    android.location.Criteria.ACCURACY_FINE
+                )
+                locationManager.setTestProviderEnabled(android.location.LocationManager.GPS_PROVIDER, true)
+                locationManager.setTestProviderStatus(
+                    android.location.LocationManager.GPS_PROVIDER,
+                    android.location.LocationProvider.AVAILABLE,
+                    null,
+                    System.currentTimeMillis()
+                )
+
+                locationManager.addTestProvider(
+                    android.location.LocationManager.NETWORK_PROVIDER,
+                    false,
+                    false,
+                    false,
+                    false,
+                    true,
+                    true,
+                    true,
+                    android.location.Criteria.POWER_LOW,
+                    android.location.Criteria.ACCURACY_FINE
+                )
+                locationManager.setTestProviderEnabled(android.location.LocationManager.NETWORK_PROVIDER, true)
+                locationManager.setTestProviderStatus(
+                    android.location.LocationManager.NETWORK_PROVIDER,
+                    android.location.LocationProvider.AVAILABLE,
+                    null,
+                    System.currentTimeMillis()
+                )
+
+                // Mock Fused Provider (Common source of default emulator location)
+                try {
+                    locationManager.addTestProvider(
+                        "fused",
+                        false,
+                        false,
+                        false,
+                        false,
+                        true,
+                        true,
+                        true,
+                        android.location.Criteria.POWER_LOW,
+                        android.location.Criteria.ACCURACY_FINE
+                    )
+                    locationManager.setTestProviderEnabled("fused", true)
+                    locationManager.setTestProviderStatus(
+                        "fused",
+                        android.location.LocationProvider.AVAILABLE,
+                        null,
+                        System.currentTimeMillis()
+                    )
+                } catch (e: Exception) {
+                    // Fused provider might not exist or be mockable on all devices
+                    android.util.Log.w("MapTestHelper", "Could not mock fused provider: ${e.message}")
+                }
             
-            val mockLocation = android.location.Location(android.location.LocationManager.GPS_PROVIDER).apply {
+            val mockLocationGps = android.location.Location(android.location.LocationManager.GPS_PROVIDER).apply {
                 latitude = lat
                 longitude = lon
                 altitude = 1600.0
@@ -117,9 +227,35 @@ object MapTestHelper {
                 elapsedRealtimeNanos = android.os.SystemClock.elapsedRealtimeNanos()
                 accuracy = 1.0f
             }
-            locationManager.setTestProviderLocation(android.location.LocationManager.GPS_PROVIDER, mockLocation)
+            locationManager.setTestProviderLocation(android.location.LocationManager.GPS_PROVIDER, mockLocationGps)
+
+            val mockLocationNetwork = android.location.Location(android.location.LocationManager.NETWORK_PROVIDER).apply {
+                latitude = lat
+                longitude = lon
+                altitude = 1600.0
+                time = System.currentTimeMillis()
+                elapsedRealtimeNanos = android.os.SystemClock.elapsedRealtimeNanos()
+                accuracy = 1.0f
+            }
+            locationManager.setTestProviderLocation(android.location.LocationManager.NETWORK_PROVIDER, mockLocationNetwork)
+
+            try {
+                val mockLocationFused = android.location.Location("fused").apply {
+                    latitude = lat
+                    longitude = lon
+                    altitude = 1600.0
+                    time = System.currentTimeMillis()
+                    elapsedRealtimeNanos = android.os.SystemClock.elapsedRealtimeNanos()
+                    accuracy = 1.0f
+                }
+                locationManager.setTestProviderLocation("fused", mockLocationFused)
+            } catch (e: Exception) { /* Ignore */ }
+
         } catch (e: SecurityException) {
             println("Warning: Could not set mock location: ${e.message}")
+        } catch (e: IllegalArgumentException) {
+             // Provider might already exist or be unmockable
+             println("Warning: Error setting mock provider: ${e.message}")
         }
     }
 

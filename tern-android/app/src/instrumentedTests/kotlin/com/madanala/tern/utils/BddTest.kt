@@ -24,6 +24,22 @@ open class BddTest : BaseUITest() {
         }
     }
 
+    @org.junit.Before
+    fun clearOsmDroidPrefs() {
+        try {
+            val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
+            val prefs = context.getSharedPreferences("org.osmdroid", android.content.Context.MODE_PRIVATE)
+            prefs.edit().clear().commit()
+            
+            // Also clear default shared preferences which Configuration.load uses by default
+            androidx.preference.PreferenceManager.getDefaultSharedPreferences(context).edit().clear().commit()
+            
+            org.osmdroid.config.Configuration.getInstance().load(context, androidx.preference.PreferenceManager.getDefaultSharedPreferences(context))
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
     fun scenario(name: String, block: () -> Unit) {
         ReportGenerator.logStep("SCENARIO", name)
         try {
