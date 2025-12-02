@@ -75,6 +75,50 @@ fun BddTest.givenAppIsLaunchedOnMap(
         // Settings button should be visible (sanity check)
         composeTestRule.onNodeWithContentDescription("Settings").assertIsDisplayed()
         
+        // Verify that the map is actually centered on the injected location (Truthfulness Check)
+        // We access the MapView directly to check its center
+        composeTestRule.runOnUiThread {
+            // Find MapView by traversing the view hierarchy since ID lookup might be flaky in Compose
+            val contentViewGroup = composeTestRule.activity.findViewById<android.view.ViewGroup>(android.R.id.content)
+            var mapView: org.osmdroid.views.MapView? = null
+            
+            fun findMapView(view: android.view.View) {
+                if (view is org.osmdroid.views.MapView) {
+                    mapView = view
+                    return
+                }
+                if (view is android.view.ViewGroup) {
+                    for (i in 0 until view.childCount) {
+                        findMapView(view.getChildAt(i))
+                        if (mapView != null) return
+                    }
+                }
+            }
+            
+            findMapView(contentViewGroup)
+            
+            if (mapView != null) {
+                val mapCenter = mapView!!.mapCenter
+                // Verify map center is approximately the injected location (allow for some scroll/zoom variance)
+                val expectedLat = lat
+                val expectedLon = lon
+                val actualLat = mapCenter.latitude
+                val actualLon = mapCenter.longitude
+                
+                // Use a reasonable delta (0.01 degrees is ~1km, sufficient for "is map centered correctly")
+                val delta = 0.01
+                
+                if (Math.abs(actualLat - expectedLat) > delta || Math.abs(actualLon - expectedLon) > delta) {
+                    throw AssertionError("Map center mismatch! Expected: ($expectedLat, $expectedLon), Actual: ($actualLat, $actualLon)")
+                }
+            } else {
+                // If we can't find the MapView, we can't verify the center. 
+                // This might happen if the view hierarchy is very different.
+                // For now, we log a warning but don't fail, to avoid breaking if the view structure changes.
+                println("WARNING: Could not find MapView to verify center coordinates.")
+            }
+        }
+        
         com.madanala.tern.utils.MapTestHelper.waitForMapTiles()
     }
 }

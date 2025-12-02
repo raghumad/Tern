@@ -27,6 +27,11 @@ class NavigationTest : BddTest() {
     @Test
     fun verifyNavigationToMap() {
         scenario("verifyNavigationToMap") {
+            // Force clear ViewModelStore to ensure fresh MapViewModel
+            composeTestRule.activityRule.scenario.onActivity { activity ->
+                activity.viewModelStore.clear()
+            }
+            
             givenAppIsLaunchedOnMap()
 
             `when`("I interact with the map") {
