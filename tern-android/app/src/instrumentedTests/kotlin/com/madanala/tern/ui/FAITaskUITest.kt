@@ -92,17 +92,9 @@ class FAITaskUITest {
         }
 
         // Then the waypoint details should display "r3000m"
-        composeTestRule.waitUntil(timeoutMillis = 5000) {
-            try {
-                composeTestRule.onNodeWithTag("WaypointList").performScrollToNode(hasText("r3000m", substring = true))
-                composeTestRule.onAllNodesWithText("r3000m", substring = true).onFirst().assertExists()
-                true
-            } catch (e: AssertionError) {
-                false
-            } catch (e: Exception) {
-                false
-            }
-        }
+        // Scroll to the waypoint list entry and assert it exists
+        composeTestRule.onNodeWithTag("WaypointList").performScrollToNode(hasText("r3000m", substring = true))
+        composeTestRule.onAllNodesWithText("r3000m", substring = true).onFirst().assertExists()
         // And the waypoint details should display "A2000m"
         composeTestRule.onNodeWithTag("WaypointList").performScrollToNode(hasText("A2000m", substring = true))
         composeTestRule.onAllNodesWithText("A2000m", substring = true).onFirst().assertExists()
@@ -166,17 +158,8 @@ class FAITaskUITest {
         }
 
         // Then the waypoint details should display "Start Speed Section"
-        composeTestRule.waitUntil(timeoutMillis = 5000) {
-            try {
-                composeTestRule.onNodeWithTag("WaypointList").performScrollToNode(hasText("Start Speed Section", substring = true))
-                composeTestRule.onAllNodesWithText("Start Speed Section", substring = true).onFirst().assertExists()
-                true
-            } catch (e: AssertionError) {
-                false
-            } catch (e: Exception) {
-                false
-            }
-        }
+        composeTestRule.onNodeWithTag("WaypointList").performScrollToNode(hasText("Start Speed Section", substring = true))
+        composeTestRule.onAllNodesWithText("Start Speed Section", substring = true).onFirst().assertExists()
     }
 
     @Test

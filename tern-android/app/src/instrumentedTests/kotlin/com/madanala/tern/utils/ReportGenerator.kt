@@ -89,6 +89,24 @@ object ReportGenerator {
         }
     }
 
+    fun waitForLog(tag: String, messageFragment: String, timeoutMillis: Long = 10000) {
+        val startTime = System.currentTimeMillis()
+        while (System.currentTimeMillis() - startTime < timeoutMillis) {
+            val log = captureLogCat()
+            if (log.lineSequence().any { it.contains(tag) && it.contains(messageFragment) }) {
+                return
+            }
+            try {
+                Thread.sleep(500)
+            } catch (e: InterruptedException) {
+                e.printStackTrace()
+            }
+        }
+        val finalLog = captureLogCat()
+        val tail = finalLog.lines().takeLast(20).joinToString("\n")
+        throw AssertionError("Timed out waiting for log message. Tag: $tag, Fragment: $messageFragment. \nLast 20 lines of Logcat:\n$tail")
+    }
+
     fun finishScenario(name: String, logCatOutput: String?) {
         recordedScenarios.add(ScenarioData(name, currentSteps.toList(), logCatOutput))
         currentSteps.clear()

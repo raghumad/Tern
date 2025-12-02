@@ -51,9 +51,7 @@ class RouteManagementTest : BddTest() {
 
                 // Wait for UI update
                 com.madanala.tern.utils.ReportGenerator.logStep("WAIT", "Waiting for 'New Route 1' to appear")
-                composeTestRule.waitUntil(timeoutMillis = 5000) {
-                    composeTestRule.onAllNodesWithText("New Route 1").fetchSemanticsNodes().isNotEmpty()
-                }
+                composeTestRule.onNodeWithText("New Route 1").assertIsDisplayed()
             }
 
             then("I see 'New Route 1' in the list") {
@@ -69,9 +67,7 @@ class RouteManagementTest : BddTest() {
 
                 // Wait for UI update
                 com.madanala.tern.utils.ReportGenerator.logStep("WAIT", "Waiting for 'My Awesome Flight' to appear")
-                composeTestRule.waitUntil(timeoutMillis = 5000) {
-                    composeTestRule.onAllNodesWithText("My Awesome Flight").fetchSemanticsNodes().isNotEmpty()
-                }
+                composeTestRule.onNodeWithText("My Awesome Flight").assertIsDisplayed()
             }
 
             then("I see the route renamed to 'My Awesome Flight'") {
