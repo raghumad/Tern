@@ -106,8 +106,14 @@ object WeatherAnalyzer {
     }
 }
 
+data class CloudCoverPoint(
+    val time: String, // HH:mm
+    val percentage: Double // 0-100
+)
+
 data class WeatherForecast(
     val skewT: SkewTForecast,
     val cape: List<CapePoint>,
-    val wind: List<WindPoint>
+    val wind: List<WindPoint>,
+    val cloudCover: List<CloudCoverPoint> = emptyList() // Default to empty for backward compatibility
 )

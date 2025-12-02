@@ -236,7 +236,13 @@ class TrajectoryAnalyzer(
         return ModelForecast(
             skewT = SkewTForecast(emptyList()), // Not available
             cape = capePoints,
-            wind = windPoints
+            wind = windPoints,
+            cloudCover = this.hourly.map { period ->
+                com.madanala.tern.model.CloudCoverPoint(
+                    time = java.time.Instant.ofEpochSecond(period.startTime).toString(),
+                    percentage = period.weather.cloudCover
+                )
+            }
         )
     }
 }
