@@ -480,6 +480,7 @@ class RouteOverlayManager(
 
         override fun onSingleTapConfirmed(e: MotionEvent?, mapView: MapView?): Boolean {
             if (e == null || mapView == null) return false
+            Log.d(TAG, "onSingleTapConfirmed at ${e.x}, ${e.y}")
 
             // Handle waypoint selection logic
             return handleWaypointTap(e, mapView)

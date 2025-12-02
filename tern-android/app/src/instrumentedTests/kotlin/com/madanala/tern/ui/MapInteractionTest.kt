@@ -11,7 +11,6 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onAllNodesWithTag
-import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.printToLog
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
@@ -36,7 +35,7 @@ class MapInteractionTest : BddTest() {
         val store = com.madanala.tern.redux.MapStore()
         
         scenario("testMapLongPressCreatesRoute") {
-            given("the app is initialized") {
+            given("the app is initialized on map") {
                 // Initialize CacheManager
                 CacheManager.initialize(composeTestRule.activity.applicationContext)
                 
@@ -45,39 +44,12 @@ class MapInteractionTest : BddTest() {
                 org.osmdroid.config.Configuration.getInstance().load(context, androidx.preference.PreferenceManager.getDefaultSharedPreferences(context))
                 org.osmdroid.config.Configuration.getInstance().userAgentValue = context.packageName
                 
+                // Permissions & Location
+                MapTestHelper.grantLocationPermissions()
+                MapTestHelper.injectMockLocation(composeTestRule, 40.0150, -105.2705)
+
                 // Add Middleware explicitly to ensure CheckSmartSuggestion is handled
                 store.addMiddleware(com.madanala.tern.redux.MapMiddleware(context))
-            }
-
-            and("I have location permissions") {
-                val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
-                val uiAutomation = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation
-                uiAutomation.grantRuntimePermission(context.packageName, android.Manifest.permission.ACCESS_FINE_LOCATION)
-                uiAutomation.grantRuntimePermission(context.packageName, android.Manifest.permission.ACCESS_COARSE_LOCATION)
-            }
-
-            and("I inject Mock Location (Boulder, CO)") {
-                val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
-                val locationManager = context.getSystemService(android.content.Context.LOCATION_SERVICE) as android.location.LocationManager
-                try {
-                    locationManager.addTestProvider(
-                        android.location.LocationManager.GPS_PROVIDER,
-                        false, false, false, false, true, true, true, 1, 1
-                    )
-                    locationManager.setTestProviderEnabled(android.location.LocationManager.GPS_PROVIDER, true)
-                    
-                    val mockLocation = android.location.Location(android.location.LocationManager.GPS_PROVIDER).apply {
-                        latitude = 40.0150
-                        longitude = -105.2705
-                        altitude = 1600.0
-                        time = System.currentTimeMillis()
-                        elapsedRealtimeNanos = android.os.SystemClock.elapsedRealtimeNanos()
-                        accuracy = 1.0f
-                    }
-                    locationManager.setTestProviderLocation(android.location.LocationManager.GPS_PROVIDER, mockLocation)
-                } catch (e: SecurityException) {
-                    println("Warning: Could not set mock location: ${e.message}")
-                }
             }
 
             `when`("the app content is set") {
@@ -118,11 +90,8 @@ class MapInteractionTest : BddTest() {
 
                 // Verify "Edit Waypoint" screen appears (auto-selected new waypoint)
                 composeTestRule.onNodeWithText("Edit Waypoint").assertIsDisplayed()
-                composeTestRule.onNodeWithText("Edit Waypoint").assertIsDisplayed()
                 
                 // Dismiss Edit Waypoint screen
-                // We dispatch the action directly to ensure reliability in the test environment,
-                // avoiding potential UI interaction flakes with the "Done" button.
                 store.dispatch(com.madanala.tern.redux.MapAction.DeselectWaypoint)
                 
                 // Wait for state to update (waypoint deselected)
@@ -181,35 +150,9 @@ class MapInteractionTest : BddTest() {
                 store.dispatch(com.madanala.tern.redux.MapAction.SelectRoute(route.id))
             }
 
-            and("I have location permissions") {
-                val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
-                val uiAutomation = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation
-                uiAutomation.grantRuntimePermission(context.packageName, android.Manifest.permission.ACCESS_FINE_LOCATION)
-                uiAutomation.grantRuntimePermission(context.packageName, android.Manifest.permission.ACCESS_COARSE_LOCATION)
-            }
-
-            and("I inject Mock Location (Boulder, CO)") {
-                val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
-                val locationManager = context.getSystemService(android.content.Context.LOCATION_SERVICE) as android.location.LocationManager
-                try {
-                    locationManager.addTestProvider(
-                        android.location.LocationManager.GPS_PROVIDER,
-                        false, false, false, false, true, true, true, 1, 1
-                    )
-                    locationManager.setTestProviderEnabled(android.location.LocationManager.GPS_PROVIDER, true)
-                    
-                    val mockLocation = android.location.Location(android.location.LocationManager.GPS_PROVIDER).apply {
-                        latitude = 40.0150
-                        longitude = -105.2705
-                        altitude = 1600.0
-                        time = System.currentTimeMillis()
-                        elapsedRealtimeNanos = android.os.SystemClock.elapsedRealtimeNanos()
-                        accuracy = 1.0f
-                    }
-                    locationManager.setTestProviderLocation(android.location.LocationManager.GPS_PROVIDER, mockLocation)
-                } catch (e: SecurityException) {
-                    println("Warning: Could not set mock location: ${e.message}")
-                }
+            and("I have location permissions and mock location") {
+                MapTestHelper.grantLocationPermissions()
+                MapTestHelper.injectMockLocation(composeTestRule, 40.0150, -105.2705)
             }
 
             `when`("the app content is set with the pre-populated store") {
@@ -225,9 +168,6 @@ class MapInteractionTest : BddTest() {
                 // Set high zoom level and center map for precision
                 store.dispatch(com.madanala.tern.redux.MapAction.UpdateCenter(org.osmdroid.util.GeoPoint(40.0150, -105.2705)))
                 store.dispatch(com.madanala.tern.redux.MapAction.UpdateZoom(18.0))
-                composeTestRule.waitForIdle()
-                // OSMDroid needs time to animate/render the new zoom level
-                // OSMDroid needs time to animate/render the new zoom level
                 composeTestRule.waitForIdle()
             }
 
@@ -250,6 +190,75 @@ class MapInteractionTest : BddTest() {
             and("No new waypoint is added") {
                  // Check store state directly
                  assert(store.state.value.routes.first().waypoints.size == 1) { "Expected 1 waypoint, found ${store.state.value.routes.first().waypoints.size}" }
+            }
+        }
+    }
+    
+    @Test
+    fun testTapOnWaypointSelectsIt() {
+        val store = com.madanala.tern.redux.MapStore()
+        
+        scenario("testTapOnWaypointSelectsIt") {
+            given("I have a route with a waypoint at Boulder") {
+                CacheManager.initialize(composeTestRule.activity.applicationContext)
+                val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
+                org.osmdroid.config.Configuration.getInstance().load(context, androidx.preference.PreferenceManager.getDefaultSharedPreferences(context))
+                
+                val boulder = com.madanala.tern.model.Waypoint(lat = 40.0150, lon = -105.2705, label = "Boulder")
+                val route = com.madanala.tern.model.Route(name = "Test Route", waypoints = listOf(boulder))
+                store.dispatch(com.madanala.tern.redux.MapAction.AddRoute(route))
+                store.dispatch(com.madanala.tern.redux.MapAction.SelectRoute(route.id))
+            }
+            
+            and("I have location permissions and mock location") {
+                MapTestHelper.grantLocationPermissions()
+                MapTestHelper.injectMockLocation(composeTestRule, 40.0150, -105.2705)
+            }
+
+            `when`("the app content is set") {
+                composeTestRule.setContent {
+                    TernTheme {
+                        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                            TernMapScreen(store = store)
+                        }
+                    }
+                }
+                
+                store.dispatch(com.madanala.tern.redux.MapAction.UpdateCenter(org.osmdroid.util.GeoPoint(40.0150, -105.2705)))
+                store.dispatch(com.madanala.tern.redux.MapAction.UpdateZoom(18.0))
+                composeTestRule.waitForIdle()
+                Thread.sleep(2000) // Allow OSMDroid to settle/animate
+            }
+            
+            `when`("I tap on the waypoint (simulated via Redux action)") {
+                // Simulate tap by dispatching the action directly
+                // Ideally we would use MapTestHelper.clickOnGeoPoint, but for unit/integration tests,
+                // dispatching the action is more reliable and tests the logic we care about (selection).
+                // However, to test the *interaction*, we should ideally simulate the touch.
+                // For now, let's verify the Redux logic for "TapMap" handling if it exists,
+                // or ensure the overlay handles single tap.
+                
+                // Assuming RouteOverlayManager handles SingleTapConfirmed and dispatches SelectWaypoint
+                // We can simulate this by dispatching a "MapTap" action if we have one, 
+                // or we can try to click on the screen coordinates.
+                
+                // Let's try the screen coordinate click using MapTestHelper
+                // We need the activity to find the view
+                val activity = composeTestRule.activity
+                MapTestHelper.clickOnGeoPoint(activity, 40.0150, -105.2705)
+                composeTestRule.waitForIdle()
+            }
+            
+            then("The waypoint is selected") {
+                composeTestRule.waitUntil(timeoutMillis = 5000) {
+                    store.state.value.selectedWaypoint != null
+                }
+                
+                val selection = store.state.value.selectedWaypoint!!
+                val route = store.state.value.routes.find { it.id == selection.routeId }
+                val waypoint = route?.waypoints?.find { it.id == selection.waypointId }
+                
+                assert(waypoint?.label == "Boulder") { "Expected waypoint label 'Boulder', found '${waypoint?.label}'" }
             }
         }
     }
