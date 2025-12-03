@@ -19,6 +19,8 @@ open class BddTest : BaseUITest() {
     fun clearLogCat() {
         try {
             Runtime.getRuntime().exec("logcat -c")
+            val maxMemory = Runtime.getRuntime().maxMemory()
+            println("=== RUNTIME MAX MEMORY: ${maxMemory / 1024 / 1024} MB ===")
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -51,6 +53,23 @@ open class BddTest : BaseUITest() {
             // Capture failure screenshot
             val screenshot = ReportGenerator.captureScreenshot("failure_${name.replace(" ", "_")}")
             ReportGenerator.logStep("RESULT", "Scenario Failed: ${e.message}", "FAIL", screenshot)
+            
+            // Print logcat to stdout for debugging
+            println("=== LOGCAT DUMP ===")
+            println(ReportGenerator.captureLogCat())
+            println("===================")
+            
+            try {
+                kotlinx.coroutines.runBlocking {
+                    val report = com.madanala.tern.utils.PerformanceDebugger.getPerformanceReport()
+                    println("=== PERFORMANCE REPORT ===")
+                    println(report)
+                    println("==========================")
+                }
+            } catch (e: Exception) {
+                println("Failed to get performance report: $e")
+            }
+            
             throw e
         } finally {
             val logCatOutput = ReportGenerator.captureLogCat()
@@ -61,6 +80,17 @@ open class BddTest : BaseUITest() {
 
     @org.junit.After
     fun generateReport() {
+        // Print Performance Report
+        try {
+            kotlinx.coroutines.runBlocking {
+                val report = com.madanala.tern.utils.PerformanceDebugger.getPerformanceReport()
+                println("=== PERFORMANCE REPORT (FINAL) ===")
+                println(report)
+                println("==================================")
+            }
+        } catch (e: Exception) {
+            println("Failed to get performance report: $e")
+        }
         ReportGenerator.generateFinalReport(testNameRule.methodName)
     }
 

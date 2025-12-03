@@ -19,5 +19,8 @@ data class Waypoint(
     val openTime: String? = null, // HH:mm
     val closeTime: String? = null // HH:mm
 ) {
+    init {
+        com.madanala.tern.utils.trackAllocation("Waypoint", 64L)
+    }
     enum class Type { LAUNCH, TURNPOINT, SSS, ESS, GOAL, LANDING }
 }

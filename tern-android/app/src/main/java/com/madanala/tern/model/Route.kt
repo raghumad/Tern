@@ -25,6 +25,10 @@ data class Route(
     val updatedAt: Instant = Instant.now(),
     val isVisible: Boolean = true
 ) {
+    init {
+        com.madanala.tern.utils.trackAllocation("Route", 128L + waypoints.size * 64L)
+    }
+
     // Computed properties derived from waypoints
     val totalDistanceKm: Double
         get() = calculateTotalDistance()

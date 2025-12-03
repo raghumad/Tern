@@ -63,10 +63,11 @@ object CacheManager {
      * Clear all caches (for debugging/testing only)
      */
     fun clearAllCaches() {
-        ensureInitialized()
-        airspaceCache.clearCache()
-        pgSpotCache.clearCache()
-        routeCache.clearCache()
-        android.util.Log.d("CacheManager", "All caches cleared")
+        if (::appContext.isInitialized) {
+            airspaceCache.clearCache()
+            pgSpotCache.clearCache()
+            routeCache.clearCache()
+            android.util.Log.d("CacheManager", "All caches cleared")
+        }
     }
 }

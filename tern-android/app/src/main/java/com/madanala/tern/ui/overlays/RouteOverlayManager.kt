@@ -318,10 +318,13 @@ class RouteOverlayManager(
         // 🎯 STEP 0: Prioritize routes (Distance-based sorting + Limit)
         val visibleRoutes = currentRoutes.filter { it.isVisible }
         
+        // Use dynamic budget if available, otherwise default to 10
+        val budgetLimit = getCurrentOverlayBudget()?.totalOverlays ?: 10
+        
         val prioritizedRoutes = prioritizeFeatures(
             visibleRoutes,
             center,
-            10 // Limit to 10 routes to prevent clutter
+            budgetLimit
         ) { route ->
             if (route.waypoints.isNotEmpty()) {
                 GeoPoint(route.waypoints[0].lat, route.waypoints[0].lon)

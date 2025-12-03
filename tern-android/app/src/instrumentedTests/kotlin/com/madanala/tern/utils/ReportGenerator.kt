@@ -42,7 +42,7 @@ object ReportGenerator {
 
     fun captureLogCat(): String {
         try {
-            val process = Runtime.getRuntime().exec("logcat -d")
+            val process = Runtime.getRuntime().exec("logcat -d -t 1000")
             val reader = java.io.BufferedReader(java.io.InputStreamReader(process.inputStream))
             val log = StringBuilder()
             var line: String?

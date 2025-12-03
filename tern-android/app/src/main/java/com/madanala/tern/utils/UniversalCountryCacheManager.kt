@@ -491,11 +491,11 @@ class UniversalCountryCacheManager(
     private fun recordBorderTransition(fromCountry: String, toCountry: String, isSmooth: Boolean) {
         // Integration with PerformanceDebugger (debug only)
         try {
-            PerformanceDebugger.recordBorderCrossing(fromCountry, toCountry)
+            // PerformanceDebugger.recordBorderCrossing(fromCountry, toCountry)
             if (isSmooth) {
-                PerformanceDebugger.recordSmoothTransition()
+                // PerformanceDebugger.recordSmoothTransition()
             } else {
-                PerformanceDebugger.recordVisualDiscontinuity()
+                // PerformanceDebugger.recordVisualDiscontinuity()
             }
         } catch (e: Exception) {
             // Silently handle - performance monitoring is debug-only
