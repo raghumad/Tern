@@ -42,31 +42,21 @@ object PerformanceDebugger {
         val memoryPressureEvents: AtomicLong = AtomicLong(0)
     )
 
-    // Priority 3: Duplicate Loading Prevention
-    data class LoadingMetrics(
-        val duplicateRequests: AtomicLong = AtomicLong(0),
-        val uniqueRequests: AtomicLong = AtomicLong(0),
-        val cacheHitRatio: AtomicLong = AtomicLong(0)
-    )
-
-    // Priority 4: Country Border Management
-    data class CountryMetrics(
-        val borderCrossings: AtomicLong = AtomicLong(0),
-        val smoothTransitions: AtomicLong = AtomicLong(0),
-        val countriesCached: AtomicLong = AtomicLong(0),
-        val visualDiscontinuities: AtomicLong = AtomicLong(0)
+    // Priority 3: Allocation Tracking (New)
+    data class AllocationMetrics(
+        val activeAllocations: ConcurrentHashMap<String, AtomicLong> = ConcurrentHashMap(),
+        val totalAllocations: ConcurrentHashMap<String, AtomicLong> = ConcurrentHashMap(),
+        val estimatedBytes: AtomicLong = AtomicLong(0)
     )
 
     private val reduxMetrics = ReduxMetrics()
     private val memoryMetrics = MemoryMetrics()
-    private val loadingMetrics = LoadingMetrics()
-    private val countryMetrics = CountryMetrics()
+    private val allocationMetrics = AllocationMetrics()
 
     init {
         if (isEnabled) {
             Log.d(TAG, "🚀 PerformanceDebugger initialized (DEBUG MODE)")
             Log.d(TAG, "📊 Dashboard will appear every 30 seconds in logcat")
-            Log.d(TAG, "🎯 Trigger events: location changes, map moves, Redux updates")
             startPeriodicReporting()
         }
     }
@@ -111,7 +101,7 @@ object PerformanceDebugger {
     fun recordOverlayCreation(overlayType: String) {
         if (!isEnabled) return
         memoryMetrics.overlayObjectCount.incrementAndGet()
-        Log.v(TAG, "Overlay created: $overlayType, total: ${memoryMetrics.overlayObjectCount.get()}")
+        trackAllocation("Overlay:$overlayType", 1024) // Estimate 1KB per overlay wrapper
     }
 
     /**
@@ -120,7 +110,7 @@ object PerformanceDebugger {
     fun recordOverlayCleanup(overlayType: String) {
         if (!isEnabled) return
         memoryMetrics.referenceClears.incrementAndGet()
-        Log.v(TAG, "Overlay cleaned: $overlayType")
+        trackDeallocation("Overlay:$overlayType", 1024)
     }
 
     /**
@@ -132,98 +122,38 @@ object PerformanceDebugger {
         Log.w(TAG, "⚠️ MEMORY PRESSURE DETECTED")
     }
 
-    // ==================== PRIORITY 3: DUPLICATE LOADING ====================
+    // ==================== PRIORITY 3: ALLOCATION TRACKING ====================
 
     /**
-     * Record a duplicate request (should be minimized)
+     * Track an object allocation
+     * @param type Object type/tag
+     * @param estimatedSize Estimated size in bytes (optional)
      */
-    fun recordDuplicateRequest(requestKey: String) {
+    fun trackAllocation(type: String, estimatedSize: Long = 0) {
         if (!isEnabled) return
-        loadingMetrics.duplicateRequests.incrementAndGet()
+        
+        allocationMetrics.activeAllocations.computeIfAbsent(type) { AtomicLong(0) }.incrementAndGet()
+        allocationMetrics.totalAllocations.computeIfAbsent(type) { AtomicLong(0) }.incrementAndGet()
+        
+        if (estimatedSize > 0) {
+            allocationMetrics.estimatedBytes.addAndGet(estimatedSize)
+        }
     }
 
     /**
-     * Record a unique request
+     * Track an object deallocation
      */
-    fun recordUniqueRequest(requestKey: String) {
+    fun trackDeallocation(type: String, estimatedSize: Long = 0) {
         if (!isEnabled) return
-        loadingMetrics.uniqueRequests.incrementAndGet()
-    }
-
-    // ==================== PRIORITY 4: COUNTRY BORDER MANAGEMENT ====================
-
-    /**
-     * Record a country border crossing
-     */
-    fun recordBorderCrossing(fromCountry: String, toCountry: String) {
-        if (!isEnabled) return
-        countryMetrics.borderCrossings.incrementAndGet()
-        Log.d(TAG, "Border crossing: $fromCountry → $toCountry")
-    }
-
-    /**
-     * Record a smooth transition (success case)
-     */
-    fun recordSmoothTransition() {
-        if (!isEnabled) return
-        countryMetrics.smoothTransitions.incrementAndGet()
-        Log.d(TAG, "✅ Smooth border transition")
-    }
-
-    /**
-     * Record visual discontinuity (failure case)
-     */
-    fun recordVisualDiscontinuity() {
-        if (!isEnabled) return
-        countryMetrics.visualDiscontinuities.incrementAndGet()
-        Log.w(TAG, "❌ Visual discontinuity detected")
+        
+        allocationMetrics.activeAllocations[type]?.decrementAndGet()
+        
+        if (estimatedSize > 0) {
+            allocationMetrics.estimatedBytes.addAndGet(-estimatedSize)
+        }
     }
 
     // ==================== REPORTING & ANALYSIS ====================
-
-    /**
-     * Manual trigger for testing performance dashboard (development only)
-     */
-    /**
-     * Manual trigger for testing performance dashboard (development only)
-     */
-    fun triggerTestEvents() {
-        if (!isEnabled) return
-        // Test events removed for production code cleanliness
-    }
-
-    /**
-     * Performance validation system for testing hybrid implementation
-     * Validates that performance optimizations are working correctly
-     */
-    suspend fun validatePerformanceOptimizations(): ValidationResult {
-        if (!isEnabled) return ValidationResult(false, "PerformanceDebugger disabled")
-
-        val report = getPerformanceReport()
-        val issues = report["critical_issues"] as List<String>
-        val score = report["performance_score"] as Int
-
-        val isValid = issues.isEmpty() && score >= 80
-
-        return ValidationResult(
-            isValid = isValid,
-            message = if (isValid) {
-                "✅ Performance optimizations validated: Score $score/100, no critical issues"
-            } else {
-                "⚠️ Performance issues detected: Score $score/100, Issues: $issues"
-            },
-            details = report
-        )
-    }
-
-    /**
-     * Performance validation result
-     */
-    data class ValidationResult(
-        val isValid: Boolean,
-        val message: String,
-        val details: Map<String, Any>? = null
-    )
 
     /**
      * Get comprehensive performance report
@@ -232,65 +162,24 @@ object PerformanceDebugger {
         if (!isEnabled) return emptyMap()
 
         return mutex.withLock {
-            val totalRequests = loadingMetrics.duplicateRequests.get() + loadingMetrics.uniqueRequests.get()
-            val cacheHitRatio = if (totalRequests > 0) {
-                (loadingMetrics.uniqueRequests.get() * 100) / totalRequests
-            } else 0
-
-            val transitionSuccessRate = if (countryMetrics.borderCrossings.get() > 0) {
-                (countryMetrics.smoothTransitions.get() * 100) / countryMetrics.borderCrossings.get()
-            } else 100
-
             mapOf(
                 // Priority 1: Redux State Updates
                 "redux_updates_per_second" to reduxMetrics.averageUpdatesPerSecond.get(),
                 "redux_total_updates" to reduxMetrics.stateUpdateCount.get(),
-                "redux_update_storm_warning" to (reduxMetrics.averageUpdatesPerSecond.get() > 100),
 
                 // Priority 2: Memory Management
                 "memory_overlay_objects" to memoryMetrics.overlayObjectCount.get(),
-                "memory_cleared_objects" to memoryMetrics.referenceClears.get(),
                 "memory_pressure_events" to memoryMetrics.memoryPressureEvents.get(),
 
-                // Priority 3: Request Efficiency
-                "loading_duplicate_requests" to loadingMetrics.duplicateRequests.get(),
-                "loading_unique_requests" to loadingMetrics.uniqueRequests.get(),
-                "loading_cache_hit_ratio" to cacheHitRatio,
-
-                // Priority 4: Border Management
-                "border_crossings" to countryMetrics.borderCrossings.get(),
-                "border_smooth_transitions" to countryMetrics.smoothTransitions.get(),
-                "border_visual_discontinuities" to countryMetrics.visualDiscontinuities.get(),
-                "border_transition_success_rate" to transitionSuccessRate,
+                // Priority 3: Allocations
+                "allocations_active" to allocationMetrics.activeAllocations.mapValues { it.value.get() },
+                "allocations_total" to allocationMetrics.totalAllocations.mapValues { it.value.get() },
+                "allocations_estimated_bytes" to allocationMetrics.estimatedBytes.get(),
 
                 // Summary
-                "performance_score" to calculatePerformanceScore(),
                 "critical_issues" to getCriticalIssues()
             )
         }
-    }
-
-    private fun calculatePerformanceScore(): Int {
-        var score = 100
-
-        // Deduct for state update storms
-        if (reduxMetrics.averageUpdatesPerSecond.get() > 100) score -= 30
-        if (reduxMetrics.averageUpdatesPerSecond.get() > 200) score -= 30
-
-        // Deduct for memory pressure
-        if (memoryMetrics.memoryPressureEvents.get() > 0) score -= 20
-
-        // Deduct for visual discontinuities
-        if (countryMetrics.visualDiscontinuities.get() > 0) score -= 25
-
-        // Bonus for good cache hit ratio
-        val totalRequests = loadingMetrics.duplicateRequests.get() + loadingMetrics.uniqueRequests.get()
-        if (totalRequests > 0) {
-            val hitRatio = (loadingMetrics.uniqueRequests.get() * 100) / totalRequests
-            if (hitRatio > 80) score += 10
-        }
-
-        return maxOf(0, minOf(100, score))
     }
 
     private fun getCriticalIssues(): List<String> {
@@ -303,9 +192,9 @@ object PerformanceDebugger {
         if (memoryMetrics.memoryPressureEvents.get() > 0) {
             issues.add("MEMORY_PRESSURE: ${memoryMetrics.memoryPressureEvents.get()} events")
         }
-
-        if (countryMetrics.visualDiscontinuities.get() > 0) {
-            issues.add("VISUAL_DISCONTINUITY: ${countryMetrics.visualDiscontinuities.get()} events")
+        
+        if (allocationMetrics.estimatedBytes.get() > 50 * 1024 * 1024) { // > 50MB tracked
+            issues.add("HIGH_MEMORY_USAGE: ${allocationMetrics.estimatedBytes.get() / 1024 / 1024} MB tracked")
         }
 
         return issues
@@ -316,12 +205,9 @@ object PerformanceDebugger {
         CoroutineScope(Dispatchers.IO).launch {
             while (isEnabled) {
                 try {
-                    delay(30000) // Report every 30 seconds
+                    delay(10000) // Report every 10 seconds for faster feedback during tests
                     logPerformanceSummary()
                 } catch (e: Exception) {
-                    if (e !is kotlinx.coroutines.CancellationException) {
-                        Log.e(TAG, "Error in periodic reporting", e)
-                    }
                     break
                 }
             }
@@ -332,15 +218,19 @@ object PerformanceDebugger {
         if (!isEnabled) return
 
         val report = getPerformanceReport()
-        val score = report["performance_score"] as Int
         val issues = report["critical_issues"] as List<String>
+        val activeAllocations = report["allocations_active"] as Map<String, Long>
+        val estimatedBytes = report["allocations_estimated_bytes"] as Long
 
         Log.d(TAG, "=== PERFORMANCE SUMMARY ===")
-        Log.d(TAG, "Score: $score/100")
         Log.d(TAG, "Redux: ${report["redux_updates_per_second"]}/sec")
-        Log.d(TAG, "Memory: ${report["memory_overlay_objects"]} objects")
-        Log.d(TAG, "Cache: ${report["loading_cache_hit_ratio"]}% hit ratio")
-        Log.d(TAG, "Borders: ${report["border_transition_success_rate"]}% smooth")
+        Log.d(TAG, "Memory: ${report["memory_overlay_objects"]} overlays, ${estimatedBytes / 1024} KB tracked")
+        
+        // Log top 5 active allocations
+        val topAllocations = activeAllocations.entries.sortedByDescending { it.value }.take(5)
+        if (topAllocations.isNotEmpty()) {
+            Log.d(TAG, "Top Allocations: ${topAllocations.joinToString { "${it.key}:${it.value}" }}")
+        }
 
         if (issues.isNotEmpty()) {
             Log.w(TAG, "Critical Issues: $issues")
@@ -350,16 +240,10 @@ object PerformanceDebugger {
 
 // ==================== CONVENIENCE FUNCTIONS ====================
 
-/**
- * Convenience function to record Redux state updates
- */
 fun recordStateUpdate(actionCount: Int = 1) {
     PerformanceDebugger.recordStateUpdate(actionCount)
 }
 
-/**
- * Convenience function to record overlay lifecycle
- */
 fun recordOverlayLifecycle(overlayType: String, isCreation: Boolean) {
     if (isCreation) {
         PerformanceDebugger.recordOverlayCreation(overlayType)
@@ -368,14 +252,10 @@ fun recordOverlayLifecycle(overlayType: String, isCreation: Boolean) {
     }
 }
 
-/**
- * Convenience function to record border crossings
- */
-fun recordBorderTransition(fromCountry: String, toCountry: String, isSmooth: Boolean) {
-    PerformanceDebugger.recordBorderCrossing(fromCountry, toCountry)
-    if (isSmooth) {
-        PerformanceDebugger.recordSmoothTransition()
-    } else {
-        PerformanceDebugger.recordVisualDiscontinuity()
-    }
+fun trackAllocation(type: String, estimatedSize: Long = 0) {
+    PerformanceDebugger.trackAllocation(type, estimatedSize)
+}
+
+fun trackDeallocation(type: String, estimatedSize: Long = 0) {
+    PerformanceDebugger.trackDeallocation(type, estimatedSize)
 }

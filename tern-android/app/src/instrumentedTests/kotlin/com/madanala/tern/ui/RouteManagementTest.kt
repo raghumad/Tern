@@ -167,4 +167,46 @@ class RouteManagementTest : BddTest() {
             }
         }
     }
+
+    @Test
+    fun testCreateRouteFromWaypoints() {
+        val store = MapStore()
+        val waypoint1 = com.madanala.tern.model.Waypoint(lat = 40.0, lon = -105.0, label = "Boulder")
+        val waypoint2 = com.madanala.tern.model.Waypoint(lat = 40.1, lon = -105.1, label = "Longmont")
+        
+        scenario("testCreateRouteFromWaypoints") {
+            given("I have a fresh map store") {
+                com.madanala.tern.utils.ReportGenerator.logStep("SETUP", "Initializing store")
+                composeTestRule.setContent {
+                    RouteListScreen(
+                        store = store,
+                        onRouteSelected = {},
+                        onDismiss = {}
+                    )
+                }
+            }
+
+            `when`("I create a route from a list of waypoints") {
+                com.madanala.tern.utils.ReportGenerator.logStep("ACTION", "Creating route from waypoints")
+                val route = com.madanala.tern.model.Route.fromWaypoints("Front Range Task", listOf(waypoint1, waypoint2))
+                store.dispatch(MapAction.AddRoute(route))
+
+                // Wait for UI update
+                com.madanala.tern.utils.ReportGenerator.logStep("WAIT", "Waiting for route to appear")
+                composeTestRule.onNodeWithText("Front Range Task").assertIsDisplayed()
+            }
+
+            then("I see the route with the correct waypoints") {
+                com.madanala.tern.utils.ReportGenerator.logStep("VERIFY", "Asserting route and waypoint count")
+                composeTestRule.onNodeWithText("Front Range Task").assertIsDisplayed()
+                
+                // Verify internal state
+                val createdRoute = store.state.value.routes.find { it.name == "Front Range Task" }
+                assert(createdRoute != null)
+                assert(createdRoute!!.waypoints.size == 2)
+                assert(createdRoute.waypoints[0].label == "Boulder")
+                assert(createdRoute.waypoints[1].label == "Longmont")
+            }
+        }
+    }
 }

@@ -38,13 +38,63 @@ class SpatialDiskCache(
     private val cacheIndexFile = File(cacheDir, "cache_index")
     internal val cacheIndex = ConcurrentHashMap<String, Long>() // regionId -> timestamp
     private val spatialIndexCache = ConcurrentHashMap<String, MapOverlayCacheUtils.SpatialIndex>() // regionId -> spatial index
-    private val memoryMappedBuffers = ConcurrentHashMap<String, MappedByteBuffer>() // regionId -> memory mapped buffer
+    
+    // LRU Cache for memory mapped buffers to prevent OOM
+    private val MAX_OPEN_BUFFERS = 5
+    private val memoryMappedBuffers = java.util.Collections.synchronizedMap(
+        object : java.util.LinkedHashMap<String, MappedByteBuffer>(MAX_OPEN_BUFFERS + 1, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, MappedByteBuffer>): Boolean {
+                val remove = size > MAX_OPEN_BUFFERS
+                if (remove) {
+                    trackDeallocation("MappedBuffer:$cacheName", eldest.value.capacity().toLong())
+                }
+                return remove
+            }
+        }
+    )
     
     private val objectMapper = ObjectMapper()
 
     init {
         cacheDir.mkdirs()
         loadCacheIndex()
+    }
+
+    // ... (existing code)
+
+    private fun getSpatialIndex(regionId: String): MapOverlayCacheUtils.SpatialIndex? {
+        spatialIndexCache[regionId]?.let { return it }
+
+        return try {
+            val indexFile = File(cacheDir, "${regionId}_$cacheName.idx")
+            if (indexFile.exists()) {
+                val indexData = indexFile.readBytes()
+                val indexJson = String(indexData, Charsets.UTF_8)
+                val spatialIndex = objectMapper.readValue(indexJson, MapOverlayCacheUtils.SpatialIndex::class.java)
+                spatialIndexCache[regionId] = spatialIndex
+                trackAllocation("SpatialIndex:$cacheName", indexData.size.toLong())
+                spatialIndex
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error loading spatial index for $cacheName/$regionId", e)
+            null
+        }
+    }
+
+    private fun createMemoryMappedBuffer(regionId: String, file: File) {
+        try {
+            RandomAccessFile(file, "r").use { raf ->
+                raf.channel.use { channel ->
+                    val buffer = channel.map(FileChannel.MapMode.READ_ONLY, 0, file.length())
+                    memoryMappedBuffers[regionId] = buffer
+                    trackAllocation("MappedBuffer:$cacheName", file.length())
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error creating memory map for $cacheName/$regionId", e)
+        }
     }
 
     /**
@@ -320,27 +370,6 @@ class SpatialDiskCache(
     }
 
     // ================= PRIVATE HELPERS =================
-
-    private fun getSpatialIndex(regionId: String): MapOverlayCacheUtils.SpatialIndex? {
-        spatialIndexCache[regionId]?.let { return it }
-
-        return try {
-            val indexFile = File(cacheDir, "${regionId}_$cacheName.idx")
-            if (indexFile.exists()) {
-                val indexData = indexFile.readBytes()
-                val indexJson = String(indexData, Charsets.UTF_8)
-                val spatialIndex = objectMapper.readValue(indexJson, MapOverlayCacheUtils.SpatialIndex::class.java)
-                spatialIndexCache[regionId] = spatialIndex
-                spatialIndex
-            } else {
-                null
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error loading spatial index for $cacheName/$regionId", e)
-            null
-        }
-    }
-
     private fun getMemoryMappedBuffer(regionId: String): MappedByteBuffer? {
         memoryMappedBuffers[regionId]?.let { return it }
 
@@ -355,18 +384,6 @@ class SpatialDiskCache(
         }
     }
 
-    private fun createMemoryMappedBuffer(regionId: String, file: File) {
-        try {
-            RandomAccessFile(file, "r").use { raf ->
-                raf.channel.use { channel ->
-                    val buffer = channel.map(FileChannel.MapMode.READ_ONLY, 0, file.length())
-                    memoryMappedBuffers[regionId] = buffer
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error creating memory map for $cacheName/$regionId", e)
-        }
-    }
 
     @Suppress("UNCHECKED_CAST")
     private fun loadCacheIndex() {

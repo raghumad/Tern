@@ -22,6 +22,9 @@ class TernParaglidingActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        
+        // Keep screen on for flight computer visibility and process priority
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         // Initialize singleton cache manager for aviation-grade resilience
         CacheManager.initialize(applicationContext)
