@@ -4,6 +4,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.foundation.layout.fillMaxSize
 import com.madanala.tern.utils.BddTest
 
@@ -18,6 +19,9 @@ fun BddTest.givenAppIsLaunchedOnMap(
     step("GIVEN", "scenario App Launch to Map ($lat, $lon)", true) {
          // Initialize CacheManager
         com.madanala.tern.utils.CacheManager.initialize(composeTestRule.activity.applicationContext)
+        
+        // Mock Country Code to ensure overlays load (bypassing flaky Geocoder)
+        com.madanala.tern.utils.CountryUtils.setTestCountryCode("us")
         
         // OSMDroid Config
         val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
@@ -112,13 +116,13 @@ fun BddTest.givenAppIsLaunchedOnMap(
                     throw AssertionError("Map center mismatch! Expected: ($expectedLat, $expectedLon), Actual: ($actualLat, $actualLon)")
                 }
             } else {
-                // If we can't find the MapView, we can't verify the center. 
-                // This might happen if the view hierarchy is very different.
-                // For now, we log a warning but don't fail, to avoid breaking if the view structure changes.
-                println("WARNING: Could not find MapView to verify center coordinates.")
+                // If we can't find the MapView, we can't verify the center.
+                // This is critical for verification, so we must fail.
+                throw AssertionError("Could not find MapView to verify center coordinates. View hierarchy might have changed.")
             }
         }
         
         com.madanala.tern.utils.MapTestHelper.waitForMapTiles()
     }
 }
+

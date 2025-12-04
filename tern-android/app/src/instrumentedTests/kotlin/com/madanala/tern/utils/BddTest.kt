@@ -80,6 +80,9 @@ open class BddTest : BaseUITest() {
 
     @org.junit.After
     fun generateReport() {
+        // Reset CountryUtils mock
+        com.madanala.tern.utils.CountryUtils.setTestCountryCode(null)
+
         // Print Performance Report
         try {
             kotlinx.coroutines.runBlocking {
