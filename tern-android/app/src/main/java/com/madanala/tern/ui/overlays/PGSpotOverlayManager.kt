@@ -47,6 +47,10 @@ class PGSpotOverlayManager(
     private val weatherCache: WeatherCache = CacheManager.weatherCache
 ) : BaseOverlayManager(OverlayType.PG_SPOTS, mapStore) {
 
+    init {
+        Log.d(TAG, "PGSpotOverlayManager INITIALIZED")
+    }
+
     companion object {
         private const val TAG = "PGSpotOverlayManager"
         private const val WEATHER_VISIBLE_DISTANCE_KM = 0.5  // Show weather within 500m
@@ -501,13 +505,16 @@ class PGSpotOverlayManager(
             // Unified Architecture: UniversalCountryCacheManager handles downloading.
             // We simply query the cache. If data is not yet available (downloading),
             // it will be picked up on the next map update or refresh.
-            if (pgSpotCache.isCached(countryCode)) {
+            // NOTE: UniversalCountryCacheManager uses uppercase codes (e.g. "US"), so we must match that.
+            val cacheKey = countryCode.uppercase()
+            
+            if (pgSpotCache.isCached(cacheKey)) {
                 // CACHED: Use Hilbert spatial query for nearby features only
-                nearbyFeatures = pgSpotCache.queryNearbyPGSpots(countryCode, center, 200.0)
+                nearbyFeatures = pgSpotCache.queryNearbyPGSpots(cacheKey, center, 200.0)
             } else {
                 // Not cached yet (or download in progress by UniversalCountryCacheManager)
                 // Try to use existing cache even if stale (better than no data)
-                val fallbackFeatures = pgSpotCache.getCachedPGSpots(countryCode)
+                val fallbackFeatures = pgSpotCache.getCachedPGSpots(cacheKey)
                 if (fallbackFeatures != null && fallbackFeatures.isNotEmpty()) {
                     // Log.d(TAG, "Using stale cache as fallback: ${fallbackFeatures.size} PG spots for $countryCode")
                     nearbyFeatures = fallbackFeatures.filter { feature ->
@@ -521,6 +528,7 @@ class PGSpotOverlayManager(
             }
 
 
+            Log.d(TAG, "loadPGSpotsForLocation: nearbyFeatures size=${nearbyFeatures.size}")
             if (nearbyFeatures.isNotEmpty()) {
                 renderPGSpotFeaturesWithWeather(nearbyFeatures)
 
@@ -544,7 +552,13 @@ class PGSpotOverlayManager(
        * Initial static display with future dynamic weather integration
        */
     private fun renderPGSpotFeaturesWithWeather(features: List<OverlayFeature>) {
-        val center = mapView?.mapCenter as? GeoPoint ?: return
+        Log.d(TAG, "renderPGSpotFeaturesWithWeather called with ${features.size} features")
+        val center = mapView?.mapCenter as? GeoPoint
+        if (center == null) {
+            Log.e(TAG, "renderPGSpotFeaturesWithWeather: mapView or mapCenter is NULL")
+            return
+        }
+        Log.d(TAG, "renderPGSpotFeaturesWithWeather: center=$center")
 
         // 🎯 STEP 0: Prioritize features (Distance-based sorting + Limit)
         val prioritizedFeatures = prioritizeFeatures(

@@ -147,7 +147,10 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
         val context = getApplication<Application>().applicationContext
 
         try {
+            Log.d(TAG, "Initializing Location Overlay using factory: $locationProviderFactory")
             val provider = locationProviderFactory(context)
+            Log.d(TAG, "Created provider: $provider")
+            
             myLocationOverlay = MyLocationNewOverlay(provider, mapView).apply {
                 isDrawAccuracyEnabled = true
 

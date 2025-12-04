@@ -26,63 +26,48 @@ class LaunchScreenTest : BddTest() {
     @Test
     fun appLaunchesSuccessfully() {
         scenario("appLaunchesSuccessfully") {
-            given("the app is initialized") {
-                com.madanala.tern.utils.ReportGenerator.logStep("SETUP", "Initializing CacheManager and OSMDroid")
-                // Initialize CacheManager
-                com.madanala.tern.utils.CacheManager.initialize(composeTestRule.activity.applicationContext)
-                
-                // Initialize OSMDroid Configuration
-                val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
-                org.osmdroid.config.Configuration.getInstance().load(context, androidx.preference.PreferenceManager.getDefaultSharedPreferences(context))
-                org.osmdroid.config.Configuration.getInstance().userAgentValue = context.packageName
-            }
+            // Use shared BDD step from AppLaunchSteps.kt
+            // Defaults to Boulder, CO (40.0150, -105.2705)
+            
+            // Initialize CacheManager
+            val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
+            com.madanala.tern.utils.CacheManager.initialize(context)
 
-            and("I have location permissions") {
-                com.madanala.tern.utils.ReportGenerator.logStep("SETUP", "Granting location permissions")
-                val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
-                val uiAutomation = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation
-                uiAutomation.grantRuntimePermission(context.packageName, android.Manifest.permission.ACCESS_FINE_LOCATION)
-                uiAutomation.grantRuntimePermission(context.packageName, android.Manifest.permission.ACCESS_COARSE_LOCATION)
-            }
+            // Configure Mock Server for PG Spots
+            // Clear cache to ensure we hit the MockServer
+            com.madanala.tern.utils.CacheManager.pgSpotCache.clearCache()
+            
+            val mockUrl = mockServer.url("")
+            // Remove trailing slash if present to match expected base URL format
+            val baseUrl = if (mockUrl.endsWith("/")) mockUrl.dropLast(1) else mockUrl
+            com.madanala.tern.utils.CacheManager.pgSpotCache.setBaseUrlForTesting(baseUrl)
+            // Use Dispatcher to handle requests robustly (ignoring weather API calls)
+            mockServer.setPGSpotsDispatcher(5)
 
-            and("I inject Mock Location (Boulder, CO)") {
-                com.madanala.tern.utils.ReportGenerator.logStep("SETUP", "Injecting mock GPS location: Boulder, CO")
-                val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
-                val locationManager = context.getSystemService(android.content.Context.LOCATION_SERVICE) as android.location.LocationManager
-                try {
-                    locationManager.addTestProvider(
-                        android.location.LocationManager.GPS_PROVIDER,
-                        false, false, false, false, true, true, true, 1, 1
-                    )
-                    locationManager.setTestProviderEnabled(android.location.LocationManager.GPS_PROVIDER, true)
-                    
-                    val mockLocation = android.location.Location(android.location.LocationManager.GPS_PROVIDER).apply {
-                        latitude = 40.0150
-                        longitude = -105.2705
-                        altitude = 1600.0
-                        time = System.currentTimeMillis()
-                        elapsedRealtimeNanos = android.os.SystemClock.elapsedRealtimeNanos()
-                        accuracy = 1.0f
+            // Force CountryUtils to return "us" to ensure PGSpotOverlayManager proceeds
+            com.madanala.tern.utils.CountryUtils.setTestCountryCode("us")
+
+            givenAppIsLaunchedOnMap()
+            
+            // Force map center to Boulder to ensure test stability
+            composeTestRule.runOnUiThread {
+                val contentViewGroup = composeTestRule.activity.findViewById<android.view.ViewGroup>(android.R.id.content)
+                var mapView: org.osmdroid.views.MapView? = null
+                fun findMapView(view: android.view.View) {
+                    if (view is org.osmdroid.views.MapView) {
+                        mapView = view
+                        return
                     }
-                    locationManager.setTestProviderLocation(android.location.LocationManager.GPS_PROVIDER, mockLocation)
-                } catch (e: SecurityException) {
-                    println("Warning: Could not set mock location: ${e.message}")
-                }
-            }
-
-            `when`("the app content is set") {
-                com.madanala.tern.utils.ReportGenerator.logStep("ACTION", "Setting content to TernMapScreen")
-                composeTestRule.setContent {
-                    com.madanala.tern.ui.theme.TernTheme {
-                        androidx.compose.material3.Surface(
-                            modifier = androidx.compose.ui.Modifier.fillMaxSize(),
-                            color = androidx.compose.material3.MaterialTheme.colorScheme.background
-                        ) {
-                            com.madanala.tern.ui.screens.TernMapScreen()
+                    if (view is android.view.ViewGroup) {
+                        for (i in 0 until view.childCount) {
+                            findMapView(view.getChildAt(i))
+                            if (mapView != null) return
                         }
                     }
                 }
-                composeTestRule.waitForIdle()
+                findMapView(contentViewGroup)
+                mapView?.controller?.setCenter(org.osmdroid.util.GeoPoint(40.0150, -105.2705))
+                mapView?.controller?.setZoom(12.0)
             }
             
             then("the map screen is displayed and tiles are loaded (waits 5s)") {
@@ -90,9 +75,30 @@ class LaunchScreenTest : BddTest() {
                 // Verify map view exists
                 composeTestRule.onNodeWithTag("map_view").assertExists()
                 
-                com.madanala.tern.utils.ReportGenerator.logStep("WAIT", "Waiting for map tiles to load (5s)")
-                // Wait for tiles to load so screenshot is not empty
-                com.madanala.tern.utils.MapTestHelper.waitForMapTiles(5000)
+                // Wait for async data loading and rendering
+                Thread.sleep(5000)
+
+                // Verify MockServer received the request (Debugging Network)
+        com.madanala.tern.utils.ReportGenerator.assertLogContains(
+            "MockServer",
+            "DEBUG: MockServer Dispatcher MATCHED PG Spots request"
+        )
+
+        // Verify PGSpotCache successfully cached data
+        com.madanala.tern.utils.ReportGenerator.assertLogMatchesRegex(
+            "PGSpotCache",
+            "Successfully cached (\\d+) PG spots"
+        ) { match -> match.groupValues[1].toInt() > 0 }
+
+        // Verify PG Spots are rendered (checks intent to render, avoiding animation race conditions)
+                com.madanala.tern.utils.ReportGenerator.assertLogMatchesRegex(
+                    "OverlayManager-PG_SPOTS", 
+                    "PG spots rendered: (\\d+) total"
+                ) { matchResult ->
+                    val count = matchResult.groupValues[1].toInt()
+                    println("DEBUG: PG Spots Rendered: $count")
+                    count > 0
+                }
             }
         }
     }

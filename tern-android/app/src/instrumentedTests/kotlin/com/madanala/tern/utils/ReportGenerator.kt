@@ -42,14 +42,18 @@ object ReportGenerator {
 
     fun captureLogCat(): String {
         try {
-            val process = Runtime.getRuntime().exec("logcat -d -t 1000")
+            val process = Runtime.getRuntime().exec("logcat -d -v threadtime")
             val reader = java.io.BufferedReader(java.io.InputStreamReader(process.inputStream))
             val log = StringBuilder()
             var line: String?
             while (reader.readLine().also { line = it } != null) {
                 log.append(line).append("\n")
             }
-            return log.toString()
+            val result = log.toString()
+            if (result.isEmpty()) {
+                return "WARNING: Logcat was empty."
+            }
+            return result
         } catch (e: Exception) {
             e.printStackTrace()
             return "Failed to capture logcat: ${e.message}"
@@ -72,8 +76,12 @@ object ReportGenerator {
         }
     }
 
+
+
     fun assertLogMatchesRegex(tag: String, regexPattern: String, validator: (MatchResult) -> Boolean) {
         val log = captureLogCat()
+        println("DEBUG: ReportGenerator assertLogMatchesRegex called. Log length: ${log.length}")
+        
         val regex = Regex(regexPattern)
         val match = log.lineSequence()
             .filter { it.contains(tag) }
@@ -81,11 +89,18 @@ object ReportGenerator {
             .firstOrNull()
 
         if (match == null) {
-            throw AssertionError("Logcat did not contain message matching regex. Tag: $tag, Pattern: $regexPattern")
+            val tail = log.lines()
+                .filter { it.contains("PGSpot") || it.contains("MockServer") || it.contains("System.out") || it.contains("MapViewModel") }
+                .takeLast(100)
+                .joinToString("\n")
+            println("DEBUG: Assertion Failed. Tail:\n$tail")
+            throw AssertionError("XXX FAILURE XXX: Logcat did not contain message matching regex. Tag: $tag, Pattern: $regexPattern. Log Length: ${log.length}\n\nFiltered Logcat Tail:\n$tail")
         }
 
         if (!validator(match)) {
-            throw AssertionError("Log message matched pattern but failed validation. Match: ${match.value}")
+            val tail = log.lines().takeLast(200).joinToString("\n")
+            println("DEBUG: Validation Failed. Tail:\n$tail")
+            throw AssertionError("XXX FAILURE XXX: Log message matched pattern but failed validation. Match: ${match.value}")
         }
     }
 

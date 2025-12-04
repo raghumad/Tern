@@ -19,6 +19,10 @@ class MockServer {
         server.shutdown()
     }
 
+    fun setDispatcher(dispatcher: okhttp3.mockwebserver.Dispatcher) {
+        server.dispatcher = dispatcher
+    }
+
     fun url(path: String) = server.url(path).toString()
 
     fun enqueueResponse(body: String, code: Int = 200) {
@@ -70,5 +74,49 @@ class MockServer {
             }
         """.trimIndent()
         enqueueResponse(json)
+    }
+    fun enqueuePGSpotsResponse(count: Int = 1) {
+        val json = generatePGSpotsJson(count)
+        enqueueResponse(json)
+    }
+
+    fun setPGSpotsDispatcher(count: Int = 1) {
+        val json = generatePGSpotsJson(count)
+        server.dispatcher = object : okhttp3.mockwebserver.Dispatcher() {
+            override fun dispatch(request: okhttp3.mockwebserver.RecordedRequest): MockResponse {
+                println("DEBUG: MockServer Dispatcher received request: ${request.path}")
+                if (request.path?.contains("getCountrySites.php") == true) {
+                    println("DEBUG: MockServer Dispatcher MATCHED PG Spots request")
+                    return MockResponse().setResponseCode(200).setBody(json)
+                }
+                println("DEBUG: MockServer Dispatcher NO MATCH for: ${request.path}")
+                return MockResponse().setResponseCode(404)
+            }
+        }
+    }
+
+    private fun generatePGSpotsJson(count: Int): String {
+        val features = (1..count).joinToString(",") { id ->
+            """
+            {
+                "type": "Feature",
+                "properties": {
+                    "name": "Test Launch $id",
+                    "siteType": "Launch"
+                },
+                "geometry": {
+                    "type": "Point",
+                    "coordinates": [-105.2705, 40.0150]
+                }
+            }
+            """.trimIndent()
+        }
+        
+        return """
+            {
+                "type": "FeatureCollection",
+                "features": [$features]
+            }
+        """.trimIndent()
     }
 }

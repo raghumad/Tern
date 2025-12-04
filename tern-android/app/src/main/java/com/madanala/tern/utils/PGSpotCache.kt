@@ -54,6 +54,17 @@ class PGSpotCache(context: Context) {
     /**
      * Cache PG spots data from standard GeoJSON API
      */
+    // Base URL for API - modifiable for testing
+    private var baseUrl = "https://www.paraglidingearth.com"
+
+    @androidx.annotation.VisibleForTesting
+    fun setBaseUrlForTesting(url: String) {
+        baseUrl = url
+    }
+
+    /**
+     * Cache PG spots data from standard GeoJSON API
+     */
     suspend fun downloadAndCache(countryCode: String): List<OverlayFeature>? {
         Log.d(TAG, "Attempting to download PG spots for country: $countryCode")
 
@@ -71,7 +82,7 @@ class PGSpotCache(context: Context) {
         }
 
         try {
-            val url = "https://www.paraglidingearth.com/api/geojson/getCountrySites.php?iso=${countryCode.lowercase()}&style=detailed"
+            val url = "$baseUrl/api/geojson/getCountrySites.php?iso=${countryCode.lowercase()}&style=detailed"
             Log.d(TAG, "Starting PG spots download for $countryCode from: $url")
 
             val geoJsonString = GeoJsonUtils.downloadGeoJson(url)

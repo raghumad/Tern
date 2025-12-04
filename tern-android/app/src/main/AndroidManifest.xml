@@ -21,6 +21,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Tern"
         android:largeHeap="true"
+        android:usesCleartextTraffic="true"
         android:requestLegacyExternalStorage="true">
         
         <provider
