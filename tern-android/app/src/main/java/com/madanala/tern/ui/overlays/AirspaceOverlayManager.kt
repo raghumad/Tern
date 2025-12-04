@@ -301,13 +301,13 @@ class AirspaceOverlayManager(
         if (coordinator != null) {
             invisibleNonCriticalAirspaces.forEach { (airspaceId, polygon) ->
                 val centroid = getPolygonCentroid(polygon)
-                coordinator.removeOverlayFromBatch(polygon, airspaceId, centroid)
+                    coordinator.removeOverlayFromBatch(polygon, airspaceId, centroid, OverlayType.AIRSPACE)
                 removedCount++
             }
             coordinator.removeOverlayFromBatch()
         } else {
             invisibleNonCriticalAirspaces.forEach { (airspaceId, polygon) ->
-                animationManager?.animateOverlayRemoval(polygon, airspaceId, mapView!!) {
+                animationManager?.animateOverlayRemoval(polygon, airspaceId, mapView!!, OverlayType.AIRSPACE) {
                     // Remove from tracking
                 }
                 removedCount++
@@ -363,13 +363,13 @@ class AirspaceOverlayManager(
         if (coordinator != null) {
             airspacesInZone.forEach { (airspaceId, polygon) ->
                 val centroid = getPolygonCentroid(polygon)
-                coordinator.removeOverlayFromBatch(polygon, airspaceId, centroid)
+                    coordinator.removeOverlayFromBatch(polygon, airspaceId, centroid, OverlayType.AIRSPACE)
                 removedCount++
             }
             coordinator.removeOverlayFromBatch()
         } else {
             airspacesInZone.forEach { (airspaceId, polygon) ->
-                animationManager?.animateOverlayRemoval(polygon, airspaceId, mapView!!) {
+                animationManager?.animateOverlayRemoval(polygon, airspaceId, mapView!!, OverlayType.AIRSPACE) {
                     // Remove from tracking
                 }
                 removedCount++
@@ -414,7 +414,7 @@ class AirspaceOverlayManager(
                     val polygon = currentlyRenderedAirspaces[airspaceId]
                     if (polygon != null) {
                         val centroid = getPolygonCentroid(polygon)
-                        coordinator.removeOverlayFromBatch(polygon, airspaceId, centroid)
+                            coordinator.removeOverlayFromBatch(polygon, airspaceId, centroid, OverlayType.AIRSPACE)
                     }
                 }
 
@@ -436,7 +436,8 @@ class AirspaceOverlayManager(
                         animationManager?.animateOverlayRemoval(
                             overlay = polygon,
                             overlayId = airspaceId,
-                            mapView = map
+                            mapView = map,
+                            type = OverlayType.AIRSPACE
                         ) {
                         } ?: throw IllegalStateException(
                             "Animation manager is required for airspace overlay removal. " +
@@ -642,7 +643,7 @@ class AirspaceOverlayManager(
                 if (polygon != null) {
                     // Add to Hilbert-ordered batch for removal (outside to center)
                     val centroid = getPolygonCentroid(polygon)
-                    coordinator.removeOverlayFromBatch(polygon, airspaceId, centroid)
+                        coordinator.removeOverlayFromBatch(polygon, airspaceId, centroid, OverlayType.AIRSPACE)
                 }
             }
 
@@ -658,7 +659,7 @@ class AirspaceOverlayManager(
             airspaceIdsToRemove.forEach { airspaceId ->
                 val polygon = currentlyRenderedAirspaces[airspaceId]
                 if (polygon != null) {
-                    animationManager?.animateOverlayRemoval(polygon, airspaceId, map) {
+                    animationManager?.animateOverlayRemoval(polygon, airspaceId, map, OverlayType.AIRSPACE) {
                         // Animation manager handles removal - just update our tracking
                         currentlyRenderedAirspaces.remove(airspaceId)
                     } ?: throw IllegalStateException(
@@ -691,7 +692,8 @@ class AirspaceOverlayManager(
                     coordinator.getAnimationManager().animateOverlayAddition(
                         overlay = polygon,
                         overlayId = airspaceId,
-                        mapView = map
+                        mapView = map,
+                        type = OverlayType.AIRSPACE
                     ) {
                     }
                 }
@@ -712,7 +714,8 @@ class AirspaceOverlayManager(
                         overlay = polygon,
                         overlayId = airspaceId,
                         mapView = map,
-                        staggerDelay = index * 100L // Stagger for visual polish
+                        staggerDelay = index * 100L, // Stagger for visual polish
+                        type = OverlayType.AIRSPACE
                     ) {
                     } ?: throw IllegalStateException(
                         "Animation manager is required for airspace overlay addition. " +

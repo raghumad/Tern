@@ -259,7 +259,7 @@ object MapTestHelper {
         }
     }
 
-    private fun findMapView(view: View): MapView? {
+    fun findMapView(view: View): MapView? {
         if (view is MapView) {
             return view
         }

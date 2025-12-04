@@ -126,6 +126,15 @@ class MapInteractionTest : BddTest() {
                 // Validate no performance warnings
                 com.madanala.tern.utils.ReportGenerator.assertLogDoesNotContain("PerformanceDebugger", "STATE UPDATE STORM")
             }
+
+            then("I close the route detail panel (Cleanup)") {
+                store.dispatch(com.madanala.tern.redux.MapAction.DeselectRoute)
+                composeTestRule.waitForIdle()
+                
+                composeTestRule.waitUntil(timeoutMillis = 5000) {
+                    composeTestRule.onAllNodesWithTag("RouteDetailPanel").fetchSemanticsNodes().isEmpty()
+                }
+            }
         }
     }
 
@@ -230,6 +239,26 @@ class MapInteractionTest : BddTest() {
                 Thread.sleep(2000) // Allow OSMDroid to settle/animate
             }
             
+            then("The RouteOverlay is added to the map") {
+                composeTestRule.waitUntil(timeoutMillis = 5000) {
+                    val activity = composeTestRule.activity
+                    val mapView = MapTestHelper.findMapView(activity.window.decorView)
+                    
+                    // Recursive check to find RouteOverlay inside FolderOverlays (Z-Index layers)
+                    fun hasRouteOverlay(overlays: List<org.osmdroid.views.overlay.Overlay>): Boolean {
+                        return overlays.any { overlay ->
+                            if (overlay is org.osmdroid.views.overlay.FolderOverlay) {
+                                hasRouteOverlay(overlay.items)
+                            } else {
+                                overlay.javaClass.simpleName.contains("RouteOverlay")
+                            }
+                        }
+                    }
+                    
+                    mapView?.overlays?.let { hasRouteOverlay(it) } == true
+                }
+            }
+            
             `when`("I tap on the waypoint (simulated via Redux action)") {
                 // Simulate tap by dispatching the action directly
                 // Ideally we would use MapTestHelper.clickOnGeoPoint, but for unit/integration tests,
@@ -240,12 +269,14 @@ class MapInteractionTest : BddTest() {
                 
                 // Assuming RouteOverlayManager handles SingleTapConfirmed and dispatches SelectWaypoint
                 // We can simulate this by dispatching a "MapTap" action if we have one, 
-                // or we can try to click on the screen coordinates.
+                // Wait for route to be processed
+                composeTestRule.waitForIdle()
                 
                 // Let's try the screen coordinate click using MapTestHelper
                 // We need the activity to find the view
                 val activity = composeTestRule.activity
                 MapTestHelper.clickOnGeoPoint(activity, 40.0150, -105.2705)
+                // Wait for route to be processed
                 composeTestRule.waitForIdle()
             }
             

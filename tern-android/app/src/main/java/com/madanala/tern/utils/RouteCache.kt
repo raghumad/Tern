@@ -16,7 +16,10 @@ import java.util.concurrent.ConcurrentHashMap
  * Cache manager for route data using FlexBuffers and Hilbert indexing
  * Mimics AirspaceCache pattern but optimized for route-centric data
  */
-class RouteCache(context: Context) {
+class RouteCache(
+    context: Context,
+    private val diskCache: SpatialDiskCache = SpatialDiskCache(context, "route", ROUTE_CACHE_HOURS)
+) {
 
     companion object {
         const val ROUTE_CACHE_HOURS = 168  // 7 days
@@ -24,9 +27,6 @@ class RouteCache(context: Context) {
         private const val HILBERT_BITS_PRECISION = 32
         private const val MAX_DISTANCE_METERS_PER_MILE = 1609.34
     }
-
-    // Delegate storage and indexing to generic SpatialDiskCache
-    private val diskCache = SpatialDiskCache(context, "route", ROUTE_CACHE_HOURS)
 
     /**
      * Check if route data is cached and not too old
@@ -164,52 +164,60 @@ class RouteCache(context: Context) {
         try {
             if (features.isEmpty()) return null
 
-            // Extract route metadata from first feature
-            val firstFeature = features.first()
-            val properties = firstFeature.feature["properties"] as? Map<*, *>
+            // Expect a single LineString feature containing all route data
+            val feature = features.first()
+            val properties = feature.feature["properties"] as? Map<*, *>
             val routeName = properties?.get("routeName") as? String ?: "Reconstructed Route"
             val isVisible = properties?.get("isVisible") as? Boolean ?: true
-
-            // Extract waypoints from features
-            val waypoints = features.mapNotNull { feature ->
-                val props = feature.feature["properties"] as? Map<*, *>
-                val waypointId = props?.get("waypointId") as? String
-                val waypointTypeStr = (props?.get("waypointType") as? String)?.takeIf { it.isNotEmpty() } ?: "TURNPOINT"
-                val label = props?.get("label") as? String
-
-                if (waypointId != null) {
-                    val waypointType = try {
-                        Waypoint.Type.valueOf(waypointTypeStr)
-                    } catch (e: Exception) {
-                        Waypoint.Type.TURNPOINT
-                    }
-                    
-                    val sequence = (props?.get("sequence") as? Number)?.toInt() ?: 0
-
-                    Waypoint(
-                        id = waypointId,
-                        lat = feature.centroid.latitude,
-                        lon = feature.centroid.longitude,
-                        type = waypointType,
-                        label = if (label.isNullOrEmpty()) null else label,
-                        routeId = routeId
-                    ) to sequence
-                } else {
-                    null
+            
+            val waypointsList = properties?.get("waypoints") as? List<*>
+            
+            if (waypointsList != null) {
+                val waypoints = waypointsList.mapNotNull { wpObj ->
+                    if (wpObj is Map<*, *>) {
+                        val id = wpObj["id"] as? String
+                        val lat = (wpObj["lat"] as? Number)?.toDouble()
+                        val lon = (wpObj["lon"] as? Number)?.toDouble()
+                        val typeStr = wpObj["type"] as? String
+                        val label = wpObj["label"] as? String
+                        val radius = (wpObj["radius"] as? Number)?.toDouble()
+                        val alt = (wpObj["alt"] as? Number)?.toDouble()
+                        val openTime = wpObj["openTime"] as? String
+                        val closeTime = wpObj["closeTime"] as? String
+                        
+                        if (id != null && lat != null && lon != null) {
+                            val type = try {
+                                Waypoint.Type.valueOf(typeStr ?: "TURNPOINT")
+                            } catch (e: Exception) {
+                                Waypoint.Type.TURNPOINT
+                            }
+                            
+                            Waypoint(
+                                id = id,
+                                lat = lat,
+                                lon = lon,
+                                type = type,
+                                label = label,
+                                radius = radius,
+                                alt = alt,
+                                openTime = openTime,
+                                closeTime = closeTime,
+                                routeId = routeId
+                            )
+                        } else null
+                    } else null
                 }
-            }.sortedBy { (_, sequence) ->
-                sequence
-            }.map { it.first }
-
-            if (waypoints.isNotEmpty()) {
-                return Route(
-                    id = routeId,
-                    name = routeName,
-                    waypoints = waypoints,
-                    isVisible = isVisible
-                )
+                
+                if (waypoints.isNotEmpty()) {
+                    return Route(
+                        id = routeId,
+                        name = routeName,
+                        waypoints = waypoints,
+                        isVisible = isVisible
+                    )
+                }
             }
-
+            
             return null
         } catch (e: Exception) {
             Log.e(TAG, "Error reconstructing route from features: ${e.message}")
@@ -221,29 +229,48 @@ class RouteCache(context: Context) {
      * Convert route to overlay features for spatial indexing
      */
     private fun convertRouteToFeatures(route: Route): List<MapOverlayCacheUtils.OverlayFeature> {
-        return route.waypoints.map { waypoint ->
-            val centroid = GeoPoint(waypoint.lat, waypoint.lon)
-            val hilbertIndex = MapOverlayCacheUtils.computeHilbertIndex(centroid, HILBERT_BITS_PRECISION)
+        if (route.waypoints.isEmpty()) return emptyList()
 
-            // Create feature data for waypoint
-            val featureData = mapOf(
-                "type" to "Feature",
-                "geometry" to mapOf(
-                    "type" to "Point",
-                    "coordinates" to listOf(waypoint.lon, waypoint.lat)
-                ),
-                "properties" to mapOf(
-                    "waypointId" to waypoint.id,
-                    "routeId" to route.id,
-                    "waypointType" to waypoint.type.name,
-                    "label" to (waypoint.label ?: ""),
-                    "routeName" to route.name,
-                    "isVisible" to route.isVisible,
-                    "sequence" to route.waypoints.indexOf(waypoint)
-                )
+        // Create a single LineString feature for the entire route
+        val coordinates = route.waypoints.map { listOf(it.lon, it.lat) }
+        
+        // Serialize waypoints metadata
+        val waypointsMetadata = route.waypoints.map { wp ->
+            mapOf(
+                "id" to wp.id,
+                "lat" to wp.lat,
+                "lon" to wp.lon,
+                "type" to wp.type.name,
+                "label" to (wp.label ?: ""),
+                "radius" to (wp.radius ?: 400.0),
+                "alt" to (wp.alt ?: 0.0),
+                "openTime" to (wp.openTime ?: ""),
+                "closeTime" to (wp.closeTime ?: "")
             )
-
-            MapOverlayCacheUtils.OverlayFeature(featureData, centroid, hilbertIndex, "route")
         }
+
+        val featureData = mapOf(
+            "type" to "Feature",
+            "geometry" to mapOf(
+                "type" to "LineString",
+                "coordinates" to coordinates
+            ),
+            "properties" to mapOf(
+                "routeId" to route.id,
+                "routeName" to route.name,
+                "isVisible" to route.isVisible,
+                "waypoints" to waypointsMetadata
+            )
+        )
+
+        // Compute centroid of the LineString for indexing
+        val centroid = MapOverlayCacheUtils.computeCentroid(featureData["geometry"] as Map<String, Any>) 
+            ?: GeoPoint(route.waypoints[0].lat, route.waypoints[0].lon) // Fallback to first point
+
+        val hilbertIndex = MapOverlayCacheUtils.computeHilbertIndex(centroid, HILBERT_BITS_PRECISION)
+
+        return listOf(
+            MapOverlayCacheUtils.OverlayFeature(featureData, centroid, hilbertIndex, "route")
+        )
     }
 }

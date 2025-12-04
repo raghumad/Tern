@@ -19,8 +19,11 @@ open class BddTest : BaseUITest() {
     fun clearLogCat() {
         try {
             Runtime.getRuntime().exec("logcat -c")
+            // Give logcat a moment to clear
+            Thread.sleep(100)
             val maxMemory = Runtime.getRuntime().maxMemory()
             println("=== RUNTIME MAX MEMORY: ${maxMemory / 1024 / 1024} MB ===")
+            android.util.Log.d("BddTest", "=== START ${testNameRule.methodName} ===")
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -95,6 +98,7 @@ open class BddTest : BaseUITest() {
             println("Failed to get performance report: $e")
         }
         ReportGenerator.generateFinalReport(testNameRule.methodName)
+        android.util.Log.d("BddTest", "=== END ${testNameRule.methodName} ===")
     }
 
     fun given(description: String, takeScreenshot: Boolean = false, block: () -> Unit) {

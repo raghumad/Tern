@@ -73,4 +73,113 @@ class MapOverlayCacheUtilsTest {
             println("Exception parsing array: ${e.javaClass.simpleName}")
         }
     }
+    @Test
+    fun `test serialization of simple point geometry`() {
+        val featureMap = mapOf(
+            "type" to "Feature",
+            "geometry" to mapOf(
+                "type" to "Point",
+                "coordinates" to listOf(-105.27, 40.01)
+            ),
+            "properties" to mapOf("name" to "Test Point")
+        )
+        val centroid = GeoPoint(40.01, -105.27)
+        val originalFeature = MapOverlayCacheUtils.OverlayFeature(featureMap, centroid, 12345L, "test_point")
+
+        val (index, data) = MapOverlayCacheUtils.createSpatialIndexAndSerialize(listOf(originalFeature))
+        val deserializedFeatures = MapOverlayCacheUtils.deserializeFlexBuffersToFeatures(data)
+
+        assertThat(deserializedFeatures).hasSize(1)
+        val deserializedFeature = deserializedFeatures[0]
+        
+        assertThat(deserializedFeature.hilbertIndex).isEqualTo(originalFeature.hilbertIndex)
+        assertThat(deserializedFeature.overlayType).isEqualTo(originalFeature.overlayType)
+        assertThat(deserializedFeature.centroid.latitude).isWithin(0.0001).of(originalFeature.centroid.latitude)
+        
+        val geometry = deserializedFeature.feature["geometry"] as Map<String, Any>
+        val coordinates = geometry["coordinates"] as List<Any>
+        assertThat((coordinates[0] as Number).toDouble()).isWithin(0.0001).of(-105.27)
+        assertThat((coordinates[1] as Number).toDouble()).isWithin(0.0001).of(40.01)
+    }
+
+    @Test
+    fun `test serialization of polygon geometry (nested lists)`() {
+        // This tests the fix for Airspaces
+        val coordinates = listOf(
+            listOf(
+                listOf(-105.27, 40.01),
+                listOf(-105.26, 40.01),
+                listOf(-105.26, 40.02),
+                listOf(-105.27, 40.02),
+                listOf(-105.27, 40.01)
+            )
+        )
+        val featureMap = mapOf(
+            "type" to "Feature",
+            "geometry" to mapOf(
+                "type" to "Polygon",
+                "coordinates" to coordinates
+            ),
+            "properties" to mapOf("name" to "Test Polygon")
+        )
+        val centroid = GeoPoint(40.015, -105.265)
+        val originalFeature = MapOverlayCacheUtils.OverlayFeature(featureMap, centroid, 67890L, "test_polygon")
+
+        val (index, data) = MapOverlayCacheUtils.createSpatialIndexAndSerialize(listOf(originalFeature))
+        val deserializedFeatures = MapOverlayCacheUtils.deserializeFlexBuffersToFeatures(data)
+
+        assertThat(deserializedFeatures).hasSize(1)
+        val deserializedFeature = deserializedFeatures[0]
+        
+        val geometry = deserializedFeature.feature["geometry"] as Map<String, Any>
+        val deserializedCoords = geometry["coordinates"] as List<List<List<Any>>>
+        
+        assertThat(deserializedCoords).hasSize(1)
+        assertThat(deserializedCoords[0]).hasSize(5)
+        assertThat((deserializedCoords[0][0][0] as Number).toDouble()).isWithin(0.0001).of(-105.27)
+    }
+
+    @Test
+    fun `test serialization of complex nested properties`() {
+        val properties = mapOf(
+            "simple" to "value",
+            "nested" to mapOf(
+                "level1" to "value1",
+                "level2" to mapOf("deep" to true)
+            ),
+            "array" to listOf(1, 2, 3),
+            "mixedArray" to listOf("a", 1, true, mapOf("key" to "val"))
+        )
+        val featureMap = mapOf(
+            "type" to "Feature",
+            "geometry" to mapOf(
+                "type" to "Point",
+                "coordinates" to listOf(0.0, 0.0)
+            ),
+            "properties" to properties
+        )
+        val centroid = GeoPoint(0.0, 0.0)
+        val originalFeature = MapOverlayCacheUtils.OverlayFeature(featureMap, centroid, 0L, "complex_prop")
+
+        val (index, data) = MapOverlayCacheUtils.createSpatialIndexAndSerialize(listOf(originalFeature))
+        val deserializedFeatures = MapOverlayCacheUtils.deserializeFlexBuffersToFeatures(data)
+
+        val deserializedProps = deserializedFeatures[0].feature["properties"] as Map<String, Any>
+        
+        assertThat(deserializedProps["simple"]).isEqualTo("value")
+        
+        val nested = deserializedProps["nested"] as Map<String, Any>
+        assertThat(nested["level1"]).isEqualTo("value1")
+        
+        val level2 = nested["level2"] as Map<String, Any>
+        assertThat(level2["deep"]).isEqualTo(true)
+        
+        val mixedArray = deserializedProps["mixedArray"] as List<Any>
+        assertThat(mixedArray[0]).isEqualTo("a")
+        assertThat((mixedArray[1] as Number).toInt()).isEqualTo(1)
+        assertThat(mixedArray[2]).isEqualTo(true)
+        
+        val mapInArray = mixedArray[3] as Map<String, Any>
+        assertThat(mapInArray["key"]).isEqualTo("val")
+    }
 }

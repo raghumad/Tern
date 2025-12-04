@@ -359,7 +359,7 @@ class RouteOverlayManager(
                 center
             }
         }
-        addRoutes(sortedAdditions)
+        addRoutes(sortedAdditions, mapView)
 
         // Force map redraw
         mapView.invalidate()
@@ -379,7 +379,7 @@ class RouteOverlayManager(
                     } else {
                         GeoPoint(0.0, 0.0)
                     }
-                    coordinator.removeOverlayFromBatch(overlay, id, centroid)
+                    coordinator.removeOverlayFromBatch(overlay, id, centroid, OverlayType.ROUTES)
                 }
             }
             coordinator.removeOverlayFromBatch()
@@ -387,7 +387,7 @@ class RouteOverlayManager(
         } else {
             ids.forEach { id ->
                 currentlyRenderedRoutes[id]?.let { overlay ->
-                    animationManager?.animateOverlayRemoval(overlay, id, mapView!!) {
+                    animationManager?.animateOverlayRemoval(overlay, id, mapView!!, OverlayType.ROUTES) {
                         currentlyRenderedRoutes.remove(id)
                     }
                 }
@@ -395,35 +395,61 @@ class RouteOverlayManager(
         }
     }
 
-    private fun addRoutes(routes: List<Route>) {
+    /**
+     * Add routes to the map with staggered animation
+     */
+    private fun addRoutes(routes: List<Route>, mapView: MapView) {
         val coordinator = overlayCoordinator
-        if (routes.isNotEmpty()) {
-             // throw RuntimeException("DEBUG_EXCEPTION: addRoutes called with ${routes.size} routes. Map size: ${currentlyRenderedRoutes.size}")
-        }
 
         if (coordinator != null) {
-            routes.forEach { route ->
-                val overlay = RouteOverlay(route)
-                currentlyRenderedRoutes[route.id] = overlay
-                
-                coordinator.getAnimationManager().animateOverlayAddition(
-                    overlay = overlay,
-                    overlayId = route.id,
-                    mapView = mapView!!
-                ) {}
-            }
-        } else {
+            // Use Hilbert-ordered batch addition for smooth center-to-outside addition
             routes.forEachIndexed { index, route ->
+                // Create overlay WITHOUT adding to map
                 val overlay = RouteOverlay(route)
+
+                // Add to our tracking immediately
                 currentlyRenderedRoutes[route.id] = overlay
-                
+
+                // Add to Hilbert-ordered batch for addition (center to outside)
+                val centroid = getRouteCentroid(route)
+                coordinator.addOverlayToBatch(overlay, route.id, centroid, OverlayType.ROUTES)
+            }
+
+            // Process the batch for Hilbert-ordered addition
+            coordinator.flushPendingAdditions()
+        } else {
+            // Fallback to direct animation manager if coordinator not available
+            routes.forEachIndexed { index, route ->
+                // Create overlay WITHOUT adding to map
+                val overlay = RouteOverlay(route)
+
+                // Add to our tracking immediately
+                currentlyRenderedRoutes[route.id] = overlay
+
+                // Animation manager handles addition with fade-in effect
                 animationManager?.animateOverlayAddition(
                     overlay = overlay,
                     overlayId = route.id,
-                    mapView = mapView!!,
-                    staggerDelay = index * 100L
-                ) {}
+                    mapView = mapView,
+                    staggerDelay = index * 100L, // Stagger for visual polish
+                    type = OverlayType.ROUTES
+                ) {
+                } ?: throw IllegalStateException(
+                    "Animation manager is required for route overlay addition. " +
+                    "Ensure OverlayCoordinator is properly initialized."
+                )
             }
+        }
+    }
+
+    /**
+     * Helper to get route centroid
+     */
+    private fun getRouteCentroid(route: Route): GeoPoint {
+        return if (route.waypoints.isNotEmpty()) {
+            GeoPoint(route.waypoints[0].lat, route.waypoints[0].lon)
+        } else {
+            GeoPoint(0.0, 0.0)
         }
     }
 

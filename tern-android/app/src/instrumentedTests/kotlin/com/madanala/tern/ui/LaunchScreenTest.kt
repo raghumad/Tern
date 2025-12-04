@@ -33,9 +33,14 @@ class LaunchScreenTest : BddTest() {
             val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
             com.madanala.tern.utils.CacheManager.initialize(context)
 
-            // Configure Mock Server for PG Spots
-            // Clear cache to ensure we hit the MockServer
+            // Configure caches to use MockServer
+            val mockBaseUrl = mockServer.url("").toString().removeSuffix("/")
+            com.madanala.tern.utils.CacheManager.pgSpotCache.setBaseUrlForTesting(mockBaseUrl)
+            com.madanala.tern.utils.CacheManager.airspaceCache.setBaseUrlForTesting(mockBaseUrl)
+
+            // Clear existing cache to force download
             com.madanala.tern.utils.CacheManager.pgSpotCache.clearCache()
+            com.madanala.tern.utils.CacheManager.airspaceCache.clearCache()
             
             val mockUrl = mockServer.url("")
             // Remove trailing slash if present to match expected base URL format
@@ -99,6 +104,21 @@ class LaunchScreenTest : BddTest() {
                     println("DEBUG: PG Spots Rendered: $count")
                     count > 0
                 }
+
+        // Verify Airspaces are rendered
+                com.madanala.tern.utils.ReportGenerator.assertLogMatchesRegex(
+                    "OverlayManager-AIRSPACE", 
+                    "Airspace synchronized: (\\d+) total"
+                ) { matchResult ->
+                    val count = matchResult.groupValues[1].toInt()
+                    println("DEBUG: Airspaces Rendered: $count")
+                    count > 0
+                }
+                
+                com.madanala.tern.utils.ReportGenerator.assertLogMatchesRegex(
+                    "OverlayManager-AIRSPACE", 
+                    "Rendered Airspace: Restricted Area 1"
+                ) { true }
             }
         }
     }
