@@ -89,18 +89,39 @@ object ReportGenerator {
             .firstOrNull()
 
         if (match == null) {
-            val tail = log.lines()
-                .filter { it.contains("PGSpot") || it.contains("MockServer") || it.contains("System.out") || it.contains("MapViewModel") }
-                .takeLast(100)
-                .joinToString("\n")
-            println("DEBUG: Assertion Failed. Tail:\n$tail")
-            throw AssertionError("XXX FAILURE XXX: Logcat did not contain message matching regex. Tag: $tag, Pattern: $regexPattern. Log Length: ${log.length}\n\nFiltered Logcat Tail:\n$tail")
+            val filteredLog = log.lines().filter { 
+                it.contains("PGSpot") || 
+                it.contains("MockServer") || 
+                it.contains("System.out") || 
+                it.contains("MapViewModel") ||
+                it.contains("OverlayManager") ||
+                it.contains("UniversalCountryCache") ||
+                it.contains("AirspaceCache") ||
+                it.contains("GeoJsonUtils") ||
+                it.contains("MapOverlayCacheUtils") ||
+                it.contains("BddTest") ||
+                it.contains("BddTest")
+            }.takeLast(100).joinToString("\n")
+            println("DEBUG: Assertion Failed. Tail:\n$filteredLog")
+            throw AssertionError("XXX FAILURE XXX: Logcat did not contain message matching regex. Tag: $tag, Pattern: $regexPattern. Log Length: ${log.length}\n\nFiltered Logcat Tail:\n$filteredLog")
         }
 
         if (!validator(match)) {
-            val tail = log.lines().takeLast(200).joinToString("\n")
-            println("DEBUG: Validation Failed. Tail:\n$tail")
-            throw AssertionError("XXX FAILURE XXX: Log message matched pattern but failed validation. Match: ${match.value}")
+            val filteredLog = log.lines().filter { 
+                it.contains("PGSpot") || 
+                it.contains("MockServer") || 
+                it.contains("System.out") || 
+                it.contains("MapViewModel") ||
+                it.contains("OverlayManager") ||
+                it.contains("UniversalCountryCache") ||
+                it.contains("AirspaceCache") ||
+                it.contains("GeoJsonUtils") ||
+                it.contains("MapOverlayCacheUtils") ||
+                it.contains("BddTest") ||
+                it.contains("BddTest")
+            }.takeLast(100).joinToString("\n")
+            println("DEBUG: Assertion Failed (Validation). Tail:\n$filteredLog")
+            throw AssertionError("XXX FAILURE XXX: Log message matched pattern but failed validation. Match: ${match.value}\n\nFiltered Logcat Tail:\n$filteredLog")
         }
     }
 

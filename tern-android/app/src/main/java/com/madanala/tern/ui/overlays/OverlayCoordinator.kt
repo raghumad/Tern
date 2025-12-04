@@ -10,6 +10,7 @@ import com.madanala.tern.redux.OverlayType
 import com.madanala.tern.utils.CacheManager
 import org.osmdroid.util.BoundingBox
 import org.osmdroid.views.MapView
+import org.osmdroid.views.overlay.FolderOverlay
 import kotlinx.coroutines.*
 import kotlin.math.log2
 
@@ -20,6 +21,7 @@ import kotlin.math.log2
  * Provides clean API for overlay management and handles Redux state synchronization.
  *
  * Architecture: One coordinator manages overlay managers through clean interfaces.
+ * Now supports Z-Index layering using FolderOverlay.
  */
 class OverlayCoordinator {
     private val TAG = "OverlayCoordinator"
@@ -33,6 +35,10 @@ class OverlayCoordinator {
     // Store reference for cleanup
     private var mapView: MapView? = null
 
+    // Z-Index Layers
+    private val airspaceLayer = FolderOverlay()
+    private val pgSpotLayer = FolderOverlay()
+    private val routeLayer = FolderOverlay()
 
     // Universal country cache manager for all overlay types (Priority 0 fix)
     private var countryCacheManager: com.madanala.tern.utils.UniversalCountryCacheManager? = null
@@ -51,7 +57,8 @@ class OverlayCoordinator {
     data class OverlayWithInfo(
         val overlay: Any,
         val overlayId: String,
-        val centroid: org.osmdroid.util.GeoPoint
+        val centroid: org.osmdroid.util.GeoPoint,
+        val type: OverlayType // Added type for layer targeting
     )
 
     // Data class for overlays with Hilbert curve values
@@ -59,6 +66,7 @@ class OverlayCoordinator {
         val overlay: Any,
         val overlayId: String,
         val centroid: org.osmdroid.util.GeoPoint,
+        val type: OverlayType,
         val hilbertValue: Long,
         val distanceFromCenter: Double
     ) : Comparable<OverlayWithHilbert> {
@@ -79,6 +87,24 @@ class OverlayCoordinator {
         this.mapStore = mapStore
         this.mapView = mapView
 
+        // Initialize Z-Index Layers (Bottom to Top)
+        // 1. Airspaces (Bottom)
+        airspaceLayer.name = "Airspace Layer"
+        if (!mapView.overlays.contains(airspaceLayer)) {
+            mapView.overlays.add(airspaceLayer)
+        }
+        
+        // 2. PG Spots (Middle)
+        pgSpotLayer.name = "PG Spot Layer"
+        if (!mapView.overlays.contains(pgSpotLayer)) {
+            mapView.overlays.add(pgSpotLayer)
+        }
+        
+        // 3. Routes (Top)
+        routeLayer.name = "Route Layer"
+        if (!mapView.overlays.contains(routeLayer)) {
+            mapView.overlays.add(routeLayer)
+        }
 
         // Initialize universal country cache manager for all overlay types (Priority 0 fix)
         countryCacheManager = com.madanala.tern.utils.UniversalCountryCacheManager(context)
@@ -255,9 +281,9 @@ class OverlayCoordinator {
      * Add overlay to batch for ordered addition (center to outside)
      * Overlays will be added in Hilbert curve order when flushPendingAdditions() is called
      */
-    fun addOverlayToBatch(overlay: Any, overlayId: String, centroid: org.osmdroid.util.GeoPoint) {
+    fun addOverlayToBatch(overlay: Any, overlayId: String, centroid: org.osmdroid.util.GeoPoint, type: OverlayType) {
         synchronized(pendingAdditions) {
-            pendingAdditions.add(OverlayWithInfo(overlay, overlayId, centroid))
+            pendingAdditions.add(OverlayWithInfo(overlay, overlayId, centroid, type))
         }
     }
 
@@ -265,9 +291,9 @@ class OverlayCoordinator {
      * Add overlay to batch for ordered removal (outside to center)
      * Overlays will be removed in reverse Hilbert curve order when flushPendingRemovals() is called
      */
-    fun removeOverlayFromBatch(overlay: Any, overlayId: String, centroid: org.osmdroid.util.GeoPoint) {
+    fun removeOverlayFromBatch(overlay: Any, overlayId: String, centroid: org.osmdroid.util.GeoPoint, type: OverlayType) {
         synchronized(pendingRemovals) {
-            pendingRemovals.add(OverlayWithInfo(overlay, overlayId, centroid))
+            pendingRemovals.add(OverlayWithInfo(overlay, overlayId, centroid, type))
         }
     }
 
@@ -352,6 +378,7 @@ class OverlayCoordinator {
                     overlayInfo.overlay,
                     overlayInfo.overlayId,
                     overlayInfo.centroid,
+                    overlayInfo.type,
                     hilbertValue,
                     distanceFromCenter
                 )
@@ -366,7 +393,7 @@ class OverlayCoordinator {
             }
 
             sortedOverlays.map { overlayWithHilbert ->
-                OverlayWithInfo(overlayWithHilbert.overlay, overlayWithHilbert.overlayId, overlayWithHilbert.centroid)
+                OverlayWithInfo(overlayWithHilbert.overlay, overlayWithHilbert.overlayId, overlayWithHilbert.centroid, overlayWithHilbert.type)
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error calculating Hilbert values, using original order", e)
@@ -397,7 +424,8 @@ class OverlayCoordinator {
                             overlayAnimationManager.animateOverlayAddition(
                                 overlay = overlayInfo.overlay,
                                 overlayId = overlayInfo.overlayId,
-                                mapView = mapView!!
+                                mapView = mapView!!,
+                                type = overlayInfo.type
                             ) {
                                 // Animation completed
                             }
@@ -405,7 +433,8 @@ class OverlayCoordinator {
                             // Fallback: Add directly if animation fails
                             try {
                                 if (overlayInfo.overlay is org.osmdroid.views.overlay.Overlay) {
-                                    mapView!!.overlays.add(overlayInfo.overlay)
+                                    val layer = getLayerForType(overlayInfo.type)
+                                    layer.add(overlayInfo.overlay)
                                     mapView!!.invalidate()
                                 }
                             } catch (fallbackException: Exception) {
@@ -416,7 +445,8 @@ class OverlayCoordinator {
                         overlayAnimationManager.animateOverlayRemoval(
                             overlay = overlayInfo.overlay,
                             overlayId = overlayInfo.overlayId,
-                            mapView = mapView!!
+                            mapView = mapView!!,
+                            type = overlayInfo.type
                         ) {
                             // Removal completed
                         }
@@ -425,6 +455,14 @@ class OverlayCoordinator {
                     Log.e(TAG, "Error in batch processing for ${overlayInfo.overlayId}", e)
                 }
             }
+        }
+    }
+
+    private fun getLayerForType(type: OverlayType): FolderOverlay {
+        return when (type) {
+            OverlayType.AIRSPACE -> airspaceLayer
+            OverlayType.PG_SPOTS -> pgSpotLayer
+            OverlayType.ROUTES -> routeLayer
         }
     }
 
@@ -564,6 +602,7 @@ class OverlayCoordinator {
             overlayId: String,
             mapView: MapView,
             staggerDelay: Long = 0L,
+            type: OverlayType,
             onComplete: (() -> Unit)? = null
         ) {
             animationScope.launch {
@@ -573,13 +612,15 @@ class OverlayCoordinator {
                         delay(staggerDelay)
                     }
 
+                    val layer = getLayerForType(type)
+
                     when (overlay) {
-                        is org.osmdroid.views.overlay.Polygon -> animatePolygonAddition(overlay, mapView)
-                        is org.osmdroid.views.overlay.Marker -> animateMarkerAddition(overlay, mapView)
+                        is org.osmdroid.views.overlay.Polygon -> animatePolygonAddition(overlay, layer, mapView)
+                        is org.osmdroid.views.overlay.Marker -> animateMarkerAddition(overlay, layer, mapView)
                         else -> {
                             // Unknown overlay type - add immediately
                             if (overlay is org.osmdroid.views.overlay.Overlay) {
-                                mapView.overlays.add(overlay)
+                                layer.add(overlay)
                                 mapView.invalidate()
                             }
                         }
@@ -604,17 +645,20 @@ class OverlayCoordinator {
             overlay: Any,
             overlayId: String,
             mapView: MapView,
+            type: OverlayType,
             onComplete: (() -> Unit)? = null
         ) {
             animationScope.launch {
                 try {
+                    val layer = getLayerForType(type)
+                    
                     when (overlay) {
-                        is org.osmdroid.views.overlay.Polygon -> animatePolygonRemoval(overlay, mapView)
-                        is org.osmdroid.views.overlay.Marker -> animateMarkerRemoval(overlay, mapView)
+                        is org.osmdroid.views.overlay.Polygon -> animatePolygonRemoval(overlay, layer, mapView)
+                        is org.osmdroid.views.overlay.Marker -> animateMarkerRemoval(overlay, layer, mapView)
                         else -> {
                             // Unknown overlay type - remove immediately
                             if (overlay is org.osmdroid.views.overlay.Overlay) {
-                                mapView.overlays.remove(overlay)
+                                layer.remove(overlay)
                                 mapView.invalidate()
                             }
                         }
@@ -636,7 +680,7 @@ class OverlayCoordinator {
            * Animate polygon addition with correct fade-in behavior
            * Fade-in: Add with 0 alpha → Animate to target alpha (preserving original alpha values)
            */
-        private suspend fun animatePolygonAddition(polygon: org.osmdroid.views.overlay.Polygon, mapView: MapView) {
+        private suspend fun animatePolygonAddition(polygon: org.osmdroid.views.overlay.Polygon, layer: FolderOverlay, mapView: MapView) {
             // Store original colors to preserve intended final appearance
             val originalFillColor = polygon.fillPaint.color
             val originalOutlineColor = polygon.outlinePaint.color
@@ -660,8 +704,8 @@ class OverlayCoordinator {
                 android.graphics.Color.green(originalOutlineColor),
                 android.graphics.Color.blue(originalOutlineColor))
 
-            // Add to map (overlay is invisible at this point)
-            mapView.overlays.add(polygon)
+            // Add to layer (overlay is invisible at this point)
+            layer.add(polygon)
 
             // Animate from 0 to target alpha
             val animationDuration = 500L
@@ -688,7 +732,7 @@ class OverlayCoordinator {
            * Animate polygon removal with correct fade-out behavior
            * Fade-out: Animate from current alpha to 0 → Remove overlay
            */
-        private suspend fun animatePolygonRemoval(polygon: org.osmdroid.views.overlay.Polygon, mapView: MapView) {
+        private suspend fun animatePolygonRemoval(polygon: org.osmdroid.views.overlay.Polygon, layer: FolderOverlay, mapView: MapView) {
             // Store current alphas (fade from actual current alpha, not hardcoded 255)
             val currentFillAlpha = polygon.fillPaint.alpha      // ✅ Use actual current alpha
             val currentOutlineAlpha = polygon.outlinePaint.alpha // ✅ Use actual current alpha
@@ -706,8 +750,8 @@ class OverlayCoordinator {
                 delay(stepDelay)
             }
 
-            // Remove from map after animation completes
-            mapView.overlays.remove(polygon)
+            // Remove from layer after animation completes
+            layer.remove(polygon)
 
         }
 
@@ -715,12 +759,12 @@ class OverlayCoordinator {
            * Animate marker addition with correct fade-in behavior
            * Fade-in: Add with 0 alpha → Animate to 1.0 alpha
            */
-        private suspend fun animateMarkerAddition(marker: org.osmdroid.views.overlay.Marker, mapView: MapView) {
+        private suspend fun animateMarkerAddition(marker: org.osmdroid.views.overlay.Marker, layer: FolderOverlay, mapView: MapView) {
             try {
                 // Ensure main thread execution for UI operations
                 withContext(Dispatchers.Main) {
-                    // Add marker to map
-                    mapView.overlays.add(marker)
+                    // Add marker to layer
+                    layer.add(marker)
 
                     // Set to full visibility
                     marker.alpha = 1.0f
@@ -731,7 +775,7 @@ class OverlayCoordinator {
             } catch (e: Exception) {
                 // Emergency fallback
                 try {
-                    mapView.overlays.add(marker)
+                    layer.add(marker)
                     marker.alpha = 1.0f
                     mapView.invalidate()
                 } catch (fallbackException: Exception) {
@@ -741,10 +785,10 @@ class OverlayCoordinator {
         }
 
         /**
-          * Animate marker removal with correct fade-out behavior
-          * Fade-out: Animate to 0 alpha → Remove overlay
-          */
-        private suspend fun animateMarkerRemoval(marker: org.osmdroid.views.overlay.Marker, mapView: MapView) {
+           * Animate marker removal with correct fade-out behavior
+           * Fade-out: Animate to 0 alpha → Remove overlay
+           */
+        private suspend fun animateMarkerRemoval(marker: org.osmdroid.views.overlay.Marker, layer: FolderOverlay, mapView: MapView) {
             val currentAlpha = marker.alpha
 
             // Animate from current alpha to 0 over 500ms
@@ -759,13 +803,13 @@ class OverlayCoordinator {
                 delay(stepDelay)
             }
 
-            // Remove from map after animation completes
-            mapView.overlays.remove(marker)
+            // Remove from layer after animation completes
+            layer.remove(marker)
         }
 
         /**
-          * Shutdown animation manager and cancel all ongoing animations
-          */
+           * Shutdown animation manager and cancel all ongoing animations
+           */
         fun shutdown() {
             animationScope.cancel()
         }

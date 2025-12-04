@@ -140,11 +140,11 @@ private val testDispatcher = StandardTestDispatcher()
         every { mockCoordinator.getAnimationManager() } returns mockAnimManager
         
         // Mock animation manager to actually add overlays to the list
-        every { mockAnimManager.animateOverlayAddition(any(), any(), any(), any(), any()) } answers {
+        every { mockAnimManager.animateOverlayAddition(any(), any(), any(), any(), any(), any()) } answers {
             val overlay = firstArg<org.osmdroid.views.overlay.Overlay>()
             mockOverlays.add(overlay)
         }
-        every { mockAnimManager.animateOverlayRemoval(any(), any(), any(), any()) } answers {
+        every { mockAnimManager.animateOverlayRemoval(any(), any(), any(), any(), any()) } answers {
             val overlay = firstArg<org.osmdroid.views.overlay.Overlay>()
             mockOverlays.remove(overlay)
             val callback = lastArg<() -> Unit>()
@@ -240,7 +240,7 @@ private val testDispatcher = StandardTestDispatcher()
 
         // The manager removes overlays individually via coordinator batch removal
         verify(exactly = 2) { 
-            mockCoordinator.removeOverlayFromBatch(any(), any(), any()) 
+            mockCoordinator.removeOverlayFromBatch(any(), any(), any(), any()) 
         }
         verify(exactly = 1) {
             mockCoordinator.removeOverlayFromBatch() // Commit batch

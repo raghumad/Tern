@@ -37,6 +37,14 @@ class AirspaceCache(context: Context) {
     /**
      * Cache airspace data from OpenAIP
      */
+    // Base URL for API - modifiable for testing
+    private var baseUrl = "https://storage.googleapis.com/29f98e10-a489-4c82-ae5e-489dbcd4912f"
+
+    @androidx.annotation.VisibleForTesting
+    fun setBaseUrlForTesting(url: String) {
+        baseUrl = url
+    }
+
     suspend fun downloadAndCache(countryCode: String): Boolean {
         Log.d(TAG, "Attempting to download airspaces for country: $countryCode")
 
@@ -53,7 +61,7 @@ class AirspaceCache(context: Context) {
 
         try {
             // OpenAIP URL structure (example)
-            val url = "https://storage.googleapis.com/29f98e10-a489-4c82-ae5e-489dbcd4912f/${countryCode.lowercase()}_asp.geojson"
+            val url = "$baseUrl/${countryCode.lowercase()}_asp.geojson"
             Log.d(TAG, "Starting airspace download for $countryCode from: $url")
 
             val geoJsonString = GeoJsonUtils.downloadGeoJson(url)
@@ -61,7 +69,8 @@ class AirspaceCache(context: Context) {
             if (geoJsonString != null) {
                 Log.d(TAG, "Downloaded ${geoJsonString.length} bytes of airspace data for $countryCode")
 
-                val features = MapOverlayCacheUtils.parseGeoJsonToFeatures(geoJsonString, "airspace")
+                // Use NDGeoJSON parser for airspace data (OpenAIP format)
+                val features = MapOverlayCacheUtils.parseNdGeoJsonToFeatures(geoJsonString, "airspace")
                 Log.d(TAG, "Parsed ${features.size} airspaces for $countryCode")
 
                 val validFeatures = features.filter { feature ->

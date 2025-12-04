@@ -81,17 +81,30 @@ class MockServer {
     }
 
     fun setPGSpotsDispatcher(count: Int = 1) {
-        val json = generatePGSpotsJson(count)
+        val pgSpotsJson = generatePGSpotsJson(count)
+        val airspacesJson = generateAirspacesJson(count)
+        
         server.dispatcher = object : okhttp3.mockwebserver.Dispatcher() {
             override fun dispatch(request: okhttp3.mockwebserver.RecordedRequest): MockResponse {
                 println("DEBUG: MockServer Dispatcher received request: ${request.path}")
                 if (request.path?.contains("getCountrySites.php") == true) {
                     println("DEBUG: MockServer Dispatcher MATCHED PG Spots request")
-                    return MockResponse().setResponseCode(200).setBody(json)
+                    return MockResponse().setResponseCode(200).setBody(pgSpotsJson)
+                }
+                if (request.path?.contains("_asp.geojson") == true) {
+                    println("DEBUG: MockServer Dispatcher MATCHED Airspace request")
+                    return MockResponse().setResponseCode(200).setBody(airspacesJson)
                 }
                 println("DEBUG: MockServer Dispatcher NO MATCH for: ${request.path}")
                 return MockResponse().setResponseCode(404)
             }
+        }
+    }
+
+    private fun generateAirspacesJson(count: Int): String {
+        return (1..count).joinToString("\n") { id ->
+            // Create a single-line JSON feature
+            """{"type":"Feature","properties":{"name":"Restricted Area $id","class":"R","floor":0,"ceiling":5000,"country":"US"},"geometry":{"type":"Polygon","coordinates":[[[-105.27,40.01],[-105.26,40.01],[-105.26,40.02],[-105.27,40.02],[-105.27,40.01]]]}}"""
         }
     }
 

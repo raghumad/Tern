@@ -616,7 +616,7 @@ class PGSpotOverlayManager(
         if (coordinator != null) {
              ids.forEach { id ->
                  currentlyRenderedPGSpots[id]?.let { markerData ->
-                     coordinator.removeOverlayFromBatch(markerData.marker, id, markerData.center)
+                     coordinator.removeOverlayFromBatch(markerData.marker, id, markerData.center, OverlayType.PG_SPOTS)
                  }
              }
              coordinator.removeOverlayFromBatch()
@@ -625,7 +625,7 @@ class PGSpotOverlayManager(
             // Fallback
             ids.forEach { id ->
                 currentlyRenderedPGSpots[id]?.let { markerData ->
-                    animationManager?.animateOverlayRemoval(markerData.marker, id, mapView!!) {
+                    animationManager?.animateOverlayRemoval(markerData.marker, id, mapView!!, OverlayType.PG_SPOTS) {
                         currentlyRenderedPGSpots.remove(id)
                     }
                 }
@@ -673,7 +673,8 @@ class PGSpotOverlayManager(
                     overlay = marker,
                     overlayId = spotId,
                     mapView = mapView!!,
-                    staggerDelay = 0L // No stagger for immediate processing
+                    staggerDelay = 0L, // No stagger for immediate processing
+                    type = OverlayType.PG_SPOTS
                 ) {
                     // Animation completed - overlay is now visible
                 }
@@ -683,7 +684,8 @@ class PGSpotOverlayManager(
                     overlay = marker,
                     overlayId = spotId,
                     mapView = mapView!!,
-                    staggerDelay = 0L
+                    staggerDelay = 0L,
+                    type = OverlayType.PG_SPOTS
                 ) {
                     // Animation completed
                 } ?: throw IllegalStateException(
@@ -983,7 +985,8 @@ class PGSpotOverlayManager(
                 coordinator.removeOverlayFromBatch(
                     overlay = pgSpotMarker.marker,
                     overlayId = spotId,
-                    centroid = pgSpotMarker.center
+                    centroid = pgSpotMarker.center,
+                    type = OverlayType.PG_SPOTS
                 )
                 removedCount++
             }
@@ -993,7 +996,8 @@ class PGSpotOverlayManager(
                 animationManager?.animateOverlayRemoval(
                     overlay = pgSpotMarker.marker,
                     overlayId = spotId,
-                    mapView = mapView!!
+                    mapView = mapView!!,
+                    type = OverlayType.PG_SPOTS
                 ) {
                     // Remove from tracking
                 }
@@ -1046,7 +1050,8 @@ class PGSpotOverlayManager(
                 coordinator.removeOverlayFromBatch(
                     overlay = pgSpotMarker.marker,
                     overlayId = spotId,
-                    centroid = pgSpotMarker.center
+                    centroid = pgSpotMarker.center,
+                    type = OverlayType.PG_SPOTS
                 )
                 removedCount++
             }
@@ -1056,7 +1061,8 @@ class PGSpotOverlayManager(
                 animationManager?.animateOverlayRemoval(
                     overlay = pgSpotMarker.marker,
                     overlayId = spotId,
-                    mapView = mapView!!
+                    mapView = mapView!!,
+                    type = OverlayType.PG_SPOTS
                 ) {
                     // Remove from tracking
                 }
@@ -1107,7 +1113,8 @@ class PGSpotOverlayManager(
                         coordinator.removeOverlayFromBatch(
                             overlay = pgSpotMarker.marker,
                             overlayId = spotId,
-                            centroid = pgSpotMarker.center
+                            centroid = pgSpotMarker.center,
+                            type = OverlayType.PG_SPOTS
                         )
                     }
                 }
@@ -1122,7 +1129,8 @@ class PGSpotOverlayManager(
                         animationManager?.animateOverlayRemoval(
                             overlay = pgSpotMarker.marker,
                             overlayId = spotId,
-                            mapView = map
+                            mapView = map,
+                            type = OverlayType.PG_SPOTS
                         ) {
                             // Animation manager handles removal - just update tracking
                         } ?: throw IllegalStateException(

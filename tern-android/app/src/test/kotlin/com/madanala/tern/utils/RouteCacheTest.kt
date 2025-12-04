@@ -13,6 +13,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
+import org.osmdroid.util.GeoPoint
 
 class RouteCacheTest {
 
@@ -21,6 +22,7 @@ class RouteCacheTest {
 
     private lateinit var context: Context
     private lateinit var routeCache: RouteCache
+    private lateinit var mockDiskCache: SpatialDiskCache
 
     @BeforeEach
     fun setup() {
@@ -32,7 +34,12 @@ class RouteCacheTest {
 
         context = mockk()
         every { context.cacheDir } returns tempDir
-        routeCache = RouteCache(context)
+        
+        // Mock SpatialDiskCache
+        mockDiskCache = mockk<SpatialDiskCache>(relaxed = true)
+        
+        // Inject mock disk cache via constructor
+        routeCache = RouteCache(context, mockDiskCache)
     }
 
     @Test
@@ -45,6 +52,25 @@ class RouteCacheTest {
             waypoints = listOf(waypoint),
             isVisible = false
         )
+
+        // Stub getCachedFeatures to return a LineString feature representing this route
+        val featureData = mapOf(
+            "type" to "Feature",
+            "geometry" to mapOf(
+                "type" to "LineString",
+                "coordinates" to listOf(listOf(20.0, 10.0))
+            ),
+            "properties" to mapOf(
+                "routeId" to "test_route",
+                "routeName" to "Test Route",
+                "isVisible" to false,
+                "waypoints" to listOf(
+                    mapOf("id" to "wp1", "lat" to 10.0, "lon" to 20.0, "type" to "TURNPOINT", "label" to null)
+                )
+            )
+        )
+        val mockFeature = MapOverlayCacheUtils.OverlayFeature(featureData, GeoPoint(10.0, 20.0), 0L, "route")
+        every { mockDiskCache.getCachedFeatures("test_route") } returns listOf(mockFeature)
 
         routeCache.cacheRoute(route)
 
@@ -63,6 +89,25 @@ class RouteCacheTest {
             waypoints = listOf(waypoint),
             isVisible = true
         )
+
+        // Stub getCachedFeatures
+        val featureData = mapOf(
+            "type" to "Feature",
+            "geometry" to mapOf(
+                "type" to "LineString",
+                "coordinates" to listOf(listOf(20.0, 10.0))
+            ),
+            "properties" to mapOf(
+                "routeId" to "test_route_2",
+                "routeName" to "Test Route 2",
+                "isVisible" to true,
+                "waypoints" to listOf(
+                    mapOf("id" to "wp2", "lat" to 10.0, "lon" to 20.0, "type" to "TURNPOINT", "label" to null)
+                )
+            )
+        )
+        val mockFeature = MapOverlayCacheUtils.OverlayFeature(featureData, GeoPoint(10.0, 20.0), 0L, "route")
+        every { mockDiskCache.getCachedFeatures("test_route_2") } returns listOf(mockFeature)
 
         routeCache.cacheRoute(route)
 
@@ -83,6 +128,27 @@ class RouteCacheTest {
             waypoints = listOf(waypoint1, waypoint2, waypoint3)
         )
 
+        // Stub getCachedFeatures
+        val featureData = mapOf(
+            "type" to "Feature",
+            "geometry" to mapOf(
+                "type" to "LineString",
+                "coordinates" to listOf(listOf(20.0, 10.0), listOf(21.0, 11.0), listOf(22.0, 12.0))
+            ),
+            "properties" to mapOf(
+                "routeId" to "test_route_order",
+                "routeName" to "Ordered Route",
+                "isVisible" to true,
+                "waypoints" to listOf(
+                    mapOf("id" to "wp1", "lat" to 10.0, "lon" to 20.0, "type" to "TURNPOINT", "label" to null),
+                    mapOf("id" to "wp2", "lat" to 11.0, "lon" to 21.0, "type" to "TURNPOINT", "label" to null),
+                    mapOf("id" to "wp3", "lat" to 12.0, "lon" to 22.0, "type" to "TURNPOINT", "label" to null)
+                )
+            )
+        )
+        val mockFeature = MapOverlayCacheUtils.OverlayFeature(featureData, GeoPoint(11.0, 21.0), 0L, "route")
+        every { mockDiskCache.getCachedFeatures("test_route_order") } returns listOf(mockFeature)
+
         routeCache.cacheRoute(route)
 
         val cachedRoute = routeCache.getCachedRoute(route.id)
@@ -93,5 +159,70 @@ class RouteCacheTest {
         assertEquals("wp1", cachedRoute?.waypoints?.get(0)?.id)
         assertEquals("wp2", cachedRoute?.waypoints?.get(1)?.id)
         assertEquals("wp3", cachedRoute?.waypoints?.get(2)?.id)
+    }
+
+    @Test
+    fun `test cacheRoute converts to LineString feature`() {
+        // Create a mock disk cache and inject it
+        // Note: We are using the class-level mockDiskCache now, so no need to recreate
+        
+        val waypoints = listOf(
+            Waypoint(id = "wp1", lat = 40.0, lon = -105.0, type = Waypoint.Type.LAUNCH),
+            Waypoint(id = "wp2", lat = 40.1, lon = -105.1, type = Waypoint.Type.GOAL)
+        )
+        val route = Route(id = "route_ls", name = "LineString Route", waypoints = waypoints)
+
+        routeCache.cacheRoute(route)
+
+        // Verify that cacheFeatures was called
+        io.mockk.verify { mockDiskCache.cacheFeatures(eq("route_ls"), any()) }
+    }
+    
+    @Test
+    fun `test getCachedRoute reconstructs from LineString feature`() {
+        // Note: We are using the class-level mockDiskCache now, so no need to recreate
+        
+        val coordinates = listOf(
+            listOf(-105.0, 40.0),
+            listOf(-105.1, 40.1)
+        )
+        val waypointsMetadata = listOf(
+            mapOf("id" to "wp1", "lat" to 40.0, "lon" to -105.0, "type" to "LAUNCH", "label" to "Launch"),
+            mapOf("id" to "wp2", "lat" to 40.1, "lon" to -105.1, "type" to "GOAL", "label" to "Goal")
+        )
+        
+        val featureData = mapOf(
+            "type" to "Feature",
+            "geometry" to mapOf(
+                "type" to "LineString",
+                "coordinates" to coordinates
+            ),
+            "properties" to mapOf(
+                "routeId" to "route_recon",
+                "routeName" to "Reconstructed Route",
+                "waypoints" to waypointsMetadata
+            )
+        )
+        
+        val mockFeature = MapOverlayCacheUtils.OverlayFeature(
+            feature = featureData,
+            centroid = org.osmdroid.util.GeoPoint(40.05, -105.05),
+            hilbertIndex = 12345L,
+            overlayType = "route"
+        )
+
+        every { mockDiskCache.getCachedFeatures("route_recon") } returns listOf(mockFeature)
+
+        val cachedRoute = routeCache.getCachedRoute("route_recon")
+        
+        assertTrue(cachedRoute != null)
+        assertEquals("route_recon", cachedRoute?.id)
+        assertEquals("Reconstructed Route", cachedRoute?.name)
+        assertEquals(2, cachedRoute?.waypoints?.size)
+        
+        assertEquals("wp1", cachedRoute?.waypoints?.get(0)?.id)
+        assertEquals(Waypoint.Type.LAUNCH, cachedRoute?.waypoints?.get(0)?.type)
+        assertEquals("wp2", cachedRoute?.waypoints?.get(1)?.id)
+        assertEquals(Waypoint.Type.GOAL, cachedRoute?.waypoints?.get(1)?.type)
     }
 }

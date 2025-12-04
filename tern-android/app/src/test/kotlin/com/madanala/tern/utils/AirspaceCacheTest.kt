@@ -54,18 +54,9 @@ class AirspaceCacheTest {
     @Test
     fun `downloadAndCache downloads, parses and caches data`() = runBlocking {
         val countryCode = "CH"
-        // Minimal valid GeoJSON
+        // Valid NDGeoJSON (one feature per line)
         val geoJson = """
-            {
-              "type": "FeatureCollection",
-              "features": [
-                {
-                  "type": "Feature",
-                  "geometry": {"type":"Point","coordinates":[8.5,47.3]},
-                  "properties": {"name":"Test Airspace"}
-                }
-              ]
-            }
+            {"type": "Feature", "geometry": {"type":"Point","coordinates":[8.5,47.3]}, "properties": {"name":"Test Airspace"}}
         """.trimIndent()
 
         // Mock download
@@ -102,28 +93,9 @@ class AirspaceCacheTest {
     @Test
     fun `getCachedAirspaces returns cached data`() = runBlocking {
         val countryCode = "DE"
+        // Valid NDGeoJSON
         val geoJson = """
-            {
-              "type": "FeatureCollection",
-              "features": [
-                {
-                  "type": "Feature",
-                  "properties": {"name": "Test Airspace"},
-                  "geometry": {
-                    "type": "Polygon",
-                    "coordinates": [
-                      [
-                        [10.0, 50.0],
-                        [10.0, 50.1],
-                        [10.1, 50.1],
-                        [10.1, 50.0],
-                        [10.0, 50.0]
-                      ]
-                    ]
-                  }
-                }
-              ]
-            }
+            {"type": "Feature", "properties": {"name": "Test Airspace"}, "geometry": {"type": "Polygon", "coordinates": [[[10.0, 50.0], [10.0, 50.1], [10.1, 50.1], [10.1, 50.0], [10.0, 50.0]]]}}
         """.trimIndent()
 
         coEvery { GeoJsonUtils.downloadGeoJson(any()) } returns geoJson

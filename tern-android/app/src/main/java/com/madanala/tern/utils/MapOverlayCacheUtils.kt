@@ -56,11 +56,11 @@ object MapOverlayCacheUtils {
     /**
      * Parse NDGeoJSON string to list of OverlayFeature
      */
-    fun parseNdGeoJsonToFeatures(ndGeoJsonString: String): List<OverlayFeature> {
+    fun parseNdGeoJsonToFeatures(ndGeoJsonString: String, overlayType: String = "generic"): List<OverlayFeature> {
         val features = mutableListOf<OverlayFeature>()
         val lines = ndGeoJsonString.lines()
 
-        android.util.Log.d("MapOverlayCacheUtils", "Parsing ${lines.size} lines of NDGeoJSON")
+        android.util.Log.d("MapOverlayCacheUtils", "Parsing ${lines.size} lines of NDGeoJSON for $overlayType")
 
         var processedCount = 0
         var skippedEmpty = 0
@@ -79,7 +79,7 @@ object MapOverlayCacheUtils {
                         val centroid = computeCentroid(geometry)
                         if (centroid != null) {
                             val hilbertIndex = computeHilbertIndex(centroid, 16) // 16-bit precision
-                            features.add(OverlayFeature(feature, centroid, hilbertIndex))
+                            features.add(OverlayFeature(feature, centroid, hilbertIndex, overlayType))
                         } else {
                             skippedNoCentroid++
                         }
@@ -177,6 +177,24 @@ object MapOverlayCacheUtils {
                     else -> emptyList()
                 }
                 val points = outerRing
+
+                if (points.isNotEmpty()) {
+                    val avgLat = points.map { it.latitude }.average()
+                    val avgLon = points.map { it.longitude }.average()
+                    GeoPoint(avgLat, avgLon)
+                } else null
+            }
+            "LineString" -> {
+                // For LineString: [[lon1,lat1], [lon2,lat2], ...]
+                val points = coordinates?.filterIsInstance<List<*>>()?.mapNotNull { pair ->
+                    if (pair.size >= 2) {
+                        val lon = pair[0]
+                        val lat = pair[1]
+                        if (lon is Number && lat is Number) {
+                            GeoPoint(lat.toDouble(), lon.toDouble())
+                        } else null
+                    } else null
+                } ?: emptyList()
 
                 if (points.isNotEmpty()) {
                     val avgLat = points.map { it.latitude }.average()
@@ -337,7 +355,7 @@ object MapOverlayCacheUtils {
             when (value) {
                 is String -> builder.putString(key, value)
                 is Int -> builder.putInt(key, value)
-                is Long -> builder.putInt(key, value) // FlexBuffers handles 64-bit ints
+                is Long -> builder.putInt(key, value)
                 is Double -> builder.putFloat(key, value)
                 is Float -> builder.putFloat(key, value)
                 is Boolean -> builder.putBoolean(key, value)
@@ -349,17 +367,32 @@ object MapOverlayCacheUtils {
                 }
                 is List<*> -> {
                     val vecStart = builder.startVector()
-                    value.forEach { item ->
-                        when (item) {
-                            is String -> builder.putString(item)
-                            is Int -> builder.putInt(item)
-                            is Long -> builder.putInt(item)
-                            is Double -> builder.putFloat(item)
-                            is Float -> builder.putFloat(item)
-                            is Boolean -> builder.putBoolean(item)
-                        }
-                    }
+                    serializeList(builder, value)
                     builder.endVector(key, vecStart, false, false)
+                }
+            }
+        }
+    }
+
+    private fun serializeList(builder: com.google.flatbuffers.FlexBuffersBuilder, list: List<*>) {
+        list.forEach { item ->
+            when (item) {
+                is String -> builder.putString(item)
+                is Int -> builder.putInt(item)
+                is Long -> builder.putInt(item)
+                is Double -> builder.putFloat(item)
+                is Float -> builder.putFloat(item)
+                is Boolean -> builder.putBoolean(item)
+                is Map<*, *> -> {
+                    val mapStart = builder.startMap()
+                    @Suppress("UNCHECKED_CAST")
+                    serializeMap(builder, item as Map<String, Any>)
+                    builder.endMap(null, mapStart)
+                }
+                is List<*> -> {
+                    val vecStart = builder.startVector()
+                    serializeList(builder, item)
+                    builder.endVector(null, vecStart, false, false)
                 }
             }
         }
@@ -417,9 +450,28 @@ object MapOverlayCacheUtils {
                 value.isFloat -> value.asFloat()
                 value.isBoolean -> value.asBoolean()
                 value.isMap -> deserializeMap(value.asMap())
+                value.isVector -> deserializeVector(value.asVector())
                 else -> value.toString()
             }
             result[key] = convertedValue
+        }
+        return result
+    }
+
+    private fun deserializeVector(vector: com.google.flatbuffers.FlexBuffers.Vector): List<Any> {
+        val result = mutableListOf<Any>()
+        for (i in 0 until vector.size()) {
+            val value = vector.get(i)
+            val convertedValue: Any = when {
+                value.isString -> value.asString()
+                value.isInt -> value.asInt()
+                value.isFloat -> value.asFloat()
+                value.isBoolean -> value.asBoolean()
+                value.isMap -> deserializeMap(value.asMap())
+                value.isVector -> deserializeVector(value.asVector())
+                else -> value.toString()
+            }
+            result.add(convertedValue)
         }
         return result
     }
