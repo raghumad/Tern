@@ -270,7 +270,13 @@ class RouteCache(
         val hilbertIndex = MapOverlayCacheUtils.computeHilbertIndex(centroid, HILBERT_BITS_PRECISION)
 
         return listOf(
-            MapOverlayCacheUtils.OverlayFeature(featureData, centroid, hilbertIndex, "route")
+            MapOverlayCacheUtils.OverlayFeature(
+                id = route.id,
+                feature = featureData,
+                centroid = centroid,
+                hilbertIndex = hilbertIndex,
+                overlayType = "route"
+            )
         )
     }
 }

@@ -84,7 +84,13 @@ class MapOverlayCacheUtilsTest {
             "properties" to mapOf("name" to "Test Point")
         )
         val centroid = GeoPoint(40.01, -105.27)
-        val originalFeature = MapOverlayCacheUtils.OverlayFeature(featureMap, centroid, 12345L, "test_point")
+        val originalFeature = MapOverlayCacheUtils.OverlayFeature(
+            id = null,
+            feature = featureMap, 
+            centroid = centroid, 
+            hilbertIndex = 12345L, 
+            overlayType = "test_point"
+        )
 
         val (index, data) = MapOverlayCacheUtils.createSpatialIndexAndSerialize(listOf(originalFeature))
         val deserializedFeatures = MapOverlayCacheUtils.deserializeFlexBuffersToFeatures(data)
@@ -123,7 +129,13 @@ class MapOverlayCacheUtilsTest {
             "properties" to mapOf("name" to "Test Polygon")
         )
         val centroid = GeoPoint(40.015, -105.265)
-        val originalFeature = MapOverlayCacheUtils.OverlayFeature(featureMap, centroid, 67890L, "test_polygon")
+        val originalFeature = MapOverlayCacheUtils.OverlayFeature(
+            id = null,
+            feature = featureMap, 
+            centroid = centroid, 
+            hilbertIndex = 67890L, 
+            overlayType = "test_polygon"
+        )
 
         val (index, data) = MapOverlayCacheUtils.createSpatialIndexAndSerialize(listOf(originalFeature))
         val deserializedFeatures = MapOverlayCacheUtils.deserializeFlexBuffersToFeatures(data)
@@ -159,7 +171,13 @@ class MapOverlayCacheUtilsTest {
             "properties" to properties
         )
         val centroid = GeoPoint(0.0, 0.0)
-        val originalFeature = MapOverlayCacheUtils.OverlayFeature(featureMap, centroid, 0L, "complex_prop")
+        val originalFeature = MapOverlayCacheUtils.OverlayFeature(
+            id = null,
+            feature = featureMap, 
+            centroid = centroid, 
+            hilbertIndex = 0L, 
+            overlayType = "complex_prop"
+        )
 
         val (index, data) = MapOverlayCacheUtils.createSpatialIndexAndSerialize(listOf(originalFeature))
         val deserializedFeatures = MapOverlayCacheUtils.deserializeFlexBuffersToFeatures(data)

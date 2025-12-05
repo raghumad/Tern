@@ -4,7 +4,9 @@ import com.fasterxml.jackson.annotation.JsonCreator
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
+import android.util.Log
 import org.osmdroid.util.GeoPoint
+import java.nio.ByteBuffer
 import kotlin.math.*
 
 /**
@@ -18,6 +20,7 @@ object MapOverlayCacheUtils {
      * Generic data class for map overlay feature with centroid
      */
     data class OverlayFeature(
+        val id: String? = null,
         val feature: Map<String, Any>,
         val centroid: GeoPoint,
         val hilbertIndex: Long,
@@ -56,11 +59,11 @@ object MapOverlayCacheUtils {
     /**
      * Parse NDGeoJSON string to list of OverlayFeature
      */
-    fun parseNdGeoJsonToFeatures(ndGeoJsonString: String, overlayType: String = "generic"): List<OverlayFeature> {
+    fun parseNdGeoJsonToFeatures(ndGeoJson: String, overlayType: String = "generic"): List<OverlayFeature> {
         val features = mutableListOf<OverlayFeature>()
-        val lines = ndGeoJsonString.lines()
+        val lines = ndGeoJson.lines()
 
-        android.util.Log.d("MapOverlayCacheUtils", "Parsing ${lines.size} lines of NDGeoJSON for $overlayType")
+        Log.d("MapOverlayCacheUtils", "Parsing ${lines.size} lines of NDGeoJSON for $overlayType")
 
         var processedCount = 0
         var skippedEmpty = 0
@@ -79,7 +82,8 @@ object MapOverlayCacheUtils {
                         val centroid = computeCentroid(geometry)
                         if (centroid != null) {
                             val hilbertIndex = computeHilbertIndex(centroid, 16) // 16-bit precision
-                            features.add(OverlayFeature(feature, centroid, hilbertIndex, overlayType))
+                            val id = feature["id"] as? String // Extract ID if present
+                            features.add(OverlayFeature(id, feature, centroid, hilbertIndex, overlayType))
                         } else {
                             skippedNoCentroid++
                         }
@@ -88,8 +92,8 @@ object MapOverlayCacheUtils {
                     }
                 } catch (e: Exception) {
                     skippedMalformed++
-                    if (processedCount <= 3) { // Log first few malformed lines
-                        android.util.Log.w("MapOverlayCacheUtils", "Malformed line $processedCount: ${e.message}, line: '$line'")
+                    if (skippedMalformed <= 5) { // Only log first few errors to avoid spam
+                        Log.w("MapOverlayCacheUtils", "Malformed line $processedCount: ${e.message}, line: '$line'")
                     }
                 }
             } else {
@@ -97,7 +101,7 @@ object MapOverlayCacheUtils {
             }
         }
 
-        android.util.Log.d("MapOverlayCacheUtils", "Parsed ${features.size} features. Skipped: empty=$skippedEmpty, malformed=$skippedMalformed, noGeometry=$skippedNoGeometry, noCentroid=$skippedNoCentroid")
+        Log.d("MapOverlayCacheUtils", "Parsed ${features.size} features. Skipped: empty=$skippedEmpty, malformed=$skippedMalformed, noGeometry=$skippedNoGeometry, noCentroid=$skippedNoCentroid")
 
         return features
     }
@@ -111,46 +115,51 @@ object MapOverlayCacheUtils {
         try {
             val geoJson: Any = mapper.readValue(geoJsonString)
 
-            val featureList = when (geoJson) {
-                is Map<*, *> -> {
-                    val type = geoJson["type"] as? String
-                    if (type == "FeatureCollection") {
-                        geoJson["features"] as? List<Map<String, Any>> ?: emptyList()
-                    } else {
-                        android.util.Log.w("MapOverlayCacheUtils", "Expected FeatureCollection, got $type")
-                        emptyList()
+            if (geoJson is Map<*, *>) {
+                val type = geoJson["type"] as? String
+                if (type == "FeatureCollection") {
+                    // Handle standard FeatureCollection
+                    val featuresList = geoJson["features"] as? List<*>
+                    featuresList?.forEach { featureObj ->
+                        if (featureObj is Map<*, *>) {
+                            @Suppress("UNCHECKED_CAST")
+                            val featureMap = featureObj as Map<String, Any>
+                            val feature = parseFeature(featureMap, overlayType)
+                            if (feature != null) {
+                                features.add(feature)
+                            }
+                        }
                     }
+                } else {
+                    Log.w("MapOverlayCacheUtils", "Expected FeatureCollection, got $type")
                 }
-                is List<*> -> {
-                    // Handle raw array of features
-                    @Suppress("UNCHECKED_CAST")
-                    geoJson as? List<Map<String, Any>> ?: emptyList()
-                }
-                else -> {
-                    android.util.Log.w("MapOverlayCacheUtils", "Unexpected GeoJSON format: ${geoJson.javaClass.simpleName}")
-                    emptyList()
-                }
-            }
-
-            featureList.forEach { feature ->
-                @Suppress("UNCHECKED_CAST")
-                val geometry = feature["geometry"] as? Map<String, Any>
-                if (geometry != null) {
-                    val centroid = computeCentroid(geometry)
-                    if (centroid != null) {
-                        val hilbertIndex = computeHilbertIndex(centroid, 16) // 16-bit precision
-                        features.add(OverlayFeature(feature, centroid, hilbertIndex, overlayType))
-                    }
-                }
+            } else {
+                Log.w("MapOverlayCacheUtils", "Unexpected GeoJSON format: ${geoJson.javaClass.simpleName}")
             }
 
         } catch (e: Exception) {
-            android.util.Log.e("MapOverlayCacheUtils", "Error parsing GeoJSON", e)
+            Log.e("MapOverlayCacheUtils", "Error parsing GeoJSON", e)
         }
 
         return features
     }
 
+    /**
+     * Helper to parse a single GeoJSON Feature map into an OverlayFeature
+     */
+    private fun parseFeature(feature: Map<String, Any>, overlayType: String): OverlayFeature? {
+        @Suppress("UNCHECKED_CAST")
+        val geometry = feature["geometry"] as? Map<String, Any>
+        if (geometry != null) {
+            val centroid = computeCentroid(geometry)
+            if (centroid != null) {
+                val hilbertIndex = computeHilbertIndex(centroid, 16) // 16-bit precision
+                val id = feature["id"] as? String // Extract ID if present
+                return OverlayFeature(id, feature, centroid, hilbertIndex, overlayType)
+            }
+        }
+        return null
+    }
 
 
     /**
@@ -323,13 +332,14 @@ object MapOverlayCacheUtils {
             
             builder.putInt("hilbertIndex", feature.hilbertIndex)
             builder.putString("overlayType", feature.overlayType)
+            feature.id?.let { builder.putString("id", it) } // Serialize ID if present
             
             builder.endMap(null, mapStart)
             val buffer = builder.finish()
             
             // Write length prefix (4 bytes) followed by data
             val length = buffer.remaining()
-            val lengthBytes = java.nio.ByteBuffer.allocate(4).putInt(length).array()
+            val lengthBytes = ByteBuffer.allocate(4).putInt(length).array()
             
             val currentOffset = outputStream.size()
             outputStream.write(lengthBytes)
@@ -403,37 +413,58 @@ object MapOverlayCacheUtils {
      */
     fun deserializeFlexBuffersToFeatures(data: ByteArray): List<OverlayFeature> {
         val features = mutableListOf<OverlayFeature>()
-        val buffer = java.nio.ByteBuffer.wrap(data)
+        val buffer = ByteBuffer.wrap(data)
 
         while (buffer.hasRemaining()) {
-            try {
-                if (buffer.remaining() < 4) break
-                val length = buffer.getInt()
-                if (length <= 0 || length > buffer.remaining()) break
-                
-                val featureData = ByteArray(length)
-                buffer.get(featureData)
-                
-                val root = com.google.flatbuffers.FlexBuffers.getRoot(java.nio.ByteBuffer.wrap(featureData))
-                val map = root.asMap()
-                
-                val featureMap = deserializeMap(map.get("feature").asMap())
-                val centroidMap = map.get("centroid").asMap()
-                val latitude = centroidMap.get("latitude").asFloat()
-                val longitude = centroidMap.get("longitude").asFloat()
-                val hilbertIndex = map.get("hilbertIndex").asLong()
-                val overlayType = map.get("overlayType").asString()
-
-                val centroid = GeoPoint(latitude, longitude)
-                features.add(OverlayFeature(featureMap, centroid, hilbertIndex, overlayType))
-                
-            } catch (e: Exception) {
-                android.util.Log.e("MapOverlayCacheUtils", "Error deserializing FlexBuffer", e)
+            val feature = deserializeSingleFlexBufferFeature(buffer)
+            if (feature != null) {
+                features.add(feature)
+            } else {
+                // If deserialization fails for one feature, stop processing the rest
                 break
             }
         }
 
         return features
+    }
+
+    /**
+     * Deserialize a single FlexBuffer feature from the ByteBuffer.
+     * Assumes the buffer is positioned at the start of a length-prefixed FlexBuffer.
+     */
+    fun deserializeSingleFlexBufferFeature(buffer: ByteBuffer): OverlayFeature? {
+        try {
+            if (buffer.remaining() < 4) return null
+            val length = buffer.getInt()
+            if (length <= 0 || length > buffer.remaining()) return null
+            
+            val featureData = ByteArray(length)
+            buffer.get(featureData)
+            
+            val root = com.google.flatbuffers.FlexBuffers.getRoot(ByteBuffer.wrap(featureData))
+            val map = root.asMap()
+            
+            val featureMap = deserializeMap(map.get("feature").asMap())
+            val centroidMap = map.get("centroid").asMap()
+            val latitude = centroidMap.get("latitude").asFloat()
+            val longitude = centroidMap.get("longitude").asFloat()
+            val hilbertIndex = map.get("hilbertIndex").asLong()
+            val overlayType = map.get("overlayType").asString()
+            val id = map.get("id").asString() // Deserialize ID if present
+
+            val centroid = GeoPoint(latitude, longitude)
+            
+            return OverlayFeature(
+                id = id,
+                overlayType = overlayType,
+                feature = featureMap,
+                centroid = centroid,
+                hilbertIndex = hilbertIndex
+            )
+        } catch (e: Exception) {
+            Log.e("MapOverlayCacheUtils", "Error deserializing FlexBuffer", e)
+            return null
+        }
     }
 
     private fun deserializeMap(map: com.google.flatbuffers.FlexBuffers.Map): Map<String, Any> {

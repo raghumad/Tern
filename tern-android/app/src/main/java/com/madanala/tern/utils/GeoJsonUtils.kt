@@ -12,6 +12,7 @@ import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Polygon
 import org.osmdroid.views.overlay.Overlay
 import org.osmdroid.views.overlay.Marker
+import android.util.Log
 import java.io.IOException
 
 object GeoJsonUtils {
@@ -38,27 +39,27 @@ object GeoJsonUtils {
                         val body = response.body
                         if (body != null) {
                             val data = body.string()
-                            android.util.Log.d("GeoJsonUtils", "Downloaded ${data.length} bytes from $url")
+                            Log.d("GeoJsonUtils", "Downloaded ${data.length} bytes from $url")
 
                             // VALIDATE: Check if downloaded content is valid JSON/GeoJSON
                             if (validateGeoJsonContent(data, url)) {
-                                android.util.Log.d("GeoJsonUtils", "✅ Downloaded content validated for $url")
+                                Log.d("GeoJsonUtils", "✅ Downloaded content validated for $url")
                                 data
                             } else {
-                                android.util.Log.w("GeoJsonUtils", "❌ Downloaded content failed validation for $url")
+                                Log.w("GeoJsonUtils", "❌ Downloaded content failed validation for $url")
                                 null
                             }
                         } else {
-                            android.util.Log.w("GeoJsonUtils", "Response body is null for $url")
+                            Log.w("GeoJsonUtils", "Response body is null for $url")
                             null
                         }
                     } else {
-                        android.util.Log.w("GeoJsonUtils", "Failed to download from $url: ${response.code} ${response.message}")
+                        Log.w("GeoJsonUtils", "Failed to download from $url: ${response.code} ${response.message}")
                         null
                     }
                 }
             } catch (e: IOException) {
-                android.util.Log.w("GeoJsonUtils", "IOException downloading $url: ${e.message}")
+                Log.w("GeoJsonUtils", "IOException downloading $url: ${e.message}")
                 null
             }
         }
@@ -69,20 +70,20 @@ object GeoJsonUtils {
      */
     private fun validateGeoJsonContent(content: String, url: String): Boolean {
         if (content.isEmpty()) {
-            android.util.Log.w("GeoJsonUtils", "Content is empty for $url")
+            Log.w("GeoJsonUtils", "Content is empty for $url")
             return false
         }
 
         // Check minimum size (empty or very small files are likely corrupted)
         if (content.length < 50) {
-            android.util.Log.w("GeoJsonUtils", "Content too small (${content.length} bytes) for $url")
+            Log.w("GeoJsonUtils", "Content too small (${content.length} bytes) for $url")
             return false
         }
 
         // Check for basic JSON structure
         val trimmed = content.trim()
         if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) {
-            android.util.Log.w("GeoJsonUtils", "Content doesn't start with valid JSON structure for $url")
+            Log.w("GeoJsonUtils", "Content doesn't start with valid JSON structure for $url")
             return false
         }
 
@@ -329,8 +330,12 @@ object GeoJsonUtils {
             }
         }
 
+        // Log for debugging
+        // Log.d("GeoJsonUtils", "Airspace Class: $finalAirspaceClass (Raw: $airspaceClass, Props: $properties)")
+
         // For paraglider pilots (FAR 103), skip Class G airspaces as they're not restricted
         if (finalAirspaceClass == "G" || finalAirspaceClass == "CLASS_G") {
+             Log.d("GeoJsonUtils", "Skipping Class G Airspace: $properties")
             return false // Don't render this airspace
         }
 

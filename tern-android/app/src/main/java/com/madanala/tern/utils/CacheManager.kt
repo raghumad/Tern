@@ -1,6 +1,7 @@
 package com.madanala.tern.utils
 
 import android.content.Context
+import android.util.Log
 
 /**
  * Singleton cache manager to prevent duplicate downloads across components
@@ -38,7 +39,7 @@ object CacheManager {
      */
     fun initialize(context: Context) {
         appContext = context.applicationContext
-        android.util.Log.d("CacheManager", "Initialized with application context")
+        Log.d("CacheManager", "Initialized with application context")
     }
 
     private fun ensureInitialized() {
@@ -67,7 +68,7 @@ object CacheManager {
             airspaceCache.clearCache()
             pgSpotCache.clearCache()
             routeCache.clearCache()
-            android.util.Log.d("CacheManager", "All caches cleared")
+            Log.d("CacheManager", "All caches cleared")
         }
     }
 }

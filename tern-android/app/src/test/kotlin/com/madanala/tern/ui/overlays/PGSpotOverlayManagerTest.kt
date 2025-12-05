@@ -69,7 +69,13 @@ class PGSpotOverlayManagerTest : BaseTest() {
         val zoom = 12.0
         
         // Mock country cache response
-        val pgSpotFeature = OverlayFeature(mapOf("name" to "Spot1"), center, 456L, "pgspot")
+        val pgSpotFeature = OverlayFeature(
+            id = null,
+            feature = mapOf("name" to "Spot1"), 
+            centroid = center, 
+            hilbertIndex = 456L, 
+            overlayType = "pgspot"
+        )
         
         every { pgSpotCache.isCached("US") } returns true
         every { pgSpotCache.queryNearbyPGSpots("US", center, any()) } returns listOf(pgSpotFeature)

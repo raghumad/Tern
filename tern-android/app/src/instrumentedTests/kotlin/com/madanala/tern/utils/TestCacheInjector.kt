@@ -43,21 +43,21 @@ object TestCacheInjector {
             val cacheIndexField = SpatialDiskCache::class.java.getDeclaredField("cacheIndex")
             cacheIndexField.isAccessible = true
             @Suppress("UNCHECKED_CAST")
-            val cacheIndexMap = cacheIndexField.get(diskCache) as java.util.concurrent.ConcurrentHashMap<String, Long>
+            val cacheIndexMap = cacheIndexField.get(diskCache) as MutableMap<String, Long>
             cacheIndexMap[countryCode] = System.currentTimeMillis()
             
             // Clear spatialIndexCache to force reload from disk
             val spatialIndexField = SpatialDiskCache::class.java.getDeclaredField("spatialIndexCache")
             spatialIndexField.isAccessible = true
             @Suppress("UNCHECKED_CAST")
-            val spatialIndexMap = spatialIndexField.get(diskCache) as java.util.concurrent.ConcurrentHashMap<String, Any>
+            val spatialIndexMap = spatialIndexField.get(diskCache) as MutableMap<String, Any>
             spatialIndexMap.remove(countryCode)
 
             // Clear memoryMappedBuffers to force reload from disk
             val buffersField = SpatialDiskCache::class.java.getDeclaredField("memoryMappedBuffers")
             buffersField.isAccessible = true
             @Suppress("UNCHECKED_CAST")
-            val buffersMap = buffersField.get(diskCache) as java.util.concurrent.ConcurrentHashMap<String, Any>
+            val buffersMap = buffersField.get(diskCache) as MutableMap<String, Any>
             buffersMap.remove(countryCode)
             
         } catch (e: Exception) {
@@ -95,21 +95,21 @@ object TestCacheInjector {
             val cacheIndexField = SpatialDiskCache::class.java.getDeclaredField("cacheIndex")
             cacheIndexField.isAccessible = true
             @Suppress("UNCHECKED_CAST")
-            val cacheIndexMap = cacheIndexField.get(diskCache) as java.util.concurrent.ConcurrentHashMap<String, Long>
+            val cacheIndexMap = cacheIndexField.get(diskCache) as MutableMap<String, Long>
             cacheIndexMap[countryCode] = System.currentTimeMillis()
             
             // Clear spatialIndexCache to force reload from disk
             val spatialIndexField = SpatialDiskCache::class.java.getDeclaredField("spatialIndexCache")
             spatialIndexField.isAccessible = true
             @Suppress("UNCHECKED_CAST")
-            val spatialIndexMap = spatialIndexField.get(diskCache) as java.util.concurrent.ConcurrentHashMap<String, Any>
+            val spatialIndexMap = spatialIndexField.get(diskCache) as MutableMap<String, Any>
             spatialIndexMap.remove(countryCode)
 
             // Clear memoryMappedBuffers to force reload from disk
             val buffersField = SpatialDiskCache::class.java.getDeclaredField("memoryMappedBuffers")
             buffersField.isAccessible = true
             @Suppress("UNCHECKED_CAST")
-            val buffersMap = buffersField.get(diskCache) as java.util.concurrent.ConcurrentHashMap<String, Any>
+            val buffersMap = buffersField.get(diskCache) as MutableMap<String, Any>
             buffersMap.remove(countryCode)
             
         } catch (e: Exception) {

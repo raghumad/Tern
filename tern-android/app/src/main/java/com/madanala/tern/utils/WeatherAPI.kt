@@ -2,8 +2,9 @@ package com.madanala.tern.utils
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
-import kotlinx.coroutines.withContext
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.IOException
@@ -154,7 +155,7 @@ class OpenMeteoWeatherAPI : WeatherAPI {
                 hourly = hourly
             )
         } catch (e: Exception) {
-            android.util.Log.w("OpenMeteoWeatherAPI", "Failed to parse forecast JSON", e)
+            Log.w("OpenMeteoWeatherAPI", "Failed to parse forecast JSON", e)
             return null
         }
     }
@@ -196,7 +197,7 @@ class OpenMeteoWeatherAPI : WeatherAPI {
                 timestamp = System.currentTimeMillis() / 1000
             )
         } catch (e: Exception) {
-            android.util.Log.w("OpenMeteoWeatherAPI", "Failed to extract current weather", e)
+            Log.w("OpenMeteoWeatherAPI", "Failed to extract current weather", e)
             return null
         }
     }
@@ -255,11 +256,11 @@ class OpenMeteoWeatherAPI : WeatherAPI {
                     ))
                 } catch (e: Exception) {
                     // Skip malformed periods but continue processing others
-                    android.util.Log.w("OpenMeteoWeatherAPI", "Skipping malformed hourly period $i", e)
+                    Log.w("OpenMeteoWeatherAPI", "Skipping malformed hourly period $i", e)
                 }
             }
         } catch (e: Exception) {
-            android.util.Log.w("OpenMeteoWeatherAPI", "Failed to extract hourly forecast", e)
+            Log.w("OpenMeteoWeatherAPI", "Failed to extract hourly forecast", e)
         }
         return periods
     }
@@ -318,11 +319,11 @@ class OpenMeteoWeatherAPI : WeatherAPI {
                         shortForecast = "Daily forecast"
                     ))
                 } catch (e: Exception) {
-                    android.util.Log.w("OpenMeteoWeatherAPI", "Skipping malformed daily period $i", e)
+                    Log.w("OpenMeteoWeatherAPI", "Skipping malformed daily period $i", e)
                 }
             }
         } catch (e: Exception) {
-            android.util.Log.w("OpenMeteoWeatherAPI", "Failed to extract daily forecast", e)
+            Log.w("OpenMeteoWeatherAPI", "Failed to extract daily forecast", e)
         }
         return periods
     }
@@ -346,7 +347,7 @@ class OpenMeteoWeatherAPI : WeatherAPI {
                 zoned.toEpochSecond()
             }
         } catch (e: Exception) {
-            android.util.Log.w("OpenMeteoWeatherAPI", "Failed to parse time: $timeString", e)
+            Log.w("OpenMeteoWeatherAPI", "Failed to parse time: $timeString", e)
             null
         }
     }

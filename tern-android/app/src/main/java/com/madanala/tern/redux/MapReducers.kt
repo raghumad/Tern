@@ -4,6 +4,7 @@ import com.madanala.tern.model.FlightData
 import com.madanala.tern.model.SensorState
 import com.madanala.tern.model.FlightComputerData
 import com.madanala.tern.model.FlightMetrics
+import android.util.Log
 import org.osmdroid.util.GeoPoint
 
 // Route management constants imported from Constants.kt
@@ -658,7 +659,7 @@ fun weatherReducer(state: MapState, action: WeatherActions): MapState = when (ac
 
     // Cache management
     is WeatherActions.ClearWeatherCache -> {
-        android.util.Log.d("WeatherReducers", "Clearing weather cache from Redux state")
+        Log.d("WeatherReducers", "Clearing weather cache from Redux state")
         val newWeatherState = state.weatherState.copy(
             spotWeathers = emptyMap(),
             errors = emptyMap(),
@@ -671,7 +672,7 @@ fun weatherReducer(state: MapState, action: WeatherActions): MapState = when (ac
     }
 
     is WeatherActions.WeatherCacheCleared -> {
-        android.util.Log.d("WeatherReducers", "Weather cache cleared - ${action.freedEntries} entries freed")
+        Log.d("WeatherReducers", "Weather cache cleared - ${action.freedEntries} entries freed")
         val newWeatherState = state.weatherState.copy(
             cacheSize = state.weatherState.cacheSize - action.freedEntries,
             lastCacheCleanup = System.currentTimeMillis()
