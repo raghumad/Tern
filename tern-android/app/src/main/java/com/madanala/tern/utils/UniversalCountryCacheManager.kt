@@ -427,7 +427,9 @@ class UniversalCountryCacheManager(
         try {
             // 1. Query Airspaces
             if (airspaceCache.isCached(countryCode)) {
-                features.addAll(airspaceCache.queryNearbyFeatures(countryCode, center, radiusKm))
+                // queryNearbyFeatures takes miles. radiusKm is in km.
+                val radiusMiles = radiusKm * 0.621371
+                features.addAll(airspaceCache.queryNearbyFeatures(countryCode, center, radiusMiles))
             }
 
             // 2. Query PG Spots

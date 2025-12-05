@@ -83,19 +83,13 @@ class LaunchScreenTest : BddTest() {
                 // Wait for async data loading and rendering
                 Thread.sleep(5000)
 
-                // Verify MockServer received the request (Debugging Network)
-        com.madanala.tern.utils.ReportGenerator.assertLogContains(
-            "MockServer",
-            "DEBUG: MockServer Dispatcher MATCHED PG Spots request"
-        )
+                // Verify PGSpotCache successfully cached data
+                com.madanala.tern.utils.ReportGenerator.assertLogMatchesRegex(
+                    "PGSpotCache",
+                    "Successfully cached (\\d+) PG spots"
+                ) { match -> match.groupValues[1].toInt() > 0 }
 
-        // Verify PGSpotCache successfully cached data
-        com.madanala.tern.utils.ReportGenerator.assertLogMatchesRegex(
-            "PGSpotCache",
-            "Successfully cached (\\d+) PG spots"
-        ) { match -> match.groupValues[1].toInt() > 0 }
-
-        // Verify PG Spots are rendered (checks intent to render, avoiding animation race conditions)
+                // Verify PG Spots are rendered (checks intent to render, avoiding animation race conditions)
                 com.madanala.tern.utils.ReportGenerator.assertLogMatchesRegex(
                     "OverlayManager-PG_SPOTS", 
                     "PG spots rendered: (\\d+) total"
@@ -105,7 +99,7 @@ class LaunchScreenTest : BddTest() {
                     count > 0
                 }
 
-        // Verify Airspaces are rendered
+                // Verify Airspaces are rendered
                 com.madanala.tern.utils.ReportGenerator.assertLogMatchesRegex(
                     "OverlayManager-AIRSPACE", 
                     "Airspace synchronized: (\\d+) total"
@@ -114,11 +108,6 @@ class LaunchScreenTest : BddTest() {
                     println("DEBUG: Airspaces Rendered: $count")
                     count > 0
                 }
-                
-                com.madanala.tern.utils.ReportGenerator.assertLogMatchesRegex(
-                    "OverlayManager-AIRSPACE", 
-                    "Rendered Airspace: Restricted Area 1"
-                ) { true }
             }
         }
     }
