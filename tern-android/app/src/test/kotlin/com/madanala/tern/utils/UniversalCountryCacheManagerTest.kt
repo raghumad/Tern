@@ -74,8 +74,9 @@ class UniversalCountryCacheManagerTest {
             overlayType = "pgspot"
         )
 
+        val radiusMiles = radiusKm * 0.621371
         every { airspaceCache.isCached(countryCode) } returns true
-        every { airspaceCache.queryNearbyFeatures(countryCode, center, radiusKm) } returns listOf(airspaceFeature)
+        every { airspaceCache.queryNearbyFeatures(countryCode, center, radiusMiles) } returns listOf(airspaceFeature)
         
         every { pgSpotCache.isCached(countryCode) } returns true
         every { pgSpotCache.queryNearbyPGSpots(countryCode, center, any()) } returns listOf(pgSpotFeature)
@@ -87,7 +88,7 @@ class UniversalCountryCacheManagerTest {
         assertThat(results).hasSize(2)
         assertThat(results).contains(airspaceFeature)
         assertThat(results).contains(pgSpotFeature)
-        verify { airspaceCache.queryNearbyFeatures(countryCode, center, radiusKm) }
+        verify { airspaceCache.queryNearbyFeatures(countryCode, center, radiusMiles) }
         verify { pgSpotCache.queryNearbyPGSpots(countryCode, center, any()) }
     }
 
@@ -104,8 +105,9 @@ class UniversalCountryCacheManagerTest {
         (cachedCountriesField.get(manager) as MutableSet<String>).add(countryCode)
 
         // Mock cache with a slight delay to simulate work
+        val radiusMiles = radiusKm * 0.621371
         every { airspaceCache.isCached(countryCode) } returns true
-        every { airspaceCache.queryNearbyFeatures(countryCode, center, radiusKm) } answers {
+        every { airspaceCache.queryNearbyFeatures(countryCode, center, radiusMiles) } answers {
             Thread.sleep(10) // Simulate 10ms query time
             listOf(OverlayFeature(
                 id = null,

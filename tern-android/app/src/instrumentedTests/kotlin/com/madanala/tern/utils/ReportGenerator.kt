@@ -13,6 +13,8 @@ object ReportGenerator {
     private val currentSteps = ConcurrentLinkedQueue<Step>()
     private val recordedScenarios = ConcurrentLinkedQueue<ScenarioData>()
     private val screenshots = ConcurrentLinkedQueue<String>()
+    
+    var currentTestName: String? = null
 
     data class Step(val type: String, val description: String, val status: String = "PASS", val screenshotPath: String? = null)
     data class ScenarioData(val name: String, val steps: List<Step>, val logcat: String?)
@@ -49,7 +51,17 @@ object ReportGenerator {
             while (reader.readLine().also { line = it } != null) {
                 log.append(line).append("\n")
             }
-            val result = log.toString()
+            var result = log.toString()
+            
+            // Filter by current test name if set
+            currentTestName?.let { name ->
+                val startTag = "=== START $name ==="
+                val startIndex = result.lastIndexOf(startTag)
+                if (startIndex != -1) {
+                    result = result.substring(startIndex)
+                }
+            }
+            
             if (result.isEmpty()) {
                 return "WARNING: Logcat was empty."
             }

@@ -25,6 +25,7 @@ open class BddTest : BaseUITest() {
             Thread.sleep(100)
             val maxMemory = Runtime.getRuntime().maxMemory()
             println("=== RUNTIME MAX MEMORY: ${maxMemory / 1024 / 1024} MB ===")
+            ReportGenerator.currentTestName = testNameRule.methodName
             Log.d("BddTest", "=== START ${testNameRule.methodName} ===")
         } catch (e: Exception) {
             e.printStackTrace()

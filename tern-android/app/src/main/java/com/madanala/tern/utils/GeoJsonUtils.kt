@@ -126,7 +126,27 @@ object GeoJsonUtils {
         // Multiple lines: Check if first line is a valid JSON object (Feature)
         // and NOT a FeatureCollection start
         val firstLine = lines[0].trim()
-        return firstLine.startsWith("{") && !firstLine.contains("\"type\"\\s*:\\s*\"FeatureCollection\"".toRegex())
+        
+        try {
+            // Try to parse the first line as a JSON object
+            val jsonNode = mapper.readTree(firstLine)
+            
+            // If it parses successfully, it's either a single-line standard GeoJSON or a line of NDGeoJSON
+            // If it's a FeatureCollection, it's standard.
+            if (jsonNode.has("type") && jsonNode.get("type").asText() == "FeatureCollection") {
+                return false
+            }
+            
+            // If it's a Feature (or other object) and on a single line (in a multi-line file), 
+            // it's likely NDGeoJSON (where each line is a Feature).
+            // However, if the file has only one line, it's ambiguous but we treat single Feature as NDGeoJSON-compatible.
+            return true
+            
+        } catch (e: Exception) {
+            // If the first line is NOT a valid JSON object (e.g. just "{"), 
+            // it's likely a pretty-printed standard GeoJSON.
+            return false
+        }
     }
 
     /**

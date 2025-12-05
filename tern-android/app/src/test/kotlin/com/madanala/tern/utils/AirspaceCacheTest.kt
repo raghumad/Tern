@@ -38,6 +38,7 @@ class AirspaceCacheTest {
         airspaceCache = AirspaceCache(context)
         
         mockkObject(GeoJsonUtils)
+        every { GeoJsonUtils.isNdGeoJson(any()) } returns true
     }
 
     @After
