@@ -35,8 +35,8 @@ class LaunchScreenTest : BddTest() {
 
             // Configure caches to use MockServer
             val mockBaseUrl = mockServer.url("").toString().removeSuffix("/")
-            com.madanala.tern.utils.CacheManager.pgSpotCache.setBaseUrlForTesting(mockBaseUrl)
-            com.madanala.tern.utils.CacheManager.airspaceCache.setBaseUrlForTesting(mockBaseUrl)
+            // com.madanala.tern.utils.CacheManager.pgSpotCache.setBaseUrlForTesting(mockBaseUrl)
+            // com.madanala.tern.utils.CacheManager.airspaceCache.setBaseUrlForTesting(mockBaseUrl)
 
             // Clear existing cache to force download
             com.madanala.tern.utils.CacheManager.pgSpotCache.clearCache()
@@ -45,7 +45,7 @@ class LaunchScreenTest : BddTest() {
             val mockUrl = mockServer.url("")
             // Remove trailing slash if present to match expected base URL format
             val baseUrl = if (mockUrl.endsWith("/")) mockUrl.dropLast(1) else mockUrl
-            com.madanala.tern.utils.CacheManager.pgSpotCache.setBaseUrlForTesting(baseUrl)
+            // com.madanala.tern.utils.CacheManager.pgSpotCache.setBaseUrlForTesting(baseUrl)
             // Use Dispatcher to handle requests robustly (ignoring weather API calls)
             mockServer.setPGSpotsDispatcher(5)
 

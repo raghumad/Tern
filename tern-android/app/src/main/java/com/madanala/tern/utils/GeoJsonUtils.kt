@@ -105,6 +105,31 @@ object GeoJsonUtils {
     }
 
     /**
+     * Check if content is likely NDGeoJSON (Newline Delimited GeoJSON)
+     */
+    fun isNdGeoJson(content: String): Boolean {
+        val trimmed = content.trim()
+        if (trimmed.isEmpty()) return false
+        
+        // If it starts with a JSON object '{' and has multiple lines, check if the first line is a Feature
+        // Standard GeoJSON FeatureCollection also starts with '{', but usually the whole file is one JSON object
+        // NDGeoJSON has multiple independent JSON objects, one per line
+        
+        val lines = content.lines().filter { it.isNotBlank() }
+        if (lines.size <= 1) {
+            // Single line: ambiguous. If it's a FeatureCollection, it's standard.
+            // If it's a Feature, it could be either (but usually standard GeoJSON is FeatureCollection)
+            // Let's assume single line starting with { "type": "FeatureCollection" ... } is Standard
+            return !trimmed.contains("\"type\"\\s*:\\s*\"FeatureCollection\"".toRegex())
+        }
+        
+        // Multiple lines: Check if first line is a valid JSON object (Feature)
+        // and NOT a FeatureCollection start
+        val firstLine = lines[0].trim()
+        return firstLine.startsWith("{") && !firstLine.contains("\"type\"\\s*:\\s*\"FeatureCollection\"".toRegex())
+    }
+
+    /**
      * Validate NDGeoJSON (newline-delimited GeoJSON) content
      */
     private fun validateNdGeoJsonContent(content: String, url: String): Boolean {
