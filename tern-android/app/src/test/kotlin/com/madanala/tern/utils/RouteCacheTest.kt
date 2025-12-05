@@ -69,7 +69,13 @@ class RouteCacheTest {
                 )
             )
         )
-        val mockFeature = MapOverlayCacheUtils.OverlayFeature(featureData, GeoPoint(10.0, 20.0), 0L, "route")
+        val mockFeature = MapOverlayCacheUtils.OverlayFeature(
+            id = null,
+            feature = featureData, 
+            centroid = GeoPoint(10.0, 20.0), 
+            hilbertIndex = 0L, 
+            overlayType = "route"
+        )
         every { mockDiskCache.getCachedFeatures("test_route") } returns listOf(mockFeature)
 
         routeCache.cacheRoute(route)
@@ -106,7 +112,13 @@ class RouteCacheTest {
                 )
             )
         )
-        val mockFeature = MapOverlayCacheUtils.OverlayFeature(featureData, GeoPoint(10.0, 20.0), 0L, "route")
+        val mockFeature = MapOverlayCacheUtils.OverlayFeature(
+            id = null,
+            feature = featureData, 
+            centroid = GeoPoint(10.0, 20.0), 
+            hilbertIndex = 0L, 
+            overlayType = "route"
+        )
         every { mockDiskCache.getCachedFeatures("test_route_2") } returns listOf(mockFeature)
 
         routeCache.cacheRoute(route)
@@ -146,7 +158,13 @@ class RouteCacheTest {
                 )
             )
         )
-        val mockFeature = MapOverlayCacheUtils.OverlayFeature(featureData, GeoPoint(11.0, 21.0), 0L, "route")
+        val mockFeature = MapOverlayCacheUtils.OverlayFeature(
+            id = null,
+            feature = featureData, 
+            centroid = GeoPoint(11.0, 21.0), 
+            hilbertIndex = 0L, 
+            overlayType = "route"
+        )
         every { mockDiskCache.getCachedFeatures("test_route_order") } returns listOf(mockFeature)
 
         routeCache.cacheRoute(route)

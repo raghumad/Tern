@@ -10,6 +10,8 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.assertIsDisplayed
 
+import android.util.Log
+
 open class BddTest : BaseUITest() {
 
     @get:org.junit.Rule
@@ -23,7 +25,7 @@ open class BddTest : BaseUITest() {
             Thread.sleep(100)
             val maxMemory = Runtime.getRuntime().maxMemory()
             println("=== RUNTIME MAX MEMORY: ${maxMemory / 1024 / 1024} MB ===")
-            android.util.Log.d("BddTest", "=== START ${testNameRule.methodName} ===")
+            Log.d("BddTest", "=== START ${testNameRule.methodName} ===")
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -43,6 +45,11 @@ open class BddTest : BaseUITest() {
         } catch (e: Exception) {
             e.printStackTrace()
         }
+    }
+
+    @org.junit.Before
+    fun setupDefaultCountry() {
+        com.madanala.tern.utils.CountryUtils.setTestCountryCode("us")
     }
 
     fun scenario(name: String, block: () -> Unit) {
@@ -98,7 +105,7 @@ open class BddTest : BaseUITest() {
             println("Failed to get performance report: $e")
         }
         ReportGenerator.generateFinalReport(testNameRule.methodName)
-        android.util.Log.d("BddTest", "=== END ${testNameRule.methodName} ===")
+        Log.d("BddTest", "=== END ${testNameRule.methodName} ===")
     }
 
     fun given(description: String, takeScreenshot: Boolean = false, block: () -> Unit) {

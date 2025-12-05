@@ -493,6 +493,8 @@ class AirspaceOverlayManager(
                 // Filter for airspaces only (since UniversalCountryCacheManager returns all types)
                 val nearbyFeatures = allFeatures.filter { it.overlayType == "airspace" }
 
+                Log.d(TAG, "Found ${allFeatures.size} total features, ${nearbyFeatures.size} airspaces near $center")
+
                 if (nearbyFeatures.isNotEmpty()) {
                     mapView?.let { map ->
                         updateAirspaceOverlaysIncrementally(map, nearbyFeatures)

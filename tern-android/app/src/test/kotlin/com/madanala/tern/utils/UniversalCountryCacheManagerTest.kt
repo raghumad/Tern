@@ -59,8 +59,20 @@ class UniversalCountryCacheManagerTest {
         (cachedCountriesField.get(manager) as MutableSet<String>).add(countryCode)
 
         // Mock cache responses
-        val airspaceFeature = OverlayFeature(mapOf("name" to "Airspace1"), center, 123L, "airspace")
-        val pgSpotFeature = OverlayFeature(mapOf("name" to "Spot1"), center, 456L, "pgspot")
+        val airspaceFeature = OverlayFeature(
+            id = null,
+            feature = mapOf("name" to "Airspace1"), 
+            centroid = center, 
+            hilbertIndex = 123L, 
+            overlayType = "airspace"
+        )
+        val pgSpotFeature = OverlayFeature(
+            id = null,
+            feature = mapOf("name" to "Spot1"), 
+            centroid = center, 
+            hilbertIndex = 456L, 
+            overlayType = "pgspot"
+        )
 
         every { airspaceCache.isCached(countryCode) } returns true
         every { airspaceCache.queryNearbyFeatures(countryCode, center, radiusKm) } returns listOf(airspaceFeature)
@@ -95,7 +107,13 @@ class UniversalCountryCacheManagerTest {
         every { airspaceCache.isCached(countryCode) } returns true
         every { airspaceCache.queryNearbyFeatures(countryCode, center, radiusKm) } answers {
             Thread.sleep(10) // Simulate 10ms query time
-            listOf(OverlayFeature(emptyMap(), center, 0L, "airspace"))
+            listOf(OverlayFeature(
+                id = null,
+                feature = emptyMap(), 
+                centroid = center, 
+                hilbertIndex = 0L, 
+                overlayType = "airspace"
+            ))
         }
 
         // When

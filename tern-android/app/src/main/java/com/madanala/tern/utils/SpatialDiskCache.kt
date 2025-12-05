@@ -248,54 +248,22 @@ class SpatialDiskCache(
                     // entry.byteOffset points to the start of the record (length prefix)
                     // entry.byteLength includes the 4-byte length prefix
                     
-                    // We need to read the data AFTER the length prefix
-                    // The length prefix is 4 bytes
-                    val dataOffset = entry.byteOffset + 4
-                    val dataLength = entry.byteLength - 4
-                    
-                    if (dataLength <= 0) return@mapNotNull null
+                    if (entry.byteLength <= 4) return@mapNotNull null
 
-                    val featureBytes = ByteArray(dataLength)
+                    val featureBytes = ByteArray(entry.byteLength)
                     synchronized(mappedBuffer) {
-                        mappedBuffer.position(dataOffset)
-                        mappedBuffer.get(featureBytes, 0, dataLength)
+                        mappedBuffer.position(entry.byteOffset)
+                        mappedBuffer.get(featureBytes, 0, entry.byteLength)
                     }
 
-                    val root = com.google.flatbuffers.FlexBuffers.getRoot(java.nio.ByteBuffer.wrap(featureBytes))
-                    val map = root.asMap()
+                    val overlayFeature = MapOverlayCacheUtils.deserializeSingleFlexBufferFeature(java.nio.ByteBuffer.wrap(featureBytes))
                     
-                    // Helper to deserialize map from FlexBuffers
-                    fun deserializeMap(fbMap: com.google.flatbuffers.FlexBuffers.Map): Map<String, Any> {
-                        val result = mutableMapOf<String, Any>()
-                        val keys = fbMap.keys()
-                        for (i in 0 until keys.size()) {
-                            val key = keys.get(i).toString()
-                            val value = fbMap.get(key)
-                            val convertedValue: Any = when {
-                                value.isString -> value.asString()
-                                value.isInt -> value.asInt()
-                                value.isFloat -> value.asFloat()
-                                value.isBoolean -> value.asBoolean()
-                                value.isMap -> deserializeMap(value.asMap())
-                                else -> value.toString()
-                            }
-                            result[key] = convertedValue
-                        }
-                        return result
-                    }
-
-                    val featureMap = deserializeMap(map.get("feature").asMap())
-                    val centroidMap = map.get("centroid").asMap()
-                    val latitude = centroidMap.get("latitude").asFloat()
-                    val longitude = centroidMap.get("longitude").asFloat()
-                    val hilbertIndex = map.get("hilbertIndex").asLong()
-                    val overlayType = map.get("overlayType").asString()
-
-                    val centroid = GeoPoint(latitude, longitude)
-                    val overlayFeature = OverlayFeature(featureMap, centroid, hilbertIndex, overlayType)
-
                     // Final distance validation
-                    if (center.distanceToAsDouble(centroid) <= maxDistanceMeters) overlayFeature else null
+                    if (overlayFeature != null && center.distanceToAsDouble(overlayFeature.centroid) <= maxDistanceMeters) {
+                        overlayFeature
+                    } else {
+                        null
+                    }
                 } catch (e: Exception) {
                     Log.w(TAG, "Error reading feature at offset ${entry.byteOffset}: ${e.message}")
                     null
