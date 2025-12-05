@@ -93,7 +93,12 @@ class PGSpotCache(context: Context) {
                     Log.d(TAG, "PG Spot Data Preview: $geoJsonString")
                 }
 
-                val features = MapOverlayCacheUtils.parseGeoJsonToFeatures(geoJsonString, "pgspot")
+                // Use dynamic parsing to support both standard GeoJSON and NDGeoJSON
+                val features = if (GeoJsonUtils.isNdGeoJson(geoJsonString)) {
+                    MapOverlayCacheUtils.parseNdGeoJsonToFeatures(geoJsonString, "pgspot")
+                } else {
+                    MapOverlayCacheUtils.parseGeoJsonToFeatures(geoJsonString, "pgspot")
+                }
                 Log.d(TAG, "Parsed ${features.size} PG spots for $countryCode")
 
                 val validFeatures = features.filter { feature ->

@@ -69,8 +69,12 @@ class AirspaceCache(context: Context) {
             if (geoJsonString != null) {
                 Log.d(TAG, "Downloaded ${geoJsonString.length} bytes of airspace data for $countryCode")
 
-                // Use NDGeoJSON parser for airspace data (OpenAIP format)
-                val features = MapOverlayCacheUtils.parseNdGeoJsonToFeatures(geoJsonString, "airspace")
+                // Use NDGeoJSON parser for airspace data (OpenAIP format) if detected, otherwise standard GeoJSON
+                val features = if (GeoJsonUtils.isNdGeoJson(geoJsonString)) {
+                    MapOverlayCacheUtils.parseNdGeoJsonToFeatures(geoJsonString, "airspace")
+                } else {
+                    MapOverlayCacheUtils.parseGeoJsonToFeatures(geoJsonString, "airspace")
+                }
                 Log.d(TAG, "Parsed ${features.size} airspaces for $countryCode")
 
                 val validFeatures = features.filter { feature ->
