@@ -1,41 +1,16 @@
 package com.madanala.tern.ui
 
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import com.madanala.tern.ui.components.WeatherDetailsDialog
+import com.madanala.tern.utils.BddTest
 import com.madanala.tern.utils.ForecastPeriod
-import com.madanala.tern.utils.ReportGenerator
 import com.madanala.tern.utils.WeatherData
 import com.madanala.tern.utils.WeatherForecast
 import com.madanala.tern.utils.WindData
-import org.junit.After
-import org.junit.Before
-import org.junit.Rule
 import org.junit.Test
-import org.junit.rules.TestName
 
-class WeatherUXTest {
-
-    @get:Rule
-    val composeTestRule = createComposeRule()
-
-    @get:Rule
-    val testNameRule = TestName()
-
-    @Before
-    fun setup() {
-        try {
-            Runtime.getRuntime().exec("logcat -c")
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
-
-    @After
-    fun tearDown() {
-        ReportGenerator.generateFinalReport(testNameRule.methodName)
-    }
+class WeatherUXTest : BddTest() {
 
     @Test
     fun testWeatherDetailsShowsGustAndCloudCover() {
@@ -123,39 +98,6 @@ class WeatherUXTest {
             then("The 'Weather data is stale' warning should be visible") {
                 composeTestRule.onNodeWithText("⚠️ Weather data is stale (>4h old)").assertIsDisplayed()
             }
-        }
-    }
-
-    // BDD Helpers
-    private fun scenario(name: String, block: () -> Unit) {
-        ReportGenerator.logStep("SCENARIO", name)
-        try {
-            block()
-            val screenshot = ReportGenerator.captureScreenshot("success_${name.take(20).replace(" ", "_")}")
-            ReportGenerator.logStep("RESULT", "Scenario Passed", "PASS", screenshot)
-        } catch (e: Throwable) {
-            val screenshot = ReportGenerator.captureScreenshot("failure_${name.take(20).replace(" ", "_")}")
-            ReportGenerator.logStep("RESULT", "Scenario Failed: ${e.message}", "FAIL", screenshot)
-            throw e
-        } finally {
-            val logCatOutput = ReportGenerator.captureLogCat()
-            ReportGenerator.finishScenario(name, logCatOutput)
-        }
-    }
-
-    private fun given(description: String, block: () -> Unit) = step("GIVEN", description, block)
-    private fun `when`(description: String, block: () -> Unit) = step("WHEN", description, block)
-    private fun then(description: String, block: () -> Unit) = step("THEN", description, block)
-
-    private fun step(type: String, description: String, block: () -> Unit) {
-        try {
-            block()
-            val screenshot = ReportGenerator.captureScreenshot("step_${type}_${description.take(20).replace(" ", "_")}")
-            ReportGenerator.logStep(type, description, "PASS", screenshot)
-        } catch (e: Throwable) {
-            val screenshot = ReportGenerator.captureScreenshot("failure_${type}_${description.take(20).replace(" ", "_")}")
-            ReportGenerator.logStep(type, description, "FAIL", screenshot)
-            throw e
         }
     }
 }
