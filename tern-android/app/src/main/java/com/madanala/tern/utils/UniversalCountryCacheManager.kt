@@ -57,8 +57,8 @@ class UniversalCountryCacheManager(
         Log.d(TAG, "UniversalCountryCacheManager initialized")
     }
 
-    // Callback for when a country is fully loaded
-    var onCountryLoaded: ((String) -> Unit)? = null
+    // List of callbacks for when a country is fully loaded
+    val onCountryLoadedListeners = mutableListOf<(String) -> Unit>()
 
     // ==================== CORE COUNTRY MANAGEMENT ====================
 
@@ -111,6 +111,13 @@ class UniversalCountryCacheManager(
             } else {
                 // Same country - just update access time if cached
                 updateCountryAccess(newCountry)
+                
+                // Check if it's actually cached in the underlying caches (self-healing)
+                // If AirspaceCache invalidated the file due to corruption, we need to re-download
+                if (!airspaceCache.isCached(newCountry) || !pgSpotCache.isCached(newCountry)) {
+                     Log.w(TAG, "Country $newCountry is in cache set but missing from disk caches. Reloading.")
+                     preloadCountry(newCountry)
+                }
                 
                 // Aviation Safety: Continuously check for border proximity
                 // This ensures that if we approach a border without crossing it yet,
@@ -188,6 +195,11 @@ class UniversalCountryCacheManager(
     internal suspend fun preloadCountry(country: String) {
         try {
             Log.d(TAG, "Preloading country for all overlay types: $country")
+            
+            // Optimistically add to cachedCountries so queries can attempt to read from disk immediately
+            mutex.withLock {
+                cachedCountries.add(country)
+            }
 
             // 1. Download PG Spots (delegated to cache)
             Log.d(TAG, "Triggering PG spot download for $country")
@@ -197,14 +209,11 @@ class UniversalCountryCacheManager(
             Log.d(TAG, "Triggering Airspace download for $country")
             airspaceCache.downloadAndCache(country)
 
-            mutex.withLock {
-                cachedCountries.add(country)
-            }
-            Log.d(TAG, "Country cached for all overlay types: $country")
+            Log.d(TAG, "Country fully cached for all overlay types: $country")
             
             // Notify listeners that country data is ready
             withContext(Dispatchers.Main) {
-                onCountryLoaded?.invoke(country)
+                onCountryLoadedListeners.forEach { it.invoke(country) }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error preloading country: $country", e)
@@ -316,30 +325,17 @@ class UniversalCountryCacheManager(
     // ==================== UTILITY FUNCTIONS ====================
 
     /**
-     * Get current country code for location using Geocoder
+     * Get current country code for location using CountryUtils (supports test overrides)
      */
     private fun getCurrentCountry(location: GeoPoint): String? {
-        return try {
-            val geocoder = android.location.Geocoder(applicationContext, java.util.Locale.US)
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-                // Use async Geocoder for API 33+
-                // Note: Since this function is currently synchronous, we might need to refactor to suspend
-                // For now, we'll use the synchronous fallback or a blocking call if strictly necessary,
-                // but ideally this entire chain should be suspend.
-                // Given the current architecture, we'll use the legacy method which is still functional
-                // but wrapped in try-catch for safety.
-                @Suppress("DEPRECATION")
-                val addresses = geocoder.getFromLocation(location.latitude, location.longitude, 1)
-                addresses?.firstOrNull()?.countryCode
-            } else {
-                @Suppress("DEPRECATION")
-                val addresses = geocoder.getFromLocation(location.latitude, location.longitude, 1)
-                addresses?.firstOrNull()?.countryCode
-            } ?: "US" // Fallback to US if geocoder fails (e.g. no network/emulator issues)
-        } catch (e: Exception) {
-            Log.e(TAG, "Error getting country code", e)
-            "US" // Fallback
-        }
+        // Use CountryUtils to ensure we respect test overrides and share geocoding logic
+        // Convert country code to uppercase for internal consistency if needed, 
+        // though CountryUtils returns lowercase by default. 
+        // Our cache usually uses uppercase (e.g. "US"), but let's check assumptions.
+        // MockServer expects "us" (lowercase) in query param, but "US" (uppercase) might be used in cache keys.
+        // Let's normalize to uppercase for cache keys, as 'adjacencyMap' uses uppercase.
+        val code = CountryUtils.getCountryCodeFromGeoPoint(applicationContext, location)
+        return code?.uppercase() ?: "US"
     }
 
     // Adjacency map for major paragliding regions

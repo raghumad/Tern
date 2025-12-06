@@ -102,10 +102,17 @@ class MockServer {
     }
 
     private fun generateAirspacesJson(count: Int): String {
-        return (1..count).joinToString("\n") { id ->
+        val features = (1..count).joinToString(",") { id ->
             // Create a single-line JSON feature
             """{"type":"Feature","properties":{"name":"Restricted Area $id","class":"R","floor":0,"ceiling":5000,"country":"US"},"geometry":{"type":"Polygon","coordinates":[[[-105.27,40.01],[-105.26,40.01],[-105.26,40.02],[-105.27,40.02],[-105.27,40.01]]]}}"""
         }
+        
+        return """
+            {
+                "type": "FeatureCollection",
+                "features": [$features]
+            }
+        """.trimIndent()
     }
 
     private fun generatePGSpotsJson(count: Int): String {

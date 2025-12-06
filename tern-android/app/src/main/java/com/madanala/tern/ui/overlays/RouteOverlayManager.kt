@@ -258,7 +258,7 @@ class RouteOverlayManager(
         // overlayCoordinator?.onMapMoved(center.latitude, center.longitude, zoom)
         
         // Trigger update to respect new center for prioritization
-        updateRouteOverlays()
+        updateRouteOverlays(center)
     }
 
     override fun onViewportChangedInternal(viewport: org.osmdroid.util.BoundingBox) {
@@ -305,26 +305,21 @@ class RouteOverlayManager(
     /**
      * Update route overlays on map with incremental updates and prioritization
      */
-    private fun updateRouteOverlays() {
+    private fun updateRouteOverlays(center: GeoPoint = mapView?.mapCenter as? GeoPoint ?: GeoPoint(0.0, 0.0)) {
         val mapView = mapView ?: return
-        val center = mapView.mapCenter as GeoPoint
         
-        // LOD Check
-        if (!isZoomLevelSufficient(mapView.zoomLevelDouble)) {
-            clearRouteOverlays()
-            return
-        }
+        // LOD Check - Removed
+        // if (!isZoomLevelSufficient(mapView.zoomLevelDouble)) {
+        //    clearRouteOverlays()
+        //    return
+        // }
 
-        // 🎯 STEP 0: Prioritize routes (Distance-based sorting + Limit)
+        // 🎯 STEP 0: Prioritize routes (Zone-based budgeting)
         val visibleRoutes = currentRoutes.filter { it.isVisible }
         
-        // Use dynamic budget if available, otherwise default to 10
-        val budgetLimit = getCurrentOverlayBudget()?.totalOverlays ?: 10
-        
-        val prioritizedRoutes = prioritizeFeatures(
+        val prioritizedRoutes = prioritizeFeaturesByZone(
             visibleRoutes,
-            center,
-            budgetLimit
+            center
         ) { route ->
             if (route.waypoints.isNotEmpty()) {
                 GeoPoint(route.waypoints[0].lat, route.waypoints[0].lon)

@@ -5,6 +5,7 @@ import com.google.common.truth.Truth.assertThat
 import com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature
 import io.mockk.*
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.launch
 import org.junit.Before
 import org.junit.Test
 import org.osmdroid.util.GeoPoint
@@ -35,8 +36,7 @@ class UniversalCountryCacheManagerTest {
     fun `preloadCountry triggers downloads for both caches`() = runBlocking {
         // Given
         val countryCode = "US"
-        coEvery { airspaceCache.downloadAndCache(countryCode) } returns true
-        coEvery { pgSpotCache.downloadAndCache(countryCode) } returns listOf<OverlayFeature>()
+        coEvery { pgSpotCache.downloadAndCache(countryCode) } returns listOf()
 
         // When
         manager.preloadCountry(countryCode)
@@ -137,7 +137,7 @@ class UniversalCountryCacheManagerTest {
         
         // Mock successful download
         coEvery { airspaceCache.downloadAndCache(countryCode) } returns true
-        coEvery { pgSpotCache.downloadAndCache(countryCode) } returns listOf<OverlayFeature>()
+        coEvery { pgSpotCache.downloadAndCache(countryCode) } returns listOf()
         
         // When
         manager.preloadCountry(countryCode)
@@ -149,5 +149,34 @@ class UniversalCountryCacheManagerTest {
         val cachedCountries = cachedCountriesField.get(manager) as Set<String>
         
         assertThat(cachedCountries).contains(countryCode)
+    }
+    @Test
+    fun `preloadCountry adds country to cache immediately before download completes`() = runBlocking {
+        // Given
+        val countryCode = "US"
+        
+        // Mock a slow download
+        coEvery { airspaceCache.downloadAndCache(countryCode) } coAnswers {
+            kotlinx.coroutines.delay(1000) // Simulate delay
+            true
+        }
+        coEvery { pgSpotCache.downloadAndCache(countryCode) } returns listOf()
+
+        // When (launch in parallel so we can check state during execution)
+        val job = this.launch {
+            manager.preloadCountry(countryCode)
+        }
+        
+        // Allow coroutine to start and reach the delay
+        kotlinx.coroutines.delay(100) 
+        
+        // Then (verify country is cached indiscriminately of download status)
+        val cachedCountriesField = UniversalCountryCacheManager::class.java.getDeclaredField("cachedCountries")
+        cachedCountriesField.isAccessible = true
+        val cachedCountries = cachedCountriesField.get(manager) as Set<String>
+        
+        assertThat(cachedCountries).contains(countryCode)
+        
+        job.cancel()
     }
 }
