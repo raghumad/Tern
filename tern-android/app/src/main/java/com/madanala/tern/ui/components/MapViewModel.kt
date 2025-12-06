@@ -38,7 +38,7 @@ import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider
 import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay
 
 private const val USER_LOCATION_ZOOM = 10.0
-private const val MAP_MOVE_DEBOUNCE_MS = 2000L // Aviation-optimized: 2 second debounce for smooth flight experience
+// Map move debounce moved to companion object for testability
 private const val MAP_MIN_ZOOM = 3.0
 private const val MAP_MAX_ZOOM = 20.0
 private const val SCALE_BAR_OFFSET_Y = 10
@@ -305,6 +305,13 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     companion object {
+        /**
+         * Aviation-optimized: 2 second debounce for smooth flight experience
+         * Mutable for testing (set to 0L to disable debounce)
+         */
+        @androidx.annotation.VisibleForTesting
+        var MAP_MOVE_DEBOUNCE_MS = 2000L
+
         /**
          * Factory for creating the location provider.
          * Can be overridden in tests to inject a mock provider.

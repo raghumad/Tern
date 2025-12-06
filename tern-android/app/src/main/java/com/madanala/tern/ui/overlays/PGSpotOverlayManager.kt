@@ -83,6 +83,17 @@ class PGSpotOverlayManager(
      */
     fun setCountryCacheManager(countryCacheManager: com.madanala.tern.utils.UniversalCountryCacheManager) {
         this.countryCacheManager = countryCacheManager
+        
+        // Register callback to reload PG spots when a new country is downloaded
+        this.countryCacheManager?.onCountryLoadedListeners?.add { countryCode ->
+             Log.d(TAG, "Country $countryCode loaded, refreshing PG Spots")
+             coroutineScope.launch {
+                 mapView?.mapCenter?.let { center ->
+                     // Refresh PG spots for current location now that data is available
+                     checkAndLoadPGSpots(center as GeoPoint)
+                 }
+             }
+        }
     }
 
     /**
@@ -198,13 +209,13 @@ class PGSpotOverlayManager(
             }
         }
 
-        // Check zoom level (LOD)
-        if (!isZoomLevelSufficient(zoom)) {
-            if (currentlyRenderedPGSpots.isNotEmpty()) {
-                clearOverlays()
-            }
-            return
-        }
+        // Check zoom level (LOD) - Removed
+        // if (!isZoomLevelSufficient(zoom)) {
+        //    if (currentlyRenderedPGSpots.isNotEmpty()) {
+        //        clearOverlays()
+        //    }
+        //    return
+        // }
 
         checkAndLoadPGSpots(center)
     }
@@ -213,13 +224,13 @@ class PGSpotOverlayManager(
      * Abstract method implementation from BaseOverlayManager
      */
     override fun onViewportChangedInternal(viewport: BoundingBox) {
-        // Check zoom level (LOD)
-        if (mapView != null && !isZoomLevelSufficient(mapView!!.zoomLevelDouble)) {
-            if (currentlyRenderedPGSpots.isNotEmpty()) {
-                clearOverlays()
-            }
-            return
-        }
+        // Check zoom level (LOD) - Removed
+        // if (mapView != null && !isZoomLevelSufficient(mapView!!.zoomLevelDouble)) {
+        //    if (currentlyRenderedPGSpots.isNotEmpty()) {
+        //        clearOverlays()
+        //    }
+        //    return
+        // }
     }
 
     override fun onViewportChanged(viewport: BoundingBox) {
@@ -227,10 +238,10 @@ class PGSpotOverlayManager(
 
         if (!isEnabled()) return
 
-        // Check zoom level (LOD)
-        if (mapView != null && !isZoomLevelSufficient(mapView!!.zoomLevelDouble)) {
-            return
-        }
+        // Check zoom level (LOD) - Removed
+        // if (mapView != null && !isZoomLevelSufficient(mapView!!.zoomLevelDouble)) {
+        //    return
+        // }
 
         // Aviation intelligence: Weather orchestration triggered by viewport changes
         updateViewportWeatherIntelligence(viewport)
@@ -530,7 +541,7 @@ class PGSpotOverlayManager(
 
             Log.d(TAG, "loadPGSpotsForLocation: nearbyFeatures size=${nearbyFeatures.size}")
             if (nearbyFeatures.isNotEmpty()) {
-                renderPGSpotFeaturesWithWeather(nearbyFeatures)
+                renderPGSpotFeaturesWithWeather(nearbyFeatures, center)
 
                 // Initial weather orchestration for loaded PG spots
                 launchWeatherFetchingForVisiblePGSpots()
@@ -551,20 +562,20 @@ class PGSpotOverlayManager(
        * RENDER PG SPOTS WITH WEATHER CAPABILITY
        * Initial static display with future dynamic weather integration
        */
-    private fun renderPGSpotFeaturesWithWeather(features: List<OverlayFeature>) {
+    private fun renderPGSpotFeaturesWithWeather(features: List<OverlayFeature>, center: GeoPoint) {
         Log.d(TAG, "renderPGSpotFeaturesWithWeather called with ${features.size} features")
-        val center = mapView?.mapCenter as? GeoPoint
-        if (center == null) {
-            Log.e(TAG, "renderPGSpotFeaturesWithWeather: mapView or mapCenter is NULL")
-            return
-        }
+        // val center = mapView?.mapCenter as? GeoPoint
+        // if (center == null) {
+        //     Log.e(TAG, "renderPGSpotFeaturesWithWeather: mapView or mapCenter is NULL")
+        //     return
+        // }
+        // Using passed center directly for consistency
         Log.d(TAG, "renderPGSpotFeaturesWithWeather: center=$center")
 
-        // 🎯 STEP 0: Prioritize features (Distance-based sorting + Limit)
-        val prioritizedFeatures = prioritizeFeatures(
+        // 🎯 STEP 0: Prioritize features (Zone-based budgeting)
+        val prioritizedFeatures = prioritizeFeaturesByZone(
             features,
-            center,
-            getMaxOverlaysForCurrentConditions()
+            center
         ) { it.centroid }
 
         // 🎯 STEP 1: Determine desired state
@@ -688,10 +699,11 @@ class PGSpotOverlayManager(
                     type = OverlayType.PG_SPOTS
                 ) {
                     // Animation completed
-                } ?: throw IllegalStateException(
-                    "Animation manager is required for PG spot overlay addition. " +
-                    "Ensure OverlayCoordinator is properly initialized."
-                )
+                } ?: run {
+                    Log.w(TAG, "Animation manager missing - adding overlay directly without animation")
+                    mapView!!.overlays.add(marker)
+                    mapView!!.invalidate()
+                }
             }
 
             // Add click handler for weather details

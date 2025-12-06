@@ -58,7 +58,9 @@ class OverlayLODTest {
     fun `test zoom level sufficiency`() {
         val manager = TestOverlayManager()
         
-        assertFalse("Zoom 8.9 should be insufficient", manager.testIsZoomLevelSufficient(8.9))
+        // With zone-based budgeting, we now allow overlays at lower zoom levels
+        // governed by strict feature limits.
+        assertTrue("Zoom 8.9 should be sufficient (budgeting handles density)", manager.testIsZoomLevelSufficient(8.9))
         assertTrue("Zoom 9.0 should be sufficient", manager.testIsZoomLevelSufficient(9.0))
         assertTrue("Zoom 10.0 should be sufficient", manager.testIsZoomLevelSufficient(10.0))
     }

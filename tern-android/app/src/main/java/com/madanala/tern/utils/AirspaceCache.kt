@@ -111,7 +111,17 @@ class AirspaceCache(context: Context) {
      */
     fun queryNearbyFeatures(countryCode: String, center: GeoPoint, maxDistanceMiles: Double): List<OverlayFeature> {
         // Retrieve all features for the country
-        val allFeatures = diskCache.getCachedFeatures(countryCode) ?: return emptyList()
+        val allFeatures = diskCache.getCachedFeatures(countryCode)
+        
+        if (allFeatures == null) {
+            // If cache read failed (e.g. deserialization error or file missing despite isCached=true),
+            // we should invalidate the cache so it can be re-downloaded.
+            if (isCached(countryCode)) {
+                Log.w(TAG, "Failed to read cached features for $countryCode. Invalidating cache.")
+                clearCacheForCountry(countryCode)
+            }
+            return emptyList()
+        }
         
         val maxDistanceMeters = maxDistanceMiles * 1609.34
         

@@ -45,7 +45,8 @@ abstract class BaseOverlayManager(
 
     companion object {
         // Minimum zoom level to show overlays (Region/County level)
-        const val MIN_ZOOM_FOR_OVERLAYS = 9.0
+        // Minimum zoom level to show overlays (Region/County level)
+        // const val MIN_ZOOM_FOR_OVERLAYS = 7.0 - Deprecated
     }
 
     protected val TAG = "OverlayManager-${overlayType.name}"
@@ -77,7 +78,7 @@ abstract class BaseOverlayManager(
      * Check if the current zoom level is sufficient to show overlays
      */
     protected fun isZoomLevelSufficient(zoom: Double): Boolean {
-        return zoom >= MIN_ZOOM_FOR_OVERLAYS
+        return true // Zoom thresholds removed in favor of zone budgeting
     }
 
     /**
@@ -124,6 +125,47 @@ abstract class BaseOverlayManager(
         return items.sortedByDescending { item ->
             locationSelector(item).distanceToAsDouble(center)
         }
+    }
+
+    /**
+     * Prioritize features based on strict zone-based budgeting
+     * Enforces limits per zone (CORE, NEAR, FAR) to ensure consistent density
+     */
+    protected fun <T> prioritizeFeaturesByZone(
+        items: List<T>,
+        center: GeoPoint,
+        locationSelector: (T) -> GeoPoint
+    ): List<T> {
+        val budget = getCurrentOverlayBudget() ?: return prioritizeFeatures(items, center, 10, locationSelector) // Fallback
+        
+        // Group items by zone
+        val zoneMap = com.madanala.tern.utils.DistanceZone.values().associateWith { mutableListOf<T>() }
+        
+        items.forEach { item ->
+            val distanceKm = locationSelector(item).distanceToAsDouble(center) / 1000.0
+            val zone = com.madanala.tern.utils.DistanceZone.fromDistanceKm(distanceKm)
+            zoneMap[zone]?.add(item)
+        }
+        
+        val result = mutableListOf<T>()
+        
+        // Iterate through zones by priority order (critical first)
+        // Although budget is per-zone, processing order matters for consistency
+        com.madanala.tern.utils.DistanceZone.getPriorityOrder().forEach { zone ->
+            val zoneItems = zoneMap[zone] ?: return@forEach
+            val zoneLimit = budget.zoneBudgets[zone] ?: 0
+            
+            Log.d(TAG, "Zone ${zone.name}: ${zoneItems.size} items, limit $zoneLimit")
+
+            // Sort items in this zone by distance (closest first) and take only up to the limit
+            val acceptedItems = zoneItems.sortedBy { item ->
+                 locationSelector(item).distanceToAsDouble(center)
+            }.take(zoneLimit)
+            
+            result.addAll(acceptedItems)
+        }
+        
+        return result
     }
 
     override fun onAttach(mapView: MapView) {

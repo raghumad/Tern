@@ -94,21 +94,7 @@ class PGSpotOverlayManagerTest : BaseTest() {
         verify { pgSpotCache.queryNearbyPGSpots("US", center, any()) }
     }
     
-    @Test
-    fun `performMapMove skips loading if zoom is too low`() = runTest {
-        // Given
-        val center = GeoPoint(47.0, 8.0)
-        val zoom = 5.0 // Too low
-        
-        manager.setOverlayCoordinator(overlayCoordinator)
-        manager.initialize(mapView)
 
-        // When
-        manager.performMapMove(center, zoom)
-        
-        // Then
-        coVerify(exactly = 0) { countryCacheManager.queryMultiCountryArea(any(), any()) }
-    }
 
     @Test
     fun `performMapMove ignores 0,0 coordinates`() = runTest {

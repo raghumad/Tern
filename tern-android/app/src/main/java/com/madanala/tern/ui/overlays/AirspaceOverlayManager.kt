@@ -119,6 +119,17 @@ class AirspaceOverlayManager(
      */
     fun setCountryCacheManager(countryCacheManager: com.madanala.tern.utils.UniversalCountryCacheManager) {
         this.countryCacheManager = countryCacheManager
+        
+        // Register callback to reload airspaces when a new country is downloaded
+        this.countryCacheManager?.onCountryLoadedListeners?.add { countryCode ->
+            // Log.d(TAG, "Country $countryCode loaded, refreshing airspaces")
+            coroutineScope.launch {
+                mapView?.mapCenter?.let { center ->
+                    // Refresh airspaces for current location now that data is available
+                    loadAirspaceForLocation(applicationContext, center as GeoPoint)
+                }
+            }
+        }
     }
 
     /**
@@ -178,13 +189,13 @@ class AirspaceOverlayManager(
             }
         }
 
-        // Check zoom level (LOD)
-        if (!isZoomLevelSufficient(zoom)) {
-            if (currentlyRenderedAirspaces.isNotEmpty()) {
-                clearOverlays()
-            }
-            return
-        }
+        // Check zoom level (LOD) - Removed (handled by zone budgeting)
+        // if (!isZoomLevelSufficient(zoom)) {
+        //    if (currentlyRenderedAirspaces.isNotEmpty()) {
+        //        clearOverlays()
+        //    }
+        //    return
+        // }
 
         checkAndLoadAirspaceData(center)
     }
@@ -194,13 +205,13 @@ class AirspaceOverlayManager(
     }
 
     override fun onViewportChangedInternal(viewport: BoundingBox) {
-        // Check zoom level (LOD)
-        if (mapView != null && !isZoomLevelSufficient(mapView!!.zoomLevelDouble)) {
-            if (currentlyRenderedAirspaces.isNotEmpty()) {
-                clearOverlays()
-            }
-            return
-        }
+        // Check zoom level (LOD) - Removed (handled by zone budgeting)
+        // if (mapView != null && !isZoomLevelSufficient(mapView!!.zoomLevelDouble)) {
+        //    if (currentlyRenderedAirspaces.isNotEmpty()) {
+        //        clearOverlays()
+        //    }
+        //    return
+        // }
         manageViewportAirspaces(viewport)
     }
 
@@ -215,13 +226,13 @@ class AirspaceOverlayManager(
             // Postpone Redux-triggered overlay operations until GPS fix is available
 
 
-            // Check zoom level (LOD)
-            if (!isZoomLevelSufficient(mapView!!.zoomLevelDouble)) {
-                if (currentlyRenderedAirspaces.isNotEmpty()) {
-                    clearOverlays()
-                }
-                return
-            }
+            // Check zoom level (LOD) - Removed
+            // if (!isZoomLevelSufficient(mapView!!.zoomLevelDouble)) {
+            //    if (currentlyRenderedAirspaces.isNotEmpty()) {
+            //        clearOverlays()
+            //    }
+            //    return
+            // }
 
             // If enabled and we have a map view, trigger loading
             val center = mapView?.mapCenter as? GeoPoint
@@ -439,12 +450,13 @@ class AirspaceOverlayManager(
                             mapView = map,
                             type = OverlayType.AIRSPACE
                         ) {
-                        } ?: throw IllegalStateException(
-                            "Animation manager is required for airspace overlay removal. " +
-                            "Ensure OverlayCoordinator is properly initialized."
-                        )
+                        } ?: run {
+                            // Fallback removal
+                             map.overlays.remove(polygon)
+                        }
                     }
                 }
+                map.invalidate()
 
                 // Clear tracking (animation manager handles the actual removal)
                 currentlyRenderedAirspaces.clear()
@@ -487,17 +499,19 @@ class AirspaceOverlayManager(
         try {
             // Use universal country cache manager for intelligent country management
             countryCacheManager?.let { countryCache ->
-                // Query multiple countries intelligently using the universal cache manager
+                // Notify cache manager of location change to trigger downloads/preloading if needed
+                countryCache.onLocationChanged(center)
+        // Query multiple countries intelligently using the universal cache manager
                 val allFeatures = countryCache.queryMultiCountryArea(center, spatialQueryRadiusKm)
                 
                 // Filter for airspaces only (since UniversalCountryCacheManager returns all types)
                 val nearbyFeatures = allFeatures.filter { it.overlayType == "airspace" }
 
-                Log.d(TAG, "Found ${allFeatures.size} total features, ${nearbyFeatures.size} airspaces near $center")
+                Log.d(TAG, "loadAirspaceForLocation: Query result - Total: ${allFeatures.size}, Airspaces: ${nearbyFeatures.size}")
 
                 if (nearbyFeatures.isNotEmpty()) {
                     mapView?.let { map ->
-                        updateAirspaceOverlaysIncrementally(map, nearbyFeatures)
+                        updateAirspaceOverlaysIncrementally(map, nearbyFeatures, center)
                     } ?: Log.w(TAG, "Cannot render airspaces - no map view available")
 
                     // Update last location for movement tracking
@@ -524,13 +538,11 @@ class AirspaceOverlayManager(
        * Update airspace overlays incrementally - coordinates with animation manager
        * Nearby feature algorithm determines WHAT should exist, animation manager handles HOW
        */
-    private fun updateAirspaceOverlaysIncrementally(map: MapView, features: List<OverlayFeature>) {
-        // 🎯 STEP 0: Prioritize features (Distance-based sorting + Limit)
-        val center = map.mapCenter as GeoPoint
-        val prioritizedFeatures = prioritizeFeatures(
+    private fun updateAirspaceOverlaysIncrementally(map: MapView, features: List<OverlayFeature>, center: GeoPoint) {
+        // 🎯 STEP 0: Prioritize features (Zone-based budgeting)
+        val prioritizedFeatures = prioritizeFeaturesByZone(
             features,
-            center,
-            getMaxOverlaysForCurrentConditions()
+            center
         ) { it.centroid }
 
         // 🎯 STEP 1: Determine desired state (what SHOULD exist)
@@ -661,13 +673,20 @@ class AirspaceOverlayManager(
             airspaceIdsToRemove.forEach { airspaceId ->
                 val polygon = currentlyRenderedAirspaces[airspaceId]
                 if (polygon != null) {
-                    animationManager?.animateOverlayRemoval(polygon, airspaceId, map, OverlayType.AIRSPACE) {
+                    animationManager?.animateOverlayRemoval(
+                        overlay = polygon,
+                        overlayId = airspaceId,
+                        mapView = map, // Use 'map' parameter from function scope
+                        type = OverlayType.AIRSPACE
+                    ) {
                         // Animation manager handles removal - just update our tracking
                         currentlyRenderedAirspaces.remove(airspaceId)
-                    } ?: throw IllegalStateException(
-                        "Animation manager is required for airspace overlay removal. " +
-                        "Ensure OverlayCoordinator is properly initialized."
-                    )
+                    } ?: run {
+                        Log.w(TAG, "Animation manager missing - removing overlay directly")
+                        map.overlays.remove(polygon) // Use 'map'
+                        map.invalidate()
+                        currentlyRenderedAirspaces.remove(airspaceId)
+                    }
                 }
             }
         }
@@ -719,10 +738,11 @@ class AirspaceOverlayManager(
                         staggerDelay = index * 100L, // Stagger for visual polish
                         type = OverlayType.AIRSPACE
                     ) {
-                    } ?: throw IllegalStateException(
-                        "Animation manager is required for airspace overlay addition. " +
-                        "Ensure OverlayCoordinator is properly initialized."
-                    )
+                    } ?: run {
+                         Log.w(TAG, "Animation manager missing - adding overlay directly without animation")
+                         mapView!!.overlays.add(polygon)
+                         mapView!!.invalidate()
+                    }
                 }
             }
         }

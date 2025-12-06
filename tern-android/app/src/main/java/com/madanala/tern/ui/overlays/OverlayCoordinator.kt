@@ -110,7 +110,7 @@ class OverlayCoordinator {
         countryCacheManager = com.madanala.tern.utils.UniversalCountryCacheManager(context)
         
         // Set up callback to refresh overlays when country data is loaded
-        countryCacheManager?.onCountryLoaded = { countryCode ->
+        countryCacheManager?.onCountryLoadedListeners?.add { countryCode ->
             // Log.d(TAG, "Country loaded: $countryCode - refreshing overlays")
             mapView?.let { map ->
                 val center = map.mapCenter as? org.osmdroid.util.GeoPoint

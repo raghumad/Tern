@@ -157,7 +157,7 @@ private val testDispatcher = StandardTestDispatcher()
         every { mockMapView.mapCenter } returns GeoPoint(0.0, 0.0)
         every { mockMapView.overlays } returns mockOverlays
         every { mockMapView.projection } returns mockk(relaxed = true)
-        every { mockMapView.mapCenter } returns GeoPoint(0.0, 0.0)
+        every { mockMapView.mapCenter } returns GeoPoint(40.0, -74.0)
         every { mockMapView.zoomLevelDouble } returns 10.0
         every { mockMapView.context } returns mockContext
 
