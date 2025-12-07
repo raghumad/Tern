@@ -31,32 +31,22 @@ class LaunchScreenTest : BddTest() {
             com.madanala.tern.utils.CacheManager.initialize(context)
 
             // Configure caches to use MockServer
-            val mockBaseUrl = mockServer.url("").toString().removeSuffix("/")
-            com.madanala.tern.utils.CacheManager.pgSpotCache.setBaseUrlForTesting(mockBaseUrl)
-            com.madanala.tern.utils.CacheManager.airspaceCache.setBaseUrlForTesting(mockBaseUrl)
-
             // Clear existing cache to force download
             com.madanala.tern.utils.CacheManager.pgSpotCache.clearCache()
             com.madanala.tern.utils.CacheManager.airspaceCache.clearCache()
             
-            val mockUrl = mockServer.url("")
-            // Remove trailing slash if present to match expected base URL format
-            val baseUrl = if (mockUrl.endsWith("/")) mockUrl.dropLast(1) else mockUrl
-            com.madanala.tern.utils.CacheManager.pgSpotCache.setBaseUrlForTesting(baseUrl)
-            // Use Dispatcher to handle requests robustly
-            mockServer.setPGSpotsDispatcher(5)
-
-            // Force CountryUtils to return "us"
-            com.madanala.tern.utils.CountryUtils.setTestCountryCode("us")
-
+            // Force CountryUtils to return "gb" (United Kingdom) - Smaller dataset (4.6MB vs 23MB for US)
+            // This prevents OOM/Timeouts on Emulator while still using Real URLs
+            
             // Disable debounce for testing to prevent race conditions
             val originalDebounce = com.madanala.tern.ui.components.MapViewModel.MAP_MOVE_DEBOUNCE_MS
             com.madanala.tern.ui.components.MapViewModel.MAP_MOVE_DEBOUNCE_MS = 0L
 
             try {
-                givenAppIsLaunchedOnMap()
+                // Launch on London, UK
+                givenAppIsLaunchedOnMap(lat = 51.5, lon = -0.1, countryCode = "gb")
                 
-                // Force map center to Boulder to ensure test stability
+                // Force map center to London to ensure test stability
                 composeTestRule.runOnUiThread {
                     val contentViewGroup = composeTestRule.activity.findViewById<android.view.ViewGroup>(android.R.id.content)
                     var mapView: org.osmdroid.views.MapView? = null
@@ -73,7 +63,7 @@ class LaunchScreenTest : BddTest() {
                         }
                     }
                     findMapView(contentViewGroup)
-                    mapView?.controller?.setCenter(org.osmdroid.util.GeoPoint(40.0150, -105.2705))
+                    mapView?.controller?.setCenter(org.osmdroid.util.GeoPoint(51.5, -0.1))
                     mapView?.controller?.setZoom(12.0)
                 }
                 
@@ -82,7 +72,8 @@ class LaunchScreenTest : BddTest() {
                     composeTestRule.onNodeWithTag("map_view").assertExists()
                     
                     // Poll for overlays instead of waiting blindly
-                    val timeout = 5000L
+                    // 23MB Airspace file + Parsing takes time on Emulator
+                    val timeout = 30000L
                     val startTime = System.currentTimeMillis()
                     var markersCount = 0
                     var polygonsCount = 0

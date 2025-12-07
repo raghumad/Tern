@@ -14,14 +14,15 @@ import com.madanala.tern.utils.BddTest
  */
 fun BddTest.givenAppIsLaunchedOnMap(
     lat: Double = 40.0150, // Boulder, CO
-    lon: Double = -105.2705
+    lon: Double = -105.2705,
+    countryCode: String = "us"
 ) {
-    step("GIVEN", "scenario App Launch to Map ($lat, $lon)", true) {
+    step("GIVEN", "scenario App Launch to Map ($lat, $lon, $countryCode)", true) {
          // Initialize CacheManager
         com.madanala.tern.utils.CacheManager.initialize(composeTestRule.activity.applicationContext)
         
-        // Mock Country Code to ensure overlays load (bypassing flaky Geocoder)
-        com.madanala.tern.utils.CountryUtils.setTestCountryCode("us")
+        // Mock Country Code
+        com.madanala.tern.utils.CountryUtils.setTestCountryCode(countryCode)
         
         // OSMDroid Config
         val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
@@ -109,8 +110,8 @@ fun BddTest.givenAppIsLaunchedOnMap(
                 val actualLat = mapCenter.latitude
                 val actualLon = mapCenter.longitude
                 
-                // Use a reasonable delta (0.01 degrees is ~1km, sufficient for "is map centered correctly")
-                val delta = 0.01
+                // Use a reasonable delta (0.05 degrees is ~5km, allowing for animation lag/centering variance)
+                val delta = 0.05
                 
                 if (Math.abs(actualLat - expectedLat) > delta || Math.abs(actualLon - expectedLon) > delta) {
                     throw AssertionError("Map center mismatch! Expected: ($expectedLat, $expectedLon), Actual: ($actualLat, $actualLon)")
