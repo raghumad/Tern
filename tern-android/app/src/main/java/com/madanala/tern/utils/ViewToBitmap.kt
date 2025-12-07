@@ -7,6 +7,8 @@ import android.view.ViewGroup
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.ComposeView
 import androidx.core.view.doOnLayout
+import androidx.core.view.contains
+import androidx.core.graphics.createBitmap
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.findViewTreeLifecycleOwner
@@ -70,7 +72,7 @@ object ViewToBitmap {
             
             view.doOnLayout { 
                 try {
-                    val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                    val bitmap = createBitmap(width, height, Bitmap.Config.ARGB_8888)
                     val canvas = Canvas(bitmap)
                     view.draw(canvas)
                     continuation.resume(bitmap)
@@ -81,7 +83,7 @@ object ViewToBitmap {
                 }
             }
         } catch (e: Exception) {
-            if (safeParent.indexOfChild(view) != -1) {
+            if (safeParent.contains(view)) {
                 safeParent.removeView(view)
             }
             continuation.resumeWithException(e)

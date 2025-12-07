@@ -71,6 +71,7 @@ class MapGestureHandler(
         this.mapView = mapView
 
         // Set touch listener to handle both gesture detector and drag logic
+        @android.annotation.SuppressLint("ClickableViewAccessibility")
         mapView.setOnTouchListener { _, event ->
             try {
                 val handled = handleDragEvents(event)
