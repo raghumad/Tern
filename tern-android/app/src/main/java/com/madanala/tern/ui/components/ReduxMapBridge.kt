@@ -90,7 +90,6 @@ class ReduxMapBridge(private val coroutineScope: CoroutineScope) {
      */
     fun dispatchLocationReady(isReady: Boolean) {
         reduxStore?.dispatch(MapAction.SetLocationReady(isReady))
-        _isLocationReady.value = isReady
     }
 
     fun dispatchUserLocation(location: GeoPoint) {
@@ -112,7 +111,7 @@ class ReduxMapBridge(private val coroutineScope: CoroutineScope) {
      * Update map rotation state
      */
     fun updateMapRotation(rotation: Float) {
-        _mapRotation.value = rotation
+        reduxStore?.dispatch(MapAction.UpdateRotation(rotation))
     }
 
     /**
@@ -125,6 +124,10 @@ class ReduxMapBridge(private val coroutineScope: CoroutineScope) {
             store.state.collect { newState ->
                 val oldState = reduxState
                 reduxState = newState
+                
+                // Sync local flows to maintain Single Source of Truth
+                _isLocationReady.value = newState.isLocationReady
+                _mapRotation.value = newState.rotation
 
                 // Forward state changes to overlay coordinator
                 overlayCoordinator?.onReduxStateChanged(newState)
