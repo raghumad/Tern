@@ -441,6 +441,7 @@ object MapOverlayCacheUtils {
             val featureData = ByteArray(length)
             buffer.get(featureData)
             
+            @Suppress("DEPRECATION")
             val root = com.google.flatbuffers.FlexBuffers.getRoot(ByteBuffer.wrap(featureData))
             val map = root.asMap()
             

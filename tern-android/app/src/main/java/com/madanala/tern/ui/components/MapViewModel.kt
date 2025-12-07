@@ -299,11 +299,15 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
             reduxBridge.dispatchMapMovement(rotation, center, zoom)
             
             // Notify overlay coordinator of map movement to trigger data loading
-            if (center != null && zoom != null) {
-                overlayCoordinator.onMapMoved(center.latitude, center.longitude, zoom)
-            } else if (center != null && mapView != null) {
-                // Fallback if zoom not provided (e.g. scroll event)
-                overlayCoordinator.onMapMoved(center.latitude, center.longitude, mapView.zoomLevelDouble)
+            // Notify overlay coordinator of map movement to trigger data loading
+            if (center != null) {
+                if (zoom != null) {
+                    overlayCoordinator.onMapMoved(center.latitude, center.longitude, zoom)
+                } else {
+                    mapView?.let { mv ->
+                        overlayCoordinator.onMapMoved(center.latitude, center.longitude, mv.zoomLevelDouble)
+                    }
+                }
             }
         }
         mainHandler.postDelayed(pendingReduxUpdate!!, MAP_MOVE_DEBOUNCE_MS)
