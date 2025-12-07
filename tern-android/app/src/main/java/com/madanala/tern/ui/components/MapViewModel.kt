@@ -79,10 +79,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
     val mapRotation = reduxBridge.mapRotation
 
     // Smart Suggestion State - Migrated to Redux
-    // private val _nearbyPGSpot = MutableStateFlow<com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature?>(null)
-    // val nearbyPGSpot = _nearbyPGSpot.asStateFlow()
-    // private val _pendingWaypointCreation = MutableStateFlow<GeoPoint?>(null)
-    // val pendingWaypointCreation = _pendingWaypointCreation.asStateFlow()
+
 
     // Overlay Coordinator - Our new advanced overlay system with memory limits
     private val overlayCoordinator = OverlayCoordinator()
@@ -103,7 +100,8 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
         setupReduxBridgeCallbacks()
 
         // Initialize route editing system immediately (Redux store connected later)
-        initializeRouteEditingSystem()
+        // Removed: Route editing is handled by OverlayCoordinator
+
         Log.i(TAG, "MapViewModel Created: $this")
         
 
@@ -114,8 +112,8 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
      */
     private fun applyMapStyle(style: Int) {
         mapStyle = style
-        // Redux dispatch removed - this function is now a reaction to Redux state change
-        // reduxBridge.dispatchMapStyleChange(style)
+        // Redux dispatch call managed by ReduxMapBridge
+
 
         val tileSource = if (style == MAP_VIEW_SATELLITE) {
             TileSourceFactory.USGS_SAT
@@ -228,7 +226,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
      * Initialize the new overlay system (Redux store connected later)
      */
     private fun initializeOverlaySystem() {
-        // Log.d(TAG, "Initializing overlay system - Redux store will be connected later")
+
 
         // Initialize overlay coordinator without Redux store (will be connected later)
         overlayCoordinator.initialize(
@@ -237,7 +235,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
             context = getApplication()
         )
 
-        // Log.d(TAG, "Overlay coordinator initialized - waiting for Redux store connection")
+
 
         // Overlay managers will be created when Redux store is connected via setMapStore()
     }
@@ -262,9 +260,8 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
                 val rotation = mapView.mapOrientation
                 val center = mapView.mapCenter
 
-                reduxBridge.updateMapRotation(rotation)
-
-                // Schedule debounced Redux state updates to prevent excessive recompositions
+                // reduxBridge.updateMapRotation(rotation) <-- REMOVED: Bypassed debounce!
+                // Schedule debounced Redux state updates including rotation
                 center?.let { scheduleReduxUpdate(rotation, it as GeoPoint, null) } ?: scheduleReduxUpdate(rotation, null, null)
 
                 // Overlay managers handle their own map-based loading now
@@ -276,10 +273,10 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
                 val center = mapView.mapCenter
                 val zoom = mapView.zoomLevelDouble
 
-                reduxBridge.updateMapRotation(rotation)
-
-                // Schedule debounced Redux state updates to prevent excessive recompositions
+                // reduxBridge.updateMapRotation(rotation) <-- REMOVED: Bypassed debounce!
+                // Schedule debounced Redux state updates including rotation
                 center?.let { scheduleReduxUpdate(rotation, it as GeoPoint, zoom) } ?: scheduleReduxUpdate(rotation, null, zoom)
+
 
                 // Overlay managers handle their own map-based loading now
                 return true
@@ -292,20 +289,42 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
      * Schedule debounced Redux state updates to prevent excessive UI recompositions
      * Now uses combined MapMovement action for maximum performance (1 dispatch instead of 3)
      */
+    // Track last dispatched state to prevent duplicate/spam updates
+    private var lastDispatchedRotation: Float? = null
+    private var lastDispatchedCenter: GeoPoint? = null
+    private var lastDispatchedZoom: Double? = null
+
+    /**
+     * Schedule debounced Redux state updates to prevent excessive UI recompositions
+     * Now uses combined MapMovement action for maximum performance (1 dispatch instead of 3)
+     */
     private fun scheduleReduxUpdate(rotation: Float, center: GeoPoint?, zoom: Double?) {
         pendingReduxUpdate?.let { mainHandler.removeCallbacks(it) }
         pendingReduxUpdate = Runnable {
-            // Use single combined action instead of 3 separate dispatches
-            reduxBridge.dispatchMapMovement(rotation, center, zoom)
-            
-            // Notify overlay coordinator of map movement to trigger data loading
-            // Notify overlay coordinator of map movement to trigger data loading
-            if (center != null) {
-                if (zoom != null) {
-                    overlayCoordinator.onMapMoved(center.latitude, center.longitude, zoom)
-                } else {
-                    mapView?.let { mv ->
-                        overlayCoordinator.onMapMoved(center.latitude, center.longitude, mv.zoomLevelDouble)
+            // Diffing logic: Only dispatch if something significantly changed
+            // This prevents "micro-jitter" updates from spamming the Redux store
+            val rotationChanged = lastDispatchedRotation == null || kotlin.math.abs(rotation - lastDispatchedRotation!!) > 0.1f
+            // Use simple distance check for center (approx 1 meter)
+            val centerChanged = lastDispatchedCenter == null || (center != null && center.distanceToAsDouble(lastDispatchedCenter) > 1.0)
+            val zoomChanged = lastDispatchedZoom == null || (zoom != null && kotlin.math.abs(zoom - lastDispatchedZoom!!) > 0.01)
+
+            if (rotationChanged || centerChanged || zoomChanged) {
+                // Update tracking variables
+                lastDispatchedRotation = rotation
+                lastDispatchedCenter = center
+                lastDispatchedZoom = zoom
+
+                // Use single combined action instead of 3 separate dispatches
+                reduxBridge.dispatchMapMovement(rotation, center, zoom)
+                
+                // Notify overlay coordinator of map movement to trigger data loading
+                if (center != null) {
+                    if (zoom != null) {
+                        overlayCoordinator.onMapMoved(center.latitude, center.longitude, zoom)
+                    } else {
+                        mapView.let { mv ->
+                            overlayCoordinator.onMapMoved(center.latitude, center.longitude, mv.zoomLevelDouble)
+                        }
                     }
                 }
             }
@@ -355,19 +374,13 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /**
-     * Initialize route editing system immediately (Redux store can be connected later)
-     */
-    private fun initializeRouteEditingSystem() {
-        // Route overlay manager is initialized later in initializeOverlaySystemWithRedux
-        // when Redux store is available
-    }
+
 
     /**
      * Initialize overlay system with Redux store after it's connected
      */
     private fun initializeOverlaySystemWithRedux(store: com.madanala.tern.redux.MapStore) {
-        // Log.d(TAG, "Re-initializing overlay system with Redux store")
+
 
         // Initialize overlay coordinator with Redux store
         overlayCoordinator.initialize(
@@ -395,15 +408,6 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Debug method to check Redux integration status
-     */
-    fun logReduxStatus() {
-        // Log.d(TAG, "Redux Status - Store connected: ${reduxStore != null}")
-        // Log.d(TAG, "Redux Status - Location ready: ${reduxState.isLocationReady}")
-        // Log.d(TAG, "Redux Status - Has location permission: ${reduxState.hasLocationPermission}")
-    }
-
-    /**
      * Check for smart suggestions (nearby PG spots)
      * Moved from MapViewContainer to allow unit testing and better separation of concerns
      */
@@ -420,7 +424,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     override fun onCleared() {
-        // Route editing manager removed
+
 
         pendingReduxUpdate?.let { mainHandler.removeCallbacks(it) }
 

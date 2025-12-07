@@ -36,7 +36,8 @@ class OverlayCoordinator {
     private var mapView: MapView? = null
 
     // Z-Index Layers
-    private val airspaceLayer = FolderOverlay()
+    // Airspace Layer removed - Airspaces now render directly
+
     private val pgSpotLayer = FolderOverlay()
     private val routeLayer = FolderOverlay()
 
@@ -86,11 +87,8 @@ class OverlayCoordinator {
     fun initialize(mapStore: MapStore?, mapView: MapView, context: Context) {
         this.mapStore = mapStore
         this.mapView = mapView
-        // 1. Airspaces (Bottom)
-        airspaceLayer.name = "Airspace Layer"
-        if (!mapView.overlays.contains(airspaceLayer)) {
-            mapView.overlays.add(airspaceLayer)
-        }
+        // 1. Airspaces (Bottom) - Handled directly by AirspaceOverlayManager (No FolderOverlay)
+
         
         // 2. PG Spots (Middle)
         pgSpotLayer.name = "PG Spot Layer"
@@ -158,7 +156,7 @@ class OverlayCoordinator {
             when (manager) {
                 is com.madanala.tern.ui.overlays.AirspaceOverlayManager -> {
                     manager.setCountryCacheManager(countryCache)
-                    manager.setOverlayCoordinator(this) // Connect for Hilbert ordering
+                    // Coordinator decoupling: Airspaces manage their own rendering now
                 }
                 is com.madanala.tern.ui.overlays.PGSpotOverlayManager -> {
                     manager.setCountryCacheManager(countryCache)
@@ -400,7 +398,7 @@ class OverlayCoordinator {
     }
 
     companion object {
-        var ANIMATIONS_ENABLED = true
+        var ANIMATIONS_ENABLED = false
     }
 
     /**
@@ -479,7 +477,8 @@ class OverlayCoordinator {
 
     private fun getLayerForType(type: OverlayType): FolderOverlay {
         return when (type) {
-            OverlayType.AIRSPACE -> airspaceLayer
+            OverlayType.AIRSPACE -> throw IllegalStateException("Airspaces do not use FolderOverlay")
+
             OverlayType.PG_SPOTS -> pgSpotLayer
             OverlayType.ROUTES -> routeLayer
         }

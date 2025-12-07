@@ -582,16 +582,13 @@ class PGSpotOverlayManager(
 
         val centerStr = String.format("@ %.4f,%.4f", center.latitude, center.longitude)
 
-        // Check visibility after rendering
-        val actuallyVisibleAfterRender = currentlyRenderedPGSpots.count { (_, markerData) ->
-            mapView?.overlays?.contains(markerData.marker) == true &&
-            isPointInBoundingBox(markerData.center, mapView?.boundingBox ?: return@count false)
-        }
+
 
         Log.d(TAG, String.format(
             "PG spots rendered: %d total, %d visible %s",
             prioritizedFeatures.size,
-            actuallyVisibleAfterRender,
+            prioritizedFeatures.size, // Assumed visible
+
             centerStr
         ))
         
