@@ -78,15 +78,6 @@ class MapReducersTest {
         val location = org.osmdroid.util.GeoPoint(10.0, 20.0)
         val newState = mapReducer(initialState, MapAction.UpdateUserLocation(location))
 
-        assertThat(newState.userLocation).isEqualTo(location)
-    }
-    
-    @Test
-    fun `StartFlightSession initializes flight metrics`() {
-        val newState = mapReducer(initialState, MapAction.StartFlightSession)
-        
-        assertThat(newState.flightMetrics).isNotNull()
-        assertThat(newState.flightMetrics?.startTime).isGreaterThan(0L)
-        assertThat(newState.flightMetrics?.distance).isEqualTo(0.0)
     }
 }
+

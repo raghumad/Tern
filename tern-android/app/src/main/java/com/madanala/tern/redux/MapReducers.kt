@@ -1,9 +1,6 @@
 package com.madanala.tern.redux
 
-import com.madanala.tern.model.FlightData
-import com.madanala.tern.model.SensorState
-import com.madanala.tern.model.FlightComputerData
-import com.madanala.tern.model.FlightMetrics
+
 import android.util.Log
 import org.osmdroid.util.GeoPoint
 
@@ -51,24 +48,11 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
     is MapAction.SetUnitPreference -> handleSettingsActions(state, action)
 
     // Sensor & Flight Data
-    is MapAction.UpdateSensorState,
-    is MapAction.UpdateFlightData,
-    is MapAction.UpdateFlightComputerData,
-    is MapAction.UpdateFlightMetrics,
-    is MapAction.StartSensors,
-    MapAction.StopSensors,
-    is MapAction.SetSensorConfig -> handleSensorActions(state, action)
 
-    // Flight Sessions
-    is MapAction.StartFlightSession,
-    is MapAction.EndFlightSession,
-    is MapAction.UpdateFlightPath -> handleFlightSessionActions(state, action)
 
     // User Preferences & Layout
     is MapAction.SetHandedness,
     is MapAction.UpdateHandednessSource,
-    is MapAction.UpdateAdaptiveLayout,
-    is MapAction.SetFlightMode,
     is MapAction.UpdateUserPreferences -> handleUserPreferencesActions(state, action)
 
     // Route Management
@@ -370,44 +354,12 @@ private fun handleSettingsActions(state: MapState, action: MapAction): MapState 
 /**
  * Handle sensor and flight data actions
  */
-private fun handleSensorActions(state: MapState, action: MapAction): MapState = when (action) {
-    is MapAction.UpdateSensorState -> state.copy(sensorState = action.sensorState)
-    is MapAction.UpdateFlightData -> state.copy(currentFlightData = action.flightData)
-    is MapAction.UpdateFlightComputerData -> state.copy(flightComputerData = action.flightComputerData)
-    is MapAction.UpdateFlightMetrics -> state.copy(flightMetrics = action.flightMetrics)
-    is MapAction.StartSensors -> state.copy(sensorState = state.sensorState.copy(
-        isActive = true,
-        flightMode = action.flightMode
-    ))
-    MapAction.StopSensors -> state.copy(sensorState = state.sensorState.copy(isActive = false))
-    is MapAction.SetSensorConfig -> state // Sensor config managed by SensorOverlayManager
-    else -> state
-}
+
 
 /**
  * Handle flight session actions
  */
-private fun handleFlightSessionActions(state: MapState, action: MapAction): MapState = when (action) {
-    is MapAction.StartFlightSession -> {
-        val newMetrics = FlightMetrics(
-            startTime = System.currentTimeMillis(),
-            duration = 0L,
-            distance = 0.0,
-            maxAltitude = 0.0,
-            altitudeGain = 0.0,
-            maxGroundSpeed = 0.0,
-            averageGroundSpeed = 0.0,
-            maxVerticalSpeed = 0.0,
-            maxSinkRate = 0.0,
-            thermalCount = 0,
-            averageGlideRatio = 0.0
-        )
-        state.copy(flightMetrics = newMetrics)
-    }
-    is MapAction.EndFlightSession -> state // Keep final metrics for analysis
-    is MapAction.UpdateFlightPath -> state // Flight path managed by SensorOverlayManager
-    else -> state
-}
+
 
 /**
  * Handle user preferences and layout actions
@@ -421,8 +373,6 @@ private fun handleUserPreferencesActions(state: MapState, action: MapAction): Ma
         handednessSource = action.source,
         lastUpdated = System.currentTimeMillis()
     ))
-    is MapAction.UpdateAdaptiveLayout -> state.copy(adaptiveLayout = action.layoutConfig)
-    is MapAction.SetFlightMode -> state.copy(currentFlightMode = action.flightMode)
     is MapAction.UpdateUserPreferences -> state.copy(userPreferences = action.preferences)
     else -> state
 }
