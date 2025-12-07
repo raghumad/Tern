@@ -309,7 +309,9 @@ class UniversalCountryCacheManager(
     private fun evictLeastRecentlyUsedCountry() {
         if (accessOrderedCountries.isEmpty()) return
 
-        val lruCountry = accessOrderedCountries.removeFirst()
+        val iterator = accessOrderedCountries.iterator()
+        val lruCountry = iterator.next()
+        iterator.remove()
         countryAccessMetadata.remove(lruCountry)?.let { metadata ->
             Log.d(TAG, "Evicted LRU country: $lruCountry " +
                   "(accessed ${metadata.accessCount} times, last: ${metadata.lastAccessTime})")

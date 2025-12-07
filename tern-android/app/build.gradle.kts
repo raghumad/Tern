@@ -82,6 +82,7 @@ android {
         // Upgrade to Java 21 LTS
         sourceCompatibility = JavaVersion.VERSION_21
         targetCompatibility = JavaVersion.VERSION_21
+        isCoreLibraryDesugaringEnabled = true
     }
 
     kotlin {
@@ -144,6 +145,9 @@ dependencies {
 
     // AndroidX Preference (for settings, used by HttpClientProvider)
     implementation("androidx.preference:preference-ktx:1.2.1")
+    
+    // Core Library Desugaring (for java.time on older APIs)
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
 
     // GeoJSON support
     implementation("com.fasterxml.jackson.core:jackson-databind:2.17.2")

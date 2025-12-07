@@ -312,7 +312,7 @@ class AirspaceOverlayManager(
         if (coordinator != null) {
             invisibleNonCriticalAirspaces.forEach { (airspaceId, polygon) ->
                 val centroid = getPolygonCentroid(polygon)
-                    coordinator.removeOverlayFromBatch(polygon, airspaceId, centroid, OverlayType.AIRSPACE)
+                coordinator.removeOverlayFromBatch(polygon, airspaceId, centroid, OverlayType.AIRSPACE)
                 removedCount++
             }
             coordinator.removeOverlayFromBatch()
@@ -374,7 +374,7 @@ class AirspaceOverlayManager(
         if (coordinator != null) {
             airspacesInZone.forEach { (airspaceId, polygon) ->
                 val centroid = getPolygonCentroid(polygon)
-                    coordinator.removeOverlayFromBatch(polygon, airspaceId, centroid, OverlayType.AIRSPACE)
+                coordinator.removeOverlayFromBatch(polygon, airspaceId, centroid, OverlayType.AIRSPACE)
                 removedCount++
             }
             coordinator.removeOverlayFromBatch()
@@ -425,7 +425,7 @@ class AirspaceOverlayManager(
                     val polygon = currentlyRenderedAirspaces[airspaceId]
                     if (polygon != null) {
                         val centroid = getPolygonCentroid(polygon)
-                            coordinator.removeOverlayFromBatch(polygon, airspaceId, centroid, OverlayType.AIRSPACE)
+                        coordinator.removeOverlayFromBatch(polygon, airspaceId, centroid, OverlayType.AIRSPACE)
                     }
                 }
 
@@ -657,7 +657,7 @@ class AirspaceOverlayManager(
                 if (polygon != null) {
                     // Add to Hilbert-ordered batch for removal (outside to center)
                     val centroid = getPolygonCentroid(polygon)
-                        coordinator.removeOverlayFromBatch(polygon, airspaceId, centroid, OverlayType.AIRSPACE)
+                    coordinator.removeOverlayFromBatch(polygon, airspaceId, centroid, OverlayType.AIRSPACE)
                 }
             }
 

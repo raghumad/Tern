@@ -4,6 +4,8 @@ import android.content.Context
 import android.util.Log
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toBitmap
+import androidx.core.graphics.drawable.toDrawable
+import androidx.core.graphics.scale
 import com.madanala.tern.R
 import com.madanala.tern.redux.MapState
 import com.madanala.tern.redux.MapStore
@@ -435,7 +437,7 @@ class PGSpotOverlayManager(
                             )
                         }
                         
-                        marker.icon = android.graphics.drawable.BitmapDrawable(applicationContext.resources, bitmap)
+                        marker.icon = bitmap.toDrawable(applicationContext.resources)
                         marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER) // Center the gauge
                         mapView.invalidate()
                     } catch (e: Exception) {
@@ -747,13 +749,8 @@ class PGSpotOverlayManager(
                     // Scale to 1/2 size for better touch interaction while maintaining visibility
                     val scaledWidth = originalBitmap.width / 2
                     val scaledHeight = originalBitmap.height / 2
-                    val scaledBitmap = android.graphics.Bitmap.createScaledBitmap(
-                        originalBitmap,
-                        scaledWidth,
-                        scaledHeight,
-                        true // Use bilinear filtering
-                    )
-                    icon = android.graphics.drawable.BitmapDrawable(applicationContext.resources, scaledBitmap)
+                    val scaledBitmap = originalBitmap.scale(scaledWidth, scaledHeight, true)
+                    icon = scaledBitmap.toDrawable(applicationContext.resources)
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to set custom PG spot icon, using default", e)
