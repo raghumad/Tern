@@ -105,9 +105,14 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
         // Initialize route editing system immediately (Redux store connected later)
         initializeRouteEditingSystem()
         Log.i(TAG, "MapViewModel Created: $this")
+        
+
     }
 
-    fun applyMapStyle(style: Int) {
+    /**
+     * Map Style handling
+     */
+    private fun applyMapStyle(style: Int) {
         mapStyle = style
         // Redux dispatch removed - this function is now a reaction to Redux state change
         // reduxBridge.dispatchMapStyleChange(style)
@@ -327,13 +332,16 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
      * Set the Redux store for overlay managers (late initialization for ViewModel compatibility)
      */
     fun setMapStore(store: com.madanala.tern.redux.MapStore?) {
-        reduxBridge.setReduxStore(store)
-        reduxBridge.setOverlayCoordinator(overlayCoordinator)
-
-        // Re-initialize overlay system with Redux store now that it's available
+        // Re-initialize overlay system with Redux store FIRST so managers are ready
+        // to receive updates from the bridge
         if (store != null) {
             initializeOverlaySystemWithRedux(store)
         }
+
+        // Connect the bridge (triggers immediate state emission)
+        reduxBridge.setOverlayCoordinator(overlayCoordinator)
+        reduxBridge.setReduxStore(store)
+
 
         // If we already have location permission when store is connected, initialize location overlay
         val reduxState = reduxBridge.getReduxState()

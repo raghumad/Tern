@@ -137,13 +137,14 @@ abstract class BaseOverlayManager(
         locationSelector: (T) -> GeoPoint
     ): List<T> {
         val budget = getCurrentOverlayBudget() ?: return prioritizeFeatures(items, center, 10, locationSelector) // Fallback
-        
+
         // Group items by zone
         val zoneMap = com.madanala.tern.utils.DistanceZone.values().associateWith { mutableListOf<T>() }
         
         items.forEach { item ->
             val distanceKm = locationSelector(item).distanceToAsDouble(center) / 1000.0
             val zone = com.madanala.tern.utils.DistanceZone.fromDistanceKm(distanceKm)
+
             zoneMap[zone]?.add(item)
         }
         

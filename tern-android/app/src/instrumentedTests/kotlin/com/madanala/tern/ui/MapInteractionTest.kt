@@ -208,15 +208,13 @@ class MapInteractionTest : BddTest() {
         val store = com.madanala.tern.redux.MapStore()
         
         scenario("testTapOnWaypointSelectsIt") {
-            given("I have a route with a waypoint at Boulder") {
+            given("The app is initialized") {
                 CacheManager.initialize(composeTestRule.activity.applicationContext)
                 val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
                 org.osmdroid.config.Configuration.getInstance().load(context, androidx.preference.PreferenceManager.getDefaultSharedPreferences(context))
                 
-                val boulder = com.madanala.tern.model.Waypoint(lat = 40.0150, lon = -105.2705, label = "Boulder")
-                val route = com.madanala.tern.model.Route(name = "Test Route", waypoints = listOf(boulder))
-                store.dispatch(com.madanala.tern.redux.MapAction.AddRoute(route))
-                store.dispatch(com.madanala.tern.redux.MapAction.SelectRoute(route.id))
+                // Disable animations globally for this test scenario to ensure synchronous updates
+                com.madanala.tern.ui.overlays.OverlayCoordinator.ANIMATIONS_ENABLED = false
             }
             
             and("I have location permissions and mock location") {
@@ -236,26 +234,87 @@ class MapInteractionTest : BddTest() {
                 store.dispatch(com.madanala.tern.redux.MapAction.UpdateCenter(org.osmdroid.util.GeoPoint(40.0150, -105.2705)))
                 store.dispatch(com.madanala.tern.redux.MapAction.UpdateZoom(18.0))
                 composeTestRule.waitForIdle()
+
+                // Crucial: Manually sync MapView to match Redux state because ReduxMapBridge doesn't sync State -> View for movement (only View -> State)
+                // This ensures RouteOverlayManager calculates the correct DistanceZone (CORE/NEAR) instead of EXTREME (which has 0 budget)
+                composeTestRule.runOnUiThread {
+                    val activity = composeTestRule.activity
+                    val mapView = MapTestHelper.findMapView(activity.window.decorView)
+                    mapView?.controller?.setCenter(org.osmdroid.util.GeoPoint(40.0150, -105.2705))
+                    mapView?.controller?.setZoom(18.0)
+                }
+                
                 Thread.sleep(2000) // Allow OSMDroid to settle/animate
+
+                // Add route AFTER map is centered to avoid "too far from center" filtering
+                val boulder = com.madanala.tern.model.Waypoint(lat = 40.0150, lon = -105.2705, label = "Boulder")
+                val route = com.madanala.tern.model.Route(name = "Test Route", waypoints = listOf(boulder))
+                store.dispatch(com.madanala.tern.redux.MapAction.AddRoute(route))
+                store.dispatch(com.madanala.tern.redux.MapAction.SelectRoute(route.id))
+                composeTestRule.waitForIdle()
             }
             
             then("The RouteOverlay is added to the map") {
-                composeTestRule.waitUntil(timeoutMillis = 5000) {
-                    val activity = composeTestRule.activity
-                    val mapView = MapTestHelper.findMapView(activity.window.decorView)
-                    
-                    // Recursive check to find RouteOverlay inside FolderOverlays (Z-Index layers)
-                    fun hasRouteOverlay(overlays: List<org.osmdroid.views.overlay.Overlay>): Boolean {
-                        return overlays.any { overlay ->
-                            if (overlay is org.osmdroid.views.overlay.FolderOverlay) {
-                                hasRouteOverlay(overlay.items)
-                            } else {
-                                overlay.javaClass.simpleName.contains("RouteOverlay")
-                            }
-                        }
+                val originalDebounce = com.madanala.tern.ui.components.MapViewModel.MAP_MOVE_DEBOUNCE_MS
+                com.madanala.tern.ui.components.MapViewModel.MAP_MOVE_DEBOUNCE_MS = 0L
+                com.madanala.tern.ui.overlays.OverlayCoordinator.ANIMATIONS_ENABLED = false
+
+                try {
+                    // Wait for Map move to actually happen
+                    composeTestRule.waitUntil(timeoutMillis = 5000) {
+                         val activity = composeTestRule.activity
+                         val mapView = MapTestHelper.findMapView(activity.window.decorView)
+                         mapView?.zoomLevelDouble == 18.0
                     }
-                    
-                    mapView?.overlays?.let { hasRouteOverlay(it) } == true
+
+                    try {
+                        composeTestRule.waitUntil(timeoutMillis = 10000) {
+                            val activity = composeTestRule.activity
+                            val mapView = MapTestHelper.findMapView(activity.window.decorView)
+                            
+                            // Recursive check to find RouteOverlay inside FolderOverlays (Z-Index layers)
+                            fun hasRouteOverlay(overlays: List<org.osmdroid.views.overlay.Overlay>): Boolean {
+                                return overlays.any { overlay ->
+                                    if (overlay is org.osmdroid.views.overlay.FolderOverlay) {
+                                        hasRouteOverlay(overlay.items)
+                                    } else {
+                                        overlay.javaClass.simpleName.contains("RouteOverlay")
+                                    }
+                                }
+                            }
+                            
+                            // Force invalidate
+                            mapView?.postInvalidate()
+
+                            mapView?.overlays?.let { hasRouteOverlay(it) } == true
+                        }
+                    } catch (e: androidx.compose.ui.test.ComposeTimeoutException) {
+                        val activity = composeTestRule.activity
+                        val mapView = MapTestHelper.findMapView(activity.window.decorView)
+                        val sb = StringBuilder()
+                        sb.append("Timed out waiting for RouteOverlay. Map: Center=${mapView?.mapCenter}, Zoom=${mapView?.zoomLevelDouble}, Hash=${System.identityHashCode(mapView)}, ListHash=${System.identityHashCode(mapView?.overlays)}\n")
+                        System.err.println("TEST_DEBUG: MapView Hash=${System.identityHashCode(mapView)}")
+                        sb.append("Store Routes: ${store.state.value.routes.size}\n")
+                        
+                        fun dump(overlays: List<org.osmdroid.views.overlay.Overlay>, depth: Int) {
+                             val indent = "  ".repeat(depth)
+                             overlays.forEach { overlay ->
+                                 if (overlay is org.osmdroid.views.overlay.FolderOverlay) {
+                                     sb.append("$indent[F] ${overlay.name ?: "Unnamed"} (${overlay.items.size})\n")
+                                     android.util.Log.e("MapInteractionTest", "$indent[F] ${overlay.name ?: "Unnamed"} (${overlay.items.size})")
+                                     dump(overlay.items, depth + 1)
+                                 } else {
+                                     sb.append("$indent[O] ${overlay.javaClass.simpleName} (${overlay.javaClass.name})\n")
+                                     android.util.Log.e("MapInteractionTest", "$indent[O] ${overlay.javaClass.simpleName} (${overlay.javaClass.name})")
+                                 }
+                             }
+                        }
+                        mapView?.overlays?.let { dump(it, 0) }
+                        throw RuntimeException(sb.toString(), e)
+                    }
+                } finally {
+                    com.madanala.tern.ui.components.MapViewModel.MAP_MOVE_DEBOUNCE_MS = originalDebounce
+                    com.madanala.tern.ui.overlays.OverlayCoordinator.ANIMATIONS_ENABLED = true
                 }
             }
             

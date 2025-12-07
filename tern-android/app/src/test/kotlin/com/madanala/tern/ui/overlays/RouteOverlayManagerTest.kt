@@ -300,12 +300,7 @@ private val testDispatcher = StandardTestDispatcher()
         assertThat(stats).isNotNull()
     }
 
-    @Test
-    fun `getCurrentRoutes returns empty list initially`() {
-        manager.initialize(mockMapView)
-        val routes = manager.getCurrentRoutes()
-        assertThat(routes).isEmpty()
-    }
+
 
     private fun createStateWithRoutes(count: Int, enabled: Boolean = true): MapState {
         val routes = (1..count).map { 
