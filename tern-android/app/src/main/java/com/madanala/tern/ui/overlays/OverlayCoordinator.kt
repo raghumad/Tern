@@ -86,8 +86,6 @@ class OverlayCoordinator {
     fun initialize(mapStore: MapStore?, mapView: MapView, context: Context) {
         this.mapStore = mapStore
         this.mapView = mapView
-
-        // Initialize Z-Index Layers (Bottom to Top)
         // 1. Airspaces (Bottom)
         airspaceLayer.name = "Airspace Layer"
         if (!mapView.overlays.contains(airspaceLayer)) {
@@ -297,13 +295,13 @@ class OverlayCoordinator {
         }
     }
 
-    /**
-     * Process pending overlay additions in Hilbert curve order (center to outside)
-     * Returns the number of overlays processed
-     */
+    // ... (removeOverlayFromBatch)
+
     fun flushPendingAdditions(): Int {
         synchronized(pendingAdditions) {
-            if (pendingAdditions.isEmpty()) return 0
+            if (pendingAdditions.isEmpty()) {
+                return 0
+            }
 
             val additionsToProcess = pendingAdditions.toList()
             pendingAdditions.clear()
@@ -401,6 +399,10 @@ class OverlayCoordinator {
         }
     }
 
+    companion object {
+        var ANIMATIONS_ENABLED = true
+    }
+
     /**
       * Process batch of overlays with staggered animation for smooth visual effect
       */
@@ -409,6 +411,23 @@ class OverlayCoordinator {
         isAddition: Boolean
     ) {
         if (overlays.isEmpty() || mapView == null) return
+
+        if (!ANIMATIONS_ENABLED) {
+            // Synchronous processing for tests
+            overlays.forEach { overlayInfo ->
+                if (isAddition) {
+                    if (overlayInfo.overlay is org.osmdroid.views.overlay.Overlay) {
+                        getLayerForType(overlayInfo.type).add(overlayInfo.overlay)
+                    }
+                } else {
+                    if (overlayInfo.overlay is org.osmdroid.views.overlay.Overlay) {
+                        getLayerForType(overlayInfo.type).remove(overlayInfo.overlay)
+                    }
+                }
+            }
+            mapView?.invalidate()
+            return
+        }
 
         val staggerDelayMs = 100L // 100ms between each overlay
 

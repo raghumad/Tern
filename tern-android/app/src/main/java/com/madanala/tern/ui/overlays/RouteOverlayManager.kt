@@ -167,10 +167,7 @@ class RouteOverlayManager(
     }
 
     override fun setOverlayCoordinator(coordinator: OverlayCoordinator) {
-        println("SYSTEM_OUT: RouteOverlayManager.setOverlayCoordinator called with $coordinator")
         this.overlayCoordinator = coordinator
-        Log.d(TAG, "DEBUG: setOverlayCoordinator called. Coordinator: $coordinator")
-        Log.d(TAG, "RouteOverlayManager connected to OverlayCoordinator for lifecycle management")
     }
 
     override fun onOverlayDetached() {
@@ -218,7 +215,6 @@ class RouteOverlayManager(
                             if (existingOverlay != null) {
                                 if (existingOverlay.route != route) {
                                     existingOverlay.updateRoute(route)
-                                    // Log.d(TAG, "Updated existing overlay for route ${route.id}")
                                 }
                             } else {
                                 // New route will be handled by updateRouteOverlays()
@@ -226,7 +222,6 @@ class RouteOverlayManager(
 
                             // Always update cache to ensure latest state (visibility, waypoints) is persisted
                             routeCache?.cacheRoute(route)
-                            // Log.d(TAG, "Cached route ${route.id}: visible=${route.isVisible}, waypoints=${route.waypoints.size}")
                         } catch (e: Exception) {
                             Log.w(TAG, "Failed to cache/update route ${route.id}", e)
                         }
@@ -308,11 +303,7 @@ class RouteOverlayManager(
     private fun updateRouteOverlays(center: GeoPoint = mapView?.mapCenter as? GeoPoint ?: GeoPoint(0.0, 0.0)) {
         val mapView = mapView ?: return
         
-        // LOD Check - Removed
-        // if (!isZoomLevelSufficient(mapView.zoomLevelDouble)) {
-        //    clearRouteOverlays()
-        //    return
-        // }
+
 
         // 🎯 STEP 0: Prioritize routes (Zone-based budgeting)
         val visibleRoutes = currentRoutes.filter { it.isVisible }
@@ -459,10 +450,7 @@ class RouteOverlayManager(
         removeRoutes(ids)
     }
 
-    /**
-     * Get current routes
-     */
-    fun getCurrentRoutes(): List<Route> = currentRoutes.toList()
+
 
     /**
      * Get route cache statistics
@@ -471,10 +459,7 @@ class RouteOverlayManager(
         return routeCache?.getCacheStats() ?: emptyMap()
     }
 
-    /**
-     * Get the route cache instance safely
-     */
-    fun getRouteCache(): RouteCache? = routeCache
+
 
     /**
      * Enhanced performance statistics for RouteOverlayManager
@@ -504,7 +489,6 @@ class RouteOverlayManager(
 
         override fun onSingleTapConfirmed(e: MotionEvent?, mapView: MapView?): Boolean {
             if (e == null || mapView == null) return false
-            Log.d(TAG, "onSingleTapConfirmed at ${e.x}, ${e.y}")
 
             // Handle waypoint selection logic
             return handleWaypointTap(e, mapView)

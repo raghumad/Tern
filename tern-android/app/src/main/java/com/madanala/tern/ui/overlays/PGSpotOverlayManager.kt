@@ -209,13 +209,7 @@ class PGSpotOverlayManager(
             }
         }
 
-        // Check zoom level (LOD) - Removed
-        // if (!isZoomLevelSufficient(zoom)) {
-        //    if (currentlyRenderedPGSpots.isNotEmpty()) {
-        //        clearOverlays()
-        //    }
-        //    return
-        // }
+
 
         checkAndLoadPGSpots(center)
     }
@@ -224,13 +218,7 @@ class PGSpotOverlayManager(
      * Abstract method implementation from BaseOverlayManager
      */
     override fun onViewportChangedInternal(viewport: BoundingBox) {
-        // Check zoom level (LOD) - Removed
-        // if (mapView != null && !isZoomLevelSufficient(mapView!!.zoomLevelDouble)) {
-        //    if (currentlyRenderedPGSpots.isNotEmpty()) {
-        //        clearOverlays()
-        //    }
-        //    return
-        // }
+        // No viewport optimization needed for PG Spots currently
     }
 
     override fun onViewportChanged(viewport: BoundingBox) {
@@ -238,10 +226,7 @@ class PGSpotOverlayManager(
 
         if (!isEnabled()) return
 
-        // Check zoom level (LOD) - Removed
-        // if (mapView != null && !isZoomLevelSufficient(mapView!!.zoomLevelDouble)) {
-        //    return
-        // }
+
 
         // Aviation intelligence: Weather orchestration triggered by viewport changes
         updateViewportWeatherIntelligence(viewport)
@@ -564,11 +549,7 @@ class PGSpotOverlayManager(
        */
     private fun renderPGSpotFeaturesWithWeather(features: List<OverlayFeature>, center: GeoPoint) {
         Log.d(TAG, "renderPGSpotFeaturesWithWeather called with ${features.size} features")
-        // val center = mapView?.mapCenter as? GeoPoint
-        // if (center == null) {
-        //     Log.e(TAG, "renderPGSpotFeaturesWithWeather: mapView or mapCenter is NULL")
-        //     return
-        // }
+
         // Using passed center directly for consistency
         Log.d(TAG, "renderPGSpotFeaturesWithWeather: center=$center")
 
