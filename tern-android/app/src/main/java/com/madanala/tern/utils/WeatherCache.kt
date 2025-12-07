@@ -4,7 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import com.madanala.tern.model.WaypointWeather
+
 import com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature
 import org.osmdroid.util.GeoPoint
 import java.util.concurrent.TimeUnit

@@ -1,11 +1,7 @@
 package com.madanala.tern.redux
 
 import org.osmdroid.util.GeoPoint
-import com.madanala.tern.model.FlightData
-import com.madanala.tern.model.SensorState
-import com.madanala.tern.model.FlightComputerData
-import com.madanala.tern.model.FlightMetrics
-import com.madanala.tern.model.FlightMode
+
 import com.madanala.tern.model.Route
 
 /**
@@ -54,26 +50,9 @@ data class MapState(
     // Settings state - user preferences and configuration
     val settingsState: SettingsState = SettingsState(),
 
-    // Sensor state - real-time flight data and sensor fusion
-    val sensorState: SensorState = SensorState(),
 
-    // Current flight data - real-time sensor readings
-    val currentFlightData: FlightData? = null,
 
-    // Flight computer data - calculated aviation parameters
-    val flightComputerData: FlightComputerData? = null,
 
-    // Flight metrics - accumulated flight statistics
-    val flightMetrics: FlightMetrics? = null,
-
-    // Handedness-aware UI state - optimizes control placement for user preference
-    val userPreferences: UserPreferencesState = UserPreferencesState(),
-
-    // Current flight mode - affects UI layout and control priorities
-    val currentFlightMode: FlightMode = FlightMode.GROUND,
-
-    // Adaptive layout configuration - calculated based on handedness and flight mode
-    val adaptiveLayout: AdaptiveLayoutConfig = AdaptiveLayoutConfig(),
 
     // Route state - cached routes for display
     val routes: List<Route> = emptyList(),
@@ -83,6 +62,10 @@ data class MapState(
 
     // Selected route for viewing/editing
     val selectedRouteId: String? = null,
+
+
+    // Handedness-aware UI state - optimizes control placement for user preference
+    val userPreferences: UserPreferencesState = UserPreferencesState(),
 
     // Smart Suggestion State - for nearby PG spot detection
     val smartSuggestionState: SmartSuggestionState = SmartSuggestionState()
