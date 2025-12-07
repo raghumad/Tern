@@ -32,7 +32,8 @@ object PerformanceDebugger {
         val stateUpdateCount: AtomicLong = AtomicLong(0),
         val lastUpdateTime: AtomicLong = AtomicLong(System.currentTimeMillis()),
         val updateBatchSizes: MutableList<Int> = mutableListOf(),
-        val averageUpdatesPerSecond: AtomicLong = AtomicLong(0)
+        val averageUpdatesPerSecond: AtomicLong = AtomicLong(0),
+        val actionTypeCounts: ConcurrentHashMap<String, AtomicLong> = ConcurrentHashMap()
     )
 
     // Priority 2: Memory Leak Detection
@@ -65,8 +66,9 @@ object PerformanceDebugger {
 
     /**
      * Record a Redux state update for frequency monitoring
+     * @param actionType The simple class name of the action triggering the update (optional)
      */
-    fun recordStateUpdate(actionCount: Int = 1) {
+    fun recordStateUpdate(actionCount: Int = 1, actionType: String? = null) {
         if (!isEnabled) return
 
         val now = System.currentTimeMillis()
@@ -74,6 +76,10 @@ object PerformanceDebugger {
 
         reduxMetrics.stateUpdateCount.incrementAndGet()
         reduxMetrics.updateBatchSizes.add(actionCount)
+        
+        if (actionType != null) {
+            reduxMetrics.actionTypeCounts.computeIfAbsent(actionType) { AtomicLong(0) }.incrementAndGet()
+        }
 
         // Calculate updates per second (rolling average)
         val timeDiff = now - lastUpdate
@@ -166,6 +172,7 @@ object PerformanceDebugger {
                 // Priority 1: Redux State Updates
                 "redux_updates_per_second" to reduxMetrics.averageUpdatesPerSecond.get(),
                 "redux_total_updates" to reduxMetrics.stateUpdateCount.get(),
+                "redux_action_types" to reduxMetrics.actionTypeCounts.mapValues { it.value.get() },
 
                 // Priority 2: Memory Management
                 "memory_overlay_objects" to memoryMetrics.overlayObjectCount.get(),
@@ -224,6 +231,13 @@ object PerformanceDebugger {
 
         Log.d(TAG, "=== PERFORMANCE SUMMARY ===")
         Log.d(TAG, "Redux: ${report["redux_updates_per_second"]}/sec")
+        
+        val actionTypes = report["redux_action_types"] as Map<String, Long>
+        val topActions = actionTypes.entries.sortedByDescending { it.value }.take(3)
+        if (topActions.isNotEmpty()) {
+             Log.d(TAG, "Top Actions: ${topActions.joinToString { "${it.key}:${it.value}" }}")
+        }
+
         Log.d(TAG, "Memory: ${report["memory_overlay_objects"]} overlays, ${estimatedBytes / 1024} KB tracked")
         
         // Log top 5 active allocations
@@ -240,8 +254,8 @@ object PerformanceDebugger {
 
 // ==================== CONVENIENCE FUNCTIONS ====================
 
-fun recordStateUpdate(actionCount: Int = 1) {
-    PerformanceDebugger.recordStateUpdate(actionCount)
+fun recordStateUpdate(actionCount: Int = 1, actionType: String? = null) {
+    PerformanceDebugger.recordStateUpdate(actionCount, actionType)
 }
 
 fun recordOverlayLifecycle(overlayType: String, isCreation: Boolean) {

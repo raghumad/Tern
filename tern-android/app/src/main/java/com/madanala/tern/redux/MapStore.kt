@@ -135,16 +135,28 @@ class MapStore : ViewModel() {
         // Single state update for entire batch
         _state.value = currentState
 
-        // Record batch for performance monitoring
-        recordStateUpdate(actions.size)
+        // Record batch for performance monitoring with action types
+        val actionTypes = actions.groupingBy { it::class.java.simpleName }.eachCount()
+        recordStateUpdate(actions.size, actionTypes)
     }
 
     /**
      * Record state update for performance monitoring (debug only)
      */
-    private fun recordStateUpdate(actionCount: Int = 1) {
+    private fun recordStateUpdate(actionCount: Int = 1, actionTypes: Map<String, Int>? = null) {
         try {
-            com.madanala.tern.utils.PerformanceDebugger.recordStateUpdate(actionCount)
+            // If we have aggregated types, record them one by one (or update debugger to accept map)
+            // For now, let's just record the most frequent one or iterate?
+            // Better: Update PerformanceDebugger to accept a batch map? 
+            // Or just iterate here since it's debug only.
+            
+            if (actionTypes != null) {
+                 actionTypes.forEach { (type, count) ->
+                     com.madanala.tern.utils.PerformanceDebugger.recordStateUpdate(count, type)
+                 }
+            } else {
+                com.madanala.tern.utils.PerformanceDebugger.recordStateUpdate(actionCount)
+            }
         } catch (e: Exception) {
             // Silently handle - performance monitoring is debug-only
         }
