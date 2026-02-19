@@ -39,6 +39,7 @@ import java.util.Locale
 fun WeatherDetailsDialog(
     forecast: WeatherForecast?,
     spotName: String = "Launch Site",
+    targetArrivalTimestamp: Long? = null,
     isLoading: Boolean = false,
     onDismiss: () -> Unit = {}
 ) {
@@ -74,7 +75,7 @@ fun WeatherDetailsDialog(
                     textAlign = TextAlign.Center
                 )
             } else {
-                WeatherContent(forecast)
+                WeatherContent(forecast, targetArrivalTimestamp)
             }
         },
         confirmButton = {
@@ -89,7 +90,7 @@ fun WeatherDetailsDialog(
  * Weather Content - Scrollable weather details
  */
 @Composable
-private fun WeatherContent(forecast: WeatherForecast) {
+private fun WeatherContent(forecast: WeatherForecast, targetTimestamp: Long?) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -118,10 +119,28 @@ private fun WeatherContent(forecast: WeatherForecast) {
         }
 
         // Current Conditions
-        forecast.current?.let { current ->
-            CurrentWeatherCard(current)
+        if (targetTimestamp != null && forecast.hourly.isNotEmpty()) {
+            // Find periods for interpolation
+            val startPeriod = forecast.hourly.lastOrNull { it.startTime <= targetTimestamp } 
+                ?: forecast.hourly.first()
+            val endPeriod = forecast.hourly.firstOrNull { it.startTime > targetTimestamp }
+                ?: forecast.hourly.last()
+            
+            val interpolated = com.madanala.tern.utils.WeatherCache.interpolateWeather(startPeriod, endPeriod, targetTimestamp)
+            
+            Text("Estimated Arrival Weather", style = MaterialTheme.typography.titleMedium)
+            CurrentWeatherCard(interpolated)
             Spacer(modifier = Modifier.height(16.dp))
+        } else {
+            forecast.current?.let { current ->
+                CurrentWeatherCard(current)
+                Spacer(modifier = Modifier.height(16.dp))
+            }
         }
+
+        // Skew-T Analysis Placeholder
+        SkewTPlaceholderCard()
+        Spacer(modifier = Modifier.height(16.dp))
 
         // Hourly Forecast (next 24 hours, every 3 hours)
         forecast.hourly.take(8).chunked(1).forEach { hours -> // Show every hour for 8 hours
@@ -347,5 +366,54 @@ private fun WeatherDetail(label: String, value: String) {
             style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.Medium
         )
+    }
+}
+
+/**
+ * Placeholder for future Skew-T Diagram
+ */
+@Composable
+private fun SkewTPlaceholderCard() {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                "Skew-T Analysis",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // Structural representation preparing for Canvas
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(150.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Graphical visualization coming soon",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                WeatherDetail("Cloud Base", "850 hPa")
+                WeatherDetail("Inversion Layer", "None")
+            }
+        }
     }
 }

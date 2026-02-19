@@ -88,8 +88,8 @@ class OpenMeteoWeatherAPI : WeatherAPI {
     companion object {
         // OpenMeteo API configuration
         private const val BASE_URL = "https://api.open-meteo.com/v1/forecast"
-        // Updated to include 80m wind, gusts, and cloud cover
-        private const val HOURLY_PARAMS = "temperature_2m,relative_humidity_2m,precipitation_probability,pressure_msl,wind_speed_10m,wind_direction_10m,wind_speed_80m,wind_direction_80m,wind_gusts_10m,cloud_cover"
+        // Updated to include 80m wind, gusts, cloud cover, and visibility
+        private const val HOURLY_PARAMS = "temperature_2m,relative_humidity_2m,precipitation_probability,pressure_msl,wind_speed_10m,wind_direction_10m,wind_speed_80m,wind_direction_80m,wind_gusts_10m,cloud_cover,visibility"
         private const val DAILY_PARAMS = "temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max,wind_direction_10m_dominant,sunrise,sunset"
         private const val FORECAST_DAYS = 7
         private const val FORECAST_HOURS = 48 // Two days of hourly data
@@ -180,6 +180,8 @@ class OpenMeteoWeatherAPI : WeatherAPI {
             val pressures = hourly["pressure_msl"] as? List<Number> ?: return null
             @Suppress("UNCHECKED_CAST")
             val cloudCovers = hourly["cloud_cover"] as? List<Number> ?: return null
+            @Suppress("UNCHECKED_CAST")
+            val visibilities = hourly["visibility"] as? List<Number>
 
             if (temperatures.isEmpty()) return null
 
@@ -191,7 +193,8 @@ class OpenMeteoWeatherAPI : WeatherAPI {
                 ),
                 temperature = temperatures.first().toDouble(),
                 humidity = humidities.firstOrNull()?.toDouble() ?: 0.0,
-                visibility = 10.0, // OpenMeteo doesn't provide visibility directly
+                // OpenMeteo returns visibility in meters. Convert to km. Max out at 10km if missing.
+                visibility = visibilities?.firstOrNull()?.toDouble()?.let { it / 1000.0 } ?: 10.0,
                 pressure = pressures.firstOrNull()?.toDouble() ?: 1013.25,
                 cloudCover = cloudCovers.firstOrNull()?.toDouble() ?: 0.0,
                 timestamp = System.currentTimeMillis() / 1000
@@ -225,6 +228,8 @@ class OpenMeteoWeatherAPI : WeatherAPI {
             val pressures = hourly["pressure_msl"] as? List<Number> ?: return emptyList()
             @Suppress("UNCHECKED_CAST")
             val cloudCovers = hourly["cloud_cover"] as? List<Number> ?: return emptyList()
+            @Suppress("UNCHECKED_CAST")
+            val visibilities = hourly["visibility"] as? List<Number>
 
             val maxPeriods = minOf(times.size, FORECAST_HOURS, temperatures.size)
 
@@ -242,7 +247,7 @@ class OpenMeteoWeatherAPI : WeatherAPI {
                         ),
                         temperature = temperatures[i].toDouble(),
                         humidity = humidities.getOrNull(i)?.toDouble() ?: 0.0,
-                        visibility = 10.0,
+                        visibility = visibilities?.getOrNull(i)?.toDouble()?.let { it / 1000.0 } ?: 10.0,
                         pressure = pressures.getOrNull(i)?.toDouble() ?: 1013.25,
                         cloudCover = cloudCovers.getOrNull(i)?.toDouble() ?: 0.0,
                         timestamp = startTime

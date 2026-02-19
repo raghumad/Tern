@@ -24,6 +24,49 @@ class WeatherCache(private val context: Context) {
         private const val WEATHER_CACHE_EXPIRATION_HOURS = 2L  // Weather data expires in 2 hours
         private const val FORECAST_CACHE_HOURS = 12L   // Forecasts last 12 hours
         private const val SPATIAL_PRECISION_METERS = 1000 // 1km weather precision
+
+        /**
+         * Perform linear and circular interpolation between two forecast periods.
+         */
+        fun interpolateWeather(start: ForecastPeriod, end: ForecastPeriod, targetTimestamp: Long): WeatherData {
+            if (targetTimestamp <= start.startTime) return start.weather
+            if (targetTimestamp >= end.startTime) return end.weather
+            
+            val totalDuration = end.startTime - start.startTime
+            val elapsed = targetTimestamp - start.startTime
+            val ratio = if (totalDuration > 0) elapsed.toDouble() / totalDuration.toDouble() else 0.0
+            
+            val startW = start.weather
+            val endW = end.weather
+            
+            val speed = startW.wind.speed + (endW.wind.speed - startW.wind.speed) * ratio
+            val gust = startW.wind.gust + (endW.wind.gust - startW.wind.gust) * ratio
+            
+            // Circular interpolation for direction
+            val startDir = startW.wind.direction
+            val endDir = endW.wind.direction
+            var diff = (endDir - startDir) % 360.0
+            if (diff < -180.0) diff += 360.0
+            if (diff > 180.0) diff -= 360.0
+            var direction = (startDir + diff * ratio) % 360.0
+            if (direction < 0) direction += 360.0
+            
+            val temp = startW.temperature + (endW.temperature - startW.temperature) * ratio
+            val humidity = startW.humidity + (endW.humidity - startW.humidity) * ratio
+            val visibility = startW.visibility + (endW.visibility - startW.visibility) * ratio
+            val pressure = startW.pressure + (endW.pressure - startW.pressure) * ratio
+            val cloud = startW.cloudCover + (endW.cloudCover - startW.cloudCover) * ratio
+            
+            return WeatherData(
+                wind = WindData(speed, direction, gust),
+                temperature = temp,
+                humidity = humidity,
+                visibility = visibility,
+                pressure = pressure,
+                cloudCover = cloud,
+                timestamp = targetTimestamp
+            )
+        }
     }
 
     // Delegate storage and indexing to generic SpatialDiskCache
