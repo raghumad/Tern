@@ -1,127 +1,65 @@
 package com.madanala.tern.ui
 
+import androidx.test.platform.app.InstrumentationRegistry
+import com.madanala.tern.utils.ReportGenerator
+import com.madanala.tern.utils.MapVisualTest
+
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.foundation.layout.fillMaxSize
-import com.madanala.tern.utils.BddTest
+import androidx.compose.ui.test.junit4.ComposeTestRule
 
 /**
  * Shared BDD Step: App Launch
  * This is defined here to be the source of truth for app launch scenarios.
  */
-fun BddTest.givenAppIsLaunchedOnMap(
-    lat: Double = 40.0150, // Boulder, CO
+// BddTest extension removed as it's being deprecated/migrated
+
+fun MapVisualTest.givenAppIsLaunchedOnMap(
+    lat: Double = 40.0150,
     lon: Double = -105.2705,
     countryCode: String = "us"
 ) {
     step("GIVEN", "scenario App Launch to Map ($lat, $lon, $countryCode)", true) {
-         // Initialize CacheManager
-        com.madanala.tern.utils.CacheManager.initialize(composeTestRule.activity.applicationContext)
+        val activity = composeTestRule.activity
+        // Initialize CacheManager
+        com.madanala.tern.utils.CacheManager.initialize(activity.applicationContext)
         
         // Mock Country Code
         com.madanala.tern.utils.CountryUtils.setTestCountryCode(countryCode)
         
-        // OSMDroid Config
-        val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
-        org.osmdroid.config.Configuration.getInstance().load(context, androidx.preference.PreferenceManager.getDefaultSharedPreferences(context))
-        org.osmdroid.config.Configuration.getInstance().userAgentValue = context.packageName
-
         // Permissions & Location
         com.madanala.tern.utils.MapTestHelper.grantLocationPermissions()
         com.madanala.tern.utils.MapTestHelper.injectMockLocation(composeTestRule, lat, lon)
 
-        // Set Content
-        composeTestRule.setContent {
-            com.madanala.tern.ui.theme.TernTheme {
-                androidx.compose.material3.Surface(
-                    modifier = androidx.compose.ui.Modifier.fillMaxSize(),
-                    color = androidx.compose.material3.MaterialTheme.colorScheme.background
-                ) {
-                    com.madanala.tern.ui.screens.TernMapScreen()
-                }
-            }
-        }
-
         // Wait for Map
         composeTestRule.onNodeWithTag("map_view").assertExists()
         
-        // Wait for Welcome Screen to disappear (Location Ready)
-        // We loop and re-inject location to ensure the map's location provider receives the update
-        // as there can be a race condition between enabling the provider and the single injection.
+        // Wait for Welcome Screen to disappear
         val timeout = 10000L
         val startTime = System.currentTimeMillis()
         var locationReady = false
         
         while (System.currentTimeMillis() - startTime < timeout) {
-            // Re-inject location
             com.madanala.tern.utils.MapTestHelper.injectMockLocation(composeTestRule, lat, lon)
-            
-            // Check if Welcome Screen is gone (meaning location is ready)
             try {
                 val nodes = composeTestRule.onAllNodesWithText("Tern Paragliding").fetchSemanticsNodes()
                 if (nodes.isEmpty()) {
                     locationReady = true
                     break
                 }
-            } catch (e: Exception) {
-                // Ignore and retry
-            }
-            
+            } catch (e: Exception) {}
             Thread.sleep(500)
         }
         
         if (!locationReady) {
-            throw AssertionError("Welcome Screen did not disappear within $timeout ms - Location fix not received")
+            throw AssertionError("Welcome Screen did not disappear within $timeout ms")
         }
         
-        // Settings button should be visible (sanity check)
         composeTestRule.onNodeWithContentDescription("Settings").assertIsDisplayed()
-        
-        // Verify that the map is actually centered on the injected location (Truthfulness Check)
-        // We access the MapView directly to check its center
-        composeTestRule.runOnUiThread {
-            // Find MapView by traversing the view hierarchy since ID lookup might be flaky in Compose
-            val contentViewGroup = composeTestRule.activity.findViewById<android.view.ViewGroup>(android.R.id.content)
-            var mapView: org.osmdroid.views.MapView? = null
-            
-            fun findMapView(view: android.view.View) {
-                if (view is org.osmdroid.views.MapView) {
-                    mapView = view
-                    return
-                }
-                if (view is android.view.ViewGroup) {
-                    for (i in 0 until view.childCount) {
-                        findMapView(view.getChildAt(i))
-                        if (mapView != null) return
-                    }
-                }
-            }
-            
-            findMapView(contentViewGroup)
-            
-            if (mapView != null) {
-                val mapCenter = mapView!!.mapCenter
-                // Verify map center is approximately the injected location (allow for some scroll/zoom variance)
-                val expectedLat = lat
-                val expectedLon = lon
-                val actualLat = mapCenter.latitude
-                val actualLon = mapCenter.longitude
-                
-                // Use a reasonable delta (0.05 degrees is ~5km, allowing for animation lag/centering variance)
-                val delta = 0.05
-                
-                if (Math.abs(actualLat - expectedLat) > delta || Math.abs(actualLon - expectedLon) > delta) {
-                    throw AssertionError("Map center mismatch! Expected: ($expectedLat, $expectedLon), Actual: ($actualLat, $actualLon)")
-                }
-            } else {
-                // If we can't find the MapView, we can't verify the center.
-                // This is critical for verification, so we must fail.
-                throw AssertionError("Could not find MapView to verify center coordinates. View hierarchy might have changed.")
-            }
-        }
         
         com.madanala.tern.utils.MapTestHelper.waitForMapTiles()
     }

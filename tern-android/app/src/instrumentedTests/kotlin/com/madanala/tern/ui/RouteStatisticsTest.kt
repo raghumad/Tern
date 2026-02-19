@@ -1,54 +1,50 @@
 package com.madanala.tern.ui
 
+import androidx.test.ext.junit.runners.AndroidJUnit4
+
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithText
-import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.madanala.tern.utils.MapVisualTest
+import com.madanala.tern.TernParaglidingActivity
 import com.madanala.tern.redux.MapAction
 import com.madanala.tern.redux.MapStore
-import com.madanala.tern.utils.BddTest
 import com.madanala.tern.utils.ReportGenerator
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import androidx.lifecycle.ViewModelProvider
 
 @RunWith(AndroidJUnit4::class)
-class RouteStatisticsTest : BddTest() {
+class RouteStatisticsTest : MapVisualTest() {
 
-    // composeTestRule is inherited from BaseUITest via BddTest<ComponentActivity>()
+    // mapComposeTestRule is inherited from MapVisualTest
 
     @Test
     fun testRouteStatisticsDisplay() {
-        val store = MapStore()
-        
-        // Create a route with known distance
-        // Waypoint 1: 0,0
-        // Waypoint 2: 0,1 (~111km)
-        val waypoint1 = com.madanala.tern.model.Waypoint(lat = 0.0, lon = 0.0, label = "Start")
-        val waypoint2 = com.madanala.tern.model.Waypoint(lat = 0.0, lon = 1.0, label = "End")
-        
-        val route = com.madanala.tern.model.Route(
-            name = "Stats Test Route",
-            waypoints = listOf(waypoint1, waypoint2)
-        )
-        
-        store.dispatch(MapAction.AddRoute(route))
-        store.dispatch(MapAction.SelectRoute(route.id))
-
         scenario("testRouteStatisticsDisplay") {
+            val activity = composeTestRule.activity as TernParaglidingActivity
+            val store = ViewModelProvider(activity)[MapStore::class.java]
+            
+            // Create a route with known distance
+            // Waypoint 1: 0,0
+            // Waypoint 2: 0,1 (~111km)
+            val waypoint1 = com.madanala.tern.model.Waypoint(lat = 0.0, lon = 0.0, label = "Start")
+            val waypoint2 = com.madanala.tern.model.Waypoint(lat = 0.0, lon = 1.0, label = "End")
+            
+            val route = com.madanala.tern.model.Route(
+                name = "Stats Test Route",
+                waypoints = listOf(waypoint1, waypoint2)
+            )
+            
+            store.dispatch(MapAction.AddRoute(route))
+            store.dispatch(MapAction.SelectRoute(route.id))
             given("I have a route selected and RouteDetailPanel is visible") {
-                ReportGenerator.logStep("SETUP", "Initializing RouteDetailPanel with selected route")
-                composeTestRule.setContent {
-                    com.madanala.tern.ui.components.RouteDetailPanel(
-                        store = store,
-                        isVisible = true,
-                        onDismiss = {}
-                    )
-                }
-                ReportGenerator.logStep("VERIFY", "Route name is displayed")
+                ReportGenerator.logStep("SETUP", "Selected route should trigger panel in real activity")
+                composeTestRule.waitForIdle()
                 composeTestRule.onNodeWithText("Stats Test Route").assertIsDisplayed()
             }
 

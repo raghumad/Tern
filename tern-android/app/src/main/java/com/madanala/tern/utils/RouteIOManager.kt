@@ -89,6 +89,7 @@ object RouteIOManager {
      * Share a Route as a file (XCTSK or CUP)
      */
     fun shareRouteFile(context: Context, route: Route, format: String = "xctsk") {
+        android.util.Log.d("RouteIOManager", "Sharing route: ${route.name} in format: $format")
         val fileName = "${route.name.replace(" ", "_")}.$format"
         val file = File(context.cacheDir, fileName)
         

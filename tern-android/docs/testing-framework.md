@@ -92,6 +92,45 @@ All Python scripts are executed conditionally based on Gradle properties and gra
 | **Full Automation** | `includeFullAutomation=true` | Zero-step automated testing | +20-60 min | Python 3.6+ + Android SDK |
 | **Combined** | All properties | Complete production validation | 30-120 min | All dependencies |
 
+## Reliability & Determinism
+
+To ensure a 100% pass rate in the instrumentation suite, we employ several deterministic synchronization techniques:
+
+### 1. Proactive Cache Clearing
+- **Issue**: Stale disk caches (Mapbox, Airspace) can cause race conditions or inconsistent initial states.
+- **Fix**: `MapVisualTest` proactively deletes these caches using `InstrumentationRegistry` *before* the activity launches.
+
+### 2. Multi-Stage Log Synchronization (`waitForLogMatching`)
+- **Issue**: `waitForIdle()` and `waitForMapToRender()` may not account for asynchronous background tasks completing (e.g., data ingestion).
+- **Fix**: Use `ReportGenerator.waitForLogMatching(tag, regex)` to block until a specific internal state is logged. This is essential for complex data flows like Airspace rendering.
+
+### 3. Permission-Aware Launching
+- **Issue**: `GrantPermissionRule` can trigger activity restarts on newer Android APIs (e.g., API 35) if permissions are granted after `setContent`.
+- **Fix**:
+    - Added `GrantPermissionRule` to `MapVisualTest` to automatically grant `ACCESS_FINE_LOCATION` and `ACCESS_COARSE_LOCATION`.
+    - Use the `givenAppIsLaunchedOnMap()` helper to ensure mocking and initialization occur before the Compose hierarchy is tested.
+
+## Visual Regression Review
+
+The framework includes a Python-based visual reviewer to manage screenshot "goldens" and bad states.
+
+### 1. Starting the Reviewer
+After running tests, start the local review server:
+```bash
+python3 scripts/visual_reviewer.py
+```
+This serves the test reports on `http://localhost:8080`.
+
+### 2. Approving/Rejecting Snapshots
+Open the test report in your browser and use the interactive buttons:
+- **✅ Approve as Golden**: Copies the screenshot to `assets/goldens/`. Future tests will fail if they don't match this state.
+- **❌ Wrong / Reject**: Blacklists the current screenshot hash in `blacklist.json`. Future tests will fail if they produce this specific "bad" state (e.g., unrendered map tiles).
+
+### 3. Troubleshooting
+- **Server Not Starting**: Ensure `build/reports/androidTests/managedDevice/debug/allDevices` exists (run `./gradlew testAll` first).
+- **CORS Errors**: If buttons don't work, check if `visual_reviewer.py` is running on the expected port (8080).
+- **Stuck Loading**: Refresh the page or restart the Python server.
+
 ## Output Files
 
 ### Always Generated

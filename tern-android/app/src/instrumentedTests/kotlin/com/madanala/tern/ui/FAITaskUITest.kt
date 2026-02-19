@@ -1,32 +1,30 @@
 package com.madanala.tern.ui
 
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.*
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.madanala.tern.redux.MapStore
-import com.madanala.tern.ui.components.EditWaypointScreen
-import com.madanala.tern.ui.components.RouteDetailPanel
 import com.madanala.tern.redux.MapAction
 import com.madanala.tern.model.Route
 import com.madanala.tern.model.Waypoint
-import com.madanala.tern.utils.BddTest
+import com.madanala.tern.utils.MapVisualTest
+import androidx.lifecycle.ViewModelProvider
+import java.util.UUID
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.util.UUID
 
 @RunWith(AndroidJUnit4::class)
-class FAITaskUITest : BddTest() {
-
-    private val store = MapStore()
+class FAITaskUITest : MapVisualTest() {
 
     @Test
     fun scenario1_configureFAITaskParameters() {
         scenario("Configure FAI Task Parameters") {
+            // Ensure app is launched and ready
+            givenAppIsLaunchedOnMap()
+            
+            val activity = composeTestRule.activity
+            val store = ViewModelProvider(activity)[MapStore::class.java]
             val routeId = UUID.randomUUID().toString()
             val waypointId = UUID.randomUUID().toString()
-            var showEditScreen by mutableStateOf(true)
 
             given("I have created a route with a waypoint") {
                 val route = Route(
@@ -53,13 +51,8 @@ class FAITaskUITest : BddTest() {
             }
 
             `when`("I open the edit screen for the waypoint") {
-                composeTestRule.setContent {
-                    if (showEditScreen) {
-                        EditWaypointScreen(store = store, onDismiss = { showEditScreen = false })
-                    } else {
-                        RouteDetailPanel(store = store, isVisible = true, onDismiss = {})
-                    }
-                }
+                store.dispatch(MapAction.SelectWaypoint(routeId, waypointId))
+                composeTestRule.waitForIdle()
             }
 
             and("I set the radius to 3000m") {
@@ -78,8 +71,7 @@ class FAITaskUITest : BddTest() {
             }
 
             and("I click Done") {
-                composeTestRule.onNode(hasText("Done") and hasClickAction()).assertExists()
-                showEditScreen = false
+                composeTestRule.onNode(hasText("Done") and hasClickAction()).performClick()
                 composeTestRule.waitForIdle()
             }
 
@@ -105,9 +97,12 @@ class FAITaskUITest : BddTest() {
     @Test
     fun scenario2_changeWaypointTypeToSpeedSection() {
         scenario("Change Waypoint Type to Speed Section") {
+            givenAppIsLaunchedOnMap()
+            
+            val activity = composeTestRule.activity
+            val store = ViewModelProvider(activity)[MapStore::class.java]
             val routeId = UUID.randomUUID().toString()
             val waypointId = UUID.randomUUID().toString()
-            var showEditScreen by mutableStateOf(true)
 
             given("I have created a route with a waypoint") {
                 val route = Route(
@@ -134,21 +129,15 @@ class FAITaskUITest : BddTest() {
             }
 
             `when`("I open the edit screen and select Start Speed Section") {
-                composeTestRule.setContent {
-                    if (showEditScreen) {
-                        EditWaypointScreen(store = store, onDismiss = { showEditScreen = false })
-                    } else {
-                        RouteDetailPanel(store = store, isVisible = true, onDismiss = {})
-                    }
-                }
+                store.dispatch(MapAction.SelectWaypoint(routeId, waypointId))
+                composeTestRule.waitForIdle()
 
                 composeTestRule.onNodeWithText("Start Speed Section").performScrollTo().assertExists()
                 store.dispatch(MapAction.UpdateWaypointType(routeId, waypointId, Waypoint.Type.SSS))
             }
 
             and("I click Done") {
-                composeTestRule.onNode(hasText("Done") and hasClickAction()).assertExists()
-                showEditScreen = false
+                composeTestRule.onNode(hasText("Done") and hasClickAction()).performClick()
                 composeTestRule.waitForIdle()
             }
 
@@ -168,6 +157,10 @@ class FAITaskUITest : BddTest() {
     @Test
     fun scenario3_createCompleteCompetitionTask() {
         scenario("Create Complete Competition Task") {
+            givenAppIsLaunchedOnMap()
+            
+            val activity = composeTestRule.activity
+            val store = ViewModelProvider(activity)[MapStore::class.java]
             val routeId = UUID.randomUUID().toString()
 
             given("I have created a new route") {
@@ -191,7 +184,7 @@ class FAITaskUITest : BddTest() {
                     r != null && r.waypoints.size >= 2
                 }
                 
-                val startGateId = store.state.value.routes.first().waypoints.last().id
+                val startGateId = store.state.value.routes.first { it.id == routeId }.waypoints.last().id
                 store.dispatch(MapAction.UpdateWaypointType(routeId, startGateId, Waypoint.Type.SSS))
                 store.dispatch(MapAction.UpdateWaypointRadius(routeId, startGateId, 2000.0))
                 
@@ -199,28 +192,30 @@ class FAITaskUITest : BddTest() {
                 store.dispatch(MapAction.AddWaypointToRoute(routeId, 0.2, 0.2, Waypoint.Type.TURNPOINT, "Turnpoint 1"))
                 
                 composeTestRule.waitUntil(timeoutMillis = 5000) {
-                    store.state.value.routes.first().waypoints.size >= 3
+                    store.state.value.routes.first { it.id == routeId }.waypoints.size >= 3
                 }
-                val tp1Id = store.state.value.routes.first().waypoints.last().id
+                val tp1Id = store.state.value.routes.first { it.id == routeId }.waypoints.last().id
                 store.dispatch(MapAction.UpdateWaypointRadius(routeId, tp1Id, 400.0))
                 
                 // Add Goal
                 store.dispatch(MapAction.AddWaypointToRoute(routeId, 0.3, 0.3, Waypoint.Type.TURNPOINT, "Goal"))
                 
                 composeTestRule.waitUntil(timeoutMillis = 5000) {
-                    store.state.value.routes.first().waypoints.size >= 4
+                    store.state.value.routes.first { it.id == routeId }.waypoints.size >= 4
                 }
-                val goalId = store.state.value.routes.first().waypoints.last().id
+                val goalId = store.state.value.routes.first { it.id == routeId }.waypoints.last().id
                 store.dispatch(MapAction.UpdateWaypointType(routeId, goalId, Waypoint.Type.GOAL))
                 store.dispatch(MapAction.UpdateWaypointRadius(routeId, goalId, 1000.0))
             }
 
-            then("The route waypoint list should show all task parameters") {
+            this.then("The route waypoint list should show all task parameters") {
                 store.dispatch(MapAction.SelectRoute(routeId))
                 
-                composeTestRule.setContent {
-                    RouteDetailPanel(store = store, isVisible = true, onDismiss = {})
+                composeTestRule.waitUntil(timeoutMillis = 5000) {
+                    composeTestRule.onAllNodesWithTag("RouteDetailPanel").fetchSemanticsNodes().isNotEmpty()
                 }
+                
+                composeTestRule.onNodeWithTag("RouteDetailPanel").assertExists()
                 
                 composeTestRule.onNodeWithTag("WaypointList").performScrollToNode(hasText("Start Speed Section", substring = true))
                 composeTestRule.onAllNodesWithText("Start Speed Section", substring = true).onFirst().assertExists()

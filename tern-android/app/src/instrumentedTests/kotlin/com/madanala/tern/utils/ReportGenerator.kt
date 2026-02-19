@@ -6,6 +6,7 @@ import androidx.test.services.storage.TestStorage
 import java.io.BufferedWriter
 import java.io.OutputStreamWriter
 import java.util.concurrent.ConcurrentLinkedQueue
+import android.util.Log
 
 object ReportGenerator {
 
@@ -16,25 +17,40 @@ object ReportGenerator {
     
     var currentTestName: String? = null
 
-    data class Step(val type: String, val description: String, val status: String = "PASS", val screenshotPath: String? = null)
+    data class Step(val type: String, val description: String, val status: String = "PASS", val screenshotPath: String? = null, val screenshotHash: String? = null)
     data class ScenarioData(val name: String, val steps: List<Step>, val logcat: String?)
 
-    fun logStep(type: String, description: String, status: String = "PASS", screenshotPath: String? = null) {
-        currentSteps.add(Step(type, description, status, screenshotPath))
+    fun logStep(type: String, description: String, status: String = "PASS", screenshotPath: String? = null, screenshotHash: String? = null) {
+        currentSteps.add(Step(type, description, status, screenshotPath, screenshotHash))
     }
 
-    fun captureScreenshot(name: String): String? {
+    data class ScreenshotResult(val path: String, val hash: String)
+
+    fun captureScreenshot(name: String): ScreenshotResult? {
         // Sanitize filename: replace non-alphanumeric characters (except underscores) with underscores
         val sanitizedName = name.replace(Regex("[^a-zA-Z0-9_]"), "_")
         val filename = "${sanitizedName}_${System.currentTimeMillis()}.png"
         try {
             val bitmap = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
             if (bitmap != null) {
+                val currentHash = VisualValidator.calculateHash(bitmap)
+                
+                if (VisualValidator.isBlank(bitmap)) {
+                    Log.w("ReportGenerator", "Screenshot '$name' (hash: $currentHash) is BLANK! Validation failing.")
+                    throw AssertionError("Visual Validation Failed: Screenshot '$name' is blank/unrendered.")
+                }
+
+                val testNameForBlacklist = currentTestName
+                if (testNameForBlacklist != null && VisualValidator.isBlacklisted(testNameForBlacklist, bitmap)) {
+                    Log.w("ReportGenerator", "Screenshot '$name' (hash: $currentHash) matches a BLACKLISTED bad state! Validation failing.")
+                    throw AssertionError("Visual Validation Failed: Screenshot '$name' matches a known-bad state for test '$testNameForBlacklist'.")
+                }
+                
                 testStorage.openOutputFile(filename).use { out ->
                     bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
                 }
                 screenshots.add(filename)
-                return filename
+                return ScreenshotResult(filename, currentHash)
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -98,7 +114,7 @@ object ReportGenerator {
         val match = log.lineSequence()
             .filter { it.contains(tag) }
             .mapNotNull { regex.find(it) }
-            .firstOrNull()
+            .lastOrNull()
 
         if (match == null) {
             val filteredLog = log.lines().filter { 
@@ -111,7 +127,6 @@ object ReportGenerator {
                 it.contains("AirspaceCache") ||
                 it.contains("GeoJsonUtils") ||
                 it.contains("MapOverlayCacheUtils") ||
-                it.contains("BddTest") ||
                 it.contains("BddTest")
             }.takeLast(100).joinToString("\n")
             println("DEBUG: Assertion Failed. Tail:\n$filteredLog")
@@ -129,11 +144,10 @@ object ReportGenerator {
                 it.contains("AirspaceCache") ||
                 it.contains("GeoJsonUtils") ||
                 it.contains("MapOverlayCacheUtils") ||
-                it.contains("BddTest") ||
                 it.contains("BddTest")
             }.takeLast(100).joinToString("\n")
             println("DEBUG: Assertion Failed (Validation). Tail:\n$filteredLog")
-            throw AssertionError("XXX FAILURE XXX: Log message matched pattern but failed validation. Match: ${match.value}\n\nFiltered Logcat Tail:\n$filteredLog")
+            throw AssertionError("XXX FAILURE XXX: Log message matched pattern but failed validation. Last Match: ${match.value}\n\nFiltered Logcat Tail:\n$filteredLog")
         }
     }
 
@@ -153,6 +167,39 @@ object ReportGenerator {
         val finalLog = captureLogCat()
         val tail = finalLog.lines().takeLast(20).joinToString("\n")
         throw AssertionError("Timed out waiting for log message. Tag: $tag, Fragment: $messageFragment. \nLast 20 lines of Logcat:\n$tail")
+    }
+
+    /**
+     * Waits for a log message that matches the given regex AND satisfies the validator.
+     */
+    fun waitForLogMatching(tag: String, regexPattern: String, timeoutMillis: Long = 20000, validator: (MatchResult) -> Boolean) {
+        val startTime = System.currentTimeMillis()
+        val regex = Regex(regexPattern)
+        
+        while (System.currentTimeMillis() - startTime < timeoutMillis) {
+            val log = captureLogCat()
+            val match = log.lineSequence()
+                .filter { it.contains(tag) }
+                .mapNotNull { regex.find(it) }
+                .lastOrNull()
+
+            if (match != null && validator(match)) {
+                return
+            }
+            
+            try {
+                Thread.sleep(500)
+            } catch (e: InterruptedException) {
+                e.printStackTrace()
+            }
+        }
+        
+        val log = captureLogCat()
+        val filteredLog = log.lines().filter { 
+            it.contains("OverlayManager") || it.contains("Airspace")
+        }.takeLast(20).joinToString("\n")
+        
+        throw AssertionError("Timed out waiting for log matching regex: $regexPattern in tag: $tag. \nLast matching logs:\n$filteredLog")
     }
 
     fun finishScenario(name: String, logCatOutput: String?) {
@@ -175,7 +222,63 @@ object ReportGenerator {
             writer.write("details { margin-top: 20px; border: 1px solid #ccc; padding: 10px; border-radius: 5px; background-color: #f9f9f9; }")
             writer.write("summary { cursor: pointer; font-weight: bold; margin-bottom: 10px; }")
             writer.write("pre { white-space: pre-wrap; word-wrap: break-word; font-family: monospace; font-size: 12px; max-height: 500px; overflow-y: auto; }")
-            writer.write("</style></head><body>")
+            writer.write(".approve-btn { background-color: #4CAF50; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin: 5px; }")
+            writer.write(".reject-btn { background-color: #f44336; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin: 5px; }")
+            writer.write("</style>")
+            writer.write("<script>")
+            writer.write("async function approve(filename, testName, btn) {")
+            writer.write("  const originalText = btn.innerText;")
+            writer.write("  btn.innerText = '⌛ Processing...';")
+            writer.write("  btn.disabled = true;")
+            writer.write("  try {")
+            writer.write("    const response = await fetch('http://localhost:8080/approve', {")
+            writer.write("      method: 'POST',")
+            writer.write("      headers: { 'Content-Type': 'application/json' },")
+            writer.write("      body: JSON.stringify({ filename, test_name: testName })")
+            writer.write("    });")
+            writer.write("    if (response.ok) {")
+            writer.write("      btn.innerText = '✅ Approved';")
+            writer.write("      btn.style.backgroundColor = '#2E7D32';")
+            writer.write("      btn.nextElementSibling.style.display = 'none';") // Hide reject button
+            writer.write("    } else {")
+            writer.write("      alert('Failed to approve. Is visual_reviewer.py running?');")
+            writer.write("      btn.innerText = originalText;")
+            writer.write("      btn.disabled = false;")
+            writer.write("    }")
+            writer.write("  } catch (e) {")
+            writer.write("    alert('Error: ' + e.message + '. Ensure visual_reviewer.py is running on port 8080');")
+            writer.write("    btn.innerText = originalText;")
+            writer.write("    btn.disabled = false;")
+            writer.write("  }")
+            writer.write("}")
+            writer.write("async function reject(filename, testName, hash, btn) {")
+            writer.write("  if (!confirm('Mark this image as WRONG? It will be blacklisted.')) return;")
+            writer.write("  const originalText = btn.innerText;")
+            writer.write("  btn.innerText = '⌛ Processing...';")
+            writer.write("  btn.disabled = true;")
+            writer.write("  try {")
+            writer.write("    const response = await fetch('http://localhost:8080/reject', {")
+            writer.write("      method: 'POST',")
+            writer.write("      headers: { 'Content-Type': 'application/json' },")
+            writer.write("      body: JSON.stringify({ filename, test_name: testName, hash: hash })")
+            writer.write("    });")
+            writer.write("    if (response.ok) {")
+            writer.write("      btn.innerText = '❌ Rejected & Blacklisted';")
+            writer.write("      btn.style.backgroundColor = '#C62828';")
+            writer.write("      btn.previousElementSibling.style.display = 'none';") // Hide approve button
+            writer.write("    } else {")
+            writer.write("      alert('Failed to reject. Is visual_reviewer.py running?');")
+            writer.write("      btn.innerText = originalText;")
+            writer.write("      btn.disabled = false;")
+            writer.write("    }")
+            writer.write("  } catch (e) {")
+            writer.write("    alert('Error: ' + e.message + '. Ensure visual_reviewer.py is running on port 8080');")
+            writer.write("    btn.innerText = originalText;")
+            writer.write("    btn.disabled = false;")
+            writer.write("  }")
+            writer.write("}")
+            writer.write("</script>")
+            writer.write("</head><body>")
             
             writer.write("<h1>Test Report: $testName</h1>")
             
@@ -192,7 +295,11 @@ object ReportGenerator {
                     writer.write("<div class='step ${step.status}'>")
                     writer.write("<strong>${step.type}</strong>: ${step.description}")
                     if (step.screenshotPath != null) {
-                        writer.write("<br/><details><summary>Screenshot</summary><img src='${step.screenshotPath}' /></details>")
+                        writer.write("<br/><details open><summary>Screenshot</summary>")
+                        writer.write("<img src='${step.screenshotPath}' /><br/>")
+                        writer.write("<button class='approve-btn' onclick=\"approve('${step.screenshotPath}', '${testName}', this)\">✅ Approve as Golden</button>")
+                        writer.write("<button class='reject-btn' onclick=\"reject('${step.screenshotPath}', '${testName}', '${step.screenshotHash}', this)\">❌ Wrong / Reject</button>")
+                        writer.write("</details>")
                     }
                     writer.write("</div>")
                 }

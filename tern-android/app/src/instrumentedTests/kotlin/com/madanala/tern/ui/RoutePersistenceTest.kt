@@ -4,9 +4,9 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.madanala.tern.model.Route
 import com.madanala.tern.model.Waypoint
-import com.madanala.tern.utils.BddTest
 import com.madanala.tern.utils.CacheManager
 import com.madanala.tern.utils.RouteCache
+import com.madanala.tern.utils.MapVisualTest
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -15,7 +15,7 @@ import java.io.File
 import java.util.UUID
 
 @RunWith(AndroidJUnit4::class)
-class RoutePersistenceTest : BddTest() {
+class RoutePersistenceTest : MapVisualTest() {
 
     private lateinit var routeCache: RouteCache
     private lateinit var testRoute: Route
@@ -54,7 +54,7 @@ class RoutePersistenceTest : BddTest() {
             routeCache.cacheRoute(testRoute)
         }
 
-        then("the route should be retrieved from cache") {
+        this.then("the route should be retrieved from cache") {
             assertTrue("Route should be marked as cached", routeCache.isCached(testRoute.id))
             
             val cachedRoute = routeCache.getCachedRoute(testRoute.id)
@@ -64,7 +64,7 @@ class RoutePersistenceTest : BddTest() {
             assertEquals("First waypoint label should match", "Launch", cachedRoute?.waypoints?.first()?.label)
         }
 
-        then("the cache files should exist on disk") {
+        this.then("the cache files should exist on disk") {
             val context = InstrumentationRegistry.getInstrumentation().targetContext
             val cacheDir = File(context.cacheDir, "route_cache")
             val flexFile = File(cacheDir, "${testRoute.id}_route.flex")
@@ -75,7 +75,7 @@ class RoutePersistenceTest : BddTest() {
             assertTrue("FlexBuffer file should not be empty", flexFile.length() > 0)
         }
         
-        then("getAllCachedRoutes should include the new route") {
+        this.then("getAllCachedRoutes should include the new route") {
             val allRoutes = routeCache.getAllCachedRoutes()
             assertTrue("All routes should contain the new route", allRoutes.any { it.id == testRoute.id })
         }

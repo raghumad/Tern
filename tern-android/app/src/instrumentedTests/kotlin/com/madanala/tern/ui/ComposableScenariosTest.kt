@@ -1,12 +1,12 @@
 package com.madanala.tern.ui
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.madanala.tern.utils.BddTest
+import com.madanala.tern.utils.MapVisualTest
 import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
-class ComposableScenariosTest : BddTest() {
+class ComposableScenariosTest : MapVisualTest() {
 
     // --- Reusable Scenario Logic ---
     

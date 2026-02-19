@@ -24,8 +24,8 @@ class UniversalCountryCacheManager(
     private val mutex = Mutex()
     private val coroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
-    // Smart country caching - simplified for working implementation
-    private val cachedCountries = mutableSetOf<String>()
+    // Smart country caching - thread-safe set for concurrent access
+    private val cachedCountries = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
     private var lastLocation: GeoPoint? = null
     private var currentCountry: String? = null
 
@@ -96,35 +96,33 @@ class UniversalCountryCacheManager(
      * Main location change handler with smart country management
      */
     private suspend fun handleLocationChange(location: GeoPoint) {
+        val newCountry = getCurrentCountry(location)
+        if (newCountry == null) {
+            Log.w(TAG, "Could not determine country for location: $location")
+            return
+        }
+
+        var countryCrossed = false
         mutex.withLock {
-            val newCountry = getCurrentCountry(location)
-
-            if (newCountry == null) {
-                Log.w(TAG, "Could not determine country for location: $location")
-                return@withLock
-            }
-
-            // Check if we've crossed a border
             if (newCountry != currentCountry) {
                 handleBorderCrossing(currentCountry, newCountry, location)
                 currentCountry = newCountry
+                countryCrossed = true
             } else {
-                // Same country - just update access time if cached
                 updateCountryAccess(newCountry)
-                
-                // Check if it's actually cached in the underlying caches (self-healing)
-                // If AirspaceCache invalidated the file due to corruption, we need to re-download
-                if (!airspaceCache.isCached(newCountry) || !pgSpotCache.isCached(newCountry)) {
-                     Log.w(TAG, "Country $newCountry is in cache set but missing from disk caches. Reloading.")
-                     preloadCountry(newCountry)
-                }
-                
-                // Aviation Safety: Continuously check for border proximity
-                // This ensures that if we approach a border without crossing it yet,
-                // the adjacent airspace is preloaded (critical for X-Alps style flights)
-                coroutineScope.launch {
-                    preloadAdjacentCountries(newCountry, location)
-                }
+            }
+        }
+
+        // Check and preload OUTSIDE the main mutex lock to avoid deadlocks and blocking I/O
+        if (!countryCrossed) {
+            if (!airspaceCache.isCached(newCountry) || !pgSpotCache.isCached(newCountry)) {
+                Log.w(TAG, "Country $newCountry missing from disk caches. Reloading.")
+                preloadCountry(newCountry)
+            }
+            
+            // Aviation Safety: Continuously check for border proximity
+            coroutineScope.launch {
+                preloadAdjacentCountries(newCountry, location)
             }
         }
     }
@@ -197,9 +195,7 @@ class UniversalCountryCacheManager(
             Log.d(TAG, "Preloading country for all overlay types: $country")
             
             // Optimistically add to cachedCountries so queries can attempt to read from disk immediately
-            mutex.withLock {
-                cachedCountries.add(country)
-            }
+            cachedCountries.add(country)
 
             // 1. Download PG Spots (delegated to cache)
             Log.d(TAG, "Triggering PG spot download for $country")
@@ -320,7 +316,7 @@ class UniversalCountryCacheManager(
             recordCacheEviction(lruCountry, metadata.accessCount)
         }
 
-        // Remove from main cache if present
+        // Remove from main cache
         cachedCountries.remove(lruCountry)
     }
 
@@ -393,11 +389,10 @@ class UniversalCountryCacheManager(
     ): List<com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature> {
         Log.v(TAG, "Multi-country spatial query: center=$center, radius=$radiusKm km")
 
-        return mutex.withLock {
-            val allFeatures = mutableListOf<com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature>()
+        val allFeatures = mutableListOf<com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature>()
 
-            // Query each cached country for relevant features
-            cachedCountries.forEach { countryCode ->
+        // Query each cached country for relevant features - no lock needed for reading thread-safe set
+        cachedCountries.forEach { countryCode ->
                 try {
                     val features = queryCountryFeatures(center, countryCode, radiusKm)
                     allFeatures.addAll(features)
@@ -407,9 +402,8 @@ class UniversalCountryCacheManager(
                 }
             }
 
-            Log.d(TAG, "Total features from ${cachedCountries.size} countries: ${allFeatures.size}")
-            allFeatures
-        }
+        Log.d(TAG, "Total features from ${cachedCountries.size} countries: ${allFeatures.size}")
+        return allFeatures
     }
 
     /**

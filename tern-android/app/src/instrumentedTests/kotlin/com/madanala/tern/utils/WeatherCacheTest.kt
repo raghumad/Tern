@@ -3,6 +3,7 @@ package com.madanala.tern.utils
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.madanala.tern.utils.WeatherForecast
+import com.madanala.tern.utils.MapVisualTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -12,7 +13,7 @@ import org.osmdroid.util.GeoPoint
 import java.util.UUID
 
 @RunWith(AndroidJUnit4::class)
-class WeatherCacheTest : BddTest() {
+class WeatherCacheTest : MapVisualTest() {
 
     private lateinit var weatherCache: WeatherCache
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
@@ -48,7 +49,7 @@ class WeatherCacheTest : BddTest() {
                 retrievedForecasts = weatherCache.queryNearbyWeather(routeId, location, 10.0) // 10 miles radius
             }
 
-            then("the cached forecast should be returned") {
+            this.then("the cached forecast should be returned") {
                 assertTrue(retrievedForecasts!!.isNotEmpty())
                 val retrieved = retrievedForecasts!!.first()
                 assertEquals(forecast!!.daily.size, retrieved.daily.size)

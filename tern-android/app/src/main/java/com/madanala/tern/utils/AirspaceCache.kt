@@ -45,6 +45,11 @@ class AirspaceCache(context: Context) {
         baseUrl = url
     }
 
+    @androidx.annotation.VisibleForTesting
+    fun resetBaseUrlForTesting() {
+        baseUrl = "https://storage.googleapis.com/29f98e10-a489-4c82-ae5e-489dbcd4912f"
+    }
+
     suspend fun downloadAndCache(countryCode: String): Boolean {
         Log.d(TAG, "Attempting to download airspaces for country: $countryCode")
 
