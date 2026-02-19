@@ -103,4 +103,48 @@ class WeatherUXTest : BddTest() {
             }
         }
     }
+
+    @Test
+    fun testTrajectoryInterpolationDisplay() {
+        scenario("Verify Trajectory Interpolation Display") {
+            val now = System.currentTimeMillis() / 1000
+            val forecast = WeatherForecast(
+                current = null,
+                hourly = listOf(
+                    ForecastPeriod(
+                        startTime = now,
+                        endTime = now + 3600,
+                        weather = WeatherData(WindData(10.0, 180.0, 15.0), 20.0, 50.0, 10.0, 1013.0, 0.0, now),
+                        shortForecast = "12:00"
+                    ),
+                    ForecastPeriod(
+                        startTime = now + 3600,
+                        endTime = now + 7200,
+                        weather = WeatherData(WindData(20.0, 180.0, 25.0), 20.0, 50.0, 10.0, 1013.0, 0.0, now + 3600),
+                        shortForecast = "13:00"
+                    )
+                ),
+                daily = emptyList()
+            )
+
+            given("an hourly forecast where 12:00 has 10kt wind and 13:00 has 20kt wind") {
+                // Setup done
+            }
+
+            `when`("the pilot views the route weather panel at an estimated arrival time of 12:30") {
+                composeTestRule.setContent {
+                    WeatherDetailsDialog(
+                        forecast = forecast,
+                        targetArrivalTimestamp = now + 1800, // half hour later
+                        onDismiss = {}
+                    )
+                }
+            }
+
+            this.then("the UI should display an interpolated wind speed of 15 kt") {
+                composeTestRule.onNodeWithText("Estimated Arrival Weather").assertIsDisplayed()
+                composeTestRule.onNodeWithText("15 kt").assertIsDisplayed()
+            }
+        }
+    }
 }

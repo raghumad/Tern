@@ -65,6 +65,7 @@
 ### 5.2 BDD Framework
 *   **DSL**: Custom `BddTest` class with `given`, `when`, `then` syntax.
 *   **Global Steps**: Reusable setup functions (e.g., `givenAppIsLaunchedOnMap`) to reduce boilerplate.
+*   **Thumb Rule for New Features**: **EVERY** new feature or significant component must be accompanied by a BDD-style automated test verifying its core user-facing scenarios. Manual verification should only be a supplementary check, not the primary validation method.
 
 ## 6. Performance Monitoring
 

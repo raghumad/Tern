@@ -83,4 +83,85 @@ class PGSpotWeatherTest : BddTest() {
             }
         }
     }
+
+    @Test
+    fun verifyVisibilityDisplay() {
+        scenario("Verify Visibility Display") {
+            given("the OpenMeteo mock server returns a forecast with visibility of 15000 meters") {
+                val forecast = WeatherForecast(
+                    current = com.madanala.tern.utils.WeatherData(
+                        wind = com.madanala.tern.utils.WindData(0.0, 0.0, 0.0),
+                        temperature = 20.0,
+                        humidity = 50.0,
+                        visibility = 15.0, // 15000 meters = 15.0 km
+                        pressure = 1013.25,
+                        cloudCover = 0.0,
+                        timestamp = System.currentTimeMillis() / 1000
+                    ),
+                    hourly = emptyList(),
+                    daily = emptyList()
+                )
+                
+                // When the pilot opens the Weather Details screen for a PG Spot
+                composeTestRule.setContent {
+                    WeatherDetailsDialog(
+                        forecast = forecast,
+                        spotName = "Test Spot",
+                        isLoading = false,
+                        onDismiss = {}
+                    )
+                }
+            }
+
+            then("the 'Visibility' detail field should display '15 km'") {
+                composeTestRule.onNodeWithText("15 km").assertIsDisplayed()
+            }
+        }
+    }
+
+    @Test
+    fun testSkewTPlaceholderIsVisible() {
+        scenario("Verify Skew-T Analysis Placeholder") {
+            given("the pilot opens the Weather Details screen for any PG Spot") {
+                val forecast = WeatherForecast(
+                    current = com.madanala.tern.utils.WeatherData(
+                        wind = com.madanala.tern.utils.WindData(0.0, 0.0, 0.0),
+                        temperature = 20.0,
+                        humidity = 50.0,
+                        visibility = 10.0,
+                        pressure = 1013.25,
+                        cloudCover = 0.0,
+                        timestamp = System.currentTimeMillis() / 1000
+                    ),
+                    hourly = emptyList(),
+                    daily = emptyList()
+                )
+                
+                composeTestRule.setContent {
+                    WeatherDetailsDialog(
+                        forecast = forecast,
+                        spotName = "Test Spot",
+                        isLoading = false,
+                        onDismiss = {}
+                    )
+                }
+            }
+
+            `when`("the pilot scrolls down the details dialog") {
+                // Compose will automatically scroll to nodes if needed for assertion
+            }
+
+            then("they should see a 'Skew-T Analysis' section") {
+                composeTestRule.onNodeWithText("Skew-T Analysis").assertIsDisplayed()
+            }
+            
+            and("they should see a placeholder for 'Cloud Base'") {
+                composeTestRule.onNodeWithText("Cloud Base").assertIsDisplayed()
+            }
+            
+            and("they should see a placeholder for 'Inversion Layer'") {
+                composeTestRule.onNodeWithText("Inversion Layer").assertIsDisplayed()
+            }
+        }
+    }
 }
