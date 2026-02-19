@@ -62,6 +62,11 @@ class PGSpotCache(context: Context) {
         baseUrl = url
     }
 
+    @androidx.annotation.VisibleForTesting
+    fun resetBaseUrlForTesting() {
+        baseUrl = "https://www.paraglidingearth.com"
+    }
+
     /**
      * Cache PG spots data from standard GeoJSON API
      */

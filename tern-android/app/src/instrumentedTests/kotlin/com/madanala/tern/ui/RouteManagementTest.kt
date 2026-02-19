@@ -1,44 +1,37 @@
 package com.madanala.tern.ui
 
-import androidx.activity.ComponentActivity
-import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.onAllNodesWithContentDescription
-import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.onNodeWithContentDescription
-import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.madanala.tern.redux.MapAction
+import androidx.lifecycle.ViewModelProvider
 import com.madanala.tern.redux.MapStore
-import com.madanala.tern.ui.screens.RouteListScreen
-import com.madanala.tern.utils.ScreenshotHelper
-import com.madanala.tern.utils.BddTest
+import com.madanala.tern.utils.ReportGenerator
+
+import androidx.activity.ComponentActivity
+import androidx.compose.ui.test.*
+import com.madanala.tern.utils.MapVisualTest
+import com.madanala.tern.TernParaglidingActivity
+import com.madanala.tern.redux.MapAction
 import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
-class RouteManagementTest : BddTest() {
+class RouteManagementTest : MapVisualTest() {
 
-    // composeTestRule is inherited from BaseUITest via BddTest<ComponentActivity>()
+    // mapComposeTestRule is inherited from MapVisualTest
 
     @Test
     fun testCreateRenameDeleteRoute() {
-        val store = MapStore()
-
         scenario("testCreateRenameDeleteRoute") {
+            val activity = composeTestRule.activity as TernParaglidingActivity
+            val store = ViewModelProvider(activity)[MapStore::class.java]
             given("I have a fresh map store and RouteListScreen is visible") {
-                com.madanala.tern.utils.ReportGenerator.logStep("SETUP", "Initializing RouteListScreen with fresh store")
-                composeTestRule.setContent {
-                    RouteListScreen(
-                        store = store,
-                        onRouteSelected = { /* No-op for this test */ },
-                        onDismiss = { /* No-op */ }
-                    )
-                }
+                com.madanala.tern.utils.ReportGenerator.logStep("SETUP", "Opening RouteListScreen in real activity")
+                
+                // Navigate to Route List
+                composeTestRule.onNodeWithContentDescription("Route Management").performClick()
+                composeTestRule.waitForIdle()
+                
                 // Verify initial state
                 com.madanala.tern.utils.ReportGenerator.logStep("VERIFY", "Checking for empty state message")
                 composeTestRule.onNodeWithText("No nearby routes found").assertIsDisplayed()
@@ -119,27 +112,21 @@ class RouteManagementTest : BddTest() {
 
     @Test
     fun testReorderWaypoints() {
-        val store = MapStore()
-        val waypoint1 = com.madanala.tern.model.Waypoint(lat = 10.0, lon = 10.0, label = "Start")
-        val waypoint2 = com.madanala.tern.model.Waypoint(lat = 11.0, lon = 11.0, label = "End")
-        val route = com.madanala.tern.model.Route(
-            name = "Reorder Test Route",
-            waypoints = listOf(waypoint1, waypoint2)
-        )
-        store.dispatch(MapAction.AddRoute(route))
-        store.dispatch(MapAction.SelectRoute(route.id))
-
         scenario("testReorderWaypoints") {
+            val activity = composeTestRule.activity as TernParaglidingActivity
+            val store = ViewModelProvider(activity)[MapStore::class.java]
+
+            val waypoint1 = com.madanala.tern.model.Waypoint(lat = 10.0, lon = 10.0, label = "Start")
+            val waypoint2 = com.madanala.tern.model.Waypoint(lat = 11.0, lon = 11.0, label = "End")
+            val route = com.madanala.tern.model.Route(
+                name = "Reorder Test Route",
+                waypoints = listOf(waypoint1, waypoint2)
+            )
+            store.dispatch(MapAction.AddRoute(route))
+            store.dispatch(MapAction.SelectRoute(route.id))
             given("I have a route with 2 waypoints and RouteDetailPanel is visible") {
-                com.madanala.tern.utils.ReportGenerator.logStep("SETUP", "Initializing RouteDetailPanel with 2 waypoints")
-                composeTestRule.setContent {
-                    com.madanala.tern.ui.components.RouteDetailPanel(
-                        store = store,
-                        isVisible = true,
-                        onDismiss = {}
-                    )
-                }
-                com.madanala.tern.utils.ReportGenerator.logStep("VERIFY", "Checking initial order: Start, End")
+                com.madanala.tern.utils.ReportGenerator.logStep("SETUP", "Ensuring Route Detail Panel is visible")
+                // In the real activity, selecting a route should show the panel
                 composeTestRule.onNodeWithText("1. Start").assertIsDisplayed()
                 composeTestRule.onNodeWithText("2. End").assertIsDisplayed()
             }
@@ -170,20 +157,17 @@ class RouteManagementTest : BddTest() {
 
     @Test
     fun testCreateRouteFromWaypoints() {
-        val store = MapStore()
-        val waypoint1 = com.madanala.tern.model.Waypoint(lat = 40.0, lon = -105.0, label = "Boulder")
-        val waypoint2 = com.madanala.tern.model.Waypoint(lat = 40.1, lon = -105.1, label = "Longmont")
-        
         scenario("testCreateRouteFromWaypoints") {
+            val activity = composeTestRule.activity as TernParaglidingActivity
+            val store = ViewModelProvider(activity)[MapStore::class.java]
+
+            val waypoint1 = com.madanala.tern.model.Waypoint(lat = 40.0, lon = -105.0, label = "Boulder")
+            val waypoint2 = com.madanala.tern.model.Waypoint(lat = 40.1, lon = -105.1, label = "Longmont")
+            
             given("I have a fresh map store") {
-                com.madanala.tern.utils.ReportGenerator.logStep("SETUP", "Initializing store")
-                composeTestRule.setContent {
-                    RouteListScreen(
-                        store = store,
-                        onRouteSelected = {},
-                        onDismiss = {}
-                    )
-                }
+                com.madanala.tern.utils.ReportGenerator.logStep("SETUP", "Opening Route List")
+                composeTestRule.onNodeWithContentDescription("Route Management").performClick()
+                composeTestRule.waitForIdle()
             }
 
             `when`("I create a route from a list of waypoints") {
@@ -206,6 +190,32 @@ class RouteManagementTest : BddTest() {
                 assert(createdRoute!!.waypoints.size == 2)
                 assert(createdRoute.waypoints[0].label == "Boulder")
                 assert(createdRoute.waypoints[1].label == "Longmont")
+            }
+        }
+    }
+
+    @Test
+    fun testShareRoute() {
+        scenario("testShareRoute") {
+            val activity = composeTestRule.activity as TernParaglidingActivity
+            val store = ViewModelProvider(activity)[MapStore::class.java]
+
+            val route = com.madanala.tern.model.Route(name = "Share Test Route")
+            store.dispatch(MapAction.AddRoute(route))
+            store.dispatch(MapAction.SelectRoute(route.id))
+            
+            given("I have a route and the RouteDetailPanel is visible") {
+                composeTestRule.waitUntil(timeoutMillis = 5000) {
+                    composeTestRule.onAllNodesWithTag("RouteDetailPanel").fetchSemanticsNodes().isNotEmpty()
+                }
+            }
+
+            `when`("I click the Share button") {
+                composeTestRule.onNodeWithContentDescription("Share Route").performClick()
+            }
+
+            then("The RouteIOManager should be called to share the route") {
+                com.madanala.tern.utils.ReportGenerator.waitForLog("RouteIOManager", "Sharing route: Share Test Route")
             }
         }
     }

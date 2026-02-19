@@ -3,13 +3,14 @@ package com.madanala.tern.utils
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.madanala.tern.model.Route
 import com.madanala.tern.model.Waypoint
+import com.madanala.tern.utils.MapVisualTest
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.util.UUID
 
 @RunWith(AndroidJUnit4::class)
-class RouteIOManagerTest : BddTest() {
+class RouteIOManagerTest : MapVisualTest() {
 
     @Test
     fun scenarioExportAndImportFAITask() {
@@ -70,9 +71,12 @@ class RouteIOManagerTest : BddTest() {
 
             and("I import the route from the exported XCTSK content") {
                 importedRoute = RouteIOManager.parseXctskContent(xctskContent!!)
+                showRouteOnMap(importedRoute!!)
+                zoomTo(importedRoute!!.waypoints.first().lat, importedRoute!!.waypoints.first().lon)
+                waitForMapToRender()
             }
 
-            then("the imported route should have correct waypoints and parameters") {
+            this.then("the imported route should have correct waypoints and parameters") {
                 assertNotNull(importedRoute)
                 assertEquals(5, importedRoute!!.waypoints.size)
 
@@ -114,15 +118,18 @@ class RouteIOManagerTest : BddTest() {
                 compressedJson = method.invoke(RouteIOManager, route) as String
             }
 
-            then("the JSON should contain compressed data") {
+            this.then("the JSON should contain compressed data") {
                 assertTrue(compressedJson!!.contains("\"z\":"))
             }
 
             and("I import the route from the compressed JSON") {
                 importedRoute = RouteIOManager.importRouteFromQrString(compressedJson!!)
+                showRouteOnMap(importedRoute!!)
+                zoomTo(importedRoute!!.waypoints.first().lat, importedRoute!!.waypoints.first().lon)
+                waitForMapToRender()
             }
 
-            then("the imported route should preserve SSS parameters") {
+            this.then("the imported route should preserve SSS parameters") {
                 assertNotNull(importedRoute)
                 val startWp = importedRoute!!.waypoints.first()
                 assertEquals(Waypoint.Type.SSS, startWp.type)

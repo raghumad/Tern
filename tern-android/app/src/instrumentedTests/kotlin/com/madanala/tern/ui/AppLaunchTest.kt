@@ -1,16 +1,13 @@
 package com.madanala.tern.ui
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.onNodeWithContentDescription
-import androidx.compose.ui.test.performTouchInput
-import androidx.compose.ui.test.swipeLeft
-import com.madanala.tern.utils.BddTest
+import com.madanala.tern.utils.MapVisualTest
 import org.junit.Test
 import org.junit.runner.RunWith
+import androidx.compose.ui.test.*
 
 @RunWith(AndroidJUnit4::class)
-class AppLaunchTest : BddTest() {
+class AppLaunchTest : MapVisualTest() {
 
     @Test
     fun testAppLaunchToMap_PacificOcean() {
@@ -22,7 +19,7 @@ class AppLaunchTest : BddTest() {
         scenario("App Launch to Map (${locationName ?: "Custom Location"})") {
             givenAppIsLaunchedOnMap(lat = lat, lon = lon)
             
-            then("the map should center on the target location") {
+            this.then("the map should center on the target location") {
                 // givenAppIsLaunchedOnMap already asserts the map exists.
                 composeTestRule.onNodeWithTag("map_view").assertExists()
             }
@@ -55,7 +52,7 @@ class AppLaunchTest : BddTest() {
                 }
             }
 
-            then("PG Spots and Airspaces should be loaded (or not)") {
+            this.then("PG Spots and Airspaces should be loaded (or not)") {
                 // Manual verification via logcat confirmed that features are loaded.
                 // We assert the map view exists to ensure the app didn't crash.
                 composeTestRule.onNodeWithTag("map_view").assertExists()

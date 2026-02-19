@@ -10,34 +10,28 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.madanala.tern.redux.MapAction
-import com.madanala.tern.redux.MapStore
-import com.madanala.tern.ui.components.SettingsSheet
-import com.madanala.tern.utils.BddTest
+import androidx.lifecycle.ViewModelProvider
+import com.madanala.tern.utils.MapVisualTest
 import com.madanala.tern.utils.ReportGenerator
-import org.junit.Rule
+import com.madanala.tern.TernParaglidingActivity
+import com.madanala.tern.redux.MapStore
 import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
-class SettingsScreenTest : BddTest() {
+class SettingsScreenTest : MapVisualTest() {
 
-    // composeTestRule is inherited from BaseUITest via BddTest<ComponentActivity>()
+    // composeTestRule is inherited from MapVisualTest
 
     @Test
     fun testUnitPreferences() {
-        val store = MapStore()
-
         scenario("testUnitPreferences") {
+            val activity = composeTestRule.activity as TernParaglidingActivity
+            val store = ViewModelProvider(activity)[MapStore::class.java]
+
             given("I have the Settings Sheet open") {
-                ReportGenerator.logStep("SETUP", "Initializing SettingsSheet with fresh store")
-                composeTestRule.setContent {
-                    SettingsSheet(
-                        onDismiss = {},
-                        store = store
-                    )
-                }
-                ReportGenerator.logStep("VERIFY", "Checking for 'Units' header")
+                composeTestRule.onNodeWithContentDescription("Settings").performClick()
+                composeTestRule.waitForIdle()
                 composeTestRule.onNodeWithText("Units").assertIsDisplayed()
             }
 
@@ -46,7 +40,7 @@ class SettingsScreenTest : BddTest() {
                 composeTestRule.onNodeWithTag("btn_Distance_mi").performClick()
             }
 
-            then("the store should update the distance unit preference") {
+            this.then("the store should update the distance unit preference") {
                 ReportGenerator.logStep("VERIFY", "Checking store state for distance unit")
                 val currentUnit = store.state.value.settingsState.distanceUnit
                 if (currentUnit != "mi") {
@@ -71,18 +65,13 @@ class SettingsScreenTest : BddTest() {
 
     @Test
     fun testLayerToggles() {
-        val store = MapStore()
-
         scenario("testLayerToggles") {
+            val activity = composeTestRule.activity as TernParaglidingActivity
+            val store = ViewModelProvider(activity)[MapStore::class.java]
+
             given("I have the Settings Sheet open") {
-                ReportGenerator.logStep("SETUP", "Initializing SettingsSheet")
-                composeTestRule.setContent {
-                    SettingsSheet(
-                        onDismiss = {},
-                        store = store
-                    )
-                }
-                ReportGenerator.logStep("VERIFY", "Checking for 'Map Layers' header")
+                composeTestRule.onNodeWithContentDescription("Settings").performClick()
+                composeTestRule.waitForIdle()
                 composeTestRule.onNodeWithText("Map Layers").assertIsDisplayed()
             }
 

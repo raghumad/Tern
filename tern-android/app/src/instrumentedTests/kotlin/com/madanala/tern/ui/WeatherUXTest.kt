@@ -2,14 +2,17 @@ package com.madanala.tern.ui
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithText
+import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.madanala.tern.ui.components.WeatherDetailsDialog
-import com.madanala.tern.utils.BddTest
 import com.madanala.tern.utils.ForecastPeriod
+import com.madanala.tern.utils.BddTest
 import com.madanala.tern.utils.WeatherData
 import com.madanala.tern.utils.WeatherForecast
 import com.madanala.tern.utils.WindData
 import org.junit.Test
+import org.junit.runner.RunWith
 
+@RunWith(AndroidJUnit4::class)
 class WeatherUXTest : BddTest() {
 
     @Test
@@ -43,7 +46,7 @@ class WeatherUXTest : BddTest() {
             }
 
             // THEN the Gust and Cloud Cover should be displayed
-            then("The Gust (25 kt) and Cloud Cover (75%) should be visible") {
+            this.then("The Gust (25 kt) and Cloud Cover (75%) should be visible") {
                 composeTestRule.onNodeWithText("25 kt").assertIsDisplayed()
                 composeTestRule.onNodeWithText("Gust").assertIsDisplayed()
                 composeTestRule.onNodeWithText("75%").assertIsDisplayed()
@@ -95,7 +98,7 @@ class WeatherUXTest : BddTest() {
             }
 
             // THEN the Stale Data Warning should be displayed
-            then("The 'Weather data is stale' warning should be visible") {
+            this.then("The 'Weather data is stale' warning should be visible") {
                 composeTestRule.onNodeWithText("⚠️ Weather data is stale (>4h old)").assertIsDisplayed()
             }
         }

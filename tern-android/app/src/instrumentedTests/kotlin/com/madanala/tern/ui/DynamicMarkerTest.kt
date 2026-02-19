@@ -16,14 +16,10 @@ import kotlinx.coroutines.launch
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import org.junit.Rule
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.activity.ComponentActivity
-
 @RunWith(AndroidJUnit4::class)
-class DynamicMarkerTest {
+class DynamicMarkerTest : com.madanala.tern.utils.MapVisualTest() {
 
-    @get:Rule
-    val composeTestRule = createAndroidComposeRule<ComponentActivity>()
+    // composeTestRule is inherited from MapVisualTest
 
     @Test
     fun testCreateBitmapFromComposable() {

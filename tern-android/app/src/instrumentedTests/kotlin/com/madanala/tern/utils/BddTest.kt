@@ -58,12 +58,12 @@ open class BddTest : BaseUITest() {
         try {
             block()
             // Capture success screenshot at the end of scenario
-            val screenshot = ReportGenerator.captureScreenshot("success_${name.replace(" ", "_")}")
-            ReportGenerator.logStep("RESULT", "Scenario Passed", "PASS", screenshot)
+            val result = ReportGenerator.captureScreenshot("success_${name.replace(" ", "_")}")
+            ReportGenerator.logStep("RESULT", "Scenario Passed", "PASS", result?.path, result?.hash)
         } catch (e: Throwable) {
             // Capture failure screenshot
-            val screenshot = ReportGenerator.captureScreenshot("failure_${name.replace(" ", "_")}")
-            ReportGenerator.logStep("RESULT", "Scenario Failed: ${e.message}", "FAIL", screenshot)
+            val result = ReportGenerator.captureScreenshot("failure_${name.replace(" ", "_")}")
+            ReportGenerator.logStep("RESULT", "Scenario Failed: ${e.message}", "FAIL", result?.path, result?.hash)
             
             // Print logcat to stdout for debugging
             println("=== LOGCAT DUMP ===")
@@ -128,15 +128,15 @@ open class BddTest : BaseUITest() {
     fun step(type: String, description: String, takeScreenshot: Boolean, block: () -> Unit) {
         try {
             block()
-            val screenshot = if (takeScreenshot) {
+            val result = if (takeScreenshot) {
                 ReportGenerator.captureScreenshot("step_${type}_${description.take(20).replace(" ", "_")}")
             } else {
                 null
             }
-            ReportGenerator.logStep(type, description, "PASS", screenshot)
+            ReportGenerator.logStep(type, description, "PASS", result?.path, result?.hash)
         } catch (e: Throwable) {
-            val screenshot = ReportGenerator.captureScreenshot("failure_${type}_${description.take(20).replace(" ", "_")}")
-            ReportGenerator.logStep(type, description, "FAIL", screenshot)
+            val result = ReportGenerator.captureScreenshot("failure_${type}_${description.take(20).replace(" ", "_")}")
+            ReportGenerator.logStep(type, description, "FAIL", result?.path, result?.hash)
             throw e
         }
     }
