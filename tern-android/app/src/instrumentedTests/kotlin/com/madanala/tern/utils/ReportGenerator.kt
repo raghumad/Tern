@@ -225,7 +225,6 @@ object ReportGenerator {
             writer.write(".approve-btn { background-color: #4CAF50; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin: 5px; }")
             writer.write(".reject-btn { background-color: #f44336; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin: 5px; }")
             writer.write("</style>")
-            writer.write("<script>")
             writer.write("async function approve(filename, testName, btn) {")
             writer.write("  const originalText = btn.innerText;")
             writer.write("  btn.innerText = '⌛ Processing...';")
@@ -239,7 +238,8 @@ object ReportGenerator {
             writer.write("    if (response.ok) {")
             writer.write("      btn.innerText = '✅ Approved';")
             writer.write("      btn.style.backgroundColor = '#2E7D32';")
-            writer.write("      btn.nextElementSibling.style.display = 'none';") // Hide reject button
+            writer.write("      const rejectBtn = btn.parentElement.querySelector('.reject-btn');")
+            writer.write("      if (rejectBtn) rejectBtn.style.display = 'none';") // Hide reject button safely
             writer.write("    } else {")
             writer.write("      alert('Failed to approve. Is visual_reviewer.py running?');")
             writer.write("      btn.innerText = originalText;")
@@ -265,7 +265,8 @@ object ReportGenerator {
             writer.write("    if (response.ok) {")
             writer.write("      btn.innerText = '❌ Rejected & Blacklisted';")
             writer.write("      btn.style.backgroundColor = '#C62828';")
-            writer.write("      btn.previousElementSibling.style.display = 'none';") // Hide approve button
+            writer.write("      const approveBtn = btn.parentElement.querySelector('.approve-btn');")
+            writer.write("      if (approveBtn) approveBtn.style.display = 'none';") // Hide approve button safely
             writer.write("    } else {")
             writer.write("      alert('Failed to reject. Is visual_reviewer.py running?');")
             writer.write("      btn.innerText = originalText;")
@@ -291,7 +292,16 @@ object ReportGenerator {
                 writer.write("<div class='scenario'>")
                 writer.write("<h2>Scenario: ${scenario.name}</h2>")
                 
-                scenario.steps.forEach { step ->
+                // Extract and print the story first if it exists
+                val storyStep = scenario.steps.find { it.type == "STORY" }
+                if (storyStep != null) {
+                    writer.write("<div style='margin-bottom: 20px; padding: 15px; background-color: #e3f2fd; border-radius: 5px; border-left: 5px solid #1976d2;'>")
+                    writer.write("<strong>Story:</strong> ${storyStep.description}")
+                    writer.write("</div>")
+                }
+                
+                // Print the rest of the steps
+                scenario.steps.filter { it.type != "STORY" }.forEach { step ->
                     writer.write("<div class='step ${step.status}'>")
                     writer.write("<strong>${step.type}</strong>: ${step.description}")
                     if (step.screenshotPath != null) {

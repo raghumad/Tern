@@ -65,25 +65,9 @@ object MapTestHelper {
     }
 
     fun clickOnGeoPoint(activity: Activity, lat: Double, lon: Double) {
-        val mapView = findMapView(activity.window.decorView) ?: throw IllegalStateException("MapView not found")
-        val point = android.graphics.Point()
-        mapView.projection.toPixels(GeoPoint(lat, lon), point)
-        
-        // Convert local coordinates to screen coordinates
-        val locationOnScreen = IntArray(2)
-        mapView.getLocationOnScreen(locationOnScreen)
-        val screenX = locationOnScreen[0] + point.x
-        val screenY = locationOnScreen[1] + point.y
-        
-        val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
-        ReportGenerator.logStep("ACTION", "Click on GeoPoint: $lat, $lon (Screen: $screenX, $screenY)")
-        device.click(screenX, screenY)
-    }
-
-    fun longPressOnGeoPoint(activity: Activity, lat: Double, lon: Double) {
+        var screenX = 0
+        var screenY = 0
         val instrumentation = InstrumentationRegistry.getInstrumentation()
-        var x = 0f
-        var y = 0f
         
         instrumentation.runOnMainSync {
             val mapView = findMapView(activity.window.decorView) ?: throw IllegalStateException("MapView not found")
@@ -93,32 +77,72 @@ object MapTestHelper {
             // Convert local coordinates to screen coordinates
             val locationOnScreen = IntArray(2)
             mapView.getLocationOnScreen(locationOnScreen)
-            x = (locationOnScreen[0] + point.x).toFloat()
-            y = (locationOnScreen[1] + point.y).toFloat()
+            screenX = locationOnScreen[0] + point.x
+            screenY = locationOnScreen[1] + point.y
         }
         
-        ReportGenerator.logStep("ACTION", "Long press at lat=$lat, lon=$lon -> screen x=$x, y=$y")
+        val device = UiDevice.getInstance(instrumentation)
+        ReportGenerator.logStep("ACTION", "Click on GeoPoint: $lat, $lon (Screen: $screenX, $screenY)")
+        device.click(screenX, screenY)
+    }
 
-        val downTime = SystemClock.uptimeMillis()
-        val eventTime = SystemClock.uptimeMillis()
+    fun longPressOnGeoPoint(activity: Activity, lat: Double, lon: Double) {
+        var screenX = 0
+        var screenY = 0
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
         
-        val downEvent = MotionEvent.obtain(downTime, eventTime, MotionEvent.ACTION_DOWN, x, y, 0)
-        instrumentation.sendPointerSync(downEvent)
-        
-        // Wait for long press timeout (usually 500ms) + buffer
-        try {
-            Thread.sleep(1000)
-        } catch (e: InterruptedException) {
-            e.printStackTrace()
+        instrumentation.runOnMainSync {
+            val mapView = findMapView(activity.window.decorView) ?: throw IllegalStateException("MapView not found")
+            val point = android.graphics.Point()
+            mapView.projection.toPixels(GeoPoint(lat, lon), point)
+            
+            // Convert local coordinates to screen coordinates
+            val locationOnScreen = IntArray(2)
+            mapView.getLocationOnScreen(locationOnScreen)
+            screenX = locationOnScreen[0] + point.x
+            screenY = locationOnScreen[1] + point.y
         }
         
-        val upEvent = MotionEvent.obtain(downTime, SystemClock.uptimeMillis(), MotionEvent.ACTION_UP, x, y, 0)
-        instrumentation.sendPointerSync(upEvent)
+        ReportGenerator.logStep("ACTION", "Long press at lat=$lat, lon=$lon -> screen x=$screenX, y=$screenY")
         
-        downEvent.recycle()
-        upEvent.recycle()
+        val device = UiDevice.getInstance(instrumentation)
+        // UiDevice.swipe with the same start and end coordinates acts as a long press if steps are high
+        device.swipe(screenX, screenY, screenX, screenY, 100) // 100 steps * 5ms = 500ms long press
         
-        ReportGenerator.logStep("DEBUG", "Performed long press via MotionEvents")
+        ReportGenerator.logStep("DEBUG", "Performed long press via UiDevice swipe")
+    }
+
+    fun swipeMap(activity: Activity, startLat: Double, startLon: Double, endLat: Double, endLon: Double, steps: Int = 50) {
+        var startX = 0
+        var startY = 0
+        var endX = 0
+        var endY = 0
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        
+        instrumentation.runOnMainSync {
+            val mapView = findMapView(activity.window.decorView) ?: throw IllegalStateException("MapView not found")
+            
+            val locationOnScreen = IntArray(2)
+            mapView.getLocationOnScreen(locationOnScreen)
+
+            val startPoint = android.graphics.Point()
+            mapView.projection.toPixels(GeoPoint(startLat, startLon), startPoint)
+            startX = locationOnScreen[0] + startPoint.x
+            startY = locationOnScreen[1] + startPoint.y
+
+            val endPoint = android.graphics.Point()
+            mapView.projection.toPixels(GeoPoint(endLat, endLon), endPoint)
+            endX = locationOnScreen[0] + endPoint.x
+            endY = locationOnScreen[1] + endPoint.y
+        }
+        
+        ReportGenerator.logStep("ACTION", "Swipe from ($startLat, $startLon) to ($endLat, $endLon)")
+        
+        val device = UiDevice.getInstance(instrumentation)
+        device.swipe(startX, startY, endX, endY, steps)
+        
+        // Wait for any map kinetic scrolling to settle
+        waitForMapTiles(1000)
     }
 
     fun waitForMapTiles(timeoutMillis: Long = 3000) {
