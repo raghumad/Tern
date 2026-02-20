@@ -63,10 +63,11 @@ class MapInteractionTest : MapVisualTest() {
                 composeTestRule.waitForIdle()
             }
 
-            `when`("I long press on the map (simulated via Redux action)") {
-                // Simulate long press by dispatching the action directly
-                val geoPoint = org.osmdroid.util.GeoPoint(40.0200, -105.2600)
-                store.dispatch(com.madanala.tern.redux.MapAction.LongPressMap(geoPoint))
+            `when`("I long press on the map (simulated via UI Automator)") {
+                // Simulate long press using physical UI Automator interaction
+                val lat = 40.0200
+                val lon = -105.2600
+                MapTestHelper.longPressOnGeoPoint(activity, lat, lon)
                 composeTestRule.waitForIdle()
             }
 
@@ -165,10 +166,11 @@ class MapInteractionTest : MapVisualTest() {
                 composeTestRule.waitForIdle()
             }
 
-            `when`("I long press ON the existing waypoint (simulated via Redux action)") {
+            `when`("I long press ON the existing waypoint (simulated via UI Automator)") {
                 // Boulder: 40.0150, -105.2705
-                val geoPoint = org.osmdroid.util.GeoPoint(40.0150, -105.2705)
-                store.dispatch(com.madanala.tern.redux.MapAction.LongPressMap(geoPoint))
+                val lat = 40.0150
+                val lon = -105.2705
+                MapTestHelper.longPressOnGeoPoint(activity, lat, lon)
                 composeTestRule.waitForIdle()
             }
 
