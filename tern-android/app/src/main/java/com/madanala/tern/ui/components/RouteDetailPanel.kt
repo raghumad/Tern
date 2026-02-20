@@ -49,7 +49,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.madanala.tern.redux.MapAction
 import com.madanala.tern.redux.MapStore
+import com.madanala.tern.redux.WeatherActions
 import com.madanala.tern.utils.RouteIOManager
+import androidx.compose.runtime.LaunchedEffect
+import kotlin.math.roundToInt
 
 @Composable
 fun RouteDetailPanel(
@@ -63,6 +66,12 @@ fun RouteDetailPanel(
     val route = state.routes.find { it.id == selectedRouteId }
     val context = LocalContext.current
     var showQrDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(selectedRouteId) {
+        if (selectedRouteId != null) {
+            store.dispatch(WeatherActions.FetchWeatherForRoute(selectedRouteId))
+        }
+    }
 
     if (showQrDialog && route != null) {
         Dialog(onDismissRequest = { showQrDialog = false }) {
@@ -179,11 +188,13 @@ fun RouteDetailPanel(
                     } else {
                         LazyColumn(
                             modifier = Modifier
-                                .heightIn(max = 200.dp)
+                                .heightIn(max = 280.dp) // increased height slightly to fit weather
                                 .testTag("WaypointList"),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             itemsIndexed(route.waypoints) { index, waypoint ->
+                                val weatherData = state.weatherState.waypointWeathers[waypoint.id]
+
                                 Card(
                                     colors = CardDefaults.cardColors(
                                         containerColor = MaterialTheme.colorScheme.surfaceVariant
@@ -230,7 +241,19 @@ fun RouteDetailPanel(
                                                 Text(
                                                     text = "+${"%.2f".format(route.legDistances[index - 1])} km",
                                                     style = MaterialTheme.typography.labelSmall,
-                                                    color = MaterialTheme.colorScheme.secondary
+                                                    color = MaterialTheme.colorScheme.secondary,
+                                                    modifier = Modifier.padding(bottom = 2.dp)
+                                                )
+                                            }
+
+                                            // Show Weather Summary
+                                            if (weatherData != null && weatherData.current != null) {
+                                                val wind = weatherData.current.wind
+                                                Text(
+                                                    text = "🌬️ ${wind.speed.roundToInt()} kt @ ${wind.direction.roundToInt()}°${if (wind.gust > 0) " (G ${wind.gust.roundToInt()})" else ""}",
+                                                    style = MaterialTheme.typography.labelMedium,
+                                                    color = MaterialTheme.colorScheme.tertiary,
+                                                    fontWeight = FontWeight.Bold
                                                 )
                                             }
                                         }

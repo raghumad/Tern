@@ -27,8 +27,9 @@ data class OverlayState(
  * Aviation-grade weather data management through Redux
  */
 data class WeatherState(
-    // Weather data for PG spots
+    // Weather data for PG spots and Route Waypoints
     val spotWeathers: Map<String, com.madanala.tern.utils.WeatherForecast> = emptyMap(),
+    val waypointWeathers: Map<String, com.madanala.tern.utils.WeatherForecast> = emptyMap(),
 
     // Fetch states and errors
     val fetchingSpots: Set<String> = emptySet(),

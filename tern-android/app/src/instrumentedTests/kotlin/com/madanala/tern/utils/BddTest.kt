@@ -140,4 +140,9 @@ open class BddTest : BaseUITest() {
             throw e
         }
     }
+
+    fun story(description: String, block: () -> Unit) {
+        ReportGenerator.logStep("STORY", description)
+        block()
+    }
 }

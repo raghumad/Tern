@@ -12,10 +12,14 @@ sealed class OverlayActions {
  * Aviation-grade weather orchestration through Redux state management
  */
 sealed class WeatherActions {
-    // Weather data fetching and caching
+    // Weather data fetching and caching for PG Spots
     data class FetchWeatherForPGSpot(val pgSpotId: String, val latitude: Double, val longitude: Double) : WeatherActions()
     data class WeatherFetched(val pgSpotId: String, val forecast: com.madanala.tern.utils.WeatherForecast?) : WeatherActions()
     data class WeatherFetchError(val pgSpotId: String, val error: Throwable) : WeatherActions()
+
+    // Weather data fetching for Routes/Waypoints
+    data class FetchWeatherForRoute(val routeId: String) : WeatherActions()
+    data class RouteWeatherFetched(val routeId: String, val waypointForecasts: Map<String, com.madanala.tern.utils.WeatherForecast>) : WeatherActions()
 
     // Weather display controls
     data class SetWeatherGaugeEnabled(val enabled: Boolean) : WeatherActions()
