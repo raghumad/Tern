@@ -66,6 +66,7 @@
 *   **DSL**: Custom `BddTest` class with `given`, `when`, `then` syntax.
 *   **Global Steps**: Reusable setup functions (e.g., `givenAppIsLaunchedOnMap`) to reduce boilerplate.
 *   **Thumb Rule for New Features**: **EVERY** new feature or significant component must be accompanied by a BDD-style automated test verifying its core user-facing scenarios. Manual verification should only be a supplementary check, not the primary validation method.
+*   **The "Story" Principle**: Every BDD scenario must include a clear **Story** that defines *who* is using the feature, *what* their context is, and *why* it matters (e.g., "As a pilot on launch without cell service, I need..."). This ensures development remains deeply aligned with the pilot's UX and safety principles.
 
 ## 6. Performance Monitoring
 
