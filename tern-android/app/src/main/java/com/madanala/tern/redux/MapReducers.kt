@@ -595,8 +595,10 @@ fun weatherReducer(state: MapState, action: WeatherActions): MapState = when (ac
 
     is WeatherActions.RouteWeatherFetched -> {
         val newWaypointWeathers = state.weatherState.waypointWeathers + action.waypointForecasts
+        val newWaypointEtas = state.weatherState.waypointEtas + action.etas
         val newWeatherState = state.weatherState.copy(
-            waypointWeathers = newWaypointWeathers
+            waypointWeathers = newWaypointWeathers,
+            waypointEtas = newWaypointEtas
         )
         state.copy(weatherState = newWeatherState)
     }

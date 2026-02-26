@@ -19,7 +19,11 @@ sealed class WeatherActions {
 
     // Weather data fetching for Routes/Waypoints
     data class FetchWeatherForRoute(val routeId: String) : WeatherActions()
-    data class RouteWeatherFetched(val routeId: String, val waypointForecasts: Map<String, com.madanala.tern.utils.WeatherForecast>) : WeatherActions()
+    data class RouteWeatherFetched(
+        val routeId: String, 
+        val waypointForecasts: Map<String, com.madanala.tern.utils.WeatherForecast>,
+        val etas: Map<String, Long> = emptyMap()
+    ) : WeatherActions()
 
     // Weather display controls
     data class SetWeatherGaugeEnabled(val enabled: Boolean) : WeatherActions()
