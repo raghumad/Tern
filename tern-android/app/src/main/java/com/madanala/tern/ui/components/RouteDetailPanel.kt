@@ -52,6 +52,9 @@ import com.madanala.tern.redux.MapStore
 import com.madanala.tern.redux.WeatherActions
 import com.madanala.tern.utils.RouteIOManager
 import androidx.compose.runtime.LaunchedEffect
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import kotlin.math.roundToInt
 
 @Composable
@@ -194,6 +197,16 @@ fun RouteDetailPanel(
                         ) {
                             itemsIndexed(route.waypoints) { index, waypoint ->
                                 val weatherData = state.weatherState.waypointWeathers[waypoint.id]
+                                val etaTimestamp = state.weatherState.waypointEtas[waypoint.id]
+                                
+                                val formattedEta = remember(etaTimestamp) {
+                                    etaTimestamp?.let {
+                                        val instant = Instant.ofEpochMilli(it)
+                                        val formatter = DateTimeFormatter.ofPattern("HH:mm")
+                                            .withZone(ZoneId.systemDefault())
+                                        formatter.format(instant)
+                                    }
+                                }
 
                                 Card(
                                     colors = CardDefaults.cardColors(
@@ -209,11 +222,22 @@ fun RouteDetailPanel(
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = "${index + 1}. ${waypoint.label ?: "Waypoint"}",
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                fontWeight = FontWeight.SemiBold
-                                            )
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text(
+                                                    text = "${index + 1}. ${waypoint.label ?: "Waypoint"}",
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    modifier = Modifier.weight(1f)
+                                                )
+                                                if (formattedEta != null) {
+                                                    Text(
+                                                        text = "ETA: $formattedEta",
+                                                        style = MaterialTheme.typography.labelMedium,
+                                                        color = MaterialTheme.colorScheme.primary,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                }
+                                            }
                                             Text(
                                                 text = buildString {
                                                     append("${"%.4f".format(waypoint.lat)}, ${"%.4f".format(waypoint.lon)}")
