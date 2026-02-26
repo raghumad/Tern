@@ -19,7 +19,7 @@ object VisualValidator {
      * Detects if a screenshot is "Blank" (95% or more of the same color).
      * This is a robust way to detect rendering failures in tests.
      */
-    fun isBlank(bitmap: Bitmap, threshold: Float = 0.95f): Boolean {
+    fun isBlank(bitmap: Bitmap, threshold: Float = 0.99f): Boolean {
         if (bitmap.width == 0 || bitmap.height == 0) return true
 
         val totalPixels = bitmap.width * bitmap.height

@@ -53,6 +53,10 @@ class WeatherUXTest : BddTest() {
                     composeTestRule.onNodeWithText("75%").assertIsDisplayed()
                     composeTestRule.onNodeWithText("Cloud Cover").assertIsDisplayed()
                 }
+
+                and("The weather UI is highly responsive") {
+                    com.madanala.tern.utils.ReportGenerator.assertLogDoesNotContain("PerformanceDebugger", "STATE_UPDATE_STORM")
+                }
             }
         }
     }
@@ -104,6 +108,10 @@ class WeatherUXTest : BddTest() {
                 this.then("The 'Weather data is stale' warning should be visible") {
                     composeTestRule.onNodeWithText("⚠️ Weather data is stale (>4h old)").assertIsDisplayed()
                 }
+
+                and("The UI remains stable and leak-free") {
+                    com.madanala.tern.utils.ReportGenerator.assertLogDoesNotContain("PerformanceDebugger", "STATE_UPDATE_STORM")
+                }
             }
         }
     }
@@ -149,6 +157,10 @@ class WeatherUXTest : BddTest() {
                 this.then("the UI should display an interpolated wind speed of 15 kt") {
                     composeTestRule.onNodeWithText("Estimated Arrival Weather").assertIsDisplayed()
                     composeTestRule.onNodeWithText("15 kt").assertIsDisplayed()
+                }
+
+                and("The interpolation logic does not cause performance overhead") {
+                    com.madanala.tern.utils.ReportGenerator.assertLogDoesNotContain("PerformanceDebugger", "STATE_UPDATE_STORM")
                 }
             }
         }

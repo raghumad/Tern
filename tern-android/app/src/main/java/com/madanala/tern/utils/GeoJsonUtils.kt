@@ -33,6 +33,7 @@ object GeoJsonUtils {
     suspend fun downloadGeoJson(url: String): String? {
         return withContext(Dispatchers.IO) {
             try {
+                android.util.Log.i("GeoJsonUtils", "Executing HTTP download for: $url")
                 val request = Request.Builder().url(url).build()
                 client.newCall(request).execute().use { response ->
                     if (response.isSuccessful) {
@@ -499,7 +500,9 @@ object GeoJsonUtils {
                         val lonLat = coord as List<*>
                         if (lonLat.size >= 2) {
                             // GeoJSON is [longitude, latitude], GeoPoint is (latitude, longitude)
-                            GeoPoint(lonLat[1] as Double, lonLat[0] as Double)
+                            val lon = (lonLat[0] as Number).toDouble()
+                            val lat = (lonLat[1] as Number).toDouble()
+                            GeoPoint(lat, lon)
                         } else null
                 } catch (_: Exception) {
                     null
@@ -524,7 +527,9 @@ object GeoJsonUtils {
                 try {
                     val lonLat = coordinates as List<*>
                     if (lonLat.size >= 2) {
-                        marker.position = GeoPoint(lonLat[1] as Double, lonLat[0] as Double)
+                        val lon = (lonLat[0] as Number).toDouble()
+                        val lat = (lonLat[1] as Number).toDouble()
+                        marker.position = GeoPoint(lat, lon)
                         marker
                     } else null
                 } catch (_: Exception) {

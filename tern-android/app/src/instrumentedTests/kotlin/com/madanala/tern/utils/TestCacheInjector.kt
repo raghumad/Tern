@@ -13,7 +13,8 @@ import java.io.ObjectInputStream
  */
 object TestCacheInjector {
 
-    fun injectPGSpots(context: Context, cache: PGSpotCache, countryCode: String, features: List<MapOverlayCacheUtils.OverlayFeature>) {
+    fun injectPGSpots(context: Context, cache: PGSpotCache, countryCodeRaw: String, features: List<MapOverlayCacheUtils.OverlayFeature>) {
+        val countryCode = countryCodeRaw.uppercase()
         val cacheDir = File(context.cacheDir, "pgspots_cache") // Updated to match SpatialDiskCache naming
         if (!cacheDir.exists()) cacheDir.mkdirs()
 
@@ -65,7 +66,8 @@ object TestCacheInjector {
         }
     }
 
-    fun injectAirspaces(context: Context, cache: AirspaceCache, countryCode: String, features: List<MapOverlayCacheUtils.OverlayFeature>) {
+    fun injectAirspaces(context: Context, cache: AirspaceCache, countryCodeRaw: String, features: List<MapOverlayCacheUtils.OverlayFeature>) {
+        val countryCode = countryCodeRaw.uppercase()
         val cacheDir = File(context.cacheDir, "airspace_cache")
         if (!cacheDir.exists()) cacheDir.mkdirs()
 
@@ -139,7 +141,7 @@ object TestCacheInjector {
         }
 
         // Update timestamp
-        cacheIndex[countryCode] = System.currentTimeMillis()
+        cacheIndex[countryCode.uppercase()] = System.currentTimeMillis()
 
         // Write back
         try {

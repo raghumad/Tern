@@ -185,6 +185,14 @@ class OverlayCoordinator {
     }
 
     /**
+     * Get the current count of rendered overlays of a specific type.
+     * Used for test synchronization.
+     */
+    fun getRenderedOverlayCount(type: OverlayType): Int {
+        return activeManagers[type]?.getRenderedCount() ?: 0
+    }
+
+    /**
      * Remove overlay manager by type
      */
     fun removeOverlayManager(overlayType: OverlayType) {
@@ -228,7 +236,11 @@ class OverlayCoordinator {
 
         // Continue with existing overlay manager notifications
         activeManagers.values.forEach { manager ->
-            manager.performMapMove(centerPoint, zoom)
+            if (manager is com.madanala.tern.ui.overlays.BaseOverlayManager) {
+                manager.scheduleMapMove(centerPoint, zoom)
+            } else {
+                manager.performMapMove(centerPoint, zoom)
+            }
         }
     }
 
@@ -318,7 +330,7 @@ class OverlayCoordinator {
      * Process pending overlay removals in reverse Hilbert curve order (outside to center)
      * Returns the number of overlays processed
      */
-    fun removeOverlayFromBatch(): Int {
+    fun flushPendingRemovals(): Int {
         synchronized(pendingRemovals) {
             if (pendingRemovals.isEmpty()) return 0
 
@@ -562,6 +574,21 @@ class OverlayCoordinator {
     fun onReduxStateChanged(state: MapState) {
         activeManagers.values.forEach { manager ->
             manager.onReduxStateChanged(state)
+        }
+    }
+
+    /**
+      * RESET coordinator and all managers for test stability
+      */
+    fun reset() {
+        Log.d(TAG, "Resetting OverlayCoordinator state")
+        countryCacheManager?.reset()
+        refreshAllOverlays()
+        synchronized(pendingAdditions) {
+            pendingAdditions.clear()
+        }
+        synchronized(pendingRemovals) {
+            pendingRemovals.clear()
         }
     }
 

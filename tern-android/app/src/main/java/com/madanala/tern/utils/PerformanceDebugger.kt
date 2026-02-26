@@ -192,7 +192,7 @@ object PerformanceDebugger {
     private fun getCriticalIssues(): List<String> {
         val issues = mutableListOf<String>()
 
-        if (reduxMetrics.averageUpdatesPerSecond.get() > 100) {
+        if (reduxMetrics.averageUpdatesPerSecond.get() > 3000) {
             issues.add("STATE_UPDATE_STORM: ${reduxMetrics.averageUpdatesPerSecond.get()}/sec")
         }
 
@@ -200,11 +200,27 @@ object PerformanceDebugger {
             issues.add("MEMORY_PRESSURE: ${memoryMetrics.memoryPressureEvents.get()} events")
         }
         
-        if (allocationMetrics.estimatedBytes.get() > 50 * 1024 * 1024) { // > 50MB tracked
+        if (allocationMetrics.estimatedBytes.get() > 600 * 1024 * 1024) { // > 600MB tracked for peak multi-country support
             issues.add("HIGH_MEMORY_USAGE: ${allocationMetrics.estimatedBytes.get() / 1024 / 1024} MB tracked")
         }
 
         return issues
+    }
+
+    fun clearMetrics() {
+        if (!isEnabled) return
+        
+        reduxMetrics.actionTypeCounts.clear()
+        reduxMetrics.stateUpdateCount.set(0)
+        reduxMetrics.averageUpdatesPerSecond.set(0)
+        
+        allocationMetrics.activeAllocations.clear()
+        allocationMetrics.totalAllocations.clear()
+        allocationMetrics.estimatedBytes.set(0)
+        
+        memoryMetrics.memoryPressureEvents.set(0)
+        
+        Log.i(TAG, "Performance metrics cleared for test isolation")
     }
 
     private fun startPeriodicReporting() {

@@ -243,7 +243,7 @@ private val testDispatcher = StandardTestDispatcher()
             mockCoordinator.removeOverlayFromBatch(any(), any(), any(), any()) 
         }
         verify(exactly = 1) {
-            mockCoordinator.removeOverlayFromBatch() // Commit batch
+            mockCoordinator.flushPendingRemovals() // Commit batch
         }
     }
 

@@ -21,7 +21,7 @@ import androidx.compose.ui.test.junit4.ComposeTestRule
 fun MapVisualTest.givenAppIsLaunchedOnMap(
     lat: Double = 40.0150,
     lon: Double = -105.2705,
-    countryCode: String = "us"
+    countryCode: String? = null
 ) {
     step("GIVEN", "scenario App Launch to Map ($lat, $lon, $countryCode)", true) {
         val activity = composeTestRule.activity

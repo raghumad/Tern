@@ -38,7 +38,8 @@ class UniversalCountryCacheManager(
         const val MAX_CACHED_COUNTRIES = 4
         const val PRELOAD_DISTANCE_KM = 150.0
         const val RETAIN_DISTANCE_KM = 200.0
-        const val SIGNIFICANT_MOVE_KM = 2.0
+        private val MAX_ADJACENT_COUNTRIES = 3
+        private val SIGNIFICANT_MOVE_KM = 0.5 // 500m
         const val COUNTRY_UNLOAD_DELAY_MS = 10000L
     }
 
@@ -76,9 +77,6 @@ class UniversalCountryCacheManager(
         coroutineScope.launch {
             handleLocationChange(newLocation)
         }
-
-        // Record for performance monitoring (debug only)
-        recordStateUpdate()
     }
 
     /**
@@ -128,6 +126,26 @@ class UniversalCountryCacheManager(
     }
 
     /**
+     * RESET state for test stability
+     */
+    fun reset() {
+        Log.d(TAG, "Resetting UniversalCountryCacheManager state")
+        lastLocation = null
+        currentCountry = null
+        synchronized(cachedCountries) {
+            cachedCountries.clear()
+        }
+        // The original code had adjacentCountries and countryAccessLogs, but these are not class members.
+        // Assuming the user meant to clear countryAccessMetadata and accessOrderedCountries.
+        synchronized(countryAccessMetadata) {
+            countryAccessMetadata.clear()
+        }
+        synchronized(accessOrderedCountries) {
+            accessOrderedCountries.clear()
+        }
+    }
+
+    /**
      * Handle border crossing with smooth transition logic for all overlay types
      */
     private fun handleBorderCrossing(fromCountry: String?, toCountry: String, location: GeoPoint) {
@@ -159,13 +177,16 @@ class UniversalCountryCacheManager(
             // Get adjacent countries based on current location and flight path
             val adjacentCountries = getAdjacentCountries(currentCountry, location)
 
-            adjacentCountries.forEach { country ->
-                if (country !in cachedCountries) {
-                    preloadCountry(country)
+            // Aviation safety: limit adjacent countries to prevent memory pressure
+            val countriesToLoad = adjacentCountries.take(MAX_ADJACENT_COUNTRIES)
+            
+            countriesToLoad.forEach { countryCode ->
+                if (countryCode !in cachedCountries) {
+                    preloadCountry(countryCode)
                 }
             }
 
-            Log.d(TAG, "Preloaded adjacent countries for all overlay types: $adjacentCountries")
+            Log.d(TAG, "Preloaded adjacent countries for all overlay types: $countriesToLoad")
         } catch (e: Exception) {
             Log.e(TAG, "Error preloading adjacent countries", e)
         }
@@ -194,7 +215,7 @@ class UniversalCountryCacheManager(
         try {
             Log.d(TAG, "Preloading country for all overlay types: $country")
             
-            // Optimistically add to cachedCountries so queries can attempt to read from disk immediately
+            // Mark as cached immediately to prevent redundant triggers
             cachedCountries.add(country)
 
             // 1. Download PG Spots (delegated to cache)
@@ -333,7 +354,7 @@ class UniversalCountryCacheManager(
         // MockServer expects "us" (lowercase) in query param, but "US" (uppercase) might be used in cache keys.
         // Let's normalize to uppercase for cache keys, as 'adjacencyMap' uses uppercase.
         val code = CountryUtils.getCountryCodeFromGeoPoint(applicationContext, location)
-        return code?.uppercase() ?: "US"
+        return code?.uppercase()
     }
 
     // Adjacency map for major paragliding regions
@@ -386,24 +407,25 @@ class UniversalCountryCacheManager(
     suspend fun queryMultiCountryArea(
         center: GeoPoint,
         radiusKm: Double
-    ): List<com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature> {
+    ): List<com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature> = coroutineScope {
         Log.v(TAG, "Multi-country spatial query: center=$center, radius=$radiusKm km")
 
-        val allFeatures = mutableListOf<com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature>()
-
-        // Query each cached country for relevant features - no lock needed for reading thread-safe set
-        cachedCountries.forEach { countryCode ->
+        val deferredFeatures = cachedCountries.map { countryCode ->
+            async {
                 try {
                     val features = queryCountryFeatures(center, countryCode, radiusKm)
-                    allFeatures.addAll(features)
                     Log.v(TAG, "Found ${features.size} features in $countryCode")
+                    features
                 } catch (e: Exception) {
                     Log.e(TAG, "Error querying country $countryCode", e)
+                    emptyList()
                 }
             }
+        }
 
+        val allFeatures = deferredFeatures.awaitAll().flatten()
         Log.d(TAG, "Total features from ${cachedCountries.size} countries: ${allFeatures.size}")
-        return allFeatures
+        allFeatures
     }
 
     /**

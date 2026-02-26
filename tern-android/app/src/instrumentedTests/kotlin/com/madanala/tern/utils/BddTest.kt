@@ -48,10 +48,6 @@ open class BddTest : BaseUITest() {
         }
     }
 
-    @org.junit.Before
-    fun setupDefaultCountry() {
-        com.madanala.tern.utils.CountryUtils.setTestCountryCode("us")
-    }
 
     fun scenario(name: String, block: () -> Unit) {
         ReportGenerator.logStep("SCENARIO", name)

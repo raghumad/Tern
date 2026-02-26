@@ -11,12 +11,15 @@ import com.madanala.tern.utils.CountryUtils
 import com.madanala.tern.utils.GeoJsonUtils
 import com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
+import org.osmdroid.views.overlay.Polygon
 
 /**
  * Custom exception for invalid geographic coordinates
@@ -107,6 +110,8 @@ class AirspaceOverlayManager(
     override fun updateConfig(config: com.madanala.tern.redux.OverlayConfig) {
     }
 
+
+
     override fun onOverlayAttached() {
 
         // Get universal country cache manager from overlay coordinator
@@ -114,18 +119,39 @@ class AirspaceOverlayManager(
         // For now, we'll use a simplified approach
     }
 
+    // Track the country loaded listener for cleanup
+    private var countryLoadedListener: ((String) -> Unit)? = null
+
     /**
      * Set the universal country cache manager (called by OverlayCoordinator)
      */
     fun setCountryCacheManager(countryCacheManager: com.madanala.tern.utils.UniversalCountryCacheManager) {
         this.countryCacheManager = countryCacheManager
         
-        // Register callback to reload airspaces when a new country is downloaded
-        this.countryCacheManager?.onCountryLoadedListeners?.add { countryCode ->
-            // Log.d(TAG, "Country $countryCode loaded, refreshing airspaces")
+        // Remove old listener if it exists to prevent leaks/accumulation
+        countryLoadedListener?.let { 
+            this.countryCacheManager?.onCountryLoadedListeners?.remove(it) 
+        }
+
+        // Create new listener
+        val listener: (String) -> Unit = { countryCode ->
+            // Use manager's scope which is tied to its lifecycle
             coroutineScope.launch {
                 mapView?.mapCenter?.let { center ->
                     // Refresh airspaces for current location now that data is available
+                    loadAirspaceForLocation(applicationContext, center as GeoPoint)
+                }
+            }
+        }
+        
+        this.countryLoadedListener = listener
+        this.countryCacheManager?.onCountryLoadedListeners?.add(listener)
+
+        // PROACTIVE REFRESH: If we already have cached countries, trigger a load immediately
+        // This handles the case where data was downloaded before this manager was attached
+        if (countryCacheManager.getCachedCountries().isNotEmpty()) {
+            coroutineScope.launch {
+                mapView?.mapCenter?.let { center ->
                     loadAirspaceForLocation(applicationContext, center as GeoPoint)
                 }
             }
@@ -134,8 +160,24 @@ class AirspaceOverlayManager(
 
 
 
+    override fun getRenderedCount(): Int {
+        return currentlyRenderedAirspaces.size
+    }
+
+    override fun onAttach(mapView: MapView) {
+        super.onAttach(mapView)
+        this.mapView = mapView
+        isAttached = true
+        // Log.d(TAG, "Airspace overlay manager attached to map")
+    }
     override fun onOverlayDetached() {
         // Log.d(TAG, "Airspace overlay manager detached")
+
+        // Remove listener to prevent memory leaks
+        countryLoadedListener?.let { 
+            this.countryCacheManager?.onCountryLoadedListeners?.remove(it) 
+        }
+        countryLoadedListener = null
 
         // Cancel any ongoing loading jobs
         loadingJob?.cancel()
@@ -432,12 +474,15 @@ class AirspaceOverlayManager(
                 // Notify cache manager of location change to trigger downloads/preloading if needed
                 countryCache.onLocationChanged(center)
         // Query multiple countries intelligently using the universal cache manager
-                val allFeatures = countryCache.queryMultiCountryArea(center, spatialQueryRadiusKm)
-                
-                // Filter for airspaces only (since UniversalCountryCacheManager returns all types)
-                val nearbyFeatures = allFeatures.filter { it.overlayType == "airspace" }
+                val nearbyFeatures = withContext(Dispatchers.IO) {
+                    // Query multiple countries intelligently using the universal cache manager
+                    val allFeatures = countryCache.queryMultiCountryArea(center, spatialQueryRadiusKm)
+                    
+                    // Filter for airspaces only (since UniversalCountryCacheManager returns all types)
+                    allFeatures.filter { it.overlayType == "airspace" }
+                }
 
-                Log.d(TAG, "loadAirspaceForLocation: Query result - Total: ${allFeatures.size}, Airspaces: ${nearbyFeatures.size}")
+                Log.d(TAG, "loadAirspaceForLocation: Query result - Airspaces: ${nearbyFeatures.size}")
 
                 if (nearbyFeatures.isNotEmpty()) {
                     mapView?.let { map ->
@@ -447,7 +492,8 @@ class AirspaceOverlayManager(
                     // Update last location for movement tracking
                     lastCheckLocation = center
                 } else {
-                     // Log.d(TAG, "No airspaces found near $center in cached countries")
+                    Log.i(TAG, String.format("Airspace sync: Desired: 0 (from 0 features), Current: %d, Visible: %d @ %.4f,%.4f", 
+                        currentlyRenderedAirspaces.size, currentlyRenderedAirspaces.size, center.latitude, center.longitude))
                 }
             } ?: run {
                 Log.e(TAG, "Universal country cache manager not available - cannot load airspaces")
@@ -482,7 +528,7 @@ class AirspaceOverlayManager(
 
 
 
-        Log.d(TAG, String.format(
+        Log.i(TAG, String.format(
             "Airspace sync: Desired: %d (from %d features), Current: %d, Visible: %d %s",
             desiredAirspaceIds.size,
             features.size,
@@ -586,23 +632,28 @@ class AirspaceOverlayManager(
      * Add overlays directly to the map with Z-Index management
      */
     private fun addOverlaysToMap(map: MapView, airspacesToAdd: List<Map.Entry<String, OverlayFeature>>) {
-            airspacesToAdd.forEachIndexed { index, (airspaceId, feature) ->
-                // Create overlay WITHOUT adding to map
-                val overlays = GeoJsonUtils.createAirspaceOverlays(map, listOf(feature))
-                if (overlays.isNotEmpty()) {
-                    val polygon = overlays.first()
+            coroutineScope.launch {
+                // Batch create polygons on IO thread to prevent UI blockage
+                val polygonsWithIds = withContext(Dispatchers.IO) {
+                    airspacesToAdd.mapNotNull { (airspaceId, feature) ->
+                        val overlays = GeoJsonUtils.createAirspaceOverlays(map, listOf(feature))
+                        if (overlays.isNotEmpty()) {
+                            airspaceId to overlays.first()
+                        } else null
+                    }
+                }
 
-                    // Add to our tracking immediately
-                    currentlyRenderedAirspaces[airspaceId] = polygon
-
-                    // Log identifying info for debugging
-                    val name = feature.feature["properties"]?.let { (it as? Map<*, *>)?.get("name") } ?: airspaceId
-
-                    // Insert at correct depth (bottom of stack)
-                    insertOverlayAtCorrectDepth(map, polygon)
+                // Add to map on UI thread
+                withContext(Dispatchers.Main) {
+                    polygonsWithIds.forEach { pair ->
+                        val (airspaceId, polygon) = pair
+                        currentlyRenderedAirspaces[airspaceId] = polygon
+                        insertOverlayAtCorrectDepth(map, polygon)
+                    }
+                    map.invalidate()
+                    Log.d(TAG, "Added ${polygonsWithIds.size} airspaces to map")
                 }
             }
-            map.invalidate()
     }
 
     /**

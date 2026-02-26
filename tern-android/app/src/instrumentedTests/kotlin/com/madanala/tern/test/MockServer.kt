@@ -16,7 +16,11 @@ class MockServer {
     }
 
     fun shutdown() {
-        server.shutdown()
+        try {
+            server.shutdown()
+        } catch (e: Exception) {
+            android.util.Log.e("MockServer", "Error shutting down MockWebServer: ${e.message}")
+        }
     }
 
     fun setDispatcher(dispatcher: okhttp3.mockwebserver.Dispatcher) {
@@ -86,16 +90,16 @@ class MockServer {
         
         server.dispatcher = object : okhttp3.mockwebserver.Dispatcher() {
             override fun dispatch(request: okhttp3.mockwebserver.RecordedRequest): MockResponse {
+                android.util.Log.i("MockServer", "RECEIVED REQUEST: ${request.path} from ${request.requestUrl}")
                 println("DEBUG: MockServer Dispatcher received request: ${request.path}")
                 if (request.path?.contains("getCountrySites.php") == true) {
-                    println("DEBUG: MockServer Dispatcher MATCHED PG Spots request")
+                    android.util.Log.i("MockServer", "Serving mock PG spots for: ${request.path}")
                     return MockResponse().setResponseCode(200).setBody(pgSpotsJson)
                 }
                 if (request.path?.contains("_asp.geojson") == true) {
-                    println("DEBUG: MockServer Dispatcher MATCHED Airspace request")
+                    android.util.Log.i("MockServer", "Serving mock airspaces for: ${request.path}")
                     return MockResponse().setResponseCode(200).setBody(airspacesJson)
                 }
-                println("DEBUG: MockServer Dispatcher NO MATCH for: ${request.path}")
                 return MockResponse().setResponseCode(404)
             }
         }

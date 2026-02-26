@@ -26,38 +26,40 @@ class SettingsScreenTest : MapVisualTest() {
     @Test
     fun testUnitPreferences() {
         scenario("testUnitPreferences") {
-            val activity = composeTestRule.activity as TernParaglidingActivity
-            val store = ViewModelProvider(activity)[MapStore::class.java]
+            story("As a pilot from a region that uses Imperial units, I want to change my distance and speed preferences to miles and mph so that I can intuitively understand my altitude and groundspeed during flight without mental math.") {
+                val activity = composeTestRule.activity as TernParaglidingActivity
+                val store = ViewModelProvider(activity)[MapStore::class.java]
 
-            given("I have the Settings Sheet open") {
-                composeTestRule.onNodeWithContentDescription("Settings").performClick()
-                composeTestRule.waitForIdle()
-                composeTestRule.onNodeWithText("Units").assertIsDisplayed()
-            }
-
-            `when`("I change the Distance unit to 'mi'") {
-                ReportGenerator.logStep("ACTION", "Clicking on 'mi' button")
-                composeTestRule.onNodeWithTag("btn_Distance_mi").performClick()
-            }
-
-            this.then("the store should update the distance unit preference") {
-                ReportGenerator.logStep("VERIFY", "Checking store state for distance unit")
-                val currentUnit = store.state.value.settingsState.distanceUnit
-                if (currentUnit != "mi") {
-                    throw AssertionError("Expected distance unit to be 'mi' but was '$currentUnit'")
+                given("I have opened the pre-flight settings panel") {
+                    composeTestRule.onNodeWithContentDescription("Settings").performClick()
+                    composeTestRule.waitForIdle()
+                    composeTestRule.onNodeWithText("Units").assertIsDisplayed()
                 }
-            }
 
-            `when`("I change the Speed unit to 'kph'") {
-                ReportGenerator.logStep("ACTION", "Clicking on 'kph' button")
-                composeTestRule.onNodeWithTag("btn_Speed_kph").performClick()
-            }
+                `when`("I switch the Distance units to miles (mi)") {
+                    ReportGenerator.logStep("ACTION", "Clicking on 'mi' button")
+                    composeTestRule.onNodeWithTag("btn_Distance_mi").performClick()
+                }
 
-            then("the store should update the speed unit preference") {
-                ReportGenerator.logStep("VERIFY", "Checking store state for speed unit")
-                val currentUnit = store.state.value.settingsState.speedUnit
-                if (currentUnit != "kph") {
-                    throw AssertionError("Expected speed unit to be 'kph' but was '$currentUnit'")
+                then("the flight computer should update its distance preference to Miles") {
+                    ReportGenerator.logStep("VERIFY", "Checking store state for distance unit")
+                    val currentUnit = store.state.value.settingsState.distanceUnit
+                    if (currentUnit != "mi") {
+                        throw AssertionError("Expected distance unit to be 'mi' but was '$currentUnit'")
+                    }
+                }
+
+                `when`("I switch the Speed units to kilometers per hour (kph) for better resolution") {
+                    ReportGenerator.logStep("ACTION", "Clicking on 'kph' button")
+                    composeTestRule.onNodeWithTag("btn_Speed_kph").performClick()
+                }
+
+                then("the groundspeed display should immediately reflect the metric preference") {
+                    ReportGenerator.logStep("VERIFY", "Checking store state for speed unit")
+                    val currentUnit = store.state.value.settingsState.speedUnit
+                    if (currentUnit != "kph") {
+                        throw AssertionError("Expected speed unit to be 'kph' but was '$currentUnit'")
+                    }
                 }
             }
         }
@@ -66,32 +68,34 @@ class SettingsScreenTest : MapVisualTest() {
     @Test
     fun testLayerToggles() {
         scenario("testLayerToggles") {
-            val activity = composeTestRule.activity as TernParaglidingActivity
-            val store = ViewModelProvider(activity)[MapStore::class.java]
+            story("As a pilot who wants to minimize distractions on the map during a leisure flight, I want to toggle off specific layers like airspace boundaries when I'm flying in a well-known, simple area.") {
+                val activity = composeTestRule.activity as TernParaglidingActivity
+                val store = ViewModelProvider(activity)[MapStore::class.java]
 
-            given("I have the Settings Sheet open") {
-                composeTestRule.onNodeWithContentDescription("Settings").performClick()
-                composeTestRule.waitForIdle()
-                composeTestRule.onNodeWithText("Map Layers").assertIsDisplayed()
-            }
+                given("I am reviewing my map overlay settings") {
+                    composeTestRule.onNodeWithContentDescription("Settings").performClick()
+                    composeTestRule.waitForIdle()
+                    composeTestRule.onNodeWithText("Map Layers").assertIsDisplayed()
+                }
 
-            then("Airspaces should be enabled by default") {
-                ReportGenerator.logStep("VERIFY", "Checking Airspaces toggle is ON")
-                composeTestRule.onNodeWithTag("toggle_Airspaces").assertIsOn()
-            }
+                then("I should see that specialized aviation layers like Airspaces are active by default") {
+                    ReportGenerator.logStep("VERIFY", "Checking Airspaces toggle is ON")
+                    composeTestRule.onNodeWithTag("toggle_Airspaces").assertIsOn()
+                }
 
-            `when`("I toggle Airspaces off") {
-                ReportGenerator.logStep("ACTION", "Clicking Airspaces toggle")
-                composeTestRule.onNodeWithTag("toggle_Airspaces").performClick()
-            }
-            
-            then("Airspaces should be disabled") {
-                ReportGenerator.logStep("VERIFY", "Checking Airspaces toggle is OFF")
-                composeTestRule.onNodeWithTag("toggle_Airspaces").assertIsOff()
+                `when`("I choose to declutter the map by disabling the Airspace overlay") {
+                    ReportGenerator.logStep("ACTION", "Clicking Airspaces toggle")
+                    composeTestRule.onNodeWithTag("toggle_Airspaces").performClick()
+                }
                 
-                ReportGenerator.logStep("VERIFY", "Checking store state")
-                if (store.state.value.overlayState.airspaces.enabled) {
-                    throw AssertionError("Airspaces should be disabled in store")
+                then("the map should instantly remove the airspace polygons from view") {
+                    ReportGenerator.logStep("VERIFY", "Checking Airspaces toggle is OFF")
+                    composeTestRule.onNodeWithTag("toggle_Airspaces").assertIsOff()
+                    
+                    ReportGenerator.logStep("VERIFY", "Checking store state")
+                    if (store.state.value.overlayState.airspaces.enabled) {
+                        throw AssertionError("Airspaces should be disabled in store")
+                    }
                 }
             }
         }
