@@ -4,12 +4,14 @@ import android.content.Context
 import android.location.Address
 import android.location.Geocoder
 import org.osmdroid.util.GeoPoint
+import android.util.Log
 import java.util.Locale
 
 /**
  * Utility class for country detection and geocoding operations
  */
 object CountryUtils {
+    private const val TAG = "CountryUtils"
 
     /**
      * Get country code from coordinates using reverse geocoding
@@ -18,11 +20,13 @@ object CountryUtils {
      * @param longitude Longitude coordinate
      * @return Two-letter country code (ISO 3166-1 alpha-2) or null if not found
      */
+    @Volatile
     private var testCountryCode: String? = null
 
     @androidx.annotation.VisibleForTesting
     fun setTestCountryCode(code: String?) {
-        testCountryCode = code
+        Log.i(TAG, "Setting test country code to: $code")
+        testCountryCode = code?.uppercase()
     }
 
     fun getCountryCodeFromCoordinates(

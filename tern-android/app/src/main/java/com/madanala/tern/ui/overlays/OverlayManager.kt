@@ -74,4 +74,9 @@ interface OverlayManager {
      * Get performance statistics
      */
     fun getPerformanceStats(): Map<String, Any>
+
+    /**
+     * Get number of currently rendered overlays (for test synchronization)
+     */
+    fun getRenderedCount(): Int
 }

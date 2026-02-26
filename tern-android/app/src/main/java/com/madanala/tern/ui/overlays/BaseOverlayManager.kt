@@ -64,12 +64,14 @@ abstract class BaseOverlayManager(
     private var currentOverlayBudget: OverlayBudget? = null
 
     // Debouncing for map movements
-    private val mainHandler = Handler(Looper.getMainLooper())
-    private var pendingMapMove: Runnable? = null
-    private val mapMoveDebounceMs = 500L
+    protected val mainHandler = Handler(Looper.getMainLooper())
+    protected var pendingMapMove: Runnable? = null
+    protected var mapMoveDebounceMs = 300L
 
     // Coroutine scope for async operations
-    protected val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private var _coroutineScope: CoroutineScope? = null
+    protected val coroutineScope: CoroutineScope
+        get() = _coroutineScope ?: CoroutineScope(SupervisorJob() + Dispatchers.Main).also { _coroutineScope = it }
 
     // Redux state subscription
     private var stateJob: kotlinx.coroutines.Job? = null
@@ -235,6 +237,10 @@ abstract class BaseOverlayManager(
         return adaptiveStats
     }
 
+    override fun getRenderedCount(): Int {
+        return 0 // Default implementation, override in specifically tracked managers
+    }
+
     /**
       * Get detailed overlay visibility statistics for debugging
       */
@@ -273,6 +279,7 @@ abstract class BaseOverlayManager(
 
     override fun onViewportChanged(viewport: BoundingBox) {
         if (!isAttached) return
+        Log.i(TAG, "Rendering heartbeat: Viewport update processed")
         onViewportChangedInternal(viewport)
     }
 
@@ -369,6 +376,21 @@ abstract class BaseOverlayManager(
      * Clear overlays specific to this manager
      */
     abstract override fun clearOverlays()
+
+    fun setDebounceMs(ms: Long) {
+        mapMoveDebounceMs = ms
+    }
+
+    /**
+     * Debounce map movements to prevent state update storms
+     */
+    fun scheduleMapMove(center: GeoPoint, zoom: Double) {
+        pendingMapMove?.let { mainHandler.removeCallbacks(it) }
+        pendingMapMove = Runnable {
+            performMapMove(center, zoom)
+        }
+        mainHandler.postDelayed(pendingMapMove!!, mapMoveDebounceMs)
+    }
 
     // === MEMORY-BASED ADAPTIVE OVERLAY SYSTEM ===
 
@@ -660,6 +682,7 @@ abstract class BaseOverlayManager(
         isAttached = false
 
         // Cancel coroutine scope
-        coroutineScope.cancel()
+        _coroutineScope?.cancel()
+        _coroutineScope = null
     }
 }

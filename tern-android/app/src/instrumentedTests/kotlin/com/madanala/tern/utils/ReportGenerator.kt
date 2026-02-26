@@ -59,32 +59,27 @@ object ReportGenerator {
     }
 
     fun captureLogCat(): String {
-        try {
-            val process = Runtime.getRuntime().exec("logcat -d -v threadtime")
-            val reader = java.io.BufferedReader(java.io.InputStreamReader(process.inputStream))
-            val log = StringBuilder()
-            var line: String?
-            while (reader.readLine().also { line = it } != null) {
-                log.append(line).append("\n")
-            }
-            var result = log.toString()
+        return try {
+            val device = androidx.test.uiautomator.UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
+            val result = device.executeShellCommand("logcat -d -v threadtime")
             
             // Filter by current test name if set
+            var filteredResult = result
             currentTestName?.let { name ->
                 val startTag = "=== START $name ==="
-                val startIndex = result.lastIndexOf(startTag)
+                val startIndex = filteredResult.lastIndexOf(startTag)
                 if (startIndex != -1) {
-                    result = result.substring(startIndex)
+                    filteredResult = filteredResult.substring(startIndex)
                 }
             }
             
-            if (result.isEmpty()) {
-                return "WARNING: Logcat was empty."
+            if (filteredResult.isEmpty()) {
+                "WARNING: Logcat was empty."
+            } else {
+                filteredResult
             }
-            return result
         } catch (e: Exception) {
-            e.printStackTrace()
-            return "Failed to capture logcat: ${e.message}"
+            "Failed to capture logcat: ${e.message}"
         }
     }
 

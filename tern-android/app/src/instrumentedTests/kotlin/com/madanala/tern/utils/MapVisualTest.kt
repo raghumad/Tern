@@ -19,6 +19,8 @@ import android.Manifest
  * Provides BDD-style helpers but launches TernParaglidingActivity.
  */
 open class MapVisualTest {
+    
+    val mockServer = com.madanala.tern.test.MockServer()
 
     @get:org.junit.Rule
     val testNameRule = org.junit.rules.TestName()
@@ -32,23 +34,50 @@ open class MapVisualTest {
         Manifest.permission.ACCESS_COARSE_LOCATION
     )
 
+    init {
+        // Essential: Set the location provider factory BEFORE the Activity starts.
+        // Since createAndroidComposeRule starts the Activity as soon as it's evaluated,
+        // we must set this in the init block of the test class.
+        com.madanala.tern.ui.components.MapViewModel.locationProviderFactory = { 
+            // Default to Boulder, US for tests
+            MockLocationProvider(40.015, -105.27) 
+        }
+        
+        // Also set a default test country code to avoid race conditions with initial location updates
+        com.madanala.tern.utils.CountryUtils.setTestCountryCode("us")
+    }
+
 
     @org.junit.Before
     fun setup() {
+        val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
+        com.madanala.tern.utils.CacheManager.initialize(context)
+
+        com.madanala.tern.ui.components.MapViewModel.MAP_MOVE_DEBOUNCE_MS = 0L
         ReportGenerator.currentTestName = testNameRule.methodName
-        Log.d("MapVisualTest", "=== START ${testNameRule.methodName} ===")
-        
-        // Proactively clear disk caches before activity is fully ready
+
+        // 1. Clear logcat FIRST so START tag survives
         try {
-            val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
-            val airspaceDir = java.io.File(context.cacheDir, "airspace_cache")
-            val pgSpotDir = java.io.File(context.cacheDir, "pgspot_cache")
-            if (airspaceDir.exists()) airspaceDir.deleteRecursively()
-            if (pgSpotDir.exists()) pgSpotDir.deleteRecursively()
-            Log.d("MapVisualTest", "Proactively cleared disk caches")
+            Runtime.getRuntime().exec("logcat -c")
+            Thread.sleep(500) // Give it a moment to clear
         } catch (e: Exception) {
-            Log.e("MapVisualTest", "Failed to proactively clear caches: ${e.message}")
+            // Log.e("MapVisualTest", "Failed to clear logcat: ${e.message}")
         }
+
+        mockServer.start()
+        val mockUrl = mockServer.url("/")
+        com.madanala.tern.utils.CacheManager.airspaceCache.setBaseUrlForTesting(mockUrl)
+        com.madanala.tern.utils.CacheManager.pgSpotCache.setBaseUrlForTesting(mockUrl)
+        
+        Log.i("MapVisualTest", "=== START ${testNameRule.methodName} ===")
+        
+        // 2. Proactively clear disk caches and performance metrics
+        com.madanala.tern.utils.CacheManager.clearAllCaches()
+        com.madanala.tern.utils.PerformanceDebugger.clearMetrics()
+        Log.d("MapVisualTest", "Proactively cleared all caches and performance metrics")
+
+        // Reset global state to ensure test isolation (0L for immediate updates)
+        com.madanala.tern.ui.components.MapViewModel.MAP_MOVE_DEBOUNCE_MS = 0L
 
         // Wait for activity to be fully ready and setContent called
         Thread.sleep(2000)
@@ -57,19 +86,51 @@ open class MapVisualTest {
         clearState()
     }
 
+    @org.junit.After
+    fun tearDown() {
+        Log.i("MapVisualTest", "=== END ${testNameRule.methodName} ===")
+        
+        // Reset base URLs to prevent test leakage
+        com.madanala.tern.utils.CacheManager.airspaceCache.resetBaseUrlForTesting()
+        com.madanala.tern.utils.CacheManager.pgSpotCache.resetBaseUrlForTesting()
+        
+        mockServer.shutdown()
+        
+        // Final cache clear
+        com.madanala.tern.utils.CacheManager.clearAllCaches()
+        
+        ReportGenerator.generateFinalReport(testNameRule.methodName)
+    }
+
     private fun clearState() {
         composeTestRule.runOnUiThread {
             try {
                 val activity = composeTestRule.activity
                 val store = ViewModelProvider(activity)[MapStore::class.java]
+
+                // RESET universal coordinator state via MapViewModel (Priority: Regression Fix)
+                try {
+                    val componentActivity = activity as? androidx.activity.ComponentActivity
+                    if (componentActivity != null) {
+                        val mapViewModel = ViewModelProvider(componentActivity).get(com.madanala.tern.ui.components.MapViewModel::class.java)
+                        val field = mapViewModel.javaClass.getDeclaredField("overlayCoordinator")
+                        field.isAccessible = true
+                        val coordinator = field.get(mapViewModel) as? com.madanala.tern.ui.overlays.OverlayCoordinator
+                        coordinator?.reset()
+                        Log.d("MapVisualTest", "Reset OverlayCoordinator via MapViewModel")
+                    } else {
+                        Log.w("MapVisualTest", "Activity is not a ComponentActivity, could not access ViewModel")
+                    }
+                } catch (e: Exception) {
+                    Log.w("MapVisualTest", "Could not reset coordinator via ViewModel: ${e.message}")
+                }
+
                 store.dispatch(MapAction.ClearAllRoutes)
                 store.dispatch(MapAction.DeselectRoute)
                 store.dispatch(MapAction.DeselectWaypoint)
                 
                 // Clear Caches
                 com.madanala.tern.utils.CacheManager.clearAllCaches()
-                com.madanala.tern.utils.CacheManager.airspaceCache.resetBaseUrlForTesting()
-                com.madanala.tern.utils.CacheManager.pgSpotCache.resetBaseUrlForTesting()
             } catch (e: Exception) {
                 Log.e("MapVisualTest", "Error clearing state: ${e.message}")
             }
@@ -116,6 +177,70 @@ open class MapVisualTest {
         Thread.sleep(timeout)
     }
 
+    /**
+     * Helper to wait for a specific number of airspaces to be rendered.
+     */
+    fun waitForAirspaces(minCount: Int = 1, timeoutMillis: Long = 20000) {
+        val startTime = System.currentTimeMillis()
+        while (System.currentTimeMillis() - startTime < timeoutMillis) {
+            var count = 0
+            composeTestRule.runOnUiThread {
+                try {
+                    val activity = composeTestRule.activity
+                    val componentActivity = activity as? androidx.activity.ComponentActivity
+                    if (componentActivity != null) {
+                        val mapViewModel = ViewModelProvider(componentActivity).get(com.madanala.tern.ui.components.MapViewModel::class.java)
+                        val field = mapViewModel.javaClass.getDeclaredField("overlayCoordinator")
+                        field.isAccessible = true
+                        val coordinator = field.get(mapViewModel) as? com.madanala.tern.ui.overlays.OverlayCoordinator
+                        count = coordinator?.getRenderedOverlayCount(com.madanala.tern.redux.OverlayType.AIRSPACE) ?: 0
+                    }
+                } catch (e: Exception) {
+                    Log.e("MapVisualTest", "Error checking airspace count: ${e.message}")
+                }
+            }
+            if (count >= minCount) {
+                println("DEBUG: waitForAirspaces SUCCESS: Found $count airspaces")
+                return
+            }
+            if (System.currentTimeMillis() % 2000 < 500) {
+                println("DEBUG: waitForAirspaces: Current count = $count")
+            }
+            Thread.sleep(500)
+        }
+        val activity = composeTestRule.activity
+        println("DEBUG: waitForAirspaces TIMEOUT. Activity: $activity")
+        throw AssertionError("Timed out waiting for at least $minCount airspaces. Final count: see console logs")
+    }
+
+    /**
+     * Helper to wait for a specific number of PG spots to be rendered.
+     */
+    fun waitForPGSpots(minCount: Int = 1, timeoutMillis: Long = 20000) {
+        val startTime = System.currentTimeMillis()
+        while (System.currentTimeMillis() - startTime < timeoutMillis) {
+            var count = 0
+            composeTestRule.runOnUiThread {
+                try {
+                    val activity = composeTestRule.activity
+                    val componentActivity = activity as? androidx.activity.ComponentActivity
+                    if (componentActivity != null) {
+                        val mapViewModel = ViewModelProvider(componentActivity).get(com.madanala.tern.ui.components.MapViewModel::class.java)
+                        val field = mapViewModel.javaClass.getDeclaredField("overlayCoordinator")
+                        field.isAccessible = true
+                        val coordinator = field.get(mapViewModel) as? com.madanala.tern.ui.overlays.OverlayCoordinator
+                        count = coordinator?.getRenderedOverlayCount(com.madanala.tern.redux.OverlayType.PG_SPOTS) ?: 0
+                    }
+                } catch (e: Exception) {
+                    Log.e("MapVisualTest", "Error checking PG spot count: ${e.message}")
+                }
+            }
+            if (count >= minCount) return
+            Thread.sleep(500)
+        }
+        throw AssertionError("Timed out waiting for at least $minCount PG spots. Final count: unknown (see logs)")
+    }
+
     // BDD Helpers (Copied from BddTest to avoid rule conflicts)
     fun scenario(name: String, block: () -> Unit) {
         ReportGenerator.logStep("SCENARIO", name)
@@ -140,9 +265,9 @@ open class MapVisualTest {
         }
     }
 
-    @org.junit.After
-    fun tearDown() {
-        ReportGenerator.generateFinalReport(testNameRule.methodName)
+    fun story(description: String, block: () -> Unit) {
+        ReportGenerator.logStep("STORY", description)
+        block()
     }
 
     fun given(description: String, takeScreenshot: Boolean = false, block: () -> Unit) {

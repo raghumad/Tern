@@ -26,43 +26,42 @@ class RouteStatisticsTest : MapVisualTest() {
     @Test
     fun testRouteStatisticsDisplay() {
         scenario("testRouteStatisticsDisplay") {
-            val activity = composeTestRule.activity as TernParaglidingActivity
-            val store = ViewModelProvider(activity)[MapStore::class.java]
-            
-            // Create a route with known distance
-            // Waypoint 1: 0,0
-            // Waypoint 2: 0,1 (~111km)
-            val waypoint1 = com.madanala.tern.model.Waypoint(lat = 0.0, lon = 0.0, label = "Start")
-            val waypoint2 = com.madanala.tern.model.Waypoint(lat = 0.0, lon = 1.0, label = "End")
-            
-            val route = com.madanala.tern.model.Route(
-                name = "Stats Test Route",
-                waypoints = listOf(waypoint1, waypoint2)
-            )
-            
-            store.dispatch(MapAction.AddRoute(route))
-            store.dispatch(MapAction.SelectRoute(route.id))
-            given("I have a route selected and RouteDetailPanel is visible") {
-                ReportGenerator.logStep("SETUP", "Selected route should trigger panel in real activity")
-                composeTestRule.waitForIdle()
-                composeTestRule.onNodeWithText("Stats Test Route").assertIsDisplayed()
-            }
+            story("As a pilot planning a cross-country adventure, I want to see the total distance and waypoint count of my route so I can estimate my flight time and ensure I have enough battery and daylight for the journey.") {
+                val activity = composeTestRule.activity as TernParaglidingActivity
+                val store = ViewModelProvider(activity)[MapStore::class.java]
+                
+                // Create a route with known distance (~111km)
+                val waypoint1 = com.madanala.tern.model.Waypoint(lat = 0.0, lon = 0.0, label = "Start")
+                val waypoint2 = com.madanala.tern.model.Waypoint(lat = 0.0, lon = 1.0, label = "End")
+                val route = com.madanala.tern.model.Route(
+                    name = "Stats Test Route",
+                    waypoints = listOf(waypoint1, waypoint2)
+                )
 
-            then("I see the route statistics") {
-                ReportGenerator.logStep("VERIFY", "Checking for distance display")
-                // Distance should be approx 111km. The UI might show "111.2 km" or similar.
-                // We check for substring match or specific format depending on implementation.
-                // Since "km" might appear multiple times, we check that at least one instance is visible.
-                val kmNodes = composeTestRule.onAllNodesWithText("km", substring = true)
-                if (kmNodes.fetchSemanticsNodes().isEmpty()) {
-                    throw AssertionError("Expected to find text containing 'km' but found none")
+                given("I have selected a route for my upcoming flight") {
+                    store.dispatch(MapAction.AddRoute(route))
+                    store.dispatch(MapAction.SelectRoute(route.id))
+                    ReportGenerator.logStep("SETUP", "Selected route should trigger panel in real activity")
+                    composeTestRule.waitForIdle()
+                }
+
+                `when`("I open the route detail panel to review the flight plan") {
+                    composeTestRule.onNodeWithText("Stats Test Route").assertIsDisplayed()
+                }
+
+                then("I should see the total calculated distance in kilometers") {
+                    ReportGenerator.logStep("VERIFY", "Checking for distance display")
+                    val kmNodes = composeTestRule.onAllNodesWithText("km", substring = true)
+                    if (kmNodes.fetchSemanticsNodes().isEmpty()) {
+                        throw AssertionError("Expected to find text containing 'km' but found none")
+                    }
+                    kmNodes.onFirst().assertIsDisplayed()
                 }
                 
-                // Assert the first one is displayed
-                kmNodes.onFirst().assertIsDisplayed()
-                
-                ReportGenerator.logStep("VERIFY", "Checking for waypoint count")
-                composeTestRule.onNodeWithText("Waypoints (2)", substring = true).assertIsDisplayed()
+                and("the total number of waypoints is correctly displayed") {
+                    ReportGenerator.logStep("VERIFY", "Checking for waypoint count")
+                    composeTestRule.onNodeWithText("Waypoints (2)", substring = true).assertIsDisplayed()
+                }
             }
         }
     }

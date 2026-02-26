@@ -80,21 +80,41 @@ class PGSpotOverlayManager(
     // Reference to overlay coordinator for Hilbert batch operations
     private var overlayCoordinator: com.madanala.tern.ui.overlays.OverlayCoordinator? = null
 
+    // Track the country loaded listener for cleanup
+    private var countryLoadedListener: ((String) -> Unit)? = null
+
     /**
      * Set the universal country cache manager (called by OverlayCoordinator)
      */
     fun setCountryCacheManager(countryCacheManager: com.madanala.tern.utils.UniversalCountryCacheManager) {
         this.countryCacheManager = countryCacheManager
         
-        // Register callback to reload PG spots when a new country is downloaded
-        this.countryCacheManager?.onCountryLoadedListeners?.add { countryCode ->
-             Log.d(TAG, "Country $countryCode loaded, refreshing PG Spots")
+        // Remove old listener if it exists to prevent leaks/accumulation
+        countryLoadedListener?.let { 
+            this.countryCacheManager?.onCountryLoadedListeners?.remove(it) 
+        }
+
+        // Create new listener
+        val listener: (String) -> Unit = { countryCode ->
+             // Log.d(TAG, "Country $countryCode loaded, refreshing PG Spots")
              coroutineScope.launch {
                  mapView?.mapCenter?.let { center ->
                      // Refresh PG spots for current location now that data is available
                      checkAndLoadPGSpots(center as GeoPoint)
                  }
              }
+        }
+        
+        this.countryLoadedListener = listener
+        this.countryCacheManager?.onCountryLoadedListeners?.add(listener)
+
+        // PROACTIVE REFRESH: If we already have cached countries, trigger a load immediately
+        if (countryCacheManager.getCachedCountries().isNotEmpty()) {
+            coroutineScope.launch {
+                mapView?.mapCenter?.let { center ->
+                    checkAndLoadPGSpots(center as GeoPoint)
+                }
+            }
         }
     }
 
@@ -143,15 +163,18 @@ class PGSpotOverlayManager(
         // Future: Handle PG spot specific configurations
     }
 
-    override fun onOverlayAttached() {
+    override fun getRenderedCount(): Int {
+        return currentlyRenderedPGSpots.size
+    }
 
+    override fun onOverlayAttached() {
         // Clean up any corrupted cache files from previous sessions
         pgSpotCache.cleanupCorruptedCache()
 
         initiateWeatherSystem()
 
         // Load PG spots for initial broader area to ensure they're visible on first load
-        loadPGSpotsForInitialArea()
+        // loadPGSpotsForInitialArea()
     }
 
     /**
@@ -173,8 +196,17 @@ class PGSpotOverlayManager(
         }
     }
 
+
+
     override fun onOverlayDetached() {
         // Log.d(TAG, "PG spots overlay manager detached")
+
+        // Remove listener to prevent memory leaks
+        countryLoadedListener?.let { 
+            this.countryCacheManager?.onCountryLoadedListeners?.remove(it) 
+        }
+        countryLoadedListener = null
+
         loadingJob?.cancel()
         weatherFetchJob?.cancel()
         loadingJob = null
@@ -484,6 +516,7 @@ class PGSpotOverlayManager(
             val countryCode = com.madanala.tern.utils.CountryUtils.getCountryCodeFromGeoPoint(context, center)
             if (countryCode == null) {
                 Log.w(TAG, "Could not determine country code for PG spots at: $center")
+                Log.i(TAG, String.format("PG spots rendered: 0 total, 0 visible @ %.4f,%.4f", center.latitude, center.longitude))
                 return
             }
 
@@ -498,30 +531,24 @@ class PGSpotOverlayManager(
             }
 
             // 🗺️ FlexBuffers + Hilbert Caching Architecture for PG Spots
-            var nearbyFeatures: List<OverlayFeature>
-
-            // Unified Architecture: UniversalCountryCacheManager handles downloading.
-            // We simply query the cache. If data is not yet available (downloading),
-            // it will be picked up on the next map update or refresh.
-            // NOTE: UniversalCountryCacheManager uses uppercase codes (e.g. "US"), so we must match that.
-            val cacheKey = countryCode.uppercase()
-            
-            if (pgSpotCache.isCached(cacheKey)) {
-                // CACHED: Use Hilbert spatial query for nearby features only
-                nearbyFeatures = pgSpotCache.queryNearbyPGSpots(cacheKey, center, 200.0)
-            } else {
-                // Not cached yet (or download in progress by UniversalCountryCacheManager)
-                // Try to use existing cache even if stale (better than no data)
-                val fallbackFeatures = pgSpotCache.getCachedPGSpots(cacheKey)
-                if (fallbackFeatures != null && fallbackFeatures.isNotEmpty()) {
-                    // Log.d(TAG, "Using stale cache as fallback: ${fallbackFeatures.size} PG spots for $countryCode")
-                    nearbyFeatures = fallbackFeatures.filter { feature ->
+            val nearbyFeatures = withContext(Dispatchers.IO) {
+                // Unified Architecture: UniversalCountryCacheManager handles downloading.
+                // We simply query the cache. If data is not yet available (downloading),
+                // it will be picked up on the next map update or refresh.
+                // NOTE: UniversalCountryCacheManager uses uppercase codes (e.g. "US"), so we must match that.
+                val cacheKey = countryCode.uppercase()
+                
+                if (pgSpotCache.isCached(cacheKey)) {
+                    // CACHED: Use Hilbert spatial query for nearby features only
+                    pgSpotCache.queryNearbyPGSpots(cacheKey, center, 200.0)
+                } else {
+                    // Not cached yet (or download in progress by UniversalCountryCacheManager)
+                    // Try to use existing cache even if stale (better than no data)
+                    val fallbackFeatures = pgSpotCache.getCachedPGSpots(cacheKey)
+                    fallbackFeatures?.filter { feature ->
                         val distance = center.distanceToAsDouble(feature.centroid) / 1000.0 // Convert to km
                         distance <= 200.0 // Same 200km radius as fresh data
-                    }
-                } else {
-                    // Log.d(TAG, "PG spots not yet cached for $countryCode (download likely in progress)")
-                    nearbyFeatures = emptyList()
+                    } ?: emptyList()
                 }
             }
 
@@ -549,7 +576,7 @@ class PGSpotOverlayManager(
        * RENDER PG SPOTS WITH WEATHER CAPABILITY
        * Initial static display with future dynamic weather integration
        */
-    private fun renderPGSpotFeaturesWithWeather(features: List<OverlayFeature>, center: GeoPoint) {
+    private suspend fun renderPGSpotFeaturesWithWeather(features: List<OverlayFeature>, center: GeoPoint) {
         Log.d(TAG, "renderPGSpotFeaturesWithWeather called with ${features.size} features")
 
         // Using passed center directly for consistency
@@ -568,23 +595,65 @@ class PGSpotOverlayManager(
         val toRemoveIds = currentIds - desiredIds
         val toAddFeatures = prioritizedFeatures.filter { !currentIds.contains(generatePGSpotId(it)) }
 
-        // 🎯 STEP 2: Remove old spots (Outside -> Center)
-        val sortedRemovals = sortForRemoval(toRemoveIds.toList(), center) { id ->
-            currentlyRenderedPGSpots[id]?.center ?: center
+        // 🎯 STEP 2: Remove old spots (Main thread)
+        withContext(Dispatchers.Main) {
+            val sortedRemovals = sortForRemoval(toRemoveIds.toList(), center) { id ->
+                currentlyRenderedPGSpots[id]?.center ?: center
+            }
+            if (sortedRemovals.isNotEmpty()) {
+                removePGSpots(sortedRemovals)
+            }
         }
-        removePGSpots(sortedRemovals)
 
-        // 🎯 STEP 3: Add new spots (Center -> Outside)
+        // 🎯 STEP 3: Add new spots (IO thread for creation)
         val sortedAdditions = sortForAddition(toAddFeatures, center) { it.centroid }
-        sortedAdditions.forEach { feature ->
-            addPGSpotIfNotExists(feature)
+        
+        if (sortedAdditions.isNotEmpty()) {
+            val markersToRender = withContext(Dispatchers.IO) {
+                sortedAdditions.mapNotNull { feature ->
+                    val spotId = generatePGSpotId(feature)
+                    val marker = createPGSpotMarker(feature)
+                    val distanceKm = calculateDistanceFromUser(feature.centroid)
+                    
+                    val pgSpotMarker = PGSpotMarker(
+                        marker = marker,
+                        feature = feature,
+                        weatherLoaded = false,
+                        weatherLastUpdated = 0L,
+                        center = feature.centroid,
+                        distanceFromUser = distanceKm
+                    )
+                    spotId to pgSpotMarker
+                }
+            }
+            
+            // 🎯 STEP 4: Render on Main thread
+            withContext(Dispatchers.Main) {
+                markersToRender.forEach { pair ->
+                    val (spotId, pgSpotMarker) = pair
+                    currentlyRenderedPGSpots[spotId] = pgSpotMarker
+                    val coordinator = getOverlayCoordinator()
+                    if (coordinator != null) {
+                        coordinator.getAnimationManager().animateOverlayAddition(
+                            overlay = pgSpotMarker.marker,
+                            overlayId = spotId,
+                            mapView = mapView!!,
+                            staggerDelay = 0L,
+                            type = OverlayType.PG_SPOTS
+                        )
+                    } else {
+                        mapView?.overlays?.add(pgSpotMarker.marker)
+                    }
+                }
+                mapView?.invalidate()
+            }
         }
 
         val centerStr = String.format("@ %.4f,%.4f", center.latitude, center.longitude)
 
 
 
-        Log.d(TAG, String.format(
+        Log.i(TAG, String.format(
             "PG spots rendered: %d total, %d visible %s",
             prioritizedFeatures.size,
             prioritizedFeatures.size, // Assumed visible
@@ -610,7 +679,7 @@ class PGSpotOverlayManager(
                      coordinator.removeOverlayFromBatch(markerData.marker, id, markerData.center, OverlayType.PG_SPOTS)
                  }
              }
-             coordinator.removeOverlayFromBatch()
+             coordinator.flushPendingRemovals()
              ids.forEach { currentlyRenderedPGSpots.remove(it) }
         } else {
             // Fallback
@@ -977,7 +1046,7 @@ class PGSpotOverlayManager(
                 )
                 removedCount++
             }
-            coordinator.removeOverlayFromBatch()
+            coordinator.flushPendingRemovals()
         } else {
             invisibleNonCriticalSpots.forEach { (spotId, pgSpotMarker) ->
                 animationManager?.animateOverlayRemoval(
@@ -1042,7 +1111,7 @@ class PGSpotOverlayManager(
                 )
                 removedCount++
             }
-            coordinator.removeOverlayFromBatch()
+            coordinator.flushPendingRemovals()
         } else {
             spotsInZone.forEach { (spotId, pgSpotMarker) ->
                 animationManager?.animateOverlayRemoval(
@@ -1107,7 +1176,7 @@ class PGSpotOverlayManager(
                 }
 
                 // Process the batch for Hilbert-ordered removal
-                coordinator.removeOverlayFromBatch()
+                coordinator.flushPendingRemovals()
             } else {
                 // Fallback to direct animation manager if coordinator not available
                 spotIds.forEachIndexed { index, spotId ->

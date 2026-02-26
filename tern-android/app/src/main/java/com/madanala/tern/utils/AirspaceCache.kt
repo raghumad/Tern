@@ -38,6 +38,7 @@ class AirspaceCache(context: Context) {
      * Cache airspace data from OpenAIP
      */
     // Base URL for API - modifiable for testing
+    @Volatile
     private var baseUrl = "https://storage.googleapis.com/29f98e10-a489-4c82-ae5e-489dbcd4912f"
 
     @androidx.annotation.VisibleForTesting
@@ -66,7 +67,9 @@ class AirspaceCache(context: Context) {
 
         try {
             // OpenAIP URL structure (example)
-            val url = "$baseUrl/${countryCode.lowercase()}_asp.geojson"
+            val url = if (baseUrl.endsWith("/")) "${baseUrl}${countryCode.lowercase()}_asp.geojson"
+                      else "${baseUrl}/${countryCode.lowercase()}_asp.geojson"
+            Log.i(TAG, "Airspace download URL check: baseUrl=$baseUrl, finalUrl=$url")
             Log.d(TAG, "Starting airspace download for $countryCode from: $url")
 
             val geoJsonString = GeoJsonUtils.downloadGeoJson(url)

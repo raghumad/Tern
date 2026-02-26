@@ -12,7 +12,16 @@ class SimpleMapTest : MapVisualTest() {
     @Test
     fun testActivityLaunches() {
         scenario("Activity Launches and Map is Visible") {
-            composeTestRule.onNode(hasTestTag("map_view")).assertExists()
+            story("As a pilot, I want the app to start reliably and immediately show the map so I can begin my pre-flight checks without delay.") {
+                then("The main flight activity launches and the map interface is ready") {
+                    composeTestRule.onNode(hasTestTag("map_view")).assertExists()
+                }
+
+                and("The initial launch is free of memory pressure and performance storms") {
+                    com.madanala.tern.utils.ReportGenerator.assertLogDoesNotContain("PerformanceDebugger", "STATE_UPDATE_STORM")
+                    com.madanala.tern.utils.ReportGenerator.assertLogDoesNotContain("PerformanceDebugger", "MEMORY_PRESSURE")
+                }
+            }
         }
     }
 }

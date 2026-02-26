@@ -62,7 +62,8 @@ class SpatialDiskCache(
 
     // ... (existing code)
 
-    private fun getSpatialIndex(regionId: String): MapOverlayCacheUtils.SpatialIndex? {
+    private fun getSpatialIndex(regionIdRaw: String): MapOverlayCacheUtils.SpatialIndex? {
+        val regionId = regionIdRaw.uppercase()
         spatialIndexCache[regionId]?.let { return it }
 
         return try {
@@ -83,7 +84,8 @@ class SpatialDiskCache(
         }
     }
 
-    private fun createMemoryMappedBuffer(regionId: String, file: File) {
+    private fun createMemoryMappedBuffer(regionIdRaw: String, file: File) {
+        val regionId = regionIdRaw.uppercase()
         try {
             RandomAccessFile(file, "r").use { raf ->
                 raf.channel.use { channel ->
@@ -100,7 +102,8 @@ class SpatialDiskCache(
     /**
      * Check if data for a region is cached and fresh
      */
-    fun isCached(regionId: String): Boolean {
+    fun isCached(regionIdRaw: String): Boolean {
+        val regionId = regionIdRaw.uppercase()
         val timestamp = cacheIndex[regionId] ?: return false
         val ageHours = (System.currentTimeMillis() - timestamp) / (1000 * 60 * 60)
         val isFresh = ageHours < expirationHours
@@ -116,7 +119,8 @@ class SpatialDiskCache(
     /**
      * Validate cache integrity for a region
      */
-    private fun validateCacheIntegrity(regionId: String): Boolean {
+    private fun validateCacheIntegrity(regionIdRaw: String): Boolean {
+        val regionId = regionIdRaw.uppercase()
         val cacheFile = File(cacheDir, "${regionId}_$cacheName.flex")
         val indexFile = File(cacheDir, "${regionId}_$cacheName.idx")
 
@@ -154,7 +158,8 @@ class SpatialDiskCache(
     /**
      * Cache features for a region
      */
-    fun cacheFeatures(regionId: String, features: List<OverlayFeature>) {
+    fun cacheFeatures(regionIdRaw: String, features: List<OverlayFeature>) {
+        val regionId = regionIdRaw.uppercase()
         try {
             if (features.isEmpty()) {
                 Log.w(TAG, "No features to cache for $cacheName/$regionId")
@@ -194,7 +199,8 @@ class SpatialDiskCache(
     /**
      * Get all cached features for a region (without spatial filtering)
      */
-    fun getCachedFeatures(regionId: String): List<OverlayFeature>? {
+    fun getCachedFeatures(regionIdRaw: String): List<OverlayFeature>? {
+        val regionId = regionIdRaw.uppercase()
         return try {
             val cacheFile = File(cacheDir, "${regionId}_$cacheName.flex")
             if (cacheFile.exists()) {
@@ -222,7 +228,8 @@ class SpatialDiskCache(
     /**
      * Query nearby features using Hilbert spatial indexing
      */
-    fun queryNearby(regionId: String, center: GeoPoint, maxDistanceMiles: Double): List<OverlayFeature> {
+    fun queryNearby(regionIdRaw: String, center: GeoPoint, maxDistanceMiles: Double): List<OverlayFeature> {
+        val regionId = regionIdRaw.uppercase()
         try {
             // Verify cached data exists
             if (!isCached(regionId)) {
@@ -281,7 +288,8 @@ class SpatialDiskCache(
     /**
      * Clear cache for a specific region
      */
-    fun clearCacheForRegion(regionId: String) {
+    fun clearCacheForRegion(regionIdRaw: String) {
+        val regionId = regionIdRaw.uppercase()
         try {
             val cacheFile = File(cacheDir, "${regionId}_$cacheName.flex")
             val indexFile = File(cacheDir, "${regionId}_$cacheName.idx")
@@ -338,7 +346,8 @@ class SpatialDiskCache(
     }
 
     // ================= PRIVATE HELPERS =================
-    private fun getMemoryMappedBuffer(regionId: String): MappedByteBuffer? {
+    private fun getMemoryMappedBuffer(regionIdRaw: String): MappedByteBuffer? {
+        val regionId = regionIdRaw.uppercase()
         memoryMappedBuffers[regionId]?.let { return it }
 
         return try {

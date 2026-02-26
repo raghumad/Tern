@@ -58,8 +58,10 @@ abstract class BaseUITest {
         }
     }
 
-    @Before
+    @org.junit.Before
     fun setup() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        com.madanala.tern.utils.CacheManager.initialize(context)
         mockServer.server.start()
     }
 

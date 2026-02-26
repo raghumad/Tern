@@ -15,30 +15,34 @@ class NavigationTest : MapVisualTest() {
     @Test
     fun verifyNavigationToMap() {
         scenario("verifyNavigationToMap") {
-            // Force clear ViewModelStore to ensure fresh MapViewModel
-            composeTestRule.activityRule.scenario.onActivity { activity ->
-                activity.viewModelStore.clear()
-            }
-            
-            givenAppIsLaunchedOnMap()
-
-            `when`("I interact with the map") {
-                com.madanala.tern.utils.ReportGenerator.logStep("ACTION", "Interacting with map (Placeholder)")
-                // Placeholder for future interactions
-            }
-
-            this.then("I see the Map screen") {
-                com.madanala.tern.utils.ReportGenerator.logStep("VERIFY", "Asserting map view exists")
-                composeTestRule.onNodeWithTag("map_view").assertExists()
+            story("As a pilot prepping for flight, I want to open Tern and immediately see a stable moving map with my current position.") {
+                // Force clear ViewModelStore to ensure fresh MapViewModel
+                composeTestRule.activityRule.scenario.onActivity { activity ->
+                    activity.viewModelStore.clear()
+                }
                 
-                com.madanala.tern.utils.ReportGenerator.logStep("WAIT", "Waiting for map tiles to load")
-                // Wait for tiles to load so screenshot is not empty
-                com.madanala.tern.utils.MapTestHelper.waitForMapTiles()
+                given("I have launched Tern from my cockpit mount") {
+                    CacheManager.initialize(composeTestRule.activity.applicationContext)
+                }
 
-                // Validate Logcat
-                com.madanala.tern.utils.ReportGenerator.assertLogDoesNotContain("PerformanceDebugger", "STATE UPDATE STORM")
-                com.madanala.tern.utils.ReportGenerator.assertLogDoesNotContain("PerformanceDebugger", "MEMORY_PRESSURE")
-                com.madanala.tern.utils.ReportGenerator.assertLogDoesNotContain("PerformanceDebugger", "VISUAL_DISCONTINUITY")
+                `when`("the flight application initializes its engine") {
+                    com.madanala.tern.utils.ReportGenerator.logStep("ACTION", "Waiting for UI readiness")
+                    composeTestRule.onNodeWithTag("map_view").assertExists()
+                }
+
+                then("I see the high-resolution moving map with no performance alerts") {
+                    com.madanala.tern.utils.ReportGenerator.logStep("VERIFY", "Asserting map view exists")
+                    composeTestRule.onNodeWithTag("map_view").assertExists()
+                    
+                    com.madanala.tern.utils.ReportGenerator.logStep("WAIT", "Waiting for map tiles to load")
+                    // Wait for tiles to load so screenshot is not empty
+                    com.madanala.tern.utils.MapTestHelper.waitForMapTiles()
+
+                    // Validate Logcat
+                    com.madanala.tern.utils.ReportGenerator.assertLogDoesNotContain("PerformanceDebugger", "STATE_UPDATE_STORM")
+                    com.madanala.tern.utils.ReportGenerator.assertLogDoesNotContain("PerformanceDebugger", "MEMORY_PRESSURE")
+                    com.madanala.tern.utils.ReportGenerator.assertLogDoesNotContain("PerformanceDebugger", "VISUAL_DISCONTINUITY")
+                }
             }
         }
     }

@@ -20,13 +20,12 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import org.junit.Rule
 
 @RunWith(AndroidJUnit4::class)
-class RouteDetailPanelWeatherTest {
-
-    @get:Rule
-    val composeTestRule = createComposeRule()
+class RouteDetailPanelWeatherTest : com.madanala.tern.utils.BddTest() {
 
     @Test
     fun testWaypointWeatherDisplay() {
+        scenario("Waypoint Weather Display in Detail Panel") {
+            story("As a pilot reviewing my route, I want to see the specific weather forecast for each waypoint so I can anticipate wind conditions at different points along my flight path.") {
                 
                 val testRoute = Route(
                     id = "route_1",
@@ -51,19 +50,33 @@ class RouteDetailPanelWeatherTest {
                     daily = emptyList()
                 )
 
-                val testStore = MapStore()
-                testStore.dispatch(com.madanala.tern.redux.MapAction.AddRoute(testRoute))
-                testStore.dispatch(com.madanala.tern.redux.MapAction.SelectRoute(testRoute.id))
-                testStore.dispatch(com.madanala.tern.redux.WeatherActions.RouteWeatherFetched(testRoute.id, mapOf("wp_1" to forecastWp1)))
-
-                composeTestRule.setContent {
-                    RouteDetailPanel(
-                        store = testStore,
-                        isVisible = true,
-                        onDismiss = {}
-                    )
+                given("a route with cached weather data for the starting waypoint") {
+                    // Setup logic is integrated in the test rule usage below
                 }
 
-                composeTestRule.onNodeWithText("🌬️ 10 kt @ 180° (G 15)").assertIsDisplayed()
+                `when`("the pilot opens the Route Detail Panel for this flight task") {
+                    val testStore = MapStore()
+                    testStore.dispatch(com.madanala.tern.redux.MapAction.AddRoute(testRoute))
+                    testStore.dispatch(com.madanala.tern.redux.MapAction.SelectRoute(testRoute.id))
+                    testStore.dispatch(com.madanala.tern.redux.WeatherActions.RouteWeatherFetched(testRoute.id, mapOf("wp_1" to forecastWp1)))
+
+                    composeTestRule.setContent {
+                        RouteDetailPanel(
+                            store = testStore,
+                            isVisible = true,
+                            onDismiss = {}
+                        )
+                    }
+                }
+
+                this.then("the UI should clearly display the wind speed, direction, and gust information for 'Start'", takeScreenshot = false) {
+                     composeTestRule.onNodeWithText("🌬️ 10 kt @ 180° (G 15)").assertIsDisplayed()
+                }
+
+                and("the weather panel rendering should be optimized for situational awareness", takeScreenshot = false) {
+                     com.madanala.tern.utils.ReportGenerator.assertLogDoesNotContain("PerformanceDebugger", "STATE_UPDATE_STORM")
+                }
+            }
+        }
     }
 }

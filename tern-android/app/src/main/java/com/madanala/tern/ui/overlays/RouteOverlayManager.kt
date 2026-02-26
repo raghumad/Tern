@@ -130,6 +130,10 @@ class RouteOverlayManager(
         isAntiAlias = true
     }
 
+    override fun getRenderedCount(): Int {
+        return currentlyRenderedRoutes.size
+    }
+
     override fun onOverlayAttached() {
         Log.d(TAG, "Route overlay manager attached")
         
@@ -368,7 +372,7 @@ class RouteOverlayManager(
                     coordinator.removeOverlayFromBatch(overlay, id, centroid, OverlayType.ROUTES)
                 }
             }
-            coordinator.removeOverlayFromBatch()
+            coordinator.flushPendingRemovals()
             ids.forEach { currentlyRenderedRoutes.remove(it) }
         } else {
             ids.forEach { id ->
