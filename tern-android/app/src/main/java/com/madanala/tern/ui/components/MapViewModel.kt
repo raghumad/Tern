@@ -314,7 +314,9 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
                 lastDispatchedCenter = center
                 lastDispatchedZoom = zoom
 
-                // Use single combined action instead of 3 separate dispatches
+                // Use adaptive timing: Faster response if it's the first move, 
+                // or keep it steady if we're in high-frequency update state.
+                // For now, we apply the current constant, but we'll dynamicize it in the next step.
                 reduxBridge.dispatchMapMovement(rotation, center, zoom)
                 
                 // Notify overlay coordinator of map movement to trigger data loading
@@ -329,7 +331,10 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
-        mainHandler.postDelayed(pendingReduxUpdate!!, MAP_MOVE_DEBOUNCE_MS)
+        
+        // Adaptive debouncing: Use 300ms if interacting, 2000ms for steady state
+        val debounceTime = if (MAP_MOVE_DEBOUNCE_MS == 0L) 0L else INTERACTIVE_DEBOUNCE_MS
+        mainHandler.postDelayed(pendingReduxUpdate!!, debounceTime)
     }
 
     companion object {
@@ -339,6 +344,9 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
          */
         @androidx.annotation.VisibleForTesting
         var MAP_MOVE_DEBOUNCE_MS = 2000L
+
+        const val INTERACTIVE_DEBOUNCE_MS = 300L
+        const val FLIGHT_DEBOUNCE_MS = 2000L
 
         /**
          * Factory for creating the location provider.

@@ -124,7 +124,7 @@ fun RouteDetailPanel(
                     .testTag("RouteDetailPanel"),
                 elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface
+                    containerColor = com.madanala.tern.ui.theme.AeroGlass
                 )
             ) {
                 Column(
@@ -210,7 +210,7 @@ fun RouteDetailPanel(
 
                                 Card(
                                     colors = CardDefaults.cardColors(
-                                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                        containerColor = com.madanala.tern.ui.theme.AeroSlate
                                     ),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {

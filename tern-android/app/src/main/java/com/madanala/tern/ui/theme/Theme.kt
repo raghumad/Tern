@@ -11,30 +11,33 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
 private val DarkColorScheme = darkColorScheme(
-    primary = DarkCyanPrimaryDark,
-    secondary = LightCyanAccent,
-    tertiary = Cyan200
+    primary = AeroNeonCyan,
+    secondary = AeroCyanDark,
+    tertiary = AeroOrange,
+    background = AeroCharcoal,
+    surface = AeroSlate,
+    onPrimary = Color.Black,
+    onSecondary = Color.Black,
+    onBackground = Color.White,
+    onSurface = Color.White
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = Cyan500,
-    secondary = LightCyanAccent,
-    tertiary = Cyan700
-
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
+    primary = AeroCyanDark,
+    secondary = AeroNeonCyan,
+    tertiary = AeroOrange,
+    background = Color.White,
+    surface = Mist,
     onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
+    onSecondary = Color.Black,
+    onBackground = AeroCharcoal,
+    onSurface = AeroCharcoal
 )
 
 @Composable

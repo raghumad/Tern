@@ -2,18 +2,14 @@ package com.madanala.tern.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Original Cyan Palette
-val Cyan200 = Color(0xFF80DEEA)
-val Cyan500 = Color(0xFF00BCD4)
-val Cyan700 = Color(0xFF0097A7)
-val DarkCyanPrimaryDark = Color(0xFF00838F)
-val LightCyanAccent = Color(0xFFA7FFEB)
+// Aero Stealth Palette - Optimized for Aviation HUD contrast
+val AeroCharcoal = Color(0xFF121212)    // Deep background
+val AeroSlate = Color(0xFF1E1E1E)       // Surface/Panel background
+val AeroNeonCyan = Color(0xFF00E5FF)    // Primary critical data
+val AeroCyanDark = Color(0xFF00B0FF)    // Supporting cyan
+val AeroOrange = Color(0xFFFF9100)      // Aviation Warning/Caution
+val AeroGlass = Color(0xCC1E1E1E)       // Surface with 80% opacity for glassmorphism
 
-// Standard Material 3 Colors (can be customized or removed)
-val Purple80 = Color(0xFFD0BCFF)
-val PurpleGrey80 = Color(0xFFCCC2DC)
-val Pink80 = Color(0xFFEFB8C8)
-
-val Purple40 = Color(0xFF6650a4)
-val PurpleGrey40 = Color(0xFF625b71)
-val Pink40 = Color(0xFF7D5260)
+// Supporting Grey Scale
+val Sleet = Color(0xFFB0BEC5)
+val Mist = Color(0xFFECEFF1)
