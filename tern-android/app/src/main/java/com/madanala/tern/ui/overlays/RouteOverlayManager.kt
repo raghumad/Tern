@@ -127,9 +127,9 @@ class RouteOverlayManager(
     }
 
     private val dragPaint = Paint().apply {
-        color = Color.CYAN
+        color = Color.argb(180, 0, 255, 255) // Vibrant aviation cyan with 70% opacity
         style = Paint.Style.STROKE
-        strokeWidth = SELECTION_HIGHLIGHT_WIDTH
+        strokeWidth = SELECTION_HIGHLIGHT_WIDTH + 2f // Thicker for "glow" effect
         isAntiAlias = true
     }
 
@@ -686,8 +686,17 @@ class RouteOverlayManager(
                         val point = GeoPoint(waypoint.lat, waypoint.lon)
                         val screenPoint = projection.toPixels(point, null)
 
-                        // Use larger radius for single-waypoint routes to make them more visible
-                        val radius = if (route.waypoints.size == 1) SINGLE_WAYPOINT_RADIUS else MULTI_WAYPOINT_RADIUS
+                        // 🎯 Premium: Visual Lift Effect
+                        // Check if this specific waypoint is being dragged
+                        val isDragging = currentSelectedWaypoint?.let { 
+                            it.routeId == route.id && it.waypointId == waypoint.id && it.isDragging 
+                        } ?: false
+
+                        // Use larger radius for single-waypoint routes or if dragging (lift effect)
+                        var radius = if (route.waypoints.size == 1) SINGLE_WAYPOINT_RADIUS else MULTI_WAYPOINT_RADIUS
+                        if (isDragging) {
+                            radius *= 1.2f // 1.2x scale up when "lifted"
+                        }
 
                         // Draw waypoint shape/icon based on type
                         val icon = when (waypoint.type) {
