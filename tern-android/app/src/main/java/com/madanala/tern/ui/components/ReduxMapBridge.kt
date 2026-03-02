@@ -107,9 +107,6 @@ class ReduxMapBridge(private val coroutineScope: CoroutineScope) {
         ))
     }
 
-    /**
-     * Update map rotation state
-     */
     fun updateMapRotation(rotation: Float) {
         reduxStore?.dispatch(MapAction.UpdateRotation(rotation))
     }
