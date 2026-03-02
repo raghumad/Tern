@@ -488,17 +488,16 @@ private fun handleInteractiveEditingActions(state: MapState, action: MapAction):
     ))
     MapAction.DeselectWaypoint -> state.copy(selectedWaypoint = null)
     is MapAction.StartWaypointDrag -> {
-        val currentSelection = state.selectedWaypoint
-        if (currentSelection?.routeId == action.routeId && currentSelection.waypointId == action.waypointId) {
-            // Store original position when drag starts
-            val route = state.routes.find { it.id == currentSelection.routeId }
-            val waypoint = route?.waypoints?.find { it.id == currentSelection.waypointId }
-            state.copy(selectedWaypoint = currentSelection.copy(
-                isDragging = true,
-                originalLat = waypoint?.lat,
-                originalLon = waypoint?.lon
-            ))
-        } else state
+        val route = state.routes.find { it.id == action.routeId }
+        val waypoint = route?.waypoints?.find { it.id == action.waypointId }
+        
+        state.copy(selectedWaypoint = WaypointSelection(
+            routeId = action.routeId,
+            waypointId = action.waypointId,
+            isDragging = true,
+            originalLat = waypoint?.lat,
+            originalLon = waypoint?.lon
+        ))
     }
     is MapAction.UpdateWaypointDrag -> {
         val currentSelection = state.selectedWaypoint

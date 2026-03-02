@@ -5,6 +5,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.view.GestureDetector
+import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import com.madanala.tern.redux.MapAction
 import com.madanala.tern.redux.MapStore
@@ -23,16 +24,21 @@ class MapGestureHandler(
 
     private val gestureListener = object : GestureDetector.SimpleOnGestureListener() {
         override fun onLongPress(e: MotionEvent) {
-            Log.e("TEST_DEBUG", "onLongPress detected at ${e.x}, ${e.y}")
             try {
-                // Only handle long press if not in drag mode
-                if (!isDragging && !isHoldPending) {
-                    // Convert screen coordinates to GeoPoint
-                    val geoPoint = screenToGeoPoint(e.x.toInt(), e.y.toInt())
-                    Log.e("TEST_DEBUG", "onLongPress converted to GeoPoint: $geoPoint")
-                    geoPoint?.let { onLongPress(it) }
-                } else {
-                    Log.e("TEST_DEBUG", "onLongPress ignored: isDragging=$isDragging, isHoldPending=$isHoldPending")
+                if (!isDragging) {
+                    val geoPoint = screenToGeoPoint(e.x.toInt(), e.y.toInt()) ?: return
+                    val hit = findWaypointAtLocation(mapStore.state.value.routes, geoPoint)
+                    
+                    if (hit != null) {
+                        // 🎯 Premium: Perform haptic feedback immediately
+                        mapView?.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                        
+                        // Start Drag (which now implies selection in the reducer)
+                        startDrag(hit)
+                    } else {
+                        // Fallback: Long press on map (create new waypoint)
+                        onLongPress(geoPoint)
+                    }
                 }
             } catch (t: Throwable) {
                 Log.w(TAG, "onLongPress failed: ${t.message}")
@@ -50,19 +56,10 @@ class MapGestureHandler(
 
     // Drag state
     private var isDragging = false
-    private var isHoldPending = false
     private var lastDragUpdate = 0L
     private val dragUpdateThrottleMs = 50L // ~20 updates/sec max
-    private val holdDelayMs = 500L // 500ms hold to start drag
     private var initialPointerCount = 0
     private var cancelVelocityThreshold = 1000f // pixels per second
-
-    private val handler = Handler(Looper.getMainLooper())
-    private val startDragRunnable = Runnable {
-        if (isHoldPending) {
-            startDrag()
-        }
-    }
 
     /**
      * Attach gesture handling to a MapView
@@ -94,7 +91,6 @@ class MapGestureHandler(
     private fun handleDragEvents(event: MotionEvent): Boolean {
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
-                handleTouchDown(event)
                 initialPointerCount = event.pointerCount
                 return false // Let gesture detector handle this
             }
@@ -102,7 +98,7 @@ class MapGestureHandler(
                 return handleTouchMove(event)
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                handleTouchUp()
+                handleTouchUp(event)
                 return isDragging // Consume if we were dragging
             }
             MotionEvent.ACTION_POINTER_DOWN -> {
@@ -118,35 +114,31 @@ class MapGestureHandler(
     }
 
     /**
-     * Handle touch down - start hold timer for potential drag
+     * Find a waypoint at the given GeoPoint across all routes
      */
-    private fun handleTouchDown(event: MotionEvent) {
-        val state = mapStore.state.value
-        val selectedWaypoint = state.selectedWaypoint
-
-        // Only start hold timer if waypoint is selected
-        if (selectedWaypoint != null && !selectedWaypoint.isDragging) {
-            val geoPoint = screenToGeoPoint(event.x.toInt(), event.y.toInt())
-            if (geoPoint != null && isWaypointAtLocation(selectedWaypoint, geoPoint)) {
-                isHoldPending = true
-                handler.postDelayed(startDragRunnable, holdDelayMs)
-                Log.d(TAG, "Hold timer started for waypoint drag")
+    private fun findWaypointAtLocation(routes: List<com.madanala.tern.model.Route>, geoPoint: GeoPoint): com.madanala.tern.redux.WaypointSelection? {
+        val toleranceDegrees = 0.005 // ~500 meters (increased for reliable test hit-testing)
+        
+        for (route in routes) {
+            if (!route.isVisible) continue
+            
+            for (waypoint in route.waypoints) {
+                val distance = calculateDistanceDegrees(
+                    waypoint.lat, waypoint.lon,
+                    geoPoint.latitude, geoPoint.longitude
+                )
+                if (distance <= toleranceDegrees) {
+                    return com.madanala.tern.redux.WaypointSelection(route.id, waypoint.id)
+                }
             }
         }
+        return null
     }
 
     /**
-     * Handle touch move - either cancel hold or update drag position
+     * Handle touch move - update drag position
      */
     private fun handleTouchMove(event: MotionEvent): Boolean {
-        if (isHoldPending) {
-            // Cancel hold if moved too much
-            handler.removeCallbacks(startDragRunnable)
-            isHoldPending = false
-            Log.d(TAG, "Hold cancelled due to movement")
-            return false
-        }
-
         if (isDragging) {
             val velocityX = event.getAxisValue(MotionEvent.AXIS_X, 0)
             val velocityY = event.getAxisValue(MotionEvent.AXIS_Y, 0)
@@ -173,12 +165,7 @@ class MapGestureHandler(
     /**
      * Handle touch up - end drag if active
      */
-    private fun handleTouchUp() {
-        if (isHoldPending) {
-            handler.removeCallbacks(startDragRunnable)
-            isHoldPending = false
-        }
-
+    private fun handleTouchUp(event: MotionEvent) {
         if (isDragging) {
             endDrag()
         }
@@ -196,14 +183,13 @@ class MapGestureHandler(
     /**
      * Start drag mode for selected waypoint
      */
-    private fun startDrag() {
-        isHoldPending = false
+    private fun startDrag(target: com.madanala.tern.redux.WaypointSelection) {
         isDragging = true
         mapStore.dispatch(MapAction.StartWaypointDrag(
-            routeId = mapStore.state.value.selectedWaypoint?.routeId ?: "",
-            waypointId = mapStore.state.value.selectedWaypoint?.waypointId ?: ""
+            routeId = target.routeId,
+            waypointId = target.waypointId
         ))
-        Log.d(TAG, "Drag mode started")
+        Log.d(TAG, "Drag mode started for ${target.waypointId}")
     }
 
     /**
@@ -256,7 +242,6 @@ class MapGestureHandler(
     fun detachFromMapView() {
         mapView?.setOnTouchListener(null)
         mapView = null
-        handler.removeCallbacks(startDragRunnable)
         Log.d(TAG, "Gesture handler detached from map view")
     }
 

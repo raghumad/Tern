@@ -106,8 +106,8 @@ object MapTestHelper {
         ReportGenerator.logStep("ACTION", "Long press at lat=$lat, lon=$lon -> screen x=$screenX, y=$screenY")
         
         val device = UiDevice.getInstance(instrumentation)
-        // UiDevice.swipe with the same start and end coordinates acts as a long press if steps are high
-        device.swipe(screenX, screenY, screenX, screenY, 100) // 100 steps * 5ms = 500ms long press
+        // 🎯 Improved: Use more steps (300 * 5ms = 1500ms) to ensure holdDelayMs (500ms) is comfortably exceeded
+        device.swipe(screenX, screenY, screenX, screenY, 300) 
         
         ReportGenerator.logStep("DEBUG", "Performed long press via UiDevice swipe")
     }
