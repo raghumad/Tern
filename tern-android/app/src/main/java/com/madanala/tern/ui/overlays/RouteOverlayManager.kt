@@ -3,6 +3,8 @@ package com.madanala.tern.ui.overlays
 import android.graphics.*
 import android.util.Log
 import android.view.MotionEvent
+import androidx.core.content.ContextCompat
+import com.madanala.tern.R
 import com.madanala.tern.redux.MapState
 import com.madanala.tern.redux.MapStore
 import com.madanala.tern.redux.OverlayType
@@ -47,6 +49,14 @@ class RouteOverlayManager(
     }
 
     private var routeCache: RouteCache? = null
+
+    // Waypoint icons
+    private val launchIcon = ContextCompat.getDrawable(context, R.drawable.ic_waypoint_launch)
+    private val landingIcon = ContextCompat.getDrawable(context, R.drawable.ic_waypoint_landing)
+    private val turnpointIcon = ContextCompat.getDrawable(context, R.drawable.ic_waypoint_turnpoint)
+    private val sssIcon = ContextCompat.getDrawable(context, R.drawable.ic_waypoint_sss)
+    private val essIcon = ContextCompat.getDrawable(context, R.drawable.ic_waypoint_ess)
+    private val goalIcon = ContextCompat.getDrawable(context, R.drawable.ic_waypoint_goal)
 
     init {
         try {
@@ -679,37 +689,30 @@ class RouteOverlayManager(
                         // Use larger radius for single-waypoint routes to make them more visible
                         val radius = if (route.waypoints.size == 1) SINGLE_WAYPOINT_RADIUS else MULTI_WAYPOINT_RADIUS
 
-                        // Draw waypoint shape based on type
-                        when (waypoint.type) {
-                            com.madanala.tern.model.Waypoint.Type.LAUNCH -> {
-                                // Draw triangle for launch
-                                waypointBorderPaint.color = Color.GREEN
-                                val trianglePath = Path()
-                                val triangleSize = radius * LAUNCH_TRIANGLE_SIZE_RATIO
-                                trianglePath.moveTo(screenPoint.x.toFloat(), screenPoint.y - triangleSize)
-                                trianglePath.lineTo(screenPoint.x - triangleSize, screenPoint.y + triangleSize)
-                                trianglePath.lineTo(screenPoint.x + triangleSize, screenPoint.y + triangleSize)
-                                trianglePath.close()
-                                canvas.drawPath(trianglePath, waypointPaint) // White fill
-                                canvas.drawPath(trianglePath, waypointBorderPaint) // Green border
-                            }
-                            com.madanala.tern.model.Waypoint.Type.LANDING -> {
-                                // Draw square for landing
-                                waypointBorderPaint.color = Color.RED
-                                val halfSize = radius * LANDING_SQUARE_SIZE_RATIO
-                                val rect = RectF(
-                                    screenPoint.x - halfSize, screenPoint.y - halfSize,
-                                    screenPoint.x + halfSize, screenPoint.y + halfSize
-                                )
-                                canvas.drawRect(rect, waypointPaint) // White fill
-                                canvas.drawRect(rect, waypointBorderPaint) // Red border
-                            }
-                            else -> {
-                                // Draw circle for turnpoints
-                                waypointBorderPaint.color = Color.BLUE
-                                canvas.drawCircle(screenPoint.x.toFloat(), screenPoint.y.toFloat(), radius, waypointPaint) // White fill
-                                canvas.drawCircle(screenPoint.x.toFloat(), screenPoint.y.toFloat(), radius, waypointBorderPaint) // Blue border
-                            }
+                        // Draw waypoint shape/icon based on type
+                        val icon = when (waypoint.type) {
+                            com.madanala.tern.model.Waypoint.Type.LAUNCH -> launchIcon
+                            com.madanala.tern.model.Waypoint.Type.LANDING -> landingIcon
+                            com.madanala.tern.model.Waypoint.Type.SSS -> sssIcon
+                            com.madanala.tern.model.Waypoint.Type.ESS -> essIcon
+                            com.madanala.tern.model.Waypoint.Type.GOAL -> goalIcon
+                            else -> turnpointIcon
+                        }
+
+                        if (icon != null) {
+                            // Center icon on screen point
+                            val halfW = (radius * 1.5f).toInt()
+                            val halfH = (radius * 1.5f).toInt()
+                            icon.setBounds(
+                                screenPoint.x - halfW, screenPoint.y - halfH,
+                                screenPoint.x + halfW, screenPoint.y + halfH
+                            )
+                            icon.draw(canvas)
+                        } else {
+                            // Fallback to basic circle if icon loading failed
+                            waypointBorderPaint.color = Color.BLUE
+                            canvas.drawCircle(screenPoint.x.toFloat(), screenPoint.y.toFloat(), radius, waypointPaint)
+                            canvas.drawCircle(screenPoint.x.toFloat(), screenPoint.y.toFloat(), radius, waypointBorderPaint)
                         }
 
                         // Draw selection highlight if this waypoint is selected
