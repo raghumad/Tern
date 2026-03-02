@@ -99,8 +99,6 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
         initializeOverlaySystem()
         setupReduxBridgeCallbacks()
 
-        // Initialize route editing system immediately (Redux store connected later)
-        // Removed: Route editing is handled by OverlayCoordinator
 
         Log.i(TAG, "MapViewModel Created: $this")
         
@@ -168,10 +166,6 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
                         // Dispatch Redux actions for location state
                         reduxBridge.dispatchLocationReady(true)
                         reduxBridge.dispatchUserLocation(myLocation)
-
-                        // Dispatch Redux actions for location state
-                        reduxBridge.dispatchLocationReady(true)
-                        reduxBridge.dispatchUserLocation(myLocation)
                         val provider = myLocationOverlay?.lastFix?.provider ?: "unknown"
                         Log.i(TAG, "Location Ready: Initial zoom and center set to $myLocation from provider: $provider")
 
@@ -205,12 +199,6 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
 
 
 
-    /**
-      * Clear all overlays using the OverlayCoordinator (replaces legacy clearGeoJsonOverlays)
-      */
-    private fun clearAllOverlays() {
-        overlayCoordinator.refreshAllOverlays()
-    }
 
 
 

@@ -57,9 +57,6 @@ class AirspaceOverlayManager(
     private val checkDistanceKm = 2.0  // Reduced for aviation use (was 5.0)
     private val reFilterDistanceKm = 80.0
 
-    // Dynamic memory-based limits (replaces hardcoded values) - now managed by BaseOverlayManager
-    // private var maxTotalAirspaces = 150       // ❌ REMOVED - now getMaxOverlaysForCurrentConditions()
-    // private var maxViewportAirspaces = 100    // ❌ REMOVED - now getZoneBudget(CORE)
 
     // Spatial-first architecture: always use spatial queries with configurable search radius
     private val spatialQueryRadiusKm = 200.0  // Search radius for nearby airspaces (increased for better visibility)
@@ -218,13 +215,6 @@ class AirspaceOverlayManager(
             }
         }
 
-        // Check zoom level (LOD) - Removed (handled by zone budgeting)
-        // if (!isZoomLevelSufficient(zoom)) {
-        //    if (currentlyRenderedAirspaces.isNotEmpty()) {
-        //        clearOverlays()
-        //    }
-        //    return
-        // }
 
         checkAndLoadAirspaceData(center)
     }
@@ -234,14 +224,6 @@ class AirspaceOverlayManager(
     }
 
     override fun onViewportChangedInternal(viewport: BoundingBox) {
-        // Check zoom level (LOD) - Removed (handled by zone budgeting)
-        // if (mapView != null && !isZoomLevelSufficient(mapView!!.zoomLevelDouble)) {
-        //    if (currentlyRenderedAirspaces.isNotEmpty()) {
-        //        clearOverlays()
-        //    }
-        //    return
-        // }
-        // manageViewportAirspaces(viewport) // <-- DISABLED: Suspect aggressive cleanup
 
     }
 
@@ -256,13 +238,6 @@ class AirspaceOverlayManager(
             // Postpone Redux-triggered overlay operations until GPS fix is available
 
 
-            // Check zoom level (LOD) - Removed
-            // if (!isZoomLevelSufficient(mapView!!.zoomLevelDouble)) {
-            //    if (currentlyRenderedAirspaces.isNotEmpty()) {
-            //        clearOverlays()
-            //    }
-            //    return
-            // }
 
             // If enabled and we have a map view, trigger loading
             val center = mapView?.mapCenter as? GeoPoint
