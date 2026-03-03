@@ -25,6 +25,8 @@ open class BddTest : BaseUITest() {
             Thread.sleep(100)
             val maxMemory = Runtime.getRuntime().maxMemory()
             println("=== RUNTIME MAX MEMORY: ${maxMemory / 1024 / 1024} MB ===")
+            val className = this.javaClass.simpleName
+            ReportGenerator.currentTestClass = className
             ReportGenerator.currentTestName = testNameRule.methodName
             Log.d("BddTest", "=== START ${testNameRule.methodName} ===")
         } catch (e: Exception) {
@@ -101,7 +103,8 @@ open class BddTest : BaseUITest() {
         } catch (e: Exception) {
             println("Failed to get performance report: $e")
         }
-        ReportGenerator.generateFinalReport(testNameRule.methodName)
+        val className = this.javaClass.simpleName
+        ReportGenerator.generateFinalReport(className, testNameRule.methodName)
         Log.d("BddTest", "=== END ${testNameRule.methodName} ===")
     }
 

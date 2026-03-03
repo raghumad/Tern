@@ -16,9 +16,22 @@ object ReportGenerator {
     private val screenshots = ConcurrentLinkedQueue<String>()
     
     var currentTestName: String? = null
+    var currentTestClass: String? = null
 
     data class Step(val type: String, val description: String, val status: String = "PASS", val screenshotPath: String? = null, val screenshotHash: String? = null)
     data class ScenarioData(val name: String, val steps: List<Step>, val logcat: String?)
+    
+    // Metadata for the dashboard
+    data class TestSummary(
+        val className: String,
+        val testName: String,
+        val scenarioName: String?,
+        val story: String?,
+        val status: String,
+        val reportFile: String,
+        val thumbnail: String?,
+        val timestamp: Long = System.currentTimeMillis()
+    )
 
     fun logStep(type: String, description: String, status: String = "PASS", screenshotPath: String? = null, screenshotHash: String? = null) {
         currentSteps.add(Step(type, description, status, screenshotPath, screenshotHash))
@@ -202,9 +215,15 @@ object ReportGenerator {
         currentSteps.clear()
     }
 
-    fun generateFinalReport(testName: String) {
-        val reportFilename = "report_${testName}.html"
+    fun generateFinalReport(className: String, testName: String) {
+        val reportFilename = "report_${className}_${testName}.html"
+        val summaryFilename = "summary_${className}_${testName}.json"
         
+        var finalStatus = "PASS"
+        var scenarioName: String? = null
+        var storyHighlight: String? = null
+        var firstScreenshot: String? = null
+
         testStorage.openOutputFile(reportFilename).use { out ->
             val writer = BufferedWriter(OutputStreamWriter(out))
             writer.write("<html><head><style>")
@@ -320,6 +339,35 @@ object ReportGenerator {
             
             writer.write("</body></html>")
             writer.flush()
+        }
+
+        // Generate JSON Summary for the dashboard
+        try {
+            recordedScenarios.firstOrNull()?.let { scenario ->
+                scenarioName = scenario.name
+                storyHighlight = scenario.steps.find { it.type == "STORY" }?.description
+                firstScreenshot = scenario.steps.find { it.screenshotPath != null }?.screenshotPath
+                if (scenario.steps.any { it.status == "FAIL" }) {
+                    finalStatus = "FAIL"
+                }
+            }
+
+            testStorage.openOutputFile(summaryFilename).use { out ->
+                val writer = BufferedWriter(OutputStreamWriter(out))
+                writer.write("{")
+                writer.write("\"className\": \"$className\",")
+                writer.write("\"testName\": \"$testName\",")
+                writer.write("\"scenarioName\": \"${scenarioName?.replace("\"", "\\\"")}\",")
+                writer.write("\"story\": \"${storyHighlight?.replace("\"", "\\\"")}\",")
+                writer.write("\"status\": \"$finalStatus\",")
+                writer.write("\"reportFile\": \"$reportFilename\",")
+                writer.write("\"thumbnail\": \"$firstScreenshot\",")
+                writer.write("\"timestamp\": ${System.currentTimeMillis()}")
+                writer.write("}")
+                writer.flush()
+            }
+        } catch (e: Exception) {
+            Log.e("ReportGenerator", "Failed to write JSON summary: ${e.message}")
         }
         
         // Clear for next test

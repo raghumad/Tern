@@ -54,6 +54,8 @@ open class MapVisualTest {
         com.madanala.tern.utils.CacheManager.initialize(context)
 
         com.madanala.tern.ui.components.MapViewModel.MAP_MOVE_DEBOUNCE_MS = 0L
+        val className = this.javaClass.simpleName
+        ReportGenerator.currentTestClass = className
         ReportGenerator.currentTestName = testNameRule.methodName
 
         // 1. Clear logcat FIRST so START tag survives
@@ -99,7 +101,8 @@ open class MapVisualTest {
         // Final cache clear
         com.madanala.tern.utils.CacheManager.clearAllCaches()
         
-        ReportGenerator.generateFinalReport(testNameRule.methodName)
+        val className = this.javaClass.simpleName
+        ReportGenerator.generateFinalReport(className, testNameRule.methodName)
     }
 
     private fun clearState() {
