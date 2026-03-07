@@ -140,16 +140,6 @@ class MapGestureHandler(
      */
     private fun handleTouchMove(event: MotionEvent): Boolean {
         if (isDragging) {
-            val velocityX = event.getAxisValue(MotionEvent.AXIS_X, 0)
-            val velocityY = event.getAxisValue(MotionEvent.AXIS_Y, 0)
-            val velocity = kotlin.math.sqrt(velocityX * velocityX + velocityY * velocityY)
-
-            // Cancel drag if swiped away fast enough
-            if (velocity > cancelVelocityThreshold) {
-                cancelDrag()
-                return true
-            }
-
             val now = System.currentTimeMillis()
             if (now - lastDragUpdate >= dragUpdateThrottleMs) {
                 val geoPoint = screenToGeoPoint(event.x.toInt(), event.y.toInt())

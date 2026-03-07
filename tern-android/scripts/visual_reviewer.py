@@ -43,9 +43,10 @@ class VisualReviewHandler(http.server.SimpleHTTPRequestHandler):
             self.serve_dashboard()
         elif self.path == "/api/tests":
             self.serve_tests_json()
-        elif "/report_" in self.path or "/step_" in self.path or "/failure_" in self.path or "/success_" in self.path:
+        elif any(x in self.path for x in ["/report_", "/step_", "/failure_", "/success_"]):
             # Try to find the file in either directory
-            filename = os.path.basename(self.path)
+            path_without_params = self.path.split('?')[0]
+            filename = os.path.basename(path_without_params)
             found_path = self.find_file(filename)
             if found_path:
                 self.serve_static_file(found_path)
@@ -202,10 +203,21 @@ class VisualReviewHandler(http.server.SimpleHTTPRequestHandler):
                     flex-direction: column;
                     background: var(--bg);
                 }
+                #report-container {
+                    flex: 1;
+                    display: flex;
+                    flex-direction: column;
+                    min-height: 0;
+                    position: relative;
+                    background: var(--bg);
+                }
                 iframe {
                     flex: 1;
+                    width: 100%;
+                    height: 100%;
                     border: none;
-                    background: white;
+                    background: #0f172a;
+                    display: none;
                 }
                 .empty-state {
                     display: flex;
@@ -256,7 +268,7 @@ class VisualReviewHandler(http.server.SimpleHTTPRequestHandler):
                     <div id="current-test-title" style="font-weight: 600;"></div>
                     <button class="btn btn-refresh" onclick="window.location.reload()">Refresh Data</button>
                 </div>
-                <div id="report-container" style="flex: 1; position: relative;">
+                <div id="report-container">
                     <div class="empty-state" id="initial-empty">
                         <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                             <rect width="18" height="18" x="3" y="3" rx="2" ry="2"/>
@@ -322,8 +334,8 @@ class VisualReviewHandler(http.server.SimpleHTTPRequestHandler):
                     document.getElementById('initial-empty').style.display = 'none';
                     
                     const frame = document.getElementById('report-frame');
-                    frame.style.display = 'block';
-                    frame.src = reportFile;
+                    frame.style.display = 'flex';
+                    frame.src = reportFile + '?t=' + Date.now();
                 }
 
                 document.getElementById('search-box').addEventListener('input', (e) => {

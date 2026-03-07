@@ -228,6 +228,7 @@ class AirspaceOverlayManager(
     }
 
     override fun onReduxStateChanged(state: MapState) {
+        super.onReduxStateChanged(state)
         val enabled = isEnabled()
 
         if (!enabled) {
@@ -245,6 +246,16 @@ class AirspaceOverlayManager(
                 checkAndLoadAirspaceData(center)
             }
         }
+    }
+
+    override fun onFocusModeChanged(enabled: Boolean) {
+        val targetAlpha = if (enabled) 0x10 else 0x40 // ~6% vs 25% opacity
+        
+        currentlyRenderedAirspaces.values.forEach { polygon ->
+            polygon.fillPaint.alpha = targetAlpha
+            polygon.outlinePaint.alpha = targetAlpha * 2 // Slightly more visible outline
+        }
+        mapView?.invalidate()
     }
 
     /**
