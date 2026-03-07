@@ -52,8 +52,8 @@ class WaypointInteractionUXTest : MapVisualTest() {
                 }
 
                 `when`("I long-press on 'Turnpoint 1' to initiate a drag") {
-                    ReportGenerator.logStep("ACTION", "Long-pressing Turnpoint 1 at 40.0180, -105.2750")
-                    MapTestHelper.longPressOnGeoPoint(activity, 40.0180, -105.2750)
+                    ReportGenerator.logStep("ACTION", "Initiating deterministic press-hold on Turnpoint 1 at 40.0180, -105.2750")
+                    val downEvent = MapTestHelper.pressAndHoldGeoPoint(activity, 40.0180, -105.2750)
                     
                     // 🎯 Verification: Wait for drag-start state (handled atomically by reducer)
                     composeTestRule.waitUntil(timeoutMillis = 8000) {
@@ -61,6 +61,12 @@ class WaypointInteractionUXTest : MapVisualTest() {
                         store.state.value.selectedWaypoint?.waypointId == wp2.id
                     }
                     composeTestRule.waitForIdle()
+
+                    // We keep holding for the "Premium feedback" step, then release in the next "when" block
+                    // or we could just release it here if we just want to verify the state.
+                    // But to be realistic, we should hold until we drag.
+                    // For the sake of this test, we store the event in a way the test can access.
+                    activity.window.decorView.tag = downEvent 
                 }
 
                 then("The system responds with premium feedback", takeScreenshot = true) {
@@ -76,12 +82,21 @@ class WaypointInteractionUXTest : MapVisualTest() {
                 }
 
                 `when`("I drag the waypoint to a new location and release") {
+                    val downEvent = activity.window.decorView.tag as android.view.MotionEvent
                     ReportGenerator.logStep("ACTION", "Dragging waypoint to $endLat, $endLon")
+                    
+                    // Simulate movement
+                    MapTestHelper.moveHold(activity, downEvent, endLat, endLon)
+                    
                     // We simulate the drag by updating the drag coordinates directly via Redux
                     // as physical swipe interpolation is unreliable in some CI environments for precise map points
                     store.dispatch(MapAction.UpdateWaypointDrag(endLat, endLon))
                     composeTestRule.waitForIdle()
                     
+                    // Release the physical hold
+                    MapTestHelper.releaseHold(activity, downEvent)
+                    activity.window.decorView.tag = null
+
                     store.dispatch(MapAction.EndWaypointDrag)
                     composeTestRule.waitForIdle()
                 }

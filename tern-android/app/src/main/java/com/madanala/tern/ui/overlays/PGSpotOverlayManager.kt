@@ -950,6 +950,7 @@ class PGSpotOverlayManager(
     }
 
     override fun onReduxStateChanged(state: MapState) {
+        super.onReduxStateChanged(state)
         // Handle weather-related state changes
         if (!isEnabled()) {
             clearOverlays()
@@ -965,6 +966,14 @@ class PGSpotOverlayManager(
                 checkAndLoadPGSpots(center)
             }
         }
+    }
+    override fun onFocusModeChanged(enabled: Boolean) {
+        val targetAlpha = if (enabled) 0.3f else 1.0f
+        
+        currentlyRenderedPGSpots.values.forEach { pgSpotMarker ->
+            pgSpotMarker.marker.alpha = targetAlpha
+        }
+        mapView?.invalidate()
     }
 
     /**

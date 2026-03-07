@@ -59,6 +59,11 @@ interface OverlayManager {
     fun getCurrentConfig(): OverlayConfig?
 
     /**
+     * Set focus mode for the overlay (declutters map during interaction)
+     */
+    fun setFocusMode(enabled: Boolean)
+
+    /**
      * Handle Redux state changes
      */
     fun onReduxStateChanged(state: MapState)

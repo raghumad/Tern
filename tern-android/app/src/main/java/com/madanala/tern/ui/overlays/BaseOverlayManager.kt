@@ -61,6 +61,8 @@ abstract class BaseOverlayManager(
     // Adaptive overlay system for memory-based allocation
     private var adaptiveOverlaySystem: AdaptiveOverlaySystem? = null
     private var currentFlightPhase = FlightPhase.LAUNCH
+    // Focus mode for decluttering during interaction
+    protected var _isFocusMode = false
     private var currentOverlayBudget: OverlayBudget? = null
 
     // Debouncing for map movements
@@ -204,6 +206,21 @@ abstract class BaseOverlayManager(
     override fun setEnabled(enabled: Boolean) {
         // Log.d(TAG, "setEnabled: $enabled")
         // Implement in concrete subclasses if needed
+    }
+
+    override fun setFocusMode(enabled: Boolean) {
+        if (_isFocusMode != enabled) {
+            _isFocusMode = enabled
+            onFocusModeChanged(enabled)
+            Log.d(TAG, "Focus mode changed: $enabled")
+        }
+    }
+
+    /**
+     * Called when focus mode changes. Override in subclasses to apply visual changes.
+     */
+    protected open fun onFocusModeChanged(enabled: Boolean) {
+        // Default implementation does nothing
     }
 
     override fun getPerformanceStats(): Map<String, Any> {
@@ -370,7 +387,11 @@ abstract class BaseOverlayManager(
     /**
      * Called when Redux state changes - override to react to state updates
      */
-    abstract override fun onReduxStateChanged(state: MapState)
+    override fun onReduxStateChanged(state: MapState) {
+        // Automatically handle focus mode based on waypoint dragging
+        val shouldFocus = state.selectedWaypoint?.isDragging == true
+        setFocusMode(shouldFocus)
+    }
 
     /**
      * Clear overlays specific to this manager
