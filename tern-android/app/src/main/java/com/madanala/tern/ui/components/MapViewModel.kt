@@ -22,6 +22,8 @@ import com.madanala.tern.ui.overlays.PGSpotOverlayManager
 import com.madanala.tern.ui.overlays.RouteOverlayManager
 import com.madanala.tern.ui.screens.MAP_VIEW_SATELLITE
 import com.madanala.tern.ui.screens.MAP_VIEW_TERRAIN
+
+import com.madanala.tern.utils.UniversalCountryCacheManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -164,10 +166,11 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
                         initialZoomDone = true
 
                         // Dispatch Redux actions for location state
+                        val normalizedLocation = myLocation.normalizePrecision()
                         reduxBridge.dispatchLocationReady(true)
-                        reduxBridge.dispatchUserLocation(myLocation)
+                        reduxBridge.dispatchUserLocation(normalizedLocation)
                         val provider = myLocationOverlay?.lastFix?.provider ?: "unknown"
-                        Log.i(TAG, "Location Ready: Initial zoom and center set to $myLocation from provider: $provider")
+                        Log.i(TAG, "Location Ready: Initial zoom and center set to $normalizedLocation from provider: $provider")
 
                         // Note: Overlay managers handle data loading through Redux state
                     }
@@ -287,30 +290,32 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
      * Now uses combined MapMovement action for maximum performance (1 dispatch instead of 3)
      */
     private fun scheduleReduxUpdate(rotation: Float, center: GeoPoint?, zoom: Double?) {
+        val normalizedCenter = center?.normalizePrecision()
         pendingReduxUpdate?.let { mainHandler.removeCallbacks(it) }
         pendingReduxUpdate = Runnable {
             // Diffing logic: Only dispatch if something significantly changed
             // This prevents "micro-jitter" updates from spamming the Redux store
             val rotationChanged = lastDispatchedRotation == null || kotlin.math.abs(rotation - lastDispatchedRotation!!) > 0.1f
             // Use simple distance check for center (approx 1 meter)
-            val centerChanged = lastDispatchedCenter == null || (center != null && center.distanceToAsDouble(lastDispatchedCenter) > 1.0)
+            val centerChanged = lastDispatchedCenter == null || (normalizedCenter != null && normalizedCenter.distanceToAsDouble(lastDispatchedCenter) > 1.0)
             val zoomChanged = lastDispatchedZoom == null || (zoom != null && kotlin.math.abs(zoom - lastDispatchedZoom!!) > 0.01)
 
             if (rotationChanged || centerChanged || zoomChanged) {
                 // Update tracking variables
                 lastDispatchedRotation = rotation
-                lastDispatchedCenter = center
+                lastDispatchedCenter = normalizedCenter
                 lastDispatchedZoom = zoom
 
+                // Combined MapMovement Action for efficiency
                 // Use adaptive timing: Faster response if it's the first move, 
                 // or keep it steady if we're in high-frequency update state.
                 // For now, we apply the current constant, but we'll dynamicize it in the next step.
-                reduxBridge.dispatchMapMovement(rotation, center, zoom)
+                reduxBridge.dispatchMapMovement(rotation, normalizedCenter, zoom)
                 
                 // Notify overlay coordinator of map movement to trigger data loading
-                if (center != null) {
+                if (normalizedCenter != null) {
                     if (zoom != null) {
-                        overlayCoordinator.onMapMoved(center.latitude, center.longitude, zoom)
+                        overlayCoordinator.onMapMoved(normalizedCenter.latitude, normalizedCenter.longitude, zoom)
                     } else {
                         mapView.let { mv ->
                             overlayCoordinator.onMapMoved(center.latitude, center.longitude, mv.zoomLevelDouble)

@@ -68,14 +68,16 @@ class UniversalCountryCacheManager(
      * This is the main entry point for all overlay types
      */
     fun onLocationChanged(newLocation: GeoPoint) {
-        if (!isSignificantLocationChange(newLocation)) {
+        val normalizedLocation = newLocation.normalizePrecision()
+        
+        if (!isSignificantLocationChange(normalizedLocation)) {
             return // Too close to last location
         }
 
-        lastLocation = newLocation
+        lastLocation = normalizedLocation
 
         coroutineScope.launch {
-            handleLocationChange(newLocation)
+            handleLocationChange(normalizedLocation)
         }
     }
 
@@ -94,9 +96,15 @@ class UniversalCountryCacheManager(
      * Main location change handler with smart country management
      */
     private suspend fun handleLocationChange(location: GeoPoint) {
-        val newCountry = getCurrentCountry(location)
+        val newCountry = try {
+            getCurrentCountry(location)
+        } catch (e: Exception) {
+            Log.e(TAG, "Critical error determining country for location: $location", e)
+            null
+        }
+
         if (newCountry == null) {
-            Log.w(TAG, "Could not determine country for location: $location")
+            Log.w(TAG, "Could not determine country for location: $location (likely Geocoder failure)")
             return
         }
 
@@ -408,12 +416,13 @@ class UniversalCountryCacheManager(
         center: GeoPoint,
         radiusKm: Double
     ): List<com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature> = coroutineScope {
-        Log.v(TAG, "Multi-country spatial query: center=$center, radius=$radiusKm km")
+        val normalizedCenter = center.normalizePrecision()
+        Log.v(TAG, "Multi-country spatial query: center=$normalizedCenter, radius=$radiusKm km")
 
         val deferredFeatures = cachedCountries.map { countryCode ->
             async {
                 try {
-                    val features = queryCountryFeatures(center, countryCode, radiusKm)
+                    val features = queryCountryFeatures(normalizedCenter, countryCode, radiusKm)
                     Log.v(TAG, "Found ${features.size} features in $countryCode")
                     features
                 } catch (e: Exception) {

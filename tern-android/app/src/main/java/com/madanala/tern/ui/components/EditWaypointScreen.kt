@@ -220,7 +220,7 @@ fun EditWaypointScreen(
                 }
                 
                 OutlinedTextField(
-                    value = waypoint.radius?.toString() ?: "400.0",
+                    value = waypoint.radius?.toString() ?: "RouteConstants.FAI_DEFAULT_RADIUS_METERS",
                     onValueChange = { newValue ->
                         val radius = newValue.toDoubleOrNull()
                         if (radius != null) {

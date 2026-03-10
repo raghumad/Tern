@@ -8,6 +8,7 @@ import com.madanala.tern.redux.MapStore
 import com.madanala.tern.redux.OverlayConfig
 import com.madanala.tern.redux.OverlayType
 import com.madanala.tern.utils.CacheManager
+
 import org.osmdroid.util.BoundingBox
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.FolderOverlay
@@ -229,7 +230,7 @@ class OverlayCoordinator {
      * Now routes through UniversalCountryCacheManager for intelligent country management
      */
     fun onMapMoved(centerLat: Double, centerLng: Double, zoom: Double) {
-        val centerPoint = org.osmdroid.util.GeoPoint(centerLat, centerLng)
+        val centerPoint = org.osmdroid.util.GeoPoint(centerLat, centerLng).normalizePrecision()
 
         // Route through Universal Country Cache Manager for intelligent country management (Priority 0)
         countryCacheManager?.onLocationChanged(centerPoint)

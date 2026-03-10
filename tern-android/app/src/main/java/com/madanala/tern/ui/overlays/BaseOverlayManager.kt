@@ -8,11 +8,9 @@ import com.madanala.tern.redux.MapStore
 import com.madanala.tern.redux.OverlayConfig
 import com.madanala.tern.redux.OverlayType
 import com.madanala.tern.utils.AdaptiveOverlaySystem
-import com.madanala.tern.utils.AdaptiveOverlayFallback
 import com.madanala.tern.utils.ApplicationMemoryState
 import com.madanala.tern.utils.DistanceZone
 import com.madanala.tern.utils.FlightPhase
-import com.madanala.tern.utils.MemoryErrorRecovery
 import com.madanala.tern.utils.MemoryPressureLevel
 import com.madanala.tern.utils.OverlayBudget
 import kotlinx.coroutines.CoroutineScope
@@ -238,15 +236,6 @@ abstract class BaseOverlayManager(
             adaptiveStats["zone_budgets"] = budget.zoneBudgets
         }
 
-        // Add error recovery statistics
-        val errorStats = MemoryErrorRecovery.getErrorStatistics()
-        adaptiveStats["error_stats"] = mapOf(
-            "consecutive_errors" to errorStats.consecutiveErrors,
-            "total_errors" to errorStats.totalErrors,
-            "in_degraded_mode" to errorStats.inDegradedMode,
-            "error_rate" to errorStats.errorRate
-        )
-
         // Add adaptive system availability
         adaptiveStats["adaptive_system_available"] = (adaptiveOverlaySystem != null)
         adaptiveStats["emergency_cleanup_recommended"] = shouldTriggerEmergencyCleanup()
@@ -270,7 +259,6 @@ abstract class BaseOverlayManager(
             "memory_pressure" to (currentOverlayBudget?.memoryPressure?.name ?: "unknown"),
             "flight_phase" to (currentOverlayBudget?.flightPhase?.name ?: "unknown"),
             "adaptive_system_available" to (adaptiveOverlaySystem != null),
-            "error_stats" to MemoryErrorRecovery.getErrorStatistics(),
             "map_overlay_count" to mapOverlayCount,
             "location" to if (mapView?.mapCenter != null) {
                 String.format("%.4f,%.4f", mapView!!.mapCenter.latitude, mapView!!.mapCenter.longitude)
@@ -484,25 +472,23 @@ abstract class BaseOverlayManager(
     }
 
     /**
-      * Get current overlay budget (memory-based allocation with error recovery)
+      * Get current overlay budget (memory-based allocation)
       */
     fun getCurrentOverlayBudget(): OverlayBudget? {
+        val typeId = overlayType.name.lowercase()
         return try {
-            val budget = MemoryErrorRecovery.getOverlayBudgetWithRecovery(
-                adaptiveSystem = adaptiveOverlaySystem,
-                fallbackBudget = AdaptiveOverlayFallback.getFallbackOverlayBudget(
-                    overlayType.name.lowercase(),
-                    currentFlightPhase
-                )
-            )
-            AdaptiveOverlayFallback.validateOrFallback(
-                budget = budget,
-                overlayType = overlayType.name.lowercase(),
-                flightPhase = currentFlightPhase
-            )
+            val budget = adaptiveOverlaySystem?.getOptimalOverlayBudget(currentFlightPhase)
+            
+            // Localized validation and fallback
+            if (budget == null || budget.totalOverlays <= 0) {
+                Log.w(TAG, "Adaptive system failed, using local fallback for $typeId")
+                MemoryPressureLevel.getFallbackOverlayBudget(typeId, currentFlightPhase)
+            } else {
+                budget
+            }
         } catch (e: Exception) {
-            Log.e(TAG, "Error getting overlay budget, using fallback", e)
-            AdaptiveOverlayFallback.getFallbackOverlayBudget(overlayType.name.lowercase(), currentFlightPhase)
+            Log.e(TAG, "Error getting overlay budget, using local fallback", e)
+            MemoryPressureLevel.getFallbackOverlayBudget(typeId, currentFlightPhase)
         }
     }
 
@@ -510,14 +496,15 @@ abstract class BaseOverlayManager(
       * Get budget for specific distance zone (with error recovery)
       */
     fun getZoneBudget(distanceZone: DistanceZone): Int {
+        val typeId = overlayType.name.lowercase()
         return try {
             val budget = getCurrentOverlayBudget()
             budget?.zoneBudgets?.get(distanceZone)
-                ?: AdaptiveOverlayFallback.getFallbackZoneBudgets(overlayType.name.lowercase())[distanceZone]
+                ?: MemoryPressureLevel.getFallbackZoneBudgets(typeId)[distanceZone]
                 ?: 0
         } catch (e: Exception) {
             Log.e(TAG, "Error getting zone budget for ${distanceZone.name}, using fallback", e)
-            AdaptiveOverlayFallback.getFallbackZoneBudgets(overlayType.name.lowercase())[distanceZone] ?: 0
+            MemoryPressureLevel.getFallbackZoneBudgets(typeId)[distanceZone] ?: 0
         }
     }
 
@@ -525,12 +512,13 @@ abstract class BaseOverlayManager(
       * Get maximum overlays for current memory conditions (with error recovery)
       */
     fun getMaxOverlaysForCurrentConditions(): Int {
+        val typeId = overlayType.name.lowercase()
         return try {
             getCurrentOverlayBudget()?.totalOverlays
-                ?: AdaptiveOverlayFallback.getFallbackOverlayBudget(overlayType.name.lowercase(), currentFlightPhase).totalOverlays
+                ?: MemoryPressureLevel.getFallbackOverlayBudget(typeId, currentFlightPhase).totalOverlays
         } catch (e: Exception) {
             Log.e(TAG, "Error getting max overlays, using fallback", e)
-            AdaptiveOverlayFallback.getFallbackOverlayBudget(overlayType.name.lowercase(), currentFlightPhase).totalOverlays
+            MemoryPressureLevel.getFallbackOverlayBudget(typeId, currentFlightPhase).totalOverlays
         }
     }
 

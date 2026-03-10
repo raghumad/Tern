@@ -10,6 +10,17 @@ import java.nio.ByteBuffer
 import kotlin.math.*
 
 /**
+ * Normalizes the precision of a GeoPoint by rounding latitude and longitude to a specified number of decimal places.
+ * Default is 5 decimal places (approx. 1.1 meters) to reduce floating-point jitter.
+ */
+fun GeoPoint.normalizePrecision(decimalPlaces: Int = 5): GeoPoint {
+    val factor = 10.0.pow(decimalPlaces)
+    val lat = (this.latitude * factor).roundToLong() / factor
+    val lon = (this.longitude * factor).roundToLong() / factor
+    return GeoPoint(lat, lon)
+}
+
+/**
  * Utility class for converting GeoJSON to FlexBuffers and Hilbert curve indexing for map overlays
  */
 object MapOverlayCacheUtils {

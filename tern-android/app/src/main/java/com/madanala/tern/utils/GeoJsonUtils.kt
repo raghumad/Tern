@@ -218,7 +218,7 @@ object GeoJsonUtils {
         mapView: MapView,
         ndGeoJsonString: String,
         centerPoint: GeoPoint,
-        maxDistanceMiles: Double = 300.0
+        maxDistanceMiles: Double = com.madanala.tern.redux.OverlayConstants.DEFAULT_FILTER_RADIUS_MILES
     ): List<Polygon> {
         val polygons = mutableListOf<Polygon>()
         val lines = ndGeoJsonString.lines()

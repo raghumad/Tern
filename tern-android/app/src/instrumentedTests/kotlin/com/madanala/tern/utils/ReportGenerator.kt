@@ -19,7 +19,15 @@ object ReportGenerator {
     var currentTestClass: String? = null
 
     data class Step(val type: String, val description: String, val status: String = "PASS", val screenshotPath: String? = null, val screenshotHash: String? = null)
-    data class ScenarioData(val name: String, val steps: List<Step>, val logcat: String?)
+    data class ScenarioData(val name: String, val steps: List<Step>, val logcat: String?, val perfMetrics: PerformanceMetrics? = null)
+    
+    data class PerformanceMetrics(
+        val totalGcPauseMs: Long,
+        val peakHeapUsedMb: Double,
+        val baselineHeapUsedMb: Double,
+        val finalHeapUsedMb: Double,
+        val gcEventCount: Int
+    )
     
     // Metadata for the dashboard
     data class TestSummary(
@@ -210,8 +218,50 @@ object ReportGenerator {
         throw AssertionError("Timed out waiting for log matching regex: $regexPattern in tag: $tag. \nLast matching logs:\n$filteredLog")
     }
 
+    /**
+     * Analyze logcat for performance metrics
+     */
+    private fun analyzePerformanceFromLog(logcat: String): PerformanceMetrics {
+        var totalGcPauseMs = 0L
+        var gcEventCount = 0
+        var peakHeapUsed = 0.0
+        var baselineHeapUsed = 0.0
+        var finalHeapUsed = 0.0
+        
+        // Parse ART GC events: "Explicit concurrent mark sweep GC freed 240KB ... paused 1.052ms"
+        val gcRegex = Regex("paused ([\\d.]+)ms")
+        logcat.lineSequence().forEach { line ->
+            if (line.contains("GC freed")) {
+                gcRegex.find(line)?.groupValues?.get(1)?.toDoubleOrNull()?.let { pause ->
+                    totalGcPauseMs += pause.toLong()
+                    gcEventCount++
+                }
+            }
+            
+            // Parse [PERF_HEAP] SNAPSHOT used=12345 total=23456 max=34567
+            if (line.contains("[PERF_HEAP]")) {
+                val usedMatch = Regex("used=(\\d+)").find(line)
+                usedMatch?.groupValues?.get(1)?.toDoubleOrNull()?.let { usedBytes ->
+                    val usedMb = usedBytes / (1024.0 * 1024.0)
+                    if (baselineHeapUsed == 0.0) baselineHeapUsed = usedMb
+                    if (usedMb > peakHeapUsed) peakHeapUsed = usedMb
+                    finalHeapUsed = usedMb
+                }
+            }
+        }
+        
+        return PerformanceMetrics(
+            totalGcPauseMs = totalGcPauseMs,
+            peakHeapUsedMb = peakHeapUsed,
+            baselineHeapUsedMb = baselineHeapUsed,
+            finalHeapUsedMb = finalHeapUsed,
+            gcEventCount = gcEventCount
+        )
+    }
+
     fun finishScenario(name: String, logCatOutput: String?) {
-        recordedScenarios.add(ScenarioData(name, currentSteps.toList(), logCatOutput))
+        val perfMetrics = logCatOutput?.let { analyzePerformanceFromLog(it) }
+        recordedScenarios.add(ScenarioData(name, currentSteps.toList(), logCatOutput, perfMetrics))
         currentSteps.clear()
     }
 
@@ -308,9 +358,13 @@ object ReportGenerator {
                 finishScenario("Default Scenario", captureLogCat())
             }
 
-            recordedScenarios.forEach { scenario ->
+            var firstScenarioMetrics: PerformanceMetrics? = null
+
+            recordedScenarios.forEachIndexed { index, scenario ->
+                if (index == 0) firstScenarioMetrics = scenario.perfMetrics
+                
                 writer.write("<div class='scenario'>")
-                writer.write("<h2>Scenario: ${scenario.name}</h2>")
+                writer.write("<h2>Scenario: ${scenario.name} ${if (index == 0) "(Baseline)" else ""}</h2>")
                 
                 // Extract and print the story first if it exists
                 val storyStep = scenario.steps.find { it.type == "STORY" }
@@ -332,6 +386,51 @@ object ReportGenerator {
                         writer.write("</details>")
                     }
                     writer.write("</div>")
+                }
+
+                if (scenario.perfMetrics != null) {
+                    val budget = PerformanceDebugger.DEFAULT_BUDGET
+                    val leak = scenario.perfMetrics.finalHeapUsedMb - scenario.perfMetrics.baselineHeapUsedMb
+                    
+                    // Helper to get color based on value vs budget
+                    fun getColor(value: Double, budget: Double): String = when {
+                        value > budget -> "#ef4444" // Over budget (Red)
+                        value > budget * 0.8 -> "#f59e0b" // Near budget (Yellow)
+                        else -> "#22c55e" // Within budget (Green)
+                    }
+
+                    writer.write("<div style='margin-bottom: 20px; padding: 15px; background: #0f172a; border-radius: 8px; border: 1px solid #334155;'>")
+                    writer.write("<h3 style='color: #22c55e; margin-top: 0; font-size: 1rem;'>⚡ Performance Scorecard</h3>")
+                    writer.write("<div style='display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px;'>")
+                    
+                    val gcColor = getColor(scenario.perfMetrics.totalGcPauseMs.toDouble(), budget.maxGcPauseMs.toDouble())
+                    writer.write("<div><strong style='display: block;'>Total GC Pause</strong><span style='color: $gcColor;'>${scenario.perfMetrics.totalGcPauseMs} ms</span> <small>(Budget: ${budget.maxGcPauseMs}ms)</small></div>")
+                    
+                    val eventColor = getColor(scenario.perfMetrics.gcEventCount.toDouble(), budget.maxGcEventCount.toDouble())
+                    writer.write("<div><strong style='display: block;'>GC Events</strong><span style='color: $eventColor;'>${scenario.perfMetrics.gcEventCount}</span> <small>(Budget: ${budget.maxGcEventCount})</small></div>")
+                    
+                    val peakColor = getColor(scenario.perfMetrics.peakHeapUsedMb, budget.maxPeakHeapMb)
+                    writer.write("<div><strong style='display: block;'>Peak Heap</strong><span style='color: $peakColor;'>${String.format("%.2f", scenario.perfMetrics.peakHeapUsedMb)} MB</span> <small>(SLA: ${budget.maxPeakHeapMb}MB)</small></div>")
+                    
+                    val leakColor = getColor(leak, budget.maxRetainedDeltaMb)
+                    writer.write("<div><strong style='display: block;'>Retained Delta</strong><span style='color: $leakColor;'>${String.format("%+.2f", leak)} MB</span> <small>(Limit: ${budget.maxRetainedDeltaMb}MB)</small></div>")
+                    
+                    
+                    writer.write("<div><strong style='display: block;'>Baseline/Final</strong>${String.format("%.1f", scenario.perfMetrics.baselineHeapUsedMb)} / ${String.format("%.1f", scenario.perfMetrics.finalHeapUsedMb)} MB</div>")
+                    
+                    // Comparison against the first scenario (baseline) if this is not the baseline
+                    if (index > 0 && firstScenarioMetrics != null) {
+                        val peakDelta = scenario.perfMetrics.peakHeapUsedMb - firstScenarioMetrics!!.peakHeapUsedMb
+                        val pauseDelta = scenario.perfMetrics.totalGcPauseMs - firstScenarioMetrics!!.totalGcPauseMs
+                        
+                        writer.write("<div style='grid-column: 1 / -1; margin-top: 8px; border-top: 1px dashed #334155; padding-top: 8px; font-size: 0.85rem; color: #94a3b8;'>")
+                        writer.write("<strong>Overhead vs Baseline:</strong> ")
+                        writer.write("Peak Heap: <span style='color: ${if (peakDelta > 5.0) "#ef4444" else "#94a3b8"};'>${String.format("%+.1f", peakDelta)} MB</span> | ")
+                        writer.write("GC Pause: <span style='color: ${if (pauseDelta > 50) "#ef4444" else "#94a3b8"};'>${if (pauseDelta >= 0) "+" else ""}$pauseDelta ms</span>")
+                        writer.write("</div>")
+                    }
+                    
+                    writer.write("</div></div>")
                 }
 
                 if (scenario.logcat != null) {
