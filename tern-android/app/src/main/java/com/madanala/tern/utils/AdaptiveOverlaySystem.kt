@@ -80,13 +80,13 @@ class AdaptiveOverlaySystem(private val context: Context) {
     private fun calculateBaseBudget(memoryState: ApplicationMemoryState): Int {
         val baseBudget = memoryState.calculatedPressure.maxOverlays
 
-        // Adjust based on available memory
-        val availableMemoryMB = memoryState.systemMemory.availableMemoryMB
+        // Simple adjustment based on centralized thresholds
+        val availableMB = memoryState.systemMemory.availableMemoryMB
         val memoryAdjustment = when {
-            availableMemoryMB > 300 -> 1.2  // High memory: increase budget
-            availableMemoryMB > 150 -> 1.0  // Normal memory: standard budget
-            availableMemoryMB > 75 -> 0.8   // Low memory: reduce budget
-            else -> 0.6                    // Critical memory: minimal budget
+            availableMB > MemoryPressureLevel.THRESHOLD_HIGH_MB -> 1.2
+            availableMB > MemoryPressureLevel.THRESHOLD_MEDIUM_MB -> 1.0
+            availableMB > MemoryPressureLevel.THRESHOLD_LOW_MB -> 0.8
+            else -> 0.6
         }
 
         return (baseBudget * memoryAdjustment).toInt()
@@ -367,7 +367,7 @@ class AdaptiveOverlaySystem(private val context: Context) {
     fun getSystemStatus(): AdaptiveSystemStatus {
         val memoryState = getCurrentMemoryState()
         val budget = getOptimalOverlayBudget()
-        val detailedMemory = SimpleMemoryMonitor(context).getDetailedMemoryInfo()
+        val detailedMemory = memoryMonitor.getDetailedMemoryInfo()
 
         return AdaptiveSystemStatus(
             memoryState = memoryState,

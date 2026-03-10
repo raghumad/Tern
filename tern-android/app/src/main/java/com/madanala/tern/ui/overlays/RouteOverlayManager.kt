@@ -773,7 +773,7 @@ class RouteOverlayManager(
          * Draw FAI cylinder around waypoint
          */
         private fun drawCylinder(canvas: Canvas, projection: org.osmdroid.views.Projection, waypoint: com.madanala.tern.model.Waypoint) {
-            val radiusMeters = waypoint.radius ?: 400.0
+            val radiusMeters = waypoint.radius ?: RouteConstants.FAI_DEFAULT_RADIUS_METERS
             val point = GeoPoint(waypoint.lat, waypoint.lon)
             val screenPoint = projection.toPixels(point, null)
             

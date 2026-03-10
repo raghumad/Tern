@@ -43,6 +43,9 @@ object ViewToBitmap {
         // Add to root view to avoid interfering with parent's layout (e.g. MapView)
         val safeParent = parentView.rootView as? ViewGroup ?: parentView
 
+        // Track if view was added to parent for proper cleanup
+        var viewAdded = false
+
         try {
             // Explicitly propagate lifecycle and view model store owners BEFORE setContent
             val resolvedLifecycleOwner = lifecycleOwner ?: parentView.findViewTreeLifecycleOwner()
@@ -65,28 +68,53 @@ object ViewToBitmap {
             view.layoutParams = ViewGroup.LayoutParams(width, height)
             
             // Add to parent (invisible) so it gets a window attachment and lifecycle
-            // Add to root view to avoid interfering with parent's layout (e.g. MapView)
-            
             view.visibility = View.INVISIBLE
-            safeParent.addView(view)
+            
+            if (continuation.isActive) {
+                safeParent.addView(view)
+                viewAdded = true
+            } else {
+                return@suspendCancellableCoroutine
+            }
             
             view.doOnLayout { 
                 try {
-                    val bitmap = createBitmap(width, height, Bitmap.Config.ARGB_8888)
-                    val canvas = Canvas(bitmap)
-                    view.draw(canvas)
-                    continuation.resume(bitmap)
+                    if (continuation.isActive) {
+                        val bitmap = createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                        val canvas = Canvas(bitmap)
+                        view.draw(canvas)
+                        continuation.resume(bitmap)
+                    }
                 } catch (e: Exception) {
-                    continuation.resumeWithException(e)
+                    if (continuation.isActive) {
+                        continuation.resumeWithException(e)
+                    }
                 } finally {
-                    safeParent.removeView(view)
+                    if (viewAdded) {
+                        safeParent.removeView(view)
+                        viewAdded = false
+                        // PERFORMANCE: Explicitly dispose composition to free memory faster
+                        view.disposeComposition()
+                    }
                 }
             }
-        } catch (e: Exception) {
-            if (safeParent.contains(view)) {
-                safeParent.removeView(view)
+
+            // Fallback cleanup if coroutine is cancelled while waiting for layout
+            continuation.invokeOnCancellation {
+                if (viewAdded) {
+                    safeParent.removeView(view)
+                    viewAdded = false
+                }
             }
-            continuation.resumeWithException(e)
+
+        } catch (e: Exception) {
+            if (viewAdded) {
+                safeParent.removeView(view)
+                viewAdded = false
+            }
+            if (continuation.isActive) {
+                continuation.resumeWithException(e)
+            }
         }
     }
 }

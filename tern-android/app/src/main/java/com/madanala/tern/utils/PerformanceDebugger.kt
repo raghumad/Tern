@@ -27,6 +27,20 @@ object PerformanceDebugger {
     private val mutex = Mutex()
     private val isEnabled = true // BuildConfig.DEBUG in real implementation
 
+    data class PerformanceBudget(
+        val maxGcPauseMs: Long,
+        val maxPeakHeapMb: Double,
+        val maxRetainedDeltaMb: Double,
+        val maxGcEventCount: Int
+    )
+
+    val DEFAULT_BUDGET = PerformanceBudget(
+        maxGcPauseMs = 150,      // Total pause time over a scenario
+        maxPeakHeapMb = 250.0,   // Hard limit for aviation-grade stability
+        maxRetainedDeltaMb = 2.0, // Strict leak budget
+        maxGcEventCount = 5      // Avoid excessive churn
+    )
+
     // Priority 1: State Update Storm Monitoring
     data class ReduxMetrics(
         val stateUpdateCount: AtomicLong = AtomicLong(0),
@@ -159,6 +173,21 @@ object PerformanceDebugger {
         }
     }
 
+    /**
+     * Log current heap usage for post-test analysis
+     */
+    fun logHeapUsage(tag: String = "SNAPSHOT") {
+        if (!isEnabled) return
+        val runtime = Runtime.getRuntime()
+        val total = runtime.totalMemory()
+        val free = runtime.freeMemory()
+        val max = runtime.maxMemory()
+        val used = total - free
+        
+        // Format: [PERF_HEAP] <TAG> used=<bytes> total=<bytes> max=<bytes>
+        Log.i(TAG, "[PERF_HEAP] $tag used=$used total=$total max=$max")
+    }
+
     // ==================== REPORTING & ANALYSIS ====================
 
     /**
@@ -228,8 +257,13 @@ object PerformanceDebugger {
         CoroutineScope(Dispatchers.IO).launch {
             while (isEnabled) {
                 try {
-                    delay(10000) // Report every 10 seconds for faster feedback during tests
-                    logPerformanceSummary()
+                    delay(2000) // Log heap every 2 seconds for granular post-test analysis
+                    logHeapUsage("PERIODIC")
+                    
+                    // Full summary every 10 seconds
+                    if (System.currentTimeMillis() % 10000 < 2000) {
+                        logPerformanceSummary()
+                    }
                 } catch (e: Exception) {
                     break
                 }

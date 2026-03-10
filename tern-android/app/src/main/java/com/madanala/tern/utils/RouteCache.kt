@@ -242,7 +242,7 @@ class RouteCache(
                 "lon" to wp.lon,
                 "type" to wp.type.name,
                 "label" to (wp.label ?: ""),
-                "radius" to (wp.radius ?: 400.0),
+                "radius" to (wp.radius ?: RouteConstants.FAI_DEFAULT_RADIUS_METERS),
                 "alt" to (wp.alt ?: 0.0),
                 "openTime" to (wp.openTime ?: ""),
                 "closeTime" to (wp.closeTime ?: "")

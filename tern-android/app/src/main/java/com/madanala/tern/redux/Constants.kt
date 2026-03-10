@@ -33,6 +33,9 @@ object MapConstants {
 object RouteConstants {
     /** Maximum number of routes allowed (10-route limit) */
     const val MAX_ROUTES = 10
+
+    /** Default FAI cylinder radius in meters (Source of Truth) */
+    const val FAI_DEFAULT_RADIUS_METERS = 400.0
 }
 
 // Cache Constants

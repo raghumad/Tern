@@ -77,8 +77,7 @@ class PGSpotOverlayManagerTest : BaseTest() {
             overlayType = "pgspot"
         )
         
-        every { pgSpotCache.isCached("US") } returns true
-        every { pgSpotCache.queryNearbyPGSpots("US", center, any()) } returns listOf(pgSpotFeature)
+        coEvery { countryCacheManager.queryMultiCountryArea(center, any()) } returns listOf(pgSpotFeature)
 
         manager.setOverlayCoordinator(overlayCoordinator)
         manager.initialize(mapView)
@@ -90,8 +89,8 @@ class PGSpotOverlayManagerTest : BaseTest() {
         testDispatcher.scheduler.advanceUntilIdle()
 
         // Then
-        // Verify that pgSpotCache was queried
-        verify { pgSpotCache.queryNearbyPGSpots("US", center, any()) }
+        // Verify that countryCacheManager was queried
+        coVerify { countryCacheManager.queryMultiCountryArea(center, any()) }
     }
     
 

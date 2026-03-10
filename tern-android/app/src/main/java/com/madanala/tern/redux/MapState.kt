@@ -23,14 +23,10 @@ data class MapState(
     val permissionRequested: Boolean = false,
 
     // Overlay state - modular overlay management
-    val overlayState: OverlayState = OverlayState(
-        airspaces = OverlayConfig(enabled = true),  // Airspaces enabled by default
-        pgSpots = OverlayConfig(enabled = true)     // PG spots enabled by default
-    ),
+    val overlayState: OverlayState = OverlayState(),
 
     // Weather state for PG spots
     val weatherState: WeatherState = WeatherState(),
-
 
     // Loading state
     val isLoadingAirspaces: Boolean = false,
@@ -42,17 +38,13 @@ data class MapState(
     val pgSpotCountries: Set<String> = emptySet(),
 
     // Configuration
-    val mapStyle: String = "terrain", // "satellite", "terrain", "topo"
+    val mapStyle: String = "terrain",
 
     // UI state
     val compassVisible: Boolean = true,
 
     // Settings state - user preferences and configuration
     val settingsState: SettingsState = SettingsState(),
-
-
-
-
 
     // Route state - cached routes for display
     val routes: List<Route> = emptyList(),
@@ -63,12 +55,105 @@ data class MapState(
     // Selected route for viewing/editing
     val selectedRouteId: String? = null,
 
-
     // Handedness-aware UI state - optimizes control placement for user preference
     val userPreferences: UserPreferencesState = UserPreferencesState(),
 
     // Smart Suggestion State - for nearby PG spot detection
     val smartSuggestionState: SmartSuggestionState = SmartSuggestionState()
+)
+
+/**
+ * GPS acquisition and status tracking for aviation safety
+ */
+enum class GpsStatus(
+    val description: String,
+    val userMessage: String,
+    val isOperational: Boolean
+) {
+    INITIAL("App started, GPS status unknown", "Initializing location services...", false),
+    ACQUIRING("Requesting GPS permission and acquiring fix", "Acquiring GPS location...", false),
+    SEARCHING("GPS searching for satellite fix", "Searching for GPS satellites...", false),
+    ACTIVE("GPS fix acquired and updating", "GPS location active", true),
+    LOST("GPS fix lost or signal weak", "GPS signal lost - aviation features limited", false),
+    DISABLED("GPS disabled or permissions denied", "GPS access required for aviation features", false);
+
+    fun isSafeForAviation(): Boolean = this == ACTIVE && isOperational
+    fun requiresUserAttention(): Boolean = this == LOST || this == DISABLED
+}
+
+/**
+ * Waypoint selection state for interactive editing
+ */
+data class WaypointSelection(
+    val routeId: String,
+    val waypointId: String,
+    val isDragging: Boolean = false,
+    val originalLat: Double? = null,
+    val originalLon: Double? = null
+)
+
+/**
+ * Redux state for overlay management
+ */
+enum class OverlayType { AIRSPACE, PG_SPOTS, ROUTES }
+
+data class OverlayConfig(
+    val enabled: Boolean = false,
+    val opacity: Float = OverlayConstants.DEFAULT_OVERLAY_OPACITY,
+    val showLabels: Boolean = true,
+    val filterRadiusMiles: Double = OverlayConstants.DEFAULT_FILTER_RADIUS_MILES
+)
+
+data class OverlayState(
+    val airspaces: OverlayConfig = OverlayConfig(enabled = true),
+    val pgSpots: OverlayConfig = OverlayConfig(enabled = true),
+    val routes: OverlayConfig = OverlayConfig(enabled = true)
+)
+
+/**
+ * Weather state for dynamic PG spot weather overlays
+ */
+data class WeatherState(
+    val spotWeathers: Map<String, com.madanala.tern.utils.WeatherForecast> = emptyMap(),
+    val waypointWeathers: Map<String, com.madanala.tern.utils.WeatherForecast> = emptyMap(),
+    val waypointEtas: Map<String, Long> = emptyMap(),
+    val fetchingSpots: Set<String> = emptySet(),
+    val errors: Map<String, Throwable> = emptyMap(),
+    val showWeatherGauges: Boolean = true,
+    val showWeatherDetails: Boolean = true,
+    val showingWeatherDialog: Pair<String, com.madanala.tern.utils.WeatherForecast>? = null,
+    val weatherAPIOnline: Boolean = true,
+    val cacheSize: Int = 0,
+    val cacheHits: Int = 0,
+    val cacheMisses: Int = 0,
+    val lastCacheCleanup: Long = 0L,
+    val lastAPIStatusCheck: Long = 0L
+)
+
+/**
+ * Settings state for user preferences and configuration
+ */
+data class SettingsState(
+    val temperatureUnit: String = "°F",
+    val distanceUnit: String = "km",
+    val speedUnit: String = "kn",
+    val altitudeUnit: String = "ft"
+)
+
+/**
+ * Handedness preference for adaptive UI layout
+ */
+enum class Handedness { LEFT_HANDED, RIGHT_HANDED, AMBIDEXTROUS }
+
+enum class HandednessSource { USER_SELECTED, SYSTEM_DETECTED, SMART_DEFAULT }
+
+/**
+ * User preferences for adaptive UI
+ */
+data class UserPreferencesState(
+    val handedness: Handedness = Handedness.RIGHT_HANDED,
+    val handednessSource: HandednessSource = HandednessSource.SMART_DEFAULT,
+    val lastUpdated: Long = System.currentTimeMillis()
 )
 
 /**

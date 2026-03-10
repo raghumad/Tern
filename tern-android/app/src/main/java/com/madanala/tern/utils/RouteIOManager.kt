@@ -160,7 +160,7 @@ object RouteIOManager {
                 val typeStr = wpJson.optString("t", "TURNPOINT")
                 val type = try { Waypoint.Type.valueOf(typeStr) } catch (e: Exception) { Waypoint.Type.TURNPOINT }
                 val label = wpJson.optString("l").ifEmpty { null }
-                val radius = wpJson.optDouble("r", 400.0)
+                val radius = wpJson.optDouble("r", RouteConstants.FAI_DEFAULT_RADIUS_METERS)
                 val alt = if (wpJson.has("a")) wpJson.getDouble("a") else null
                 val openTime = wpJson.optString("o").ifEmpty { null }
                 val closeTime = wpJson.optString("c").ifEmpty { null }
@@ -209,7 +209,7 @@ object RouteIOManager {
                 else -> "TURNPOINT" // Default
             })
             
-            tp.put("radius", wp.radius ?: 400.0)
+            tp.put("radius", wp.radius ?: RouteConstants.FAI_DEFAULT_RADIUS_METERS)
             
             val wpObj = JSONObject()
             wpObj.put("name", wp.label ?: "WP${index+1}")
@@ -263,7 +263,7 @@ object RouteIOManager {
             for (i in 0 until turnpoints.length()) {
                 val tp = turnpoints.getJSONObject(i)
                 val typeStr = tp.optString("type", "TURNPOINT")
-                val radius = tp.optDouble("radius", 400.0)
+                val radius = tp.optDouble("radius", RouteConstants.FAI_DEFAULT_RADIUS_METERS)
                 
                 val wpObj = tp.getJSONObject("waypoint")
                 val lat = wpObj.getDouble("lat")
@@ -405,7 +405,7 @@ object RouteIOManager {
                 val lat = if (values.isNotEmpty()) values[0] / 1e5 else 0.0
                 val lon = if (values.size > 1) values[1] / 1e5 else 0.0
                 val alt = if (values.size > 2) values[2].toDouble() else 0.0
-                val radius = if (values.size > 3) values[3].toDouble() else 400.0
+                val radius = if (values.size > 3) values[3].toDouble() else RouteConstants.FAI_DEFAULT_RADIUS_METERS
                 
                 var type = when(typeCode) {
                     2 -> Waypoint.Type.SSS
@@ -515,7 +515,7 @@ object RouteIOManager {
                         type = type,
                         label = name,
                         alt = alt,
-                        radius = 400.0 // Default radius
+                        radius = RouteConstants.FAI_DEFAULT_RADIUS_METERS // Default radius
                     ))
                 }
             } catch (e: Exception) {

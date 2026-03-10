@@ -1,17 +1,26 @@
 package com.madanala.tern.model
 
-import com.madanala.tern.model.Waypoint
 import java.time.Instant
 import java.util.UUID
-import kotlin.math.atan2
-import kotlin.math.cos
-import kotlin.math.sin
-import kotlin.math.sqrt
 
-// Route calculation constants
-private const val EARTH_RADIUS_KM = 6371.0
-private const val AVERAGE_FLIGHT_SPEED_KMH = 30.0
-private const val MINUTES_PER_HOUR = 60
+/**
+ * Waypoint model for paragliding route planning.
+ */
+data class Waypoint(
+    val id: String = UUID.randomUUID().toString(),
+    val lat: Double,
+    val lon: Double,
+    val type: Type = Type.TURNPOINT,
+    val label: String? = null,
+    val createdAt: Instant = Instant.now(),
+    val routeId: String? = null,
+    val radius: Double? = RouteConstants.FAI_DEFAULT_RADIUS_METERS, // Default FAI cylinder radius in meters
+    val alt: Double? = null, // Altitude in meters
+    val openTime: String? = null, // HH:mm
+    val closeTime: String? = null // HH:mm
+) {
+    enum class Type { LAUNCH, TURNPOINT, SSS, ESS, GOAL, LANDING }
+}
 
 /**
  * Route model for paragliding route planning.
@@ -34,7 +43,7 @@ data class Route(
         get() = calculateTotalDistance()
 
     val estimatedFlightTimeMinutes: Int
-        get() = (totalDistanceKm / AVERAGE_FLIGHT_SPEED_KMH * MINUTES_PER_HOUR).toInt()
+        get() = (totalDistanceKm / 30.0 * 60).toInt()
 
     val legDistances: List<Double>
         get() = calculateLegDistances()
@@ -56,7 +65,7 @@ data class Route(
         type: Waypoint.Type = Waypoint.Type.TURNPOINT, 
         label: String? = null, 
         id: String? = null, 
-        radius: Double? = 400.0,
+        radius: Double? = RouteConstants.FAI_DEFAULT_RADIUS_METERS,
         alt: Double? = null,
         openTime: String? = null,
         closeTime: String? = null
@@ -163,25 +172,17 @@ data class Route(
     private fun calculateRouteType(): RouteType {
         if (waypoints.size < 3) return RouteType.OPEN_DISTANCE
         
-        // Check for closing the loop (Triangle)
         val start = waypoints.first()
         val end = waypoints.last()
-        val gap = calculateDistance(start.lat, start.lon, end.lat, end.lon)
-        // Rule: Gap must be less than 20% of total distance to be considered a closed triangle attempt
-        // For simplicity in this MVP, let's say if start and end are very close (< 400m) it's a closed loop
+        val gap = calculateDistance(start.lat, start.lon, end.last().lat.toDouble() /* Error in original thinking, fix: */ end.lat, end.lon)
         val isClosedLoop = gap < 0.4
 
-        if (isClosedLoop && waypoints.size == 4) { // Start -> TP1 -> TP2 -> Start (3 legs)
+        if (isClosedLoop && waypoints.size == 4) {
              val legs = legDistances
-             if (legs.size < 3) return RouteType.OPEN_DISTANCE // Should not happen if size is 4
+             if (legs.size < 3) return RouteType.OPEN_DISTANCE
              
-             val leg1 = legs[0]
-             val leg2 = legs[1]
-             val leg3 = legs[2]
-             val totalTriDist = leg1 + leg2 + leg3
-
-             // FAI Triangle rule: Shortest leg must be at least 28% of total distance
-             val shortest = minOf(leg1, minOf(leg2, leg3))
+             val totalTriDist = legs.sum()
+             val shortest = legs.minOrNull() ?: 0.0
              if (shortest >= 0.28 * totalTriDist) {
                  return RouteType.FAI_TRIANGLE
              } else {
@@ -201,7 +202,7 @@ data class Route(
     }
 
     private fun calculateDistance(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
-        val r = 6371 // Earth radius in km
+        val r = 6371
         val dLat = Math.toRadians(lat2 - lat1)
         val dLon = Math.toRadians(lon2 - lon1)
         val a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
@@ -212,9 +213,6 @@ data class Route(
     }
 
     companion object {
-        /**
-         * Create a route from a list of waypoints
-         */
         fun fromWaypoints(name: String, waypoints: List<Waypoint>): Route {
             val routeId = UUID.randomUUID().toString()
             val routeWaypoints = waypoints.map { it.copy(routeId = routeId) }

@@ -27,6 +27,9 @@ import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.overlay.Marker
 import kotlin.math.roundToInt
+import android.graphics.Bitmap
+import android.graphics.drawable.BitmapDrawable
+import android.util.LruCache
 
 import com.madanala.tern.utils.PGSpotCache
 
@@ -138,6 +141,10 @@ class PGSpotOverlayManager(
 
     // Aviation safety thresholds (inherited from airspace system with PG spot optimizations)
     private val checkDistanceKm = 2.0  // Smaller than airspace - PG spots are denser
+
+    // PERFORMANCE CACHES: Drastically reduces GC pressure during map interaction
+    private var cachedStaticIcon: Bitmap? = null
+    private val windGaugeCache = LruCache<Int, Bitmap>(50) // Cache last 50 unique wind gauge bitmaps
 
     data class PGSpotMarker(
          val marker: Marker,
@@ -456,17 +463,35 @@ class PGSpotOverlayManager(
                 coroutineScope.launch(Dispatchers.Main) {
                     try {
                         val mapView = mapView ?: return@launch
-                        val bitmap = com.madanala.tern.utils.ViewToBitmap.createBitmapFromComposable(
-                            parentView = mapView,
-                            width = 150, 
-                            height = 150
-                        ) {
-                            com.madanala.tern.ui.components.WindGaugeMarker(
-                                speed = wind.speed,
-                                direction = wind.direction,
-                                gust = wind.gust,
-                                isStale = forecast.isStale()
-                            )
+                        
+                        // PERFORMANCE: Create unique key based on wind conditions for caching
+                        val cacheKey = arrayOf(
+                            wind.speed.roundToInt(),
+                            wind.direction.roundToInt(),
+                            wind.gust.roundToInt(),
+                            forecast.isStale()
+                        ).contentHashCode()
+
+                        var bitmap = windGaugeCache.get(cacheKey)
+                        
+                        if (bitmap == null) {
+                            // THROTTLING: Slightly stagger the generation if many updates happen simultaneously
+                            // This spreads out the CPU/Memory spike of ComposeView creation
+                            delay(30) 
+                            
+                            bitmap = com.madanala.tern.utils.ViewToBitmap.createBitmapFromComposable(
+                                parentView = mapView,
+                                width = 150, 
+                                height = 150
+                            ) {
+                                com.madanala.tern.ui.components.WindGaugeMarker(
+                                    speed = wind.speed,
+                                    direction = wind.direction,
+                                    gust = wind.gust,
+                                    isStale = forecast.isStale()
+                                )
+                            }
+                            windGaugeCache.put(cacheKey, bitmap)
                         }
                         
                         marker.icon = bitmap.toDrawable(applicationContext.resources)
@@ -506,69 +531,74 @@ class PGSpotOverlayManager(
      */
     private suspend fun loadPGSpotsForLocation(context: Context, center: GeoPoint) {
         try {
-
             // Geographic determination (same as airspace system)
             // Ignore 0,0 coordinates (default/uninitialized state)
             if (Math.abs(center.latitude) < 0.01 && Math.abs(center.longitude) < 0.01) {
                 return
             }
 
-            val countryCode = com.madanala.tern.utils.CountryUtils.getCountryCodeFromGeoPoint(context, center)
-            if (countryCode == null) {
-                Log.w(TAG, "Could not determine country code for PG spots at: $center")
-                Log.i(TAG, String.format("PG spots rendered: 0 total, 0 visible @ %.4f,%.4f", center.latitude, center.longitude))
-                return
-            }
-
-            // Major movement detection for efficient caching - proper distance-based check
-            val isMajorMove = lastCheckLocation?.let { lastLocation ->
-                val distance = center.distanceToAsDouble(lastLocation) / 1000.0
-                distance > 50.0 // Only major move if >50km
-            } ?: true // First load is always "major"
-
-            if (isMajorMove) {
-                clearOverlays()
-            }
-
-            // 🗺️ FlexBuffers + Hilbert Caching Architecture for PG Spots
-            val nearbyFeatures = withContext(Dispatchers.IO) {
-                // Unified Architecture: UniversalCountryCacheManager handles downloading.
-                // We simply query the cache. If data is not yet available (downloading),
-                // it will be picked up on the next map update or refresh.
-                // NOTE: UniversalCountryCacheManager uses uppercase codes (e.g. "US"), so we must match that.
-                val cacheKey = countryCode.uppercase()
+            // Refactor: Use UniversalCountryCacheManager for intelligent multi-country loading
+            // This matches the robust implementation in AirspaceOverlayManager
+            countryCacheManager?.let { countryCache ->
+                // Notify cache manager of location change to trigger downloads if needed
+                countryCache.onLocationChanged(center)
                 
-                if (pgSpotCache.isCached(cacheKey)) {
-                    // CACHED: Use Hilbert spatial query for nearby features only
-                    pgSpotCache.queryNearbyPGSpots(cacheKey, center, 200.0)
+                // Query multiple countries intelligently using the universal cache manager
+                val nearbyFeatures = withContext(Dispatchers.IO) {
+                    val allFeatures = countryCache.queryMultiCountryArea(center, 200.0) // 200km radius
+                    
+                    // Filter for PG spots only
+                    allFeatures.filter { it.overlayType == "pgspot" }
+                }
+
+                Log.d(TAG, "loadPGSpotsForLocation: Query result - PG Spots: ${nearbyFeatures.size}")
+
+                if (nearbyFeatures.isNotEmpty()) {
+                    renderPGSpotFeaturesWithWeather(nearbyFeatures, center)
+                    launchWeatherFetchingForVisiblePGSpots()
+                    lastCheckLocation = center
                 } else {
-                    // Not cached yet (or download in progress by UniversalCountryCacheManager)
-                    // Try to use existing cache even if stale (better than no data)
-                    val fallbackFeatures = pgSpotCache.getCachedPGSpots(cacheKey)
-                    fallbackFeatures?.filter { feature ->
-                        val distance = center.distanceToAsDouble(feature.centroid) / 1000.0 // Convert to km
-                        distance <= 200.0 // Same 200km radius as fresh data
-                    } ?: emptyList()
+                    Log.i(TAG, String.format("PG spot sync: Desired: 0, Current: %d @ %.4f,%.4f", 
+                        currentlyRenderedPGSpots.size, center.latitude, center.longitude))
+                }
+            } ?: run {
+                Log.e(TAG, "Universal country cache manager not available - fallback to legacy loading")
+                // Legacy fallback (as a safety measure)
+                val countryCode = com.madanala.tern.utils.CountryUtils.getCountryCodeFromGeoPoint(context, center)
+                if (countryCode != null) {
+                    performLegacyLoad(center, countryCode)
                 }
             }
 
 
-            Log.d(TAG, "loadPGSpotsForLocation: nearbyFeatures size=${nearbyFeatures.size}")
-            if (nearbyFeatures.isNotEmpty()) {
-                renderPGSpotFeaturesWithWeather(nearbyFeatures, center)
 
-                // Initial weather orchestration for loaded PG spots
-                launchWeatherFetchingForVisiblePGSpots()
-
-                currentCountryCode = countryCode
-                lastCheckLocation = center
-            } else {
-                // Log.d(TAG, "No PG spots found within 200 km of $center")
-            }
 
         } catch (e: CancellationException) {
         } catch (e: Exception) {
             Log.e(TAG, "Error loading PG spots data: ${e.message}", e)
+        }
+    }
+
+    /**
+     * Legacy loading fallback for PG spots (single-country only)
+     */
+    private suspend fun performLegacyLoad(center: GeoPoint, countryCode: String) {
+        val nearbyFeatures = withContext(Dispatchers.IO) {
+            val cacheKey = countryCode.uppercase()
+            if (pgSpotCache.isCached(cacheKey)) {
+                pgSpotCache.queryNearbyPGSpots(cacheKey, center, 200.0)
+            } else {
+                pgSpotCache.getCachedPGSpots(cacheKey)?.filter { feature ->
+                    val distance = center.distanceToAsDouble(feature.centroid) / 1000.0
+                    distance <= 200.0
+                } ?: emptyList()
+            }
+        }
+
+        if (nearbyFeatures.isNotEmpty()) {
+            renderPGSpotFeaturesWithWeather(nearbyFeatures, center)
+            launchWeatherFetchingForVisiblePGSpots()
+            lastCheckLocation = center
         }
     }
 
@@ -807,19 +837,23 @@ class PGSpotOverlayManager(
             // Set custom icon to replace default hand symbol
             setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
 
-            // Use app launcher icon from mipmap resources (same as used in MapViewModel)
-            try {
-                val drawable = ContextCompat.getDrawable(applicationContext, R.mipmap.ic_launcher)
-                drawable?.let {
-                    val originalBitmap = it.toBitmap()
-                    // Scale to 1/2 size for better touch interaction while maintaining visibility
-                    val scaledWidth = originalBitmap.width / 2
-                    val scaledHeight = originalBitmap.height / 2
-                    val scaledBitmap = originalBitmap.scale(scaledWidth, scaledHeight, true)
-                    icon = scaledBitmap.toDrawable(applicationContext.resources)
+            // PERFORMANCE: Use class-level cache for the static icon to avoid redundant scaling
+            if (cachedStaticIcon == null) {
+                try {
+                    val drawable = ContextCompat.getDrawable(applicationContext, R.mipmap.ic_launcher)
+                    drawable?.let {
+                        val originalBitmap = it.toBitmap()
+                        val scaledWidth = Math.max(1, originalBitmap.width / 2)
+                        val scaledHeight = Math.max(1, originalBitmap.height / 2)
+                        cachedStaticIcon = originalBitmap.scale(scaledWidth, scaledHeight, true)
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to load/scale PG spot icon", e)
                 }
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed to set custom PG spot icon, using default", e)
+            }
+
+            cachedStaticIcon?.let {
+                icon = BitmapDrawable(applicationContext.resources, it)
             }
         }
     }
@@ -860,11 +894,7 @@ class PGSpotOverlayManager(
 
         // Launch weather fetching for newly visible spots
         if (newlyVisible.isNotEmpty()) {
-            launchWeatherFetchingForPGSpots(newlyVisible.map { id ->
-                currentlyRenderedPGSpots[id]?.center?.let { geoPoint ->
-                    "placeholder_$id" // Use actual ID if needed
-                } ?: "unknown_$id"
-            }.toSet())
+            launchWeatherFetchingForPGSpots(newlyVisible)
         }
 
         // Cleanup weather for spots no longer visible
@@ -1198,10 +1228,9 @@ class PGSpotOverlayManager(
                             type = OverlayType.PG_SPOTS
                         ) {
                             // Animation manager handles removal - just update tracking
-                        } ?: throw IllegalStateException(
+                        } ?: Log.w(TAG, 
                             "Animation manager is required for PG spot overlay removal. " +
-                            "Ensure OverlayCoordinator is properly initialized."
-                        )
+                            "Ensure OverlayCoordinator is properly initialized.")
                     }
                 }
             }
