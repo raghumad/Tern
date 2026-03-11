@@ -30,7 +30,7 @@ import kotlin.math.roundToInt
 import android.graphics.Bitmap
 import android.graphics.drawable.BitmapDrawable
 import android.util.LruCache
-
+import com.madanala.tern.redux.RouteConstants
 import com.madanala.tern.utils.PGSpotCache
 
 /**
@@ -77,11 +77,8 @@ class PGSpotOverlayManager(
     private var loadingJob: Job? = null
     private var weatherFetchJob: Job? = null
 
-    // Universal country cache manager for intelligent country management (Priority 0 fix)
+    // Reference to country cache manager
     private var countryCacheManager: com.madanala.tern.utils.UniversalCountryCacheManager? = null
-
-    // Reference to overlay coordinator for Hilbert batch operations
-    private var overlayCoordinator: com.madanala.tern.ui.overlays.OverlayCoordinator? = null
 
     // Track the country loaded listener for cleanup
     private var countryLoadedListener: ((String) -> Unit)? = null
@@ -119,20 +116,6 @@ class PGSpotOverlayManager(
                 }
             }
         }
-    }
-
-    /**
-     * Set the overlay coordinator for Hilbert batch operations (called by OverlayCoordinator)
-     */
-    override fun setOverlayCoordinator(coordinator: com.madanala.tern.ui.overlays.OverlayCoordinator) {
-        this.overlayCoordinator = coordinator
-    }
-
-    /**
-     * Get the overlay coordinator for Hilbert batch operations
-     */
-    private fun getOverlayCoordinator(): com.madanala.tern.ui.overlays.OverlayCoordinator? {
-        return overlayCoordinator
     }
 
     // Track rendered PG spots and weather status for efficient updates
@@ -476,7 +459,6 @@ class PGSpotOverlayManager(
                         
                         if (bitmap == null) {
                             // THROTTLING: Slightly stagger the generation if many updates happen simultaneously
-                            // This spreads out the CPU/Memory spike of ComposeView creation
                             delay(30) 
                             
                             bitmap = com.madanala.tern.utils.ViewToBitmap.createBitmapFromComposable(
@@ -494,8 +476,9 @@ class PGSpotOverlayManager(
                             windGaugeCache.put(cacheKey, bitmap)
                         }
                         
-                        marker.icon = bitmap.toDrawable(applicationContext.resources)
-                        marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER) // Center the gauge
+                        // 🚀 PERFORMANCE: reuse Bitmap instance and reset anchor
+                        marker.icon = android.graphics.drawable.BitmapDrawable(applicationContext.resources, bitmap)
+                        marker.setAnchor(org.osmdroid.views.overlay.Marker.ANCHOR_CENTER, org.osmdroid.views.overlay.Marker.ANCHOR_CENTER)
                         mapView.invalidate()
                     } catch (e: Exception) {
                         Log.w(TAG, "Failed to generate bitmap for PG spot $pgSpotId", e)
@@ -547,8 +530,8 @@ class PGSpotOverlayManager(
                 val nearbyFeatures = withContext(Dispatchers.IO) {
                     val allFeatures = countryCache.queryMultiCountryArea(center, 200.0) // 200km radius
                     
-                    // Filter for PG spots only
-                    allFeatures.filter { it.overlayType == "pgspot" }
+                    // Filter for PG spots only (case-insensitive for robustness)
+                    allFeatures.filter { it.overlayType.equals("pgspot", ignoreCase = true) }
                 }
 
                 Log.d(TAG, "loadPGSpotsForLocation: Query result - PG Spots: ${nearbyFeatures.size}")
@@ -662,7 +645,7 @@ class PGSpotOverlayManager(
                 markersToRender.forEach { pair ->
                     val (spotId, pgSpotMarker) = pair
                     currentlyRenderedPGSpots[spotId] = pgSpotMarker
-                    val coordinator = getOverlayCoordinator()
+                    val coordinator = mOverlayCoordinator
                     if (coordinator != null) {
                         coordinator.getAnimationManager().animateOverlayAddition(
                             overlay = pgSpotMarker.marker,
@@ -699,17 +682,20 @@ class PGSpotOverlayManager(
     }
 
     /**
-     * Remove PG spots with animation
+     * Remove PG spots with animation and release to pool
      */
     private fun removePGSpots(ids: List<String>) {
-        val coordinator = getOverlayCoordinator()
+        val coordinator = mOverlayCoordinator
         if (coordinator != null) {
              ids.forEach { id ->
                  currentlyRenderedPGSpots[id]?.let { markerData ->
                      coordinator.removeOverlayFromBatch(markerData.marker, id, markerData.center, OverlayType.PG_SPOTS)
+                     // Memory Safety: The actual removal from map happens in coordinator's batch processor,
+                     // but we can mark for release or let the coordinator handle release in its batch processor.
+                     // For markers, we'll release them when they are actually removed from map in OverlayCoordinator.
                  }
              }
-             coordinator.flushPendingRemovals()
+             coordinator.flushPendingRemovals() // Use coordinator directly
              ids.forEach { currentlyRenderedPGSpots.remove(it) }
         } else {
             // Fallback
@@ -717,6 +703,7 @@ class PGSpotOverlayManager(
                 currentlyRenderedPGSpots[id]?.let { markerData ->
                     animationManager?.animateOverlayRemoval(markerData.marker, id, mapView!!, OverlayType.PG_SPOTS) {
                         currentlyRenderedPGSpots.remove(id)
+                        // No pool available in fallback
                     }
                 }
             }
@@ -756,7 +743,7 @@ class PGSpotOverlayManager(
             currentlyRenderedPGSpots[spotId] = pgSpotMarker
 
             // ✅ FIXED: Process each overlay immediately with animation (no batching)
-            val coordinator = getOverlayCoordinator()
+            val coordinator = mOverlayCoordinator
             if (coordinator != null) {
                 // Use coordinator's animation manager for smooth transitions
                 coordinator.getAnimationManager().animateOverlayAddition(
@@ -828,14 +815,17 @@ class PGSpotOverlayManager(
 
     private fun createPGSpotMarker(feature: OverlayFeature): Marker {
         val center = feature.centroid
+        val map = mapView ?: return Marker(org.osmdroid.views.MapView(applicationContext))
 
-        return Marker(mapView).apply {
+        // 🚀 PERFORMANCE: Acquire marker from universal pool
+        return (mOverlayCoordinator?.acquireMarker(map) ?: Marker(map)).apply {
             position = center
             title = "PG Launch Site" // Will be updated with weather info
             snippet = "Tap for weather details"
 
             // Set custom icon to replace default hand symbol
             setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+            alpha = 1.0f // Ensure reset from pooling
 
             // PERFORMANCE: Use class-level cache for the static icon to avoid redundant scaling
             if (cachedStaticIcon == null) {
@@ -1007,18 +997,10 @@ class PGSpotOverlayManager(
     }
 
     /**
-     * Handle overlay budget changes with PG spot-specific logging
+     * Handle overlay budget changes with generalized logging
      */
     override fun onOverlayBudgetChanged(budget: com.madanala.tern.utils.OverlayBudget) {
         super.onOverlayBudgetChanged(budget)
-
-        // Get current map center for geographic context
-        val center = mapView?.mapCenter
-        val centerStr = if (center != null) {
-            String.format("@ %.4f,%.4f", center.latitude, center.longitude)
-        } else {
-            "@ unknown location"
-        }
 
         // Get actually visible PG spots (added to map vs just created)
         val actuallyVisibleSpots = currentlyRenderedPGSpots.count { (_, markerData) ->
@@ -1026,14 +1008,11 @@ class PGSpotOverlayManager(
             isPointInBoundingBox(markerData.center, mapView?.boundingBox ?: return@count false)
         }
 
-
-        Log.d(TAG, String.format(
-            "PG Spot Budget: %d total (Created: %d, Visible: %d %s)",
-            budget.totalOverlays,
-            currentlyRenderedPGSpots.size,
-            actuallyVisibleSpots,
-            centerStr
-        ))
+        // Generic logging for "Overlay Budget" as requested (SSOT)
+        Log.i(TAG, "Overlay Budget [PG_SPOT]: ${budget.totalOverlays} total capacity (Created: ${currentlyRenderedPGSpots.size}, Visible: $actuallyVisibleSpots)")
+        
+        // Let coordinator handle global summary reporting
+        mOverlayCoordinator?.reportGlobalOverlayBudget()
     }
 
     /**
@@ -1072,7 +1051,7 @@ class PGSpotOverlayManager(
         if (invisibleNonCriticalSpots.isEmpty()) return 0
 
         // Remove invisible non-critical PG spots
-        val coordinator = getOverlayCoordinator()
+        val coordinator = mOverlayCoordinator
         var removedCount = 0
 
         if (coordinator != null) {
@@ -1084,8 +1063,9 @@ class PGSpotOverlayManager(
                     type = OverlayType.PG_SPOTS
                 )
                 removedCount++
+                currentlyRenderedPGSpots.remove(spotId)
             }
-            coordinator.flushPendingRemovals()
+            coordinator.flushPendingRemovals() // Use animation manager directly if needed
         } else {
             invisibleNonCriticalSpots.forEach { (spotId, pgSpotMarker) ->
                 animationManager?.animateOverlayRemoval(
@@ -1094,7 +1074,7 @@ class PGSpotOverlayManager(
                     mapView = mapView!!,
                     type = OverlayType.PG_SPOTS
                 ) {
-                    // Remove from tracking
+                    currentlyRenderedPGSpots.remove(spotId)
                 }
                 removedCount++
             }
@@ -1137,7 +1117,7 @@ class PGSpotOverlayManager(
         if (spotsInZone.isEmpty()) return 0
 
         // Remove PG spots in this zone
-        val coordinator = getOverlayCoordinator()
+        val coordinator = mOverlayCoordinator
         var removedCount = 0
 
         if (coordinator != null) {
@@ -1199,7 +1179,7 @@ class PGSpotOverlayManager(
             val spotIds = currentlyRenderedPGSpots.keys.toList()
 
             // Use Hilbert-ordered batch removal for smooth outside-to-center removal
-            val coordinator = getOverlayCoordinator()
+            val coordinator = mOverlayCoordinator
             if (coordinator != null) {
                 // Add all overlays to batch for ordered removal (outside to center)
                 spotIds.forEach { spotId ->

@@ -84,4 +84,9 @@ interface OverlayManager {
      * Get number of currently rendered overlays (for test synchronization)
      */
     fun getRenderedCount(): Int
+
+    /**
+     * Set the overlay coordinator reference
+     */
+    fun setOverlayCoordinator(coordinator: OverlayCoordinator?)
 }

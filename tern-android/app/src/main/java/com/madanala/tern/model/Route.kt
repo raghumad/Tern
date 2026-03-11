@@ -1,5 +1,6 @@
 package com.madanala.tern.model
 
+import com.madanala.tern.redux.RouteConstants
 import java.time.Instant
 import java.util.UUID
 
@@ -174,7 +175,7 @@ data class Route(
         
         val start = waypoints.first()
         val end = waypoints.last()
-        val gap = calculateDistance(start.lat, start.lon, end.last().lat.toDouble() /* Error in original thinking, fix: */ end.lat, end.lon)
+        val gap = calculateDistance(start.lat, start.lon, end.lat, end.lon)
         val isClosedLoop = gap < 0.4
 
         if (isClosedLoop && waypoints.size == 4) {

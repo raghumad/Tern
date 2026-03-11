@@ -585,6 +585,23 @@ fun weatherReducer(state: MapState, action: WeatherActions): MapState = when (ac
         state.copy(weatherState = newWeatherState)
     }
 
+    is WeatherActions.FetchWeatherForSpots -> {
+        val newFetchingSpots = state.weatherState.fetchingSpots + action.spots.map { it.first }
+        val newWeatherState = state.weatherState.copy(fetchingSpots = newFetchingSpots)
+        state.copy(weatherState = newWeatherState)
+    }
+
+    is WeatherActions.SpotsWeatherFetched -> {
+        val newSpotWeathers = state.weatherState.spotWeathers + action.forecasts
+        val newFetchingSpots = state.weatherState.fetchingSpots - action.forecasts.keys
+        val newWeatherState = state.weatherState.copy(
+            spotWeathers = newSpotWeathers,
+            fetchingSpots = newFetchingSpots,
+            errors = state.weatherState.errors - action.forecasts.keys
+        )
+        state.copy(weatherState = newWeatherState)
+    }
+
     // Route Waypoint Weather
     is WeatherActions.FetchWeatherForRoute -> {
         // We could track fetching state per route here if needed, 

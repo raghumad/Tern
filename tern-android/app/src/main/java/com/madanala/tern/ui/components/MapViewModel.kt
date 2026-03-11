@@ -27,6 +27,7 @@ import com.madanala.tern.utils.UniversalCountryCacheManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import com.madanala.tern.utils.normalizePrecision
 import org.osmdroid.events.MapListener
 import org.osmdroid.events.ScrollEvent
 import org.osmdroid.events.ZoomEvent

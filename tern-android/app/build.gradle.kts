@@ -494,6 +494,19 @@ tasks.register("generateTestReport") {
     group = "reporting"
     description = "Generates combined test report and summary"
     
+    doFirst {
+        // Clear stale BDD reports to prevent pollution
+        val bddReportDir = file("build/reports/bdd-report")
+        if (bddReportDir.exists()) {
+            println("🧹 Clearing stale BDD reports...")
+            bddReportDir.deleteRecursively()
+        }
+        val summaryFile = file("${project.layout.buildDirectory.get()}/reports/test-summary.md")
+        if (summaryFile.exists()) {
+            summaryFile.delete()
+        }
+    }
+
     doLast {
         val testResultsDir = file("${project.layout.buildDirectory.get()}/test-results")
         // Standard connected android test results
@@ -720,10 +733,17 @@ $coverageText
 
 tasks.register("testAll") {
     group = "verification"
-    description = "Run Everything (Unit + Instrumented + Coverage + Summary)"
+    description = "Run Everything (Unit + Instrumented + Coverage + Summary) - Fresh Run"
+    
+    // Explicitly depend on clean to ensure fresh results
+    dependsOn("clean")
     
     // Run all tests and generate coverage
     dependsOn("unitTests", "instrumentedTests", "coverageReport")
+
+    doFirst {
+        println("🚀 Initiating DEFINITIVE verification run (clean + all tests)...")
+    }
 }
 
 tasks.register<Exec>("testSafely") {

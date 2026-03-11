@@ -9,6 +9,7 @@ import com.madanala.tern.utils.CacheManager
 import com.madanala.tern.utils.MapTestHelper
 import com.madanala.tern.utils.MapVisualTest
 import com.madanala.tern.utils.PerformanceDebugger
+import com.madanala.tern.utils.CountryUtils
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.osmdroid.util.GeoPoint
@@ -36,6 +37,7 @@ class MapMemoryStressTest : MapVisualTest() {
             
             given("The map is centered on Chamonix, French Alps (High PG Spot Density)") {
                  // Chamonix: 45.9237, 6.8694
+                 CountryUtils.setTestCountryCode("FR")
                  store.dispatch(MapAction.UpdateCenter(GeoPoint(45.9237, 6.8694)))
                  store.dispatch(MapAction.UpdateZoom(12.0))
                  composeTestRule.waitForIdle()

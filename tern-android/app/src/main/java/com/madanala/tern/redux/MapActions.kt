@@ -127,6 +127,10 @@ sealed class WeatherActions {
     data class FetchWeatherForPGSpot(val pgSpotId: String, val latitude: Double, val longitude: Double) : WeatherActions()
     data class WeatherFetched(val pgSpotId: String, val forecast: com.madanala.tern.utils.WeatherForecast?) : WeatherActions()
     data class WeatherFetchError(val pgSpotId: String, val error: Throwable) : WeatherActions()
+    
+    // Batch weather actions for performance optimization (Phase 7.3)
+    data class FetchWeatherForSpots(val spots: List<Triple<String, Double, Double>>) : WeatherActions()
+    data class SpotsWeatherFetched(val forecasts: Map<String, com.madanala.tern.utils.WeatherForecast>) : WeatherActions()
 
     // Weather data fetching for Routes/Waypoints
     data class FetchWeatherForRoute(val routeId: String) : WeatherActions()
