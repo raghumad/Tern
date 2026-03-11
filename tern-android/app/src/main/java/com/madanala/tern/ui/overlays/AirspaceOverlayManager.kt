@@ -464,8 +464,8 @@ class AirspaceOverlayManager(
                     // Query multiple countries intelligently using the universal cache manager
                     val allFeatures = countryCache.queryMultiCountryArea(center, spatialQueryRadiusKm)
                     
-                    // Filter for airspaces only (since UniversalCountryCacheManager returns all types)
-                    allFeatures.filter { it.overlayType == "airspace" }
+                    // Filter for airspaces only (since UniversalCountryCacheManager returns all types, case-insensitive for robustness)
+                    allFeatures.filter { it.overlayType.equals("airspace", ignoreCase = true) }
                 }
 
                 Log.d(TAG, "loadAirspaceForLocation: Query result - Airspaces: ${nearbyFeatures.size}")
@@ -597,7 +597,7 @@ class AirspaceOverlayManager(
      * Remove overlays through animation manager only (fade-out → remove)
      */
     /**
-     * Remove overlays directly from the map
+     * Remove overlays directly from the map and release to pool
      */
     private fun removeOverlaysFromMap(map: MapView, airspaceIdsToRemove: List<String>) {
             airspaceIdsToRemove.forEach { airspaceId ->
@@ -605,6 +605,8 @@ class AirspaceOverlayManager(
                 if (polygon != null) {
                     map.overlays.remove(polygon)
                     currentlyRenderedAirspaces.remove(airspaceId)
+                    // Release to universal pool for reuse
+                    mOverlayCoordinator?.releasePolygon(polygon)
                 }
             }
             map.invalidate()
@@ -615,17 +617,26 @@ class AirspaceOverlayManager(
      * Add overlays through animation manager only (invisible → fade-in)
      */
     /**
-     * Add overlays directly to the map with Z-Index management
+     * Add overlays directly to the map with Z-Index management and pooling
      */
     private fun addOverlaysToMap(map: MapView, airspacesToAdd: List<Map.Entry<String, OverlayFeature>>) {
             coroutineScope.launch {
                 // Batch create polygons on IO thread to prevent UI blockage
                 val polygonsWithIds = withContext(Dispatchers.IO) {
                     airspacesToAdd.mapNotNull { (airspaceId, feature) ->
-                        val overlays = GeoJsonUtils.createAirspaceOverlays(map, listOf(feature))
+                        // 🚀 PERFORMANCE: Acquire polygon from pool if possible
+                        val polygon = withContext(Dispatchers.Main) { 
+                            mOverlayCoordinator?.acquirePolygon(map) ?: org.osmdroid.views.overlay.Polygon()
+                        }
+                        
+                        val overlays = GeoJsonUtils.createAirspaceOverlaysIncrementally(map, listOf(feature), polygon)
                         if (overlays.isNotEmpty()) {
                             airspaceId to overlays.first()
-                        } else null
+                        } else {
+                            // Release back if failed to create
+                            withContext(Dispatchers.Main) { mOverlayCoordinator?.releasePolygon(polygon) }
+                            null
+                        }
                     }
                 }
 
@@ -637,7 +648,7 @@ class AirspaceOverlayManager(
                         insertOverlayAtCorrectDepth(map, polygon)
                     }
                     map.invalidate()
-                    Log.d(TAG, "Added ${polygonsWithIds.size} airspaces to map")
+                    Log.d(TAG, "Added ${polygonsWithIds.size} airspaces to map (pooled)")
                 }
             }
     }

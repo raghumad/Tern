@@ -145,24 +145,10 @@ class PGSpotCache(context: Context) {
     }
 
     /**
-     * Query nearby PG spots
-     * Note: Currently uses in-memory filtering of country data as Hilbert range query is being optimized.
-     * Performance is sufficient for country-level datasets (<10k points).
+     * Query nearby PG spots using Hilbert spatial indexing for memory efficiency
      */
     fun queryNearbyPGSpots(countryCode: String, center: GeoPoint, maxDistanceMiles: Double): List<OverlayFeature> {
-        // Retrieve all features for the country
-        val allFeatures = diskCache.getCachedFeatures(countryCode) ?: return emptyList()
-        
-        val maxDistanceMeters = maxDistanceMiles * 1609.34
-        
-        // Filter by distance in memory
-        return allFeatures.filter { feature ->
-            try {
-                center.distanceToAsDouble(feature.centroid) <= maxDistanceMeters
-            } catch (e: Exception) {
-                false
-            }
-        }
+        return diskCache.queryNearby(countryCode, center, maxDistanceMiles)
     }
 
     /**

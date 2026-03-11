@@ -67,6 +67,7 @@ open class MapVisualTest {
         }
 
         mockServer.start()
+        mockServer.setPGSpotsDispatcher(count = 20) // Provide a default dispatcher for all tests
         val mockUrl = mockServer.url("/")
         com.madanala.tern.utils.CacheManager.airspaceCache.setBaseUrlForTesting(mockUrl)
         com.madanala.tern.utils.CacheManager.pgSpotCache.setBaseUrlForTesting(mockUrl)
@@ -241,7 +242,25 @@ open class MapVisualTest {
             if (count >= minCount) return
             Thread.sleep(500)
         }
-        throw AssertionError("Timed out waiting for at least $minCount PG spots. Final count: unknown (see logs)")
+        val finalCount = try {
+            var lastCount = 0
+            composeTestRule.runOnUiThread {
+                try {
+                    val activity = composeTestRule.activity
+                    val componentActivity = activity as? androidx.activity.ComponentActivity
+                    if (componentActivity != null) {
+                        val mapViewModel = ViewModelProvider(componentActivity).get(com.madanala.tern.ui.components.MapViewModel::class.java)
+                        val field = mapViewModel.javaClass.getDeclaredField("overlayCoordinator")
+                        field.isAccessible = true
+                        val coordinator = field.get(mapViewModel) as? com.madanala.tern.ui.overlays.OverlayCoordinator
+                        lastCount = coordinator?.getRenderedOverlayCount(com.madanala.tern.redux.OverlayType.PG_SPOTS) ?: 0
+                    }
+                } catch (e: Exception) {}
+            }
+            lastCount.toString()
+        } catch (e: Exception) { "unknown" }
+
+        throw AssertionError("Timed out waiting for at least $minCount PG spots. Final count: $finalCount")
     }
 
     // BDD Helpers (Copied from BddTest to avoid rule conflicts)

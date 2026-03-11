@@ -92,7 +92,7 @@ class AirspaceOverlayManagerTest : BaseTest() {
         // Mock GeoJsonUtils static call
         mockkObject(GeoJsonUtils)
         val polygon = mockk<Polygon>(relaxed = true)
-        every { GeoJsonUtils.createAirspaceOverlays(any(), any()) } returns listOf(polygon)
+        every { GeoJsonUtils.createAirspaceOverlaysIncrementally(any(), any(), any()) } returns listOf(polygon)
 
         // When
         manager.performMapMove(center, zoom)
@@ -105,13 +105,14 @@ class AirspaceOverlayManagerTest : BaseTest() {
         coVerify(atLeast = 1) { countryCacheManager.queryMultiCountryArea(center, radiusKm) }
         
         // Verify that only airspace feature was processed (filtering check)
-        // We verify that createAirspaceOverlays was called with a list containing ONLY the airspace feature
+        // We verify that createAirspaceOverlaysIncrementally was called with a list containing ONLY the airspace feature
         verify { 
-            GeoJsonUtils.createAirspaceOverlays(
+            GeoJsonUtils.createAirspaceOverlaysIncrementally(
                 any(), 
                 match { list -> 
                     list.size == 1 && list[0] == airspaceFeature 
-                }
+                },
+                any()
             ) 
         }
         

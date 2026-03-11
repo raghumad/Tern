@@ -85,35 +85,52 @@ class MockServer {
     }
 
     fun setPGSpotsDispatcher(count: Int = 1) {
-        val pgSpotsJson = generatePGSpotsJson(count)
-        val airspacesJson = generateAirspacesJson(count)
-        
         server.dispatcher = object : okhttp3.mockwebserver.Dispatcher() {
             override fun dispatch(request: okhttp3.mockwebserver.RecordedRequest): MockResponse {
                 android.util.Log.i("MockServer", "RECEIVED REQUEST: ${request.path} from ${request.requestUrl}")
-                println("DEBUG: MockServer Dispatcher received request: ${request.path}")
-                if (request.path?.contains("getCountrySites.php") == true) {
-                    android.util.Log.i("MockServer", "Serving mock PG spots for: ${request.path}")
-                    return MockResponse().setResponseCode(200).setBody(pgSpotsJson)
+                val path = request.path ?: return MockResponse().setResponseCode(404)
+                
+                // Extract ISO code from query parameters or filename
+                val iso = if (path.contains("iso=")) {
+                    path.substringAfter("iso=").substringBefore("&").uppercase()
+                } else if (path.contains("_asp.geojson")) {
+                    path.substringAfterLast("/").substringBefore("_asp.geojson").uppercase()
+                } else {
+                    "US"
                 }
-                if (request.path?.contains("_asp.geojson") == true) {
-                    android.util.Log.i("MockServer", "Serving mock airspaces for: ${request.path}")
-                    return MockResponse().setResponseCode(200).setBody(airspacesJson)
+
+                // Chamonix coordinates for FR, Boulder for others
+                val coords = if (iso == "FR") {
+                    doubleArrayOf(6.8694, 45.9237)
+                } else {
+                    doubleArrayOf(-105.2705, 40.0150)
+                }
+
+                if (path.contains("getCountrySites.php")) {
+                    android.util.Log.i("MockServer", "Serving mock PG spots for $iso at ${coords[1]},${coords[0]}")
+                    return MockResponse().setResponseCode(200).setBody(generatePGSpotsJson(count, coords[1], coords[0]))
+                }
+                if (path.contains("_asp.geojson")) {
+                    android.util.Log.i("MockServer", "Serving mock airspaces for $iso at ${coords[1]},${coords[0]}")
+                    return MockResponse().setResponseCode(200).setBody(generateAirspacesJson(count, coords[1], coords[0]))
                 }
                 return MockResponse().setResponseCode(404)
             }
         }
     }
 
-    private fun generateAirspacesJson(count: Int): String {
+    private fun generateAirspacesJson(count: Int, lat: Double = 40.01, lon: Double = -105.27): String {
         return (1..count).joinToString("\n") { id ->
-            // Create a single-line JSON feature
-            """{"type":"Feature","properties":{"name":"Restricted Area $id","class":"R","floor":0,"ceiling":5000,"country":"US"},"geometry":{"type":"Polygon","coordinates":[[[-105.27,40.01],[-105.26,40.01],[-105.26,40.02],[-105.27,40.02],[-105.27,40.01]]]}}"""
+            // Create a single-line JSON feature centered around requested coords
+            """{"type":"Feature","properties":{"name":"Restricted Area $id","class":"R","floor":0,"ceiling":5000,"country":"US"},"geometry":{"type":"Polygon","coordinates":[[[${lon-0.01},${lat-0.005}],[${lon+0.01},${lat-0.005}],[${lon+0.01},${lat+0.005}],[${lon-0.01},${lat+0.005}],[${lon-0.01},${lat-0.005}]]]}}"""
         }
     }
 
-    private fun generatePGSpotsJson(count: Int): String {
+    private fun generatePGSpotsJson(count: Int, lat: Double = 40.0150, lon: Double = -105.2705): String {
         val features = (1..count).joinToString(",") { id ->
+            // Distribute spots slightly around center
+            val offsetLat = (id % 5) * 0.002
+            val offsetLon = (id / 5) * 0.002
             """
             {
                 "type": "Feature",
@@ -123,7 +140,7 @@ class MockServer {
                 },
                 "geometry": {
                     "type": "Point",
-                    "coordinates": [-105.2705, 40.0150]
+                    "coordinates": [${lon + offsetLon}, ${lat + offsetLat}]
                 }
             }
             """.trimIndent()

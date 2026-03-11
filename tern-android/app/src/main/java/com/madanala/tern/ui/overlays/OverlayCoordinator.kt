@@ -13,6 +13,7 @@ import org.osmdroid.util.BoundingBox
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.FolderOverlay
 import kotlinx.coroutines.*
+import com.madanala.tern.utils.normalizePrecision
 import kotlin.math.log2
 
 /**
@@ -63,6 +64,73 @@ class OverlayCoordinator {
         val type: OverlayType // Added type for layer targeting
     )
 
+    /**
+     * Universal Overlay Pool (SSOT for reusable map objects)
+     * Follows the "Source of Truth" skill by being the single owner of "spare" overlay objects.
+     */
+    inner class UniversalOverlayPool {
+        private val markerPool = mutableListOf<org.osmdroid.views.overlay.Marker>()
+        private val polygonPool = mutableListOf<org.osmdroid.views.overlay.Polygon>()
+        private val MAX_POOL_SIZE = 100
+
+        fun acquireMarker(mapView: MapView): org.osmdroid.views.overlay.Marker {
+            return if (markerPool.isNotEmpty()) {
+                markerPool.removeAt(markerPool.size - 1).apply {
+                    // Reset state for reuse
+                    alpha = 1.0f
+                    icon = null
+                    title = null
+                    snippet = null
+                }
+            } else {
+                org.osmdroid.views.overlay.Marker(mapView)
+            }
+        }
+
+        fun releaseMarker(marker: org.osmdroid.views.overlay.Marker) {
+            if (markerPool.size < MAX_POOL_SIZE) {
+                markerPool.add(marker)
+            }
+        }
+
+        fun acquirePolygon(mapView: MapView): org.osmdroid.views.overlay.Polygon {
+            return if (polygonPool.isNotEmpty()) {
+                polygonPool.removeAt(polygonPool.size - 1).apply {
+                    // Reset points for reuse
+                    points.clear()
+                }
+            } else {
+                org.osmdroid.views.overlay.Polygon()
+            }
+        }
+
+        fun releasePolygon(polygon: org.osmdroid.views.overlay.Polygon) {
+            if (polygonPool.size < MAX_POOL_SIZE) {
+                polygonPool.add(polygon)
+            }
+        }
+
+        fun getPoolStats(): Map<String, Int> = mapOf(
+            "markers_available" to markerPool.size,
+            "polygons_available" to polygonPool.size
+        )
+    }
+
+    private val overlayPool = UniversalOverlayPool()
+
+    /**
+     * Reports global overlay budget across all managers
+     */
+    fun reportGlobalOverlayBudget() {
+        val stats = activeManagers.mapValues { it.value.getRenderedCount() }
+        val total = stats.values.sum()
+        val poolStats = overlayPool.getPoolStats()
+        
+        Log.i(TAG, "Global Overlay Budget: $total total (Airspace: ${stats[OverlayType.AIRSPACE] ?: 0}, " +
+                "PGSpot: ${stats[OverlayType.PG_SPOTS] ?: 0}, Routes: ${stats[OverlayType.ROUTES] ?: 0}) " +
+                "Pool: Markers=${poolStats["markers_available"]}, Polygons=${poolStats["polygons_available"]}")
+    }
+
     // Data class for overlays with Hilbert curve values
     data class OverlayWithHilbert(
         val overlay: Any,
@@ -83,11 +151,27 @@ class OverlayCoordinator {
     }
 
     /**
+     * Pooling accessors for managers
+     */
+    fun acquireMarker(mapView: MapView): org.osmdroid.views.overlay.Marker = overlayPool.acquireMarker(mapView)
+    fun releaseMarker(marker: org.osmdroid.views.overlay.Marker) = overlayPool.releaseMarker(marker)
+    fun acquirePolygon(mapView: MapView): org.osmdroid.views.overlay.Polygon = overlayPool.acquirePolygon(mapView)
+    fun releasePolygon(polygon: org.osmdroid.views.overlay.Polygon) = overlayPool.releasePolygon(polygon)
+
+    /**
       * Initialize coordinator with Redux store
       */
     fun initialize(mapStore: MapStore?, mapView: MapView, context: Context) {
         this.mapStore = mapStore
         this.mapView = mapView
+        
+        // Schedule periodic budget reporting
+        batchAnimationScope.launch {
+            while (isActive) {
+                delay(10000) // Every 10 seconds
+                reportGlobalOverlayBudget()
+            }
+        }
         // 1. Airspaces (Bottom) - Handled directly by AirspaceOverlayManager (No FolderOverlay)
 
         
@@ -146,6 +230,9 @@ class OverlayCoordinator {
 
         activeManagers[overlayType] = manager
         manager.initialize(mapView!!)
+        
+        // Inject coordinator for pooling and Hilbert integration
+        manager.setOverlayCoordinator(this)
 
         // Connect overlay manager to animation manager for smooth transitions
         if (manager is com.madanala.tern.ui.overlays.BaseOverlayManager) {
@@ -798,7 +885,8 @@ class OverlayCoordinator {
 
             // Remove from layer after animation completes
             layer.remove(polygon)
-
+            // 🚀 PERFORMANCE: Release to universal pool for reuse
+            overlayPool.releasePolygon(polygon)
         }
 
         /**
@@ -851,6 +939,8 @@ class OverlayCoordinator {
 
             // Remove from layer after animation completes
             layer.remove(marker)
+            // 🚀 PERFORMANCE: Release to universal pool for reuse
+            overlayPool.releaseMarker(marker)
         }
 
         /**

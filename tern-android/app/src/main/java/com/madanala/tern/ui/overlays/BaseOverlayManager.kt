@@ -55,6 +55,9 @@ abstract class BaseOverlayManager(
     // Universal animation manager for smooth transitions
     internal var animationManager: com.madanala.tern.ui.overlays.OverlayCoordinator.OverlayAnimationManager? = null
 
+    // Universal overlay coordinator for pooling and Hilbert ordering
+    protected var mOverlayCoordinator: OverlayCoordinator? = null
+
 
     // Adaptive overlay system for memory-based allocation
     private var adaptiveOverlaySystem: AdaptiveOverlaySystem? = null
@@ -317,10 +320,12 @@ abstract class BaseOverlayManager(
     }
 
     /**
-      * Set the overlay coordinator (for RouteOverlayManager integration with Hilbert ordering)
+      * Set the overlay coordinator (for pooling and Hilbert integration)
       */
-    open fun setOverlayCoordinator(coordinator: OverlayCoordinator) {
-        // Default implementation - RouteOverlayManager will override this
+    override fun setOverlayCoordinator(coordinator: OverlayCoordinator?) {
+        this.mOverlayCoordinator = coordinator
+        this.animationManager = coordinator?.getAnimationManager()
+        // Log.d(TAG, "Overlay coordinator and animation manager connected")
     }
 
 

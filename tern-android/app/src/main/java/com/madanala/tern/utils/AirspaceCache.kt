@@ -114,35 +114,10 @@ class AirspaceCache(context: Context) {
     }
 
     /**
-     * Query nearby airspaces
-     * Note: Uses in-memory filtering to bypass potential SpatialDiskCache issues.
+     * Query nearby airspaces using Hilbert spatial indexing for memory efficiency
      */
     fun queryNearbyFeatures(countryCode: String, center: GeoPoint, maxDistanceMiles: Double): List<OverlayFeature> {
-        // Retrieve all features for the country
-        val allFeatures = diskCache.getCachedFeatures(countryCode)
-        
-        if (allFeatures == null) {
-            // If cache read failed (e.g. deserialization error or file missing despite isCached=true),
-            // we should invalidate the cache so it can be re-downloaded.
-            if (isCached(countryCode)) {
-                Log.w(TAG, "Failed to read cached features for $countryCode. Invalidating cache.")
-                clearCacheForCountry(countryCode)
-            }
-            return emptyList()
-        }
-        
-        val maxDistanceMeters = maxDistanceMiles * 1609.34
-        
-        // Filter by distance in memory
-        return allFeatures.filter { feature ->
-            try {
-                // For airspaces (polygons), centroid distance is a good enough approximation for "nearby"
-                // The actual intersection check happens in the overlay manager/renderer
-                center.distanceToAsDouble(feature.centroid) <= maxDistanceMeters
-            } catch (e: Exception) {
-                false
-            }
-        }
+        return diskCache.queryNearby(countryCode, center, maxDistanceMiles)
     }
 
     /**

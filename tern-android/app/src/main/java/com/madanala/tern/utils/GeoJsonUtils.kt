@@ -482,6 +482,73 @@ object GeoJsonUtils {
     }
 
     /**
+     * Create airspace overlays incrementally using a pooled polygon if provided
+     */
+    fun createAirspaceOverlaysIncrementally(
+        mapView: MapView,
+        features: List<MapOverlayCacheUtils.OverlayFeature>,
+        reusablePolygon: Polygon? = null
+    ): List<Polygon> {
+        val polygons = mutableListOf<Polygon>()
+
+        features.forEach { feature ->
+            try {
+                val geometry = feature.feature["geometry"]
+                if (geometry is Map<*, *> && geometry.all { it.key is String && it.value is Any }) {
+                    @Suppress("UNCHECKED_CAST")
+                    val geometryMap = geometry as Map<String, Any>
+                    
+                    // Use reusablePolygon if provided and it's the first feature
+                    val overlay = if (reusablePolygon != null && polygons.isEmpty()) {
+                        populatePolygonFromGeometry(reusablePolygon, geometryMap)
+                        reusablePolygon
+                    } else {
+                        createOverlayFromGeometry(mapView, geometryMap)
+                    }
+                    
+                    if (overlay is Polygon) {
+                        val shouldRender = applyAirspaceStyling(overlay, feature.feature)
+                        if (shouldRender) {
+                            overlay.setOnClickListener { polygon, mapView, eventPos ->
+                                showAirspaceInfoBalloon(polygon, mapView, feature.feature)
+                                true
+                            }
+                            polygons.add(overlay)
+                        }
+                    }
+                }
+            } catch (_: Exception) {
+            }
+        }
+        return polygons
+    }
+
+    /**
+     * Populate an existing Polygon from a GeoJSON geometry map
+     */
+    private fun populatePolygonFromGeometry(polygon: Polygon, geometry: Map<String, Any>) {
+        val coordinates = geometry["coordinates"] as? List<*>
+        val outerRing = coordinates?.get(0) as? List<*>
+        val points: List<GeoPoint> = outerRing?.mapNotNull { coord ->
+            try {
+                val lonLat = coord as List<*>
+                if (lonLat.size >= 2) {
+                    val lon = (lonLat[0] as Number).toDouble()
+                    val lat = (lonLat[1] as Number).toDouble()
+                    GeoPoint(lat, lon)
+                } else null
+            } catch (_: Exception) {
+                null
+            }
+        } ?: emptyList()
+
+        if (points.size >= 3) {
+            @Suppress("DEPRECATION")
+            polygon.points = points
+        }
+    }
+
+    /**
      * Create an osmdroid Overlay from a GeoJSON geometry
      * @param mapView The MapView (needed for Marker context)
      * @param geometry The GeoJSON geometry object

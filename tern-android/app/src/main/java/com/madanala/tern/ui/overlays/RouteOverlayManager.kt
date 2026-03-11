@@ -15,6 +15,7 @@ import com.madanala.tern.utils.CacheManager
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Overlay
+import com.madanala.tern.redux.RouteConstants
 
 /**
  * Overlay manager for route visualization
@@ -85,9 +86,6 @@ class RouteOverlayManager(
     private var currentSelectedRouteId: String? = null
     // Changed to Map for better tracking and incremental updates
     private val currentlyRenderedRoutes = mutableMapOf<String, RouteOverlay>()
-
-    // Overlay coordinator for Hilbert ordering and lifecycle management
-    private var overlayCoordinator: OverlayCoordinator? = null
 
     // Paint objects for route rendering
     private val routePaint = Paint().apply {
@@ -180,10 +178,6 @@ class RouteOverlayManager(
         }
     }
 
-    override fun setOverlayCoordinator(coordinator: OverlayCoordinator) {
-        this.overlayCoordinator = coordinator
-    }
-
     override fun onOverlayDetached() {
         Log.d(TAG, "Route overlay manager detached")
         clearRouteOverlays()
@@ -264,7 +258,7 @@ class RouteOverlayManager(
 
         // Notify overlay coordinator of map movement for distance-based zoning
         // REMOVED: This causes infinite recursion as OverlayCoordinator calls this method!
-        // overlayCoordinator?.onMapMoved(center.latitude, center.longitude, zoom)
+        // mOverlayCoordinator?.onMapMoved(center.latitude, center.longitude, zoom)
         
         // Trigger update to respect new center for prioritization
         updateRouteOverlays(center)
@@ -280,7 +274,7 @@ class RouteOverlayManager(
         }
 
         // Notify overlay coordinator of viewport changes for memory management
-        overlayCoordinator?.onViewportChanged(viewport)
+        mOverlayCoordinator?.onViewportChanged(viewport)
     }
 
     /**
@@ -368,7 +362,7 @@ class RouteOverlayManager(
     private fun removeRoutes(ids: List<String>) {
         if (ids.isEmpty()) return
 
-        val coordinator = overlayCoordinator
+        val coordinator = mOverlayCoordinator
         
         if (coordinator != null) {
             ids.forEach { id ->
@@ -399,7 +393,7 @@ class RouteOverlayManager(
      * Add routes to the map with staggered animation
      */
     private fun addRoutes(routes: List<Route>, mapView: MapView) {
-        val coordinator = overlayCoordinator
+        val coordinator = mOverlayCoordinator
 
         if (coordinator != null) {
             // Use Hilbert-ordered batch addition for smooth center-to-outside addition
@@ -487,7 +481,7 @@ class RouteOverlayManager(
         baseStats["current_routes_count"] = currentRoutes.size
         baseStats["has_selected_waypoint"] = currentSelectedWaypoint != null
         baseStats["has_selected_route"] = currentSelectedRouteId != null
-        baseStats["overlay_coordinator_connected"] = overlayCoordinator != null
+        baseStats["overlay_coordinator_connected"] = mOverlayCoordinator != null
         
         return baseStats
     }
@@ -623,6 +617,9 @@ class RouteOverlayManager(
         }
     }
 
+    private val mPath = Path()
+    private val mArrowPath = Path()
+
     // ... existing paints ...
 
         override fun draw(canvas: Canvas, mapView: MapView, shadow: Boolean) {
@@ -638,20 +635,20 @@ class RouteOverlayManager(
 
                 // Draw route line and leg labels
                 if (route.waypoints.size >= 2) {
-                    val path = Path()
+                    mPath.reset()
 
                     route.waypoints.forEachIndexed { index, waypoint ->
                         val point = GeoPoint(waypoint.lat, waypoint.lon)
                         val screenPoint = projection.toPixels(point, null)
 
                         if (index == 0) {
-                            path.moveTo(screenPoint.x.toFloat(), screenPoint.y.toFloat())
+                            mPath.moveTo(screenPoint.x.toFloat(), screenPoint.y.toFloat())
                         } else {
                             val prevWaypoint = route.waypoints[index - 1]
                             val prevPoint = GeoPoint(prevWaypoint.lat, prevWaypoint.lon)
                             val prevScreenPoint = projection.toPixels(prevPoint, null)
                             
-                            path.lineTo(screenPoint.x.toFloat(), screenPoint.y.toFloat())
+                            mPath.lineTo(screenPoint.x.toFloat(), screenPoint.y.toFloat())
 
                             // Draw directional arrow
                             drawDirectionalArrow(canvas, prevScreenPoint.x.toFloat(), prevScreenPoint.y.toFloat(), screenPoint.x.toFloat(), screenPoint.y.toFloat())
@@ -673,10 +670,10 @@ class RouteOverlayManager(
 
                     // Check if this route is selected and draw highlight first
                     if (currentSelectedRouteId == route.id) {
-                        canvas.drawPath(path, routeSelectionPaint)
+                        canvas.drawPath(mPath, routeSelectionPaint)
                     }
 
-                    canvas.drawPath(path, routePaint)
+                    canvas.drawPath(mPath, routePaint)
                 }
 
 
@@ -807,19 +804,19 @@ class RouteOverlayManager(
             val arrowLength = 30f
             val arrowWidth = 15f
             
-            val path = Path()
-            path.moveTo(midX, midY)
-            path.lineTo(
-                midX - arrowLength * kotlin.math.cos(angle - kotlin.math.PI / 6).toFloat(),
-                midY - arrowLength * kotlin.math.sin(angle - kotlin.math.PI / 6).toFloat()
+            mArrowPath.reset()
+            mArrowPath.moveTo(midX, midY)
+            mArrowPath.lineTo(
+                midX - arrowLength * kotlin.math.cos(angle - kotlin.math.PI / 6).toLong().toFloat(),
+                midY - arrowLength * kotlin.math.sin(angle - kotlin.math.PI / 6).toLong().toFloat()
             )
-            path.moveTo(midX, midY)
-            path.lineTo(
-                midX - arrowLength * kotlin.math.cos(angle + kotlin.math.PI / 6).toFloat(),
-                midY - arrowLength * kotlin.math.sin(angle + kotlin.math.PI / 6).toFloat()
+            mArrowPath.moveTo(midX, midY)
+            mArrowPath.lineTo(
+                midX - arrowLength * kotlin.math.cos(angle + kotlin.math.PI / 6).toLong().toFloat(),
+                midY - arrowLength * kotlin.math.sin(angle + kotlin.math.PI / 6).toLong().toFloat()
             )
             
-            canvas.drawPath(path, arrowPaint)
+            canvas.drawPath(mArrowPath, arrowPaint)
         }
     }
 }

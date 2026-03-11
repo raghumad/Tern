@@ -5,6 +5,7 @@ import android.util.Log
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.madanala.tern.model.Route
+import com.madanala.tern.redux.RouteConstants
 import com.madanala.tern.model.Waypoint
 import org.osmdroid.util.GeoPoint
 import java.io.*
