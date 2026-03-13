@@ -32,11 +32,69 @@ object MapOverlayCacheUtils {
      */
     data class OverlayFeature(
         val id: String? = null,
-        val feature: Map<String, Any>,
         val centroid: GeoPoint,
         val hilbertIndex: Long,
-        val overlayType: String = "generic" // e.g., "airspace", "waypoint", etc.
-    )
+        val overlayType: String = "generic"
+    ) {
+        // Internal storage for lazy deserialization
+        var rawData: java.nio.ByteBuffer? = null
+        private var _featureMap: Map<String, Any>? = null
+
+        /**
+         * The full feature property map, deserialized on demand.
+         * Priority: Performance (Lazy load)
+         */
+        val feature: Map<String, Any>
+            get() {
+                if (_featureMap == null) {
+                    _featureMap = rawData?.let {
+                        val root = com.google.flatbuffers.FlexBuffers.getRoot(it)
+                        deserializeMap(root.asMap().get("feature").asMap())
+                    } ?: emptyMap()
+                }
+                return _featureMap!!
+            }
+
+        /**
+         * Fast property access without full map hydration.
+         * Recommended for rendering and filtering.
+         */
+        fun getStringProperty(key: String): String? {
+            return rawData?.let {
+                val root = com.google.flatbuffers.FlexBuffers.getRoot(it)
+                root.asMap().get("feature").asMap().get(key).asString()
+            } ?: (feature[key] as? String)
+        }
+
+        fun getIntProperty(key: String): Int {
+             return rawData?.let {
+                val root = com.google.flatbuffers.FlexBuffers.getRoot(it)
+                root.asMap().get("feature").asMap().get(key).asInt()
+            } ?: (feature[key] as? Int ?: 0)
+        }
+
+        fun getDoubleProperty(key: String): Double {
+             return rawData?.let {
+                val root = com.google.flatbuffers.FlexBuffers.getRoot(it)
+                root.asMap().get("feature").asMap().get(key).asFloat().toDouble()
+            } ?: (feature[key] as? Double ?: 0.0)
+        }
+
+        // Secondary constructor for legacy/JSON loads
+        constructor(
+            id: String? = null,
+            feature: Map<String, Any>,
+            centroid: GeoPoint,
+            hilbertIndex: Long,
+            overlayType: String = "generic"
+        ) : this(id, centroid, hilbertIndex, overlayType) {
+            this._featureMap = feature
+        }
+
+        override fun toString(): String {
+            return "OverlayFeature(id=$id, type=$overlayType, centroid=$centroid)"
+        }
+    }
 
     /**
      * Hilbert spatial index entry
@@ -447,32 +505,33 @@ object MapOverlayCacheUtils {
         try {
             if (buffer.remaining() < 4) return null
             val length = buffer.getInt()
-            if (length <= 0 || length > buffer.remaining()) return null
+            if (length <= 0) return null
             
             val featureData = ByteArray(length)
             buffer.get(featureData)
             
-            @Suppress("DEPRECATION")
-            val root = com.google.flatbuffers.FlexBuffers.getRoot(ByteBuffer.wrap(featureData))
+            val root = com.google.flatbuffers.FlexBuffers.getRoot(java.nio.ByteBuffer.wrap(featureData))
             val map = root.asMap()
             
-            val featureMap = deserializeMap(map.get("feature").asMap())
+            // Pull high-frequency fields immediately (centroid, hilbertIndex, type)
             val centroidMap = map.get("centroid").asMap()
             val latitude = centroidMap.get("latitude").asFloat()
             val longitude = centroidMap.get("longitude").asFloat()
             val hilbertIndex = map.get("hilbertIndex").asLong()
             val overlayType = map.get("overlayType").asString()
-            val id = map.get("id").asString() // Deserialize ID if present
+            val idRef = map.get("id")
+            val id = if (!idRef.isNull) idRef.asString() else null
 
             val centroid = GeoPoint(latitude, longitude)
             
-            return OverlayFeature(
+            val feature = OverlayFeature(
                 id = id,
-                overlayType = overlayType,
-                feature = featureMap,
                 centroid = centroid,
-                hilbertIndex = hilbertIndex
+                hilbertIndex = hilbertIndex,
+                overlayType = overlayType
             )
+            feature.rawData = java.nio.ByteBuffer.wrap(featureData)
+            return feature
         } catch (e: Exception) {
             Log.e("MapOverlayCacheUtils", "Error deserializing FlexBuffer", e)
             return null

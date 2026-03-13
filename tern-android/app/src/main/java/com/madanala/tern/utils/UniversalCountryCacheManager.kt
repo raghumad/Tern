@@ -28,10 +28,12 @@ class UniversalCountryCacheManager(
     private val cachedCountries = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
     private var lastLocation: GeoPoint? = null
     private var currentCountry: String? = null
-
+    private var locationJob: kotlinx.coroutines.Job? = null
+    private val activeCountryQueries = java.util.concurrent.ConcurrentHashMap<String, Deferred<List<com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature>>>()
     // Enhanced access tracking for intelligent cache management
     private val countryAccessMetadata = mutableMapOf<String, CountryAccessMetadata>()
     private val accessOrderedCountries = LinkedHashSet<String>() // LRU ordering for cache eviction
+    private val downloadingCountries = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
 
     // Aviation-optimized configuration
     companion object {
@@ -85,11 +87,22 @@ class UniversalCountryCacheManager(
      * Check if location change is significant enough to process (aviation-appropriate)
      */
     private fun isSignificantLocationChange(newLocation: GeoPoint): Boolean {
-        lastLocation?.let { lastLoc ->
-            val distance = lastLoc.distanceToAsDouble(newLocation) / 1000.0 // Convert to km
-            return distance > SIGNIFICANT_MOVE_KM
+        val lastLoc = lastLocation
+        if (lastLoc == null) {
+            Log.d(TAG, "Significant move: First location detected")
+            return true
         }
-        return true // First location
+        
+        val distance = lastLoc.distanceToAsDouble(newLocation) / 1000.0 // Convert to km
+        val isSignificant = distance > SIGNIFICANT_MOVE_KM
+        
+        if (!isSignificant) {
+            // Log.v(TAG, "Insignificant move: ${String.format("%.3f", distance)} km")
+        } else {
+            Log.d(TAG, "Significant move: ${String.format("%.3f", distance)} km")
+        }
+        
+        return isSignificant
     }
 
     /**
@@ -111,6 +124,7 @@ class UniversalCountryCacheManager(
         var countryCrossed = false
         mutex.withLock {
             if (newCountry != currentCountry) {
+                Log.i(TAG, "Country change detected: ${currentCountry ?: "NONE"} -> $newCountry at $location")
                 handleBorderCrossing(currentCountry, newCountry, location)
                 currentCountry = newCountry
                 countryCrossed = true
@@ -138,19 +152,28 @@ class UniversalCountryCacheManager(
      */
     fun reset() {
         Log.d(TAG, "Resetting UniversalCountryCacheManager state")
+        
+        // 1. Cancel only the location monitoring job, let background downloads finish
+        locationJob?.cancel()
+        locationJob = null
+        
+        // Note: We don't call cancelChildren() or clear onCountryLoadedListeners 
+        // to avoid breaking the initial data load in tests where the Activity 
+        // is reused or just started.
+        
         lastLocation = null
         currentCountry = null
-        synchronized(cachedCountries) {
-            cachedCountries.clear()
-        }
-        // The original code had adjacentCountries and countryAccessLogs, but these are not class members.
-        // Assuming the user meant to clear countryAccessMetadata and accessOrderedCountries.
+        cachedCountries.clear()
+        downloadingCountries.clear()
+        activeCountryQueries.clear()
+        
         synchronized(countryAccessMetadata) {
             countryAccessMetadata.clear()
         }
         synchronized(accessOrderedCountries) {
             accessOrderedCountries.clear()
         }
+        Log.d(TAG, "UniversalCountryCacheManager reset complete")
     }
 
     /**
@@ -220,6 +243,10 @@ class UniversalCountryCacheManager(
      * Preload a single country (simplified for working demo)
      */
     internal suspend fun preloadCountry(country: String) {
+        if (!downloadingCountries.add(country)) {
+            Log.d(TAG, "Country $country is already being preloaded. Skipping.")
+            return
+        }
         try {
             Log.d(TAG, "Preloading country for all overlay types: $country")
             
@@ -242,6 +269,8 @@ class UniversalCountryCacheManager(
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error preloading country: $country", e)
+        } finally {
+            downloadingCountries.remove(country)
         }
     }
 
@@ -417,23 +446,42 @@ class UniversalCountryCacheManager(
         radiusKm: Double
     ): List<com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature> = coroutineScope {
         val normalizedCenter = center.normalizePrecision()
-        Log.v(TAG, "Multi-country spatial query: center=$normalizedCenter, radius=$radiusKm km")
+        
+        val countriesToQuery = cachedCountries.toList()
+        if (countriesToQuery.isEmpty()) {
+            Log.w(TAG, "queryMultiCountryArea: No cached countries available at $normalizedCenter")
+            return@coroutineScope emptyList()
+        }
 
-        val deferredFeatures = cachedCountries.map { countryCode ->
-            async {
-                try {
-                    val features = queryCountryFeatures(normalizedCenter, countryCode, radiusKm)
-                    Log.v(TAG, "Found ${features.size} features in $countryCode")
-                    features
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error querying country $countryCode", e)
-                    emptyList()
+        Log.d(TAG, "queryMultiCountryArea: Querying ${countriesToQuery.size} countries ($countriesToQuery) at $normalizedCenter")
+
+        val deferredResults = countriesToQuery.map { countryCode ->
+            // Use computeIfAbsent to ensure we only have one active query per country code
+            activeCountryQueries.computeIfAbsent(countryCode) {
+                async(Dispatchers.IO) {
+                    try {
+                        val features = queryCountryFeatures(normalizedCenter, countryCode, radiusKm)
+                        if (features.isEmpty()) {
+                            Log.v(TAG, "queryMultiCountryArea: Country $countryCode returned 0 features at $normalizedCenter")
+                        } else {
+                            Log.d(TAG, "queryMultiCountryArea: Country $countryCode returned ${features.size} features")
+                        }
+                        features
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error querying country $countryCode", e)
+                        emptyList()
+                    } finally {
+                        // Remove from active queries when done so subsequent pans can trigger fresh queries
+                        activeCountryQueries.remove(countryCode)
+                    }
                 }
             }
         }
 
-        val allFeatures = deferredFeatures.awaitAll().flatten()
-        Log.d(TAG, "Total features from ${cachedCountries.size} countries: ${allFeatures.size}")
+        val allFeatures = deferredResults.awaitAll().flatten()
+        if (allFeatures.isNotEmpty()) {
+            Log.d(TAG, "Total features from ${countriesToQuery.size} countries: ${allFeatures.size}")
+        }
         allFeatures
     }
 

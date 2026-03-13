@@ -133,6 +133,10 @@ open class MapVisualTest {
                 store.dispatch(MapAction.DeselectRoute)
                 store.dispatch(MapAction.DeselectWaypoint)
                 
+                // Reset map to baseline location to prevent cross-test state leakage
+                store.dispatch(MapAction.UpdateCenter(org.osmdroid.util.GeoPoint(40.015, -105.27)))
+                store.dispatch(MapAction.UpdateZoom(12.0))
+                
                 // Clear Caches
                 com.madanala.tern.utils.CacheManager.clearAllCaches()
             } catch (e: Exception) {
@@ -182,85 +186,78 @@ open class MapVisualTest {
     }
 
     /**
-     * Helper to wait for a specific number of airspaces to be rendered.
+     * Consolidates waiting for both airspaces and PG spots with shared timeout/polling
+     * Uses recursive counting to handle nested FolderOverlays (Priority: Stability Fix)
      */
-    fun waitForAirspaces(minCount: Int = 1, timeoutMillis: Long = 20000) {
+    fun waitForMapData(minAirspaces: Int = 1, minPGSpots: Int = 1, timeoutMillis: Long = 30000) {
         val startTime = System.currentTimeMillis()
+        var aCount = 0
+        var pCount = 0
+        
+        Log.i("MapVisualTest", "Waiting for Map Data: Airspaces >= $minAirspaces, PG Spots >= $minPGSpots")
+        
         while (System.currentTimeMillis() - startTime < timeoutMillis) {
-            var count = 0
             composeTestRule.runOnUiThread {
                 try {
                     val activity = composeTestRule.activity
-                    val componentActivity = activity as? androidx.activity.ComponentActivity
-                    if (componentActivity != null) {
-                        val mapViewModel = ViewModelProvider(componentActivity).get(com.madanala.tern.ui.components.MapViewModel::class.java)
-                        val field = mapViewModel.javaClass.getDeclaredField("overlayCoordinator")
-                        field.isAccessible = true
-                        val coordinator = field.get(mapViewModel) as? com.madanala.tern.ui.overlays.OverlayCoordinator
-                        count = coordinator?.getRenderedOverlayCount(com.madanala.tern.redux.OverlayType.AIRSPACE) ?: 0
+                    val rootView = activity.findViewById<android.view.View>(android.R.id.content)
+                    val mapView = findMapViewRecursive(rootView)
+                    if (mapView != null) {
+                        val counts = countOverlaysRecursively(mapView.overlays)
+                        aCount = counts.first
+                        pCount = counts.second
                     }
                 } catch (e: Exception) {
-                    Log.e("MapVisualTest", "Error checking airspace count: ${e.message}")
+                    Log.e("MapVisualTest", "Error checking overlay counts: ${e.message}")
                 }
             }
-            if (count >= minCount) {
-                println("DEBUG: waitForAirspaces SUCCESS: Found $count airspaces")
+            
+            if (aCount >= minAirspaces && pCount >= minPGSpots) {
+                println("MapVisualTest: waitForMapData SUCCESS: Found $aCount airspaces and $pCount spots")
                 return
             }
-            if (System.currentTimeMillis() % 2000 < 500) {
-                println("DEBUG: waitForAirspaces: Current count = $count")
-            }
-            Thread.sleep(500)
+            
+            Thread.sleep(1000)
         }
-        val activity = composeTestRule.activity
-        println("DEBUG: waitForAirspaces TIMEOUT. Activity: $activity")
-        throw AssertionError("Timed out waiting for at least $minCount airspaces. Final count: see console logs")
+        
+        throw AssertionError("Timed out waiting for map data. Final: Airspaces=$aCount, PGSpots=$pCount")
     }
 
-    /**
-     * Helper to wait for a specific number of PG spots to be rendered.
-     */
+    fun waitForAirspaces(minCount: Int = 1, timeoutMillis: Long = 20000) {
+        waitForMapData(minAirspaces = minCount, minPGSpots = 0, timeoutMillis = timeoutMillis)
+    }
+
     fun waitForPGSpots(minCount: Int = 1, timeoutMillis: Long = 20000) {
-        val startTime = System.currentTimeMillis()
-        while (System.currentTimeMillis() - startTime < timeoutMillis) {
-            var count = 0
-            composeTestRule.runOnUiThread {
-                try {
-                    val activity = composeTestRule.activity
-                    val componentActivity = activity as? androidx.activity.ComponentActivity
-                    if (componentActivity != null) {
-                        val mapViewModel = ViewModelProvider(componentActivity).get(com.madanala.tern.ui.components.MapViewModel::class.java)
-                        val field = mapViewModel.javaClass.getDeclaredField("overlayCoordinator")
-                        field.isAccessible = true
-                        val coordinator = field.get(mapViewModel) as? com.madanala.tern.ui.overlays.OverlayCoordinator
-                        count = coordinator?.getRenderedOverlayCount(com.madanala.tern.redux.OverlayType.PG_SPOTS) ?: 0
-                    }
-                } catch (e: Exception) {
-                    Log.e("MapVisualTest", "Error checking PG spot count: ${e.message}")
+        waitForMapData(minAirspaces = 0, minPGSpots = minCount, timeoutMillis = timeoutMillis)
+    }
+
+    private fun findMapViewRecursive(view: android.view.View): org.osmdroid.views.MapView? {
+        if (view is org.osmdroid.views.MapView) return view
+        if (view is android.view.ViewGroup) {
+            for (i in 0 until view.childCount) {
+                val result = findMapViewRecursive(view.getChildAt(i))
+                if (result != null) return result
+            }
+        }
+        return null
+    }
+
+    private fun countOverlaysRecursively(overlays: List<org.osmdroid.views.overlay.Overlay>): Pair<Int, Int> {
+        var aCount = 0
+        var pCount = 0
+        
+        fun process(list: List<org.osmdroid.views.overlay.Overlay>) {
+            list.forEach { overlay ->
+                when (overlay) {
+                    is org.osmdroid.views.overlay.Polygon -> aCount++
+                    is org.osmdroid.views.overlay.Marker -> pCount++
+                    is org.osmdroid.views.overlay.FolderOverlay -> process(overlay.items)
                 }
             }
-            if (count >= minCount) return
-            Thread.sleep(500)
         }
-        val finalCount = try {
-            var lastCount = 0
-            composeTestRule.runOnUiThread {
-                try {
-                    val activity = composeTestRule.activity
-                    val componentActivity = activity as? androidx.activity.ComponentActivity
-                    if (componentActivity != null) {
-                        val mapViewModel = ViewModelProvider(componentActivity).get(com.madanala.tern.ui.components.MapViewModel::class.java)
-                        val field = mapViewModel.javaClass.getDeclaredField("overlayCoordinator")
-                        field.isAccessible = true
-                        val coordinator = field.get(mapViewModel) as? com.madanala.tern.ui.overlays.OverlayCoordinator
-                        lastCount = coordinator?.getRenderedOverlayCount(com.madanala.tern.redux.OverlayType.PG_SPOTS) ?: 0
-                    }
-                } catch (e: Exception) {}
-            }
-            lastCount.toString()
-        } catch (e: Exception) { "unknown" }
-
-        throw AssertionError("Timed out waiting for at least $minCount PG spots. Final count: $finalCount")
+        
+        process(overlays)
+        return Pair(aCount, pCount)
     }
 
     // BDD Helpers (Copied from BddTest to avoid rule conflicts)

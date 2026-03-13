@@ -109,6 +109,8 @@ class AirspaceOverlayManager(
 
 
 
+    private var lastLoadPosition: GeoPoint? = null
+    
     override fun onOverlayAttached() {
 
         // Get universal country cache manager from overlay coordinator
@@ -136,7 +138,7 @@ class AirspaceOverlayManager(
             coroutineScope.launch {
                 mapView?.mapCenter?.let { center ->
                     // Refresh airspaces for current location now that data is available
-                    loadAirspaceForLocation(applicationContext, center as GeoPoint)
+                    checkAndLoadAirspaceData(center as GeoPoint)
                 }
             }
         }
@@ -149,10 +151,22 @@ class AirspaceOverlayManager(
         if (countryCacheManager.getCachedCountries().isNotEmpty()) {
             coroutineScope.launch {
                 mapView?.mapCenter?.let { center ->
-                    loadAirspaceForLocation(applicationContext, center as GeoPoint)
+                    checkAndLoadAirspaceData(center as GeoPoint)
                 }
             }
         }
+    }
+
+    /**
+     * RESET state for test stability
+     */
+    override fun reset() {
+        Log.d("AirspaceOverlayManager", "Resetting AirspaceOverlayManager state")
+        lastLoadPosition = null
+        lastCheckLocation = null
+        // Clear existing overlays to ensure no leakage
+        currentlyRenderedAirspaces.clear()
+        Log.d("AirspaceOverlayManager", "AirspaceOverlayManager reset complete")
     }
 
 
@@ -426,6 +440,7 @@ class AirspaceOverlayManager(
             // Log.d(TAG, "Cleared airspace tracking (no map view)")
         }
     }
+
 
     /**
      * Check and load airspace data for the given location

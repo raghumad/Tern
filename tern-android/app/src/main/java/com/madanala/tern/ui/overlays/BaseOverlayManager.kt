@@ -249,6 +249,12 @@ abstract class BaseOverlayManager(
     override fun getRenderedCount(): Int {
         return 0 // Default implementation, override in specifically tracked managers
     }
+    override fun reset() {
+        // Default implementation for basic cleanup.
+        // Concrete managers with complex state (Airspace, PGSpot) should override this.
+        Log.d(TAG, "Resetting ${overlayType.name} manager state")
+        // No default state to reset in BaseOverlayManager currently
+    }
 
     /**
       * Get detailed overlay visibility statistics for debugging
