@@ -96,7 +96,6 @@ class PGSpotOverlayManager(
 
         // Create new listener
         val listener: (String) -> Unit = { countryCode ->
-             // Log.d(TAG, "Country $countryCode loaded, refreshing PG Spots")
              coroutineScope.launch {
                  mapView?.mapCenter?.let { center ->
                      // Refresh PG spots for current location now that data is available
@@ -116,6 +115,23 @@ class PGSpotOverlayManager(
                 }
             }
         }
+    }
+
+    private var lastLoadPosition: GeoPoint? = null
+
+    /**
+     * RESET state for test stability
+     */
+    override fun reset() {
+        Log.d("PGSpotOverlayManager", "Resetting PGSpotOverlayManager state")
+        lastLoadPosition = null
+        lastCheckLocation = null
+        lastWeatherUpdate = 0L
+        lastViewportChange = 0L
+        // Force immediate clear of existing markers if needed
+        currentlyRenderedPGSpots.clear()
+        visiblePGSpots.clear()
+        Log.d("PGSpotOverlayManager", "PGSpotOverlayManager reset complete")
     }
 
     // Track rendered PG spots and weather status for efficient updates
@@ -496,7 +512,12 @@ class PGSpotOverlayManager(
     /**
      * LOAD & DISPLAY PG SPOTS WITH WEATHER INTEGRATION
      */
-    private fun checkAndLoadPGSpots(center: GeoPoint) {
+    fun checkAndLoadPGSpots(center: GeoPoint) {
+        val distance = lastLoadPosition?.distanceToAsDouble(center) ?: Double.MAX_VALUE
+        if (distance < 0.5) { // 500m threshold for PG spots
+            return
+        }
+        
         if (mapView == null) {
             Log.w(TAG, "No map view available for weather-aware PG spot loading")
             return
@@ -507,6 +528,7 @@ class PGSpotOverlayManager(
         loadingJob = coroutineScope.launch {
             loadPGSpotsForLocation(applicationContext, center)
         }
+        lastLoadPosition = center
     }
 
     /**

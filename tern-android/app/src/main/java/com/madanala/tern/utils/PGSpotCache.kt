@@ -201,6 +201,7 @@ class PGSpotCache(context: Context) {
      */
     fun clearCache() {
         diskCache.clearAll()
+        downloadInProgress.clear()
     }
 
     /**

@@ -86,6 +86,11 @@ interface OverlayManager {
     fun getRenderedCount(): Int
 
     /**
+     * RESET state for test stability
+     */
+    fun reset()
+
+    /**
      * Set the overlay coordinator reference
      */
     fun setOverlayCoordinator(coordinator: OverlayCoordinator?)

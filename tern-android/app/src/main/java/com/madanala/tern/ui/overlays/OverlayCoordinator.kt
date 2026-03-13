@@ -666,11 +666,17 @@ class OverlayCoordinator {
     }
 
     /**
-      * RESET coordinator and all managers for test stability
-      */
+     * RESET state for test stability
+     */
     fun reset() {
         Log.d(TAG, "Resetting OverlayCoordinator state")
         countryCacheManager?.reset()
+        
+        // Reset individual managers to clear their load positions/states between tests
+        activeManagers.values.forEach { 
+            it.reset()
+        }
+        
         refreshAllOverlays()
         synchronized(pendingAdditions) {
             pendingAdditions.clear()

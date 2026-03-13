@@ -42,6 +42,9 @@ class MapMemoryStressTest : MapVisualTest() {
                  store.dispatch(MapAction.UpdateZoom(12.0))
                  composeTestRule.waitForIdle()
                  
+                 // Wait for debounce in BaseOverlayManager (300ms) to fire performMapMove
+                 Thread.sleep(500)
+                 
                  // Wait for PG spots to load and render initially
                  waitForPGSpots(minCount = 5, timeoutMillis = 10000)
                  PerformanceDebugger.logHeapUsage("STRESS_START_AFTER_LOAD")

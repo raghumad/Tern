@@ -149,6 +149,7 @@ class AirspaceCache(context: Context) {
      */
     fun clearCache() {
         diskCache.clearAll()
+        downloadInProgress.clear()
     }
 
     /**
