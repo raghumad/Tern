@@ -27,7 +27,9 @@ class MapInteractionPerformanceTest : MapVisualTest() {
                 CacheManager.initialize(activity.applicationContext)
                 MapTestHelper.grantLocationPermissions()
                 
-                // Set explicitly to Boulder, zoom 10
+                val mapViewModel = ViewModelProvider(activity)[com.madanala.tern.ui.components.MapViewModel::class.java]
+                mapViewModel.mapView.controller.setZoom(10.0)
+                mapViewModel.mapView.controller.setCenter(GeoPoint(40.0150, -105.2705))
                 store.dispatch(MapAction.UpdateCenter(GeoPoint(40.0150, -105.2705)))
                 store.dispatch(MapAction.UpdateZoom(10.0))
                 composeTestRule.waitForIdle()
@@ -79,6 +81,9 @@ class MapInteractionPerformanceTest : MapVisualTest() {
             
             given("The map is centered on Washington DC at zoom level 12") {
                 CacheManager.initialize(activity.applicationContext)
+                val mapViewModel = ViewModelProvider(activity)[com.madanala.tern.ui.components.MapViewModel::class.java]
+                mapViewModel.mapView.controller.setZoom(12.0)
+                mapViewModel.mapView.controller.setCenter(GeoPoint(38.9072, -77.0369))
                 store.dispatch(MapAction.UpdateCenter(GeoPoint(38.9072, -77.0369)))
                 store.dispatch(MapAction.UpdateZoom(12.0))
                 composeTestRule.waitForIdle()
@@ -86,6 +91,8 @@ class MapInteractionPerformanceTest : MapVisualTest() {
             }
 
             `when`("The user zooms out to zoom level 5 (regional view)") {
+                val mapViewModel = ViewModelProvider(activity)[com.madanala.tern.ui.components.MapViewModel::class.java]
+                mapViewModel.mapView.controller.setZoom(5.0)
                 store.dispatch(MapAction.UpdateZoom(5.0))
                 composeTestRule.waitForIdle()
                 Thread.sleep(2000) // let adaptive system react
@@ -111,6 +118,9 @@ class MapInteractionPerformanceTest : MapVisualTest() {
                 CacheManager.initialize(activity.applicationContext)
                 // Border region near Bodensee (Lake Constance) where DE, CH, AT meet
                 // approx 47.5, 9.5
+                val mapViewModel = ViewModelProvider(activity)[com.madanala.tern.ui.components.MapViewModel::class.java]
+                mapViewModel.mapView.controller.setZoom(10.0)
+                mapViewModel.mapView.controller.setCenter(GeoPoint(47.5, 9.5))
                 store.dispatch(MapAction.UpdateCenter(GeoPoint(47.5, 9.5)))
                 store.dispatch(MapAction.UpdateZoom(10.0))
                 composeTestRule.waitForIdle()
@@ -119,6 +129,8 @@ class MapInteractionPerformanceTest : MapVisualTest() {
 
             `when`("The spatial query requests data from multiple country caches (CH, AT, DE, IT)") {
                 // Pan slightly to trigger nearby queries
+                val mapViewModel = ViewModelProvider(activity)[com.madanala.tern.ui.components.MapViewModel::class.java]
+                mapViewModel.mapView.controller.setCenter(GeoPoint(47.4, 9.6))
                 store.dispatch(MapAction.UpdateCenter(GeoPoint(47.4, 9.6)))
                 composeTestRule.waitForIdle()
                 Thread.sleep(2000)

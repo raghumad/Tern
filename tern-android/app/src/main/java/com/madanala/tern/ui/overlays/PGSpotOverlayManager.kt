@@ -94,12 +94,11 @@ class PGSpotOverlayManager(
             this.countryCacheManager?.onCountryLoadedListeners?.remove(it) 
         }
 
-        // Create new listener
         val listener: (String) -> Unit = { countryCode ->
              coroutineScope.launch {
                  mapView?.mapCenter?.let { center ->
                      // Refresh PG spots for current location now that data is available
-                     checkAndLoadPGSpots(center as GeoPoint)
+                     checkAndLoadPGSpots(center as GeoPoint, force = true)
                  }
              }
         }
@@ -512,10 +511,12 @@ class PGSpotOverlayManager(
     /**
      * LOAD & DISPLAY PG SPOTS WITH WEATHER INTEGRATION
      */
-    fun checkAndLoadPGSpots(center: GeoPoint) {
-        val distance = lastLoadPosition?.distanceToAsDouble(center) ?: Double.MAX_VALUE
-        if (distance < 0.5) { // 500m threshold for PG spots
-            return
+    fun checkAndLoadPGSpots(center: GeoPoint, force: Boolean = false) {
+        if (!force) {
+            val distance = lastLoadPosition?.distanceToAsDouble(center) ?: Double.MAX_VALUE
+            if (distance < 0.5) { // 500m threshold for PG spots
+                return
+            }
         }
         
         if (mapView == null) {

@@ -38,6 +38,10 @@ class MapMemoryStressTest : MapVisualTest() {
             given("The map is centered on Chamonix, French Alps (High PG Spot Density)") {
                  // Chamonix: 45.9237, 6.8694
                  CountryUtils.setTestCountryCode("FR")
+                 val mapViewModel = ViewModelProvider(activity)[com.madanala.tern.ui.components.MapViewModel::class.java]
+                 mapViewModel.mapView.controller.setZoom(12.0)
+                 mapViewModel.mapView.controller.setCenter(GeoPoint(45.9237, 6.8694))
+                 
                  store.dispatch(MapAction.UpdateCenter(GeoPoint(45.9237, 6.8694)))
                  store.dispatch(MapAction.UpdateZoom(12.0))
                  composeTestRule.waitForIdle()

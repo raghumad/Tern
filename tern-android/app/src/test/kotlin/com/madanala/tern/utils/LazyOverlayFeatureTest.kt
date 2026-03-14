@@ -40,9 +40,10 @@ class LazyOverlayFeatureTest {
             id = "test-id",
             centroid = centroid,
             hilbertIndex = 123,
-            overlayType = "airspace",
+            overlayType = "airspace"
+        ).apply {
             rawData = ByteBuffer.wrap(data)
-        )
+        }
         
         // 3. Verify lazy properties
         assertEquals("test-id", lazyFeature.id)
