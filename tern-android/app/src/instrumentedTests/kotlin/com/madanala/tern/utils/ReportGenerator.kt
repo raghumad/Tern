@@ -369,25 +369,12 @@ object ReportGenerator {
                 // Extract and print the story first if it exists
                 val storyStep = scenario.steps.find { it.type == "STORY" }
                 if (storyStep != null) {
-                    writer.write("<div style='margin-bottom: 20px; padding: 15px; background-color: #e3f2fd; border-radius: 5px; border-left: 5px solid #1976d2;'>")
-                    writer.write("<strong>Story:</strong> ${storyStep.description}")
+                    writer.write("<div style='margin-bottom: 20px; padding: 15px; background-color: #1e293b; color: #cbd5e1; border-radius: 5px; border-left: 5px solid #38bdf8;'>")
+                    writer.write("<strong style='color: #38bdf8;'>STORY:</strong> ${storyStep.description}")
                     writer.write("</div>")
                 }
                 
-                // Print the rest of the steps
-                scenario.steps.filter { it.type != "STORY" }.forEach { step ->
-                    writer.write("<div class='step ${step.status}'>")
-                    writer.write("<strong>${step.type}</strong>: ${step.description}")
-                    if (step.screenshotPath != null) {
-                        writer.write("<br/><details open><summary>Screenshot</summary>")
-                        writer.write("<img src='${step.screenshotPath}' /><br/>")
-                        writer.write("<button class='approve-btn' onclick=\"approve('${step.screenshotPath}', '${testName}', this)\">✅ Approve as Golden</button>")
-                        writer.write("<button class='reject-btn' onclick=\"reject('${step.screenshotPath}', '${testName}', '${step.screenshotHash}', this)\">❌ Wrong / Reject</button>")
-                        writer.write("</details>")
-                    }
-                    writer.write("</div>")
-                }
-
+                // Print Performance Scorecard FIRST, right after the story, before screenshots
                 if (scenario.perfMetrics != null) {
                     val budget = PerformanceDebugger.DEFAULT_BUDGET
                     val leak = scenario.perfMetrics.finalHeapUsedMb - scenario.perfMetrics.baselineHeapUsedMb
@@ -431,6 +418,20 @@ object ReportGenerator {
                     }
                     
                     writer.write("</div></div>")
+                }
+                
+                // Print the rest of the steps
+                scenario.steps.filter { it.type != "STORY" }.forEach { step ->
+                    writer.write("<div class='step ${step.status}'>")
+                    writer.write("<strong>${step.type}</strong>: ${step.description}")
+                    if (step.screenshotPath != null) {
+                        writer.write("<br/><details><summary>Screenshot</summary>")
+                        writer.write("<img src='${step.screenshotPath}' /><br/>")
+                        writer.write("<button class='approve-btn' onclick=\"approve('${step.screenshotPath}', '${testName}', this)\">✅ Approve as Golden</button>")
+                        writer.write("<button class='reject-btn' onclick=\"reject('${step.screenshotPath}', '${testName}', '${step.screenshotHash}', this)\">❌ Wrong / Reject</button>")
+                        writer.write("</details>")
+                    }
+                    writer.write("</div>")
                 }
 
                 if (scenario.logcat != null) {

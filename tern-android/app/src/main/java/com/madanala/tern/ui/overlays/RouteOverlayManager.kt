@@ -247,6 +247,17 @@ class RouteOverlayManager(
         clearRouteOverlays()
     }
 
+    override fun reset() {
+        super.reset()
+        Log.d(TAG, "Resetting RouteOverlayManager state")
+        currentRoutes = emptyList()
+        currentSelectedWaypoint = null
+        currentSelectedRouteId = null
+        clearRouteOverlays()
+        currentlyRenderedRoutes.clear()
+        Log.d(TAG, "RouteOverlayManager reset complete")
+    }
+
     override fun performMapMove(center: GeoPoint, zoom: Double) {
         // LOD Check
         if (!isZoomLevelSufficient(zoom)) {
