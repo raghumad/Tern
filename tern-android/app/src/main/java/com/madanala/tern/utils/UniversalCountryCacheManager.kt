@@ -294,7 +294,7 @@ class UniversalCountryCacheManager(
      * @param country The ISO country code to update access for
      * @return true if access was recorded successfully, false if country is invalid
      */
-    private suspend fun updateCountryAccess(country: String): Boolean {
+    private fun updateCountryAccess(country: String): Boolean {
         // Input validation - early return for invalid inputs
         if (country.isBlank()) {
             Log.w(TAG, "Attempted to update access for blank country code")
@@ -307,9 +307,7 @@ class UniversalCountryCacheManager(
         }
 
         return try {
-            mutex.withLock {
-                updateCountryAccessInternal(country)
-            }
+            updateCountryAccessInternal(country)
         } catch (e: Exception) {
             Log.e(TAG, "Error updating access for country: $country", e)
             false
@@ -394,26 +392,30 @@ class UniversalCountryCacheManager(
         return code?.uppercase()
     }
 
-    // Adjacency map for major paragliding regions
-    private val adjacencyMap = mapOf(
-        "US" to listOf("CA", "MX"),
-        "CA" to listOf("US"),
-        "MX" to listOf("US", "GT", "BZ"),
-        "DE" to listOf("FR", "CH", "AT", "NL", "BE", "LU", "DK", "PL", "CZ"),
-        "AT" to listOf("DE", "CH", "IT", "SI", "HU", "SK", "CZ", "LI"),
-        "CH" to listOf("DE", "AT", "IT", "FR", "LI"),
-        "IT" to listOf("CH", "AT", "SI", "FR"),
-        "FR" to listOf("CH", "IT", "DE", "BE", "ES", "LU", "MC", "AD"),
-        "ES" to listOf("FR", "PT", "AD"),
-        "GB" to listOf("IE", "FR"), // France via tunnel/proximity
-        "IE" to listOf("GB")
-    )
-
     /**
-     * Get adjacent countries for preloading using data map
+     * Get adjacent countries for preloading using spatial geocoding scans
      */
-    private fun getAdjacentCountries(currentCountry: String, location: GeoPoint): List<String> {
-        return adjacencyMap[currentCountry] ?: emptyList()
+    private suspend fun getAdjacentCountries(currentCountry: String, location: GeoPoint): List<String> {
+        return kotlinx.coroutines.withContext(Dispatchers.IO) {
+            try {
+                // Dynamically scan for nearby country codes within 50km
+                val nearbyCodes = CountryUtils.getNearbyCountryCodes(
+                    applicationContext,
+                    location.latitude,
+                    location.longitude,
+                    50.0
+                )
+                
+                // uppercase to match our cache consistency and filter out the current country
+                nearbyCodes
+                    .map { it.uppercase() }
+                    .filter { it != currentCountry && it.isNotBlank() }
+                    .distinct()
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to dynamically resolve adjacent countries", e)
+                emptyList()
+            }
+        }
     }
 
     /**

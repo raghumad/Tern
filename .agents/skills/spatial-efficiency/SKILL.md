@@ -20,6 +20,8 @@ Prefer binary formats like **FlexBuffers** or FlatBuffers that allow accessing s
 
 ### 4. Bounded Object Pooling
 Any UI elements generated from spatial data (Markers, Polygons, Paths) must be managed via a bounded pool (like `UniversalOverlayPool`). Reuse existing objects instead of allocating new ones during map movement to eliminate memory churn.
+### 5. Dynamic Spatial Boundaries
+Never hardcode geographic, political, or spatial boundaries (e.g., country adjacency maps). All spatial resolutions MUST use dynamic geocoding (e.g., `CountryUtils.getNearbyCountryCodes`) or mathematical spatial indexing. This guarantees global portability and prevents the system from being restricted to hand-coded regions.
 
 ## When to Apply
 
@@ -41,3 +43,4 @@ Any UI elements generated from spatial data (Markers, Polygons, Paths) must be m
 - [ ] Are we avoiding `JSON` parsing in the hot path (map movement)?
 - [ ] Is the result set limited by a global performance budget?
 - [ ] Does the test suite include a "Rapid Panning" stress test for this data?
+- [ ] Are spatial boundaries and regional adjacencies resolved dynamically rather than hardcoded?
