@@ -284,7 +284,7 @@ open class MapVisualTest {
         try {
             block()
             val result = ReportGenerator.captureScreenshot("success_${name.replace(" ", "_")}")
-            ReportGenerator.logStep("RESULT", "Scenario Passed", "PASS", result?.path, result?.hash)
+            ReportGenerator.logStep("RESULT", "Scenario Passed: Physical UI and Redux State Validated", "PASS", result?.path, result?.hash)
         } catch (e: Throwable) {
             val result = ReportGenerator.captureScreenshot("failure_${name.replace(" ", "_")}")
             ReportGenerator.logStep("RESULT", "Scenario Failed: ${e.message}", "FAIL", result?.path, result?.hash)

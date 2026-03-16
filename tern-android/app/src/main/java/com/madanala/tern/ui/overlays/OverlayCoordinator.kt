@@ -119,14 +119,14 @@ class OverlayCoordinator {
     private val overlayPool = UniversalOverlayPool()
 
     /**
-     * Reports global overlay budget across all managers
+     * Reports global active overlay usage across all managers
      */
-    fun reportGlobalOverlayBudget() {
+    fun reportGlobalOverlayUsage() {
         val stats = activeManagers.mapValues { it.value.getRenderedCount() }
         val total = stats.values.sum()
         val poolStats = overlayPool.getPoolStats()
         
-        Log.i(TAG, "Global Overlay Budget: $total total (Airspace: ${stats[OverlayType.AIRSPACE] ?: 0}, " +
+        Log.i(TAG, "Global Overlay Usage: $total total active (Airspace: ${stats[OverlayType.AIRSPACE] ?: 0}, " +
                 "PGSpot: ${stats[OverlayType.PG_SPOTS] ?: 0}, Routes: ${stats[OverlayType.ROUTES] ?: 0}) " +
                 "Pool: Markers=${poolStats["markers_available"]}, Polygons=${poolStats["polygons_available"]}")
     }
@@ -169,7 +169,7 @@ class OverlayCoordinator {
         batchAnimationScope.launch {
             while (isActive) {
                 delay(10000) // Every 10 seconds
-                reportGlobalOverlayBudget()
+                reportGlobalOverlayUsage()
             }
         }
         // 1. Airspaces (Bottom) - Handled directly by AirspaceOverlayManager (No FolderOverlay)

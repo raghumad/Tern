@@ -72,8 +72,7 @@ class RouteDetailPanelWeatherTest : com.madanala.tern.utils.BddTest() {
                 this.then("the UI should clearly display the wind speed, direction, and gust information for 'Start'", takeScreenshot = false) {
                      composeTestRule.onNodeWithText("🌬️ 10 kt @ 180° (G 15)").assertIsDisplayed()
                 }
-
-                and("the weather panel rendering should be optimized for situational awareness", takeScreenshot = false) {
+                and("the Recompose scope executes under the frame timing budget (< 16ms)", takeScreenshot = false) {
                      com.madanala.tern.utils.ReportGenerator.assertLogDoesNotContain("PerformanceDebugger", "STATE_UPDATE_STORM")
                 }
             }

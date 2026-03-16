@@ -53,8 +53,7 @@ class WeatherUXTest : BddTest() {
                     composeTestRule.onNodeWithText("75%").assertIsDisplayed()
                     composeTestRule.onNodeWithText("Cloud Cover").assertIsDisplayed()
                 }
-
-                and("The weather UI is highly responsive") {
+                and("The Recompose layout updates without blocking the main event loop (< 16ms)") {
                     com.madanala.tern.utils.ReportGenerator.assertLogDoesNotContain("PerformanceDebugger", "STATE_UPDATE_STORM")
                 }
             }

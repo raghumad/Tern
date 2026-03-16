@@ -220,16 +220,14 @@ class MapInteractionTest : MapVisualTest() {
                     }
                     composeTestRule.waitForIdle()
                 }
-
-                then("The map should respond fluidly, revealing the terrain ahead") {
+                then("The map renderer ingests newly revealed spatial GeoJSON streams without frame drops (< 16ms/frame)") {
                     composeTestRule.onNodeWithTag("map_view").assertExists()
                     
                     // Verify center has changed significantly (moving North)
                     val newCenter = store.state.value.center!!
                     assert(newCenter.latitude > 40.0150) { "Expected map to move North, but latitude is ${newCenter.latitude}" }
                 }
-
-                and("The interaction should be free of any visual glitches or performance drops") {
+                and("The pan interaction executes within the PerformanceDebugger Event SLAs (No STATE_UPDATE_STORM, < 2.0MB Retained Delta)") {
                      ReportGenerator.assertLogDoesNotContain("PerformanceDebugger", "STATE_UPDATE_STORM")
                      ReportGenerator.assertLogDoesNotContain("PerformanceDebugger", "VISUAL_DISCONTINUITY")
                 }

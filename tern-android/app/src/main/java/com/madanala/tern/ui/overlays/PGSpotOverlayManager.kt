@@ -1035,7 +1035,7 @@ class PGSpotOverlayManager(
         Log.i(TAG, "Overlay Budget [PG_SPOT]: ${budget.totalOverlays} total capacity (Created: ${currentlyRenderedPGSpots.size}, Visible: $actuallyVisibleSpots)")
         
         // Let coordinator handle global summary reporting
-        mOverlayCoordinator?.reportGlobalOverlayBudget()
+        mOverlayCoordinator?.reportGlobalOverlayUsage()
     }
 
     /**

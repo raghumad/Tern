@@ -12,7 +12,7 @@ import java.util.concurrent.ConcurrentHashMap
 class AirspaceCache(context: Context) {
 
     companion object {
-        const val AIRSPACE_CACHE_HOURS = 336 // 14 days
+        const val AIRSPACE_CACHE_HOURS = 2160 // 3 months (90 days)
         private const val TAG = "AirspaceCache"
     }
 

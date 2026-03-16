@@ -9,6 +9,15 @@ import androidx.compose.ui.test.*
 @RunWith(AndroidJUnit4::class)
 class AppLaunchTest : MapVisualTest() {
 
+    init {
+        // OVERRIDE: MapVisualTest globally hardcodes the MapViewModel to boot at Boulder, CO.
+        // We must intercept this reflection immediately before testAppLaunchToMap_PacificOcean natively
+        // constructs so that the zero-state map validates completely empty tiles at (0.0, -160.0).
+        com.madanala.tern.ui.components.MapViewModel.locationProviderFactory = {
+            com.madanala.tern.utils.MockLocationProvider(0.0, -160.0)
+        }
+    }
+
     @Test
     fun testAppLaunchToMap_PacificOcean() {
         // Remote location in Pacific Ocean

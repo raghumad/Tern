@@ -29,7 +29,7 @@ import java.util.concurrent.ConcurrentHashMap
 class PGSpotCache(context: Context) {
 
     companion object {
-        const val PG_SPOT_CACHE_HOURS = 168  // 7 days
+        const val PG_SPOT_CACHE_HOURS = 4320  // 6 months (180 days)
         private const val TAG = "PGSpotCache"
     }
 
