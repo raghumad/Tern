@@ -22,7 +22,6 @@ class LaunchScreenTest : MapVisualTest() {
                 com.madanala.tern.utils.CacheManager.initialize(context)
 
                 given("I am at a new flying site (London, UK) and need to see the local terrain") {
-                    // Configure caches to use MockServer
                     // Clear existing cache to force download
                     com.madanala.tern.utils.CacheManager.pgSpotCache.clearCache()
                     com.madanala.tern.utils.CacheManager.airspaceCache.clearCache()

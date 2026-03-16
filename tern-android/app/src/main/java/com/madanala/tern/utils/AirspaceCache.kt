@@ -72,37 +72,23 @@ class AirspaceCache(context: Context) {
             Log.i(TAG, "Airspace download URL check: baseUrl=$baseUrl, finalUrl=$url")
             Log.d(TAG, "Starting airspace download for $countryCode from: $url")
 
-            val geoJsonString = GeoJsonUtils.downloadGeoJson(url)
-
-            if (geoJsonString != null) {
-                Log.d(TAG, "Downloaded ${geoJsonString.length} bytes of airspace data for $countryCode")
-
-                // Use NDGeoJSON parser for airspace data (OpenAIP format) if detected, otherwise standard GeoJSON
-                val features = if (GeoJsonUtils.isNdGeoJson(geoJsonString)) {
-                    MapOverlayCacheUtils.parseNdGeoJsonToFeatures(geoJsonString, "airspace")
-                } else {
-                    MapOverlayCacheUtils.parseGeoJsonToFeatures(geoJsonString, "airspace")
+            val success = diskCache.cacheFeaturesStream(countryCode) { appendFeature ->
+                GeoJsonUtils.streamGeoJsonFeatures(url) { featureMap ->
+                    val feature = MapOverlayCacheUtils.parseFeature(featureMap, "airspace")
+                    if (feature != null && validateOverlayFeature(feature, countryCode)) {
+                        appendFeature(feature)
+                    }
                 }
-                Log.d(TAG, "Parsed ${features.size} airspaces for $countryCode")
-
-                val validFeatures = features.filter { feature ->
-                    validateOverlayFeature(feature, countryCode)
-                }
-
-                if (validFeatures.isNotEmpty()) {
-                    // Delegate caching to SpatialDiskCache
-                    diskCache.cacheFeatures(countryCode, validFeatures)
-                    Log.d(TAG, "Successfully cached ${validFeatures.size} airspaces for $countryCode")
-                    return true
-                } else {
-                    Log.w(TAG, "No valid airspaces found for $countryCode after validation")
-                    clearCacheForCountry(countryCode)
-                }
-            } else {
-                Log.w(TAG, "Airspace download returned null/empty for $countryCode")
             }
 
-            return false
+            if (success) {
+                Log.d(TAG, "Successfully stream cached airspaces for $countryCode")
+                return true
+            } else {
+                Log.w(TAG, "No valid airspaces found or stream failed for $countryCode")
+                clearCacheForCountry(countryCode)
+                return false
+            }
 
         } catch (e: Exception) {
             Log.e(TAG, "Error caching airspace data for $countryCode: ${e.message}", e)

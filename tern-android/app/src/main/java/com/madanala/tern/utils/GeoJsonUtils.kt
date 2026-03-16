@@ -4,6 +4,7 @@ package com.madanala.tern.utils
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -62,6 +63,83 @@ object GeoJsonUtils {
             } catch (e: IOException) {
                 Log.w("GeoJsonUtils", "IOException downloading $url: ${e.message}")
                 null
+            }
+        }
+    }
+
+    /**
+     * Download GeoJSON data and stream features one by one directly from the byte stream.
+     * This avoids massive String/Map allocations in the JVM Heap.
+     */
+    suspend fun streamGeoJsonFeatures(url: String, processFeature: (Map<String, Any>) -> Unit): Boolean {
+        return withContext(Dispatchers.IO) {
+            try {
+                Log.i("GeoJsonUtils", "Executing HTTP streaming download for: $url")
+                val request = Request.Builder().url(url).build()
+                var success = false
+                client.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        val body = response.body
+                        if (body != null) {
+                            val isNd = url.contains("ndgeojson")
+                            if (isNd) {
+                                // NDGeoJSON: process line by line
+                                body.byteStream().bufferedReader().useLines { lines ->
+                                    for (line in lines) {
+                                        if (!isActive) break
+                                        if (line.isNotBlank()) {
+                                            try {
+                                                @Suppress("UNCHECKED_CAST")
+                                                val feature = mapper.readValue<Map<String, Any>>(line, object : com.fasterxml.jackson.core.type.TypeReference<Map<String, Any>>() {})
+                                                processFeature(feature)
+                                            } catch (e: Exception) {
+                                                // Ignore malformed lines silently on streams
+                                            }
+                                        }
+                                    }
+                                }
+                            } else {
+                                // Standard GeoJSON FeatureCollection
+                                val parser = mapper.factory.createParser(body.byteStream())
+                                var inFeaturesArray = false
+                                while (!parser.isClosed && isActive) {
+                                    val token = parser.nextToken()
+                                    if (token == null) break
+
+                                    if (!inFeaturesArray) {
+                                        if (token == com.fasterxml.jackson.core.JsonToken.FIELD_NAME && parser.currentName == "features") {
+                                            if (parser.nextToken() == com.fasterxml.jackson.core.JsonToken.START_ARRAY) {
+                                                inFeaturesArray = true
+                                            }
+                                        }
+                                    } else {
+                                        if (token == com.fasterxml.jackson.core.JsonToken.START_OBJECT) {
+                                            try {
+                                                val feature: Map<String, Any> = mapper.readValue(parser, object : com.fasterxml.jackson.core.type.TypeReference<Map<String, Any>>() {})
+                                                processFeature(feature)
+                                            } catch (e: Exception) {
+                                                Log.w("GeoJsonUtils", "Failed to parse streamed feature object: ${e.message}")
+                                            }
+                                        } else if (token == com.fasterxml.jackson.core.JsonToken.END_ARRAY) {
+                                            break
+                                        }
+                                    }
+                                }
+                                parser.close()
+                            }
+                            Log.d("GeoJsonUtils", "✅ Streaming download completed for $url")
+                            success = true
+                        } else {
+                            Log.w("GeoJsonUtils", "Response body is null for $url")
+                        }
+                    } else {
+                        Log.w("GeoJsonUtils", "Failed to download from $url: ${response.code} ${response.message}")
+                    }
+                }
+                success
+            } catch (e: Exception) {
+                Log.w("GeoJsonUtils", "Exception streaming $url: ${e.message}")
+                false
             }
         }
     }

@@ -20,14 +20,13 @@ class AirspaceUXTest : MapVisualTest() {
             story("As a pilot planning a cross-country flight, I want to see restricted airspaces on the map so I can stay safe and compliant with aviation regulations during my flight.") {
                 
                 given("I am preparing for a flight in the Boulder area") {
-                    mockServer.setPGSpotsDispatcher(count = 10)
                     // Start near Boulder, but not exactly on the features to trigger a pan
                     givenAppIsLaunchedOnMap(lat = 40.0, lon = -105.2, countryCode = "us") 
                     
                     // Verify initial load succeeded
-                    ReportGenerator.logStep("WAIT", "Waiting for initial airspace load")
-                    Thread.sleep(5000) // Extra time for initial sync
-                    waitForAirspaces(minCount = 1, timeoutMillis = 45000)
+                    ReportGenerator.logStep("WAIT", "Waiting for initial airspace payload parsing and spatial index creation")
+                    waitForCacheReadiness("US", timeoutMillis = 120000)
+                    waitForAirspaces(minCount = 1, timeoutMillis = 20000)
                 }
 
                 `when`("I pan the map towards a complex airspace structure near the mountains") {

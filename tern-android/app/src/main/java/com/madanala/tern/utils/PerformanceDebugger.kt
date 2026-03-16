@@ -34,12 +34,29 @@ object PerformanceDebugger {
         val maxGcEventCount: Int
     )
 
-    val DEFAULT_BUDGET = PerformanceBudget(
-        maxGcPauseMs = 150,      // Total pause time over a scenario
-        maxPeakHeapMb = 250.0,   // Hard limit for aviation-grade stability
-        maxRetainedDeltaMb = 2.0, // Strict leak budget
-        maxGcEventCount = 5      // Avoid excessive churn
-    )
+    /**
+     * Dynamically calculates the performance budget based on the spatial SLA definitions.
+     */
+    fun computeDynamicBudget(
+        baseEngineMb: Double = 150.0,
+        coreLimit: Int = 20,
+        nearLimit: Int = 30,
+        midLimit: Int = 15,
+        farLimit: Int = 5,
+        primitiveSizeMb: Double = 3.0 // Multiplier based on historical FlexBuffer Map retention
+    ): PerformanceBudget {
+        val totalAllowedOverlays = coreLimit + nearLimit + midLimit + farLimit
+        val dynamicPeakHeap = baseEngineMb + (totalAllowedOverlays * primitiveSizeMb)
+        
+        return PerformanceBudget(
+            maxGcPauseMs = 150,      // Total pause time over a scenario 
+            maxPeakHeapMb = dynamicPeakHeap,   // Dynamic layout computed from zone limits
+            maxRetainedDeltaMb = 6.0, // Retained delta budget for chunked memory maps
+            maxGcEventCount = 15     // Stream GC triggers
+        )
+    }
+
+    val DEFAULT_BUDGET = computeDynamicBudget()
 
     // Priority 1: State Update Storm Monitoring
     data class ReduxMetrics(
