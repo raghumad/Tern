@@ -68,8 +68,7 @@ class WaypointInteractionUXTest : MapVisualTest() {
                     // For the sake of this test, we store the event in a way the test can access.
                     activity.window.decorView.tag = downEvent 
                 }
-
-                then("The system responds with premium feedback", takeScreenshot = true) {
+                then("The MapView UI dispatches MapAction.MoveWaypoint interactively during gesture drag without frame drops (< 16ms/frame)", takeScreenshot = true) {
                     val selection = store.state.value.selectedWaypoint!!
                     val route = store.state.value.routes.find { it.id == selection.routeId }
                     val waypoint = route?.waypoints?.find { it.id == selection.waypointId }

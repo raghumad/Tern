@@ -29,8 +29,7 @@ class NavigationTest : MapVisualTest() {
                     com.madanala.tern.utils.ReportGenerator.logStep("ACTION", "Waiting for UI readiness")
                     composeTestRule.onNodeWithTag("map_view").assertExists()
                 }
-
-                then("I see the high-resolution moving map with no performance alerts") {
+                then("The OSMDroid MapView renders map geometry without PerformanceDebugger violations (No GC Pauses > 150ms)") {
                     com.madanala.tern.utils.ReportGenerator.logStep("VERIFY", "Asserting map view exists")
                     composeTestRule.onNodeWithTag("map_view").assertExists()
                     

@@ -16,7 +16,7 @@ import org.junit.runner.RunWith
 class FAITaskUITest : MapVisualTest() {
 
     @Test
-    fun scenario1_configureFAITaskParameters() {
+    fun testConfigureFAITaskParameters() {
         scenario("Configure FAI Task Parameters") {
             story("As a competition pilot, I want to precisely configure my waypoint parameters—such as cylinder radius and start gate times—so that my flight task exactly matches the competition briefing and I avoid score penalties.") {
                 // Ensure app is launched and ready
@@ -34,8 +34,8 @@ class FAITaskUITest : MapVisualTest() {
                         waypoints = listOf(
                             Waypoint(
                                 id = waypointId,
-                                lat = 0.0,
-                                lon = 0.0,
+                                lat = 40.015,
+                                lon = -105.270,
                                 routeId = routeId,
                                 label = "WP1"
                             )
@@ -97,7 +97,7 @@ class FAITaskUITest : MapVisualTest() {
     }
 
     @Test
-    fun scenario2_changeWaypointTypeToSpeedSection() {
+    fun testChangeWaypointTypeToSpeedSection() {
         scenario("Change Waypoint Type to Speed Section") {
             story("As a competition pilot during a race, I need to designate specific waypoints as Start or End Speed Sections so that my flight computer accurately tracks my time-to-goal performance.") {
                 givenAppIsLaunchedOnMap()
@@ -114,8 +114,8 @@ class FAITaskUITest : MapVisualTest() {
                         waypoints = listOf(
                             Waypoint(
                                 id = waypointId,
-                                lat = 0.0,
-                                lon = 0.0,
+                                lat = 40.015,
+                                lon = -105.270,
                                 routeId = routeId,
                                 label = "WP1"
                             )
@@ -159,7 +159,7 @@ class FAITaskUITest : MapVisualTest() {
     }
 
     @Test
-    fun scenario3_createCompleteCompetitionTask() {
+    fun testCreateCompleteCompetitionTask() {
         scenario("Create Complete Competition Task") {
             story("As a competition pilot, I want to build a full racing task from scratch—including takeoff, start gates, and goals—so I can be fully prepared before the launch window opens.") {
                 givenAppIsLaunchedOnMap()
@@ -179,10 +179,10 @@ class FAITaskUITest : MapVisualTest() {
 
                 `when`("I meticulously assemble my mission: Takeoff, Start Gate, Turnpoint, and Goal") {
                     // Add Takeoff
-                    store.dispatch(MapAction.AddWaypointToRoute(routeId, 0.0, 0.0, Waypoint.Type.LAUNCH, "Takeoff"))
+                    store.dispatch(MapAction.AddWaypointToRoute(routeId, 40.015, -105.270, Waypoint.Type.LAUNCH, "Takeoff"))
                     
                     // Add Start Gate
-                    store.dispatch(MapAction.AddWaypointToRoute(routeId, 0.1, 0.1, Waypoint.Type.TURNPOINT, "Start Gate"))
+                    store.dispatch(MapAction.AddWaypointToRoute(routeId, 40.020, -105.260, Waypoint.Type.TURNPOINT, "Start Gate"))
                     
                     composeTestRule.waitUntil(timeoutMillis = 5000) {
                         val r = store.state.value.routes.find { it.id == routeId }
@@ -194,7 +194,7 @@ class FAITaskUITest : MapVisualTest() {
                     store.dispatch(MapAction.UpdateWaypointRadius(routeId, startGateId, 2000.0))
                     
                     // Add Turnpoint 1
-                    store.dispatch(MapAction.AddWaypointToRoute(routeId, 0.2, 0.2, Waypoint.Type.TURNPOINT, "Turnpoint 1"))
+                    store.dispatch(MapAction.AddWaypointToRoute(routeId, 40.030, -105.250, Waypoint.Type.TURNPOINT, "Turnpoint 1"))
                     
                     composeTestRule.waitUntil(timeoutMillis = 5000) {
                         store.state.value.routes.first { it.id == routeId }.waypoints.size >= 3
@@ -203,7 +203,7 @@ class FAITaskUITest : MapVisualTest() {
                     store.dispatch(MapAction.UpdateWaypointRadius(routeId, tp1Id, 400.0))
                     
                     // Add Goal
-                    store.dispatch(MapAction.AddWaypointToRoute(routeId, 0.3, 0.3, Waypoint.Type.TURNPOINT, "Goal"))
+                    store.dispatch(MapAction.AddWaypointToRoute(routeId, 40.040, -105.240, Waypoint.Type.TURNPOINT, "Goal"))
                     
                     composeTestRule.waitUntil(timeoutMillis = 5000) {
                         store.state.value.routes.first { it.id == routeId }.waypoints.size >= 4

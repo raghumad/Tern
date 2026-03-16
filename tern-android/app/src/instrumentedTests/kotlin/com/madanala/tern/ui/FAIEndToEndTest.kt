@@ -17,7 +17,7 @@ import java.util.UUID
 class FAIEndToEndTest : MapVisualTest() {
 
     @Test
-    fun completeFAIPreFlightSequence() {
+    fun testCompleteFAIPreFlightSequence() {
         scenario("Full FAI Task Lifecycle") {
             story("As a competition pilot, I want to plan a complex flight task with FAI-compliant waypoints, export it for my flight computer, and then re-import it to verify data integrity, ensuring I have the perfect flight plan before I step into my harness.") {
                 val activity = composeTestRule.activity as com.madanala.tern.TernParaglidingActivity
@@ -28,10 +28,10 @@ class FAIEndToEndTest : MapVisualTest() {
 
                 given("I have carefully planned a route with dedicated FAI Turnpoints (Launch, SSA, TP, Goal)") {
                     val waypoints = listOf(
-                        Waypoint(lat = 46.0, lon = 11.0, label = "Takeoff", routeId = routeId, type = Waypoint.Type.LAUNCH),
-                        Waypoint(lat = 46.1, lon = 11.1, label = "Start", routeId = routeId, type = Waypoint.Type.SSS),
-                        Waypoint(lat = 46.2, lon = 11.2, label = "Turnpoint", routeId = routeId, type = Waypoint.Type.TURNPOINT),
-                        Waypoint(lat = 46.3, lon = 11.3, label = "Goal", routeId = routeId, type = Waypoint.Type.GOAL)
+                        Waypoint(lat = 40.015, lon = -105.270, label = "Takeoff", routeId = routeId, type = Waypoint.Type.LAUNCH),
+                        Waypoint(lat = 40.020, lon = -105.260, label = "Start", routeId = routeId, type = Waypoint.Type.SSS),
+                        Waypoint(lat = 40.030, lon = -105.250, label = "Turnpoint", routeId = routeId, type = Waypoint.Type.TURNPOINT),
+                        Waypoint(lat = 40.040, lon = -105.240, label = "Goal", routeId = routeId, type = Waypoint.Type.GOAL)
                     )
                     val initialRoute = Route(id = routeId, name = "E2E Task", waypoints = waypoints)
                     

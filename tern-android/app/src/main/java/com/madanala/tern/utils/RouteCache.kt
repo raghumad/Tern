@@ -23,7 +23,7 @@ class RouteCache(
 ) {
 
     companion object {
-        const val ROUTE_CACHE_HOURS = 168  // 7 days
+        const val ROUTE_CACHE_HOURS = Int.MAX_VALUE  // Permanent (Never automatically expire user-created routes)
         private const val TAG = "RouteCache"
         private const val HILBERT_BITS_PRECISION = 32
         private const val MAX_DISTANCE_METERS_PER_MILE = 1609.34

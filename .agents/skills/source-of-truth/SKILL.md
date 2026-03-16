@@ -40,6 +40,11 @@ Before implementing a new class, state property, or constant, ask the following 
 - **Result**: Fragmented state tree and excessive boilerplate.
 - **Solution**: Consolidated into `MapState.kt` to ensure a cohesive view of the "World State."
 
+### Anti-Pattern: Taxonomic Singularity (Shadow Vocabulary)
+- **Previous State**: `AdaptiveOverlaySystem` utilized the term "Budget" to define its absolute Max **Capacity** (e.g. 528 overlays). Downstream, `OverlayCoordinator` printed "Global Overlay Budget" to describe its currently active rendered **Usage** (e.g. 29 overlays).
+- **Result**: Conflicting taxonomy obscured logcat analysis, creating the illusion that the dynamic capacity governor was malfunctioning or aggressively dropping SLA budgets.
+- **Solution**: Decouple the terminology. Rename the coordinator's metric to "Global Overlay Usage". The SSOT for terminology is equally as important as the SSOT for memory state!
+
 ## Diagnostic Checklist
 - [ ] Have I identified the **Owner** of this information?
 - [ ] Is this value **Purely Derived**? (If so, use a `val` getter).

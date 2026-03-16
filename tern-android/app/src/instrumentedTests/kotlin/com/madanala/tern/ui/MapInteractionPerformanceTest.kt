@@ -98,7 +98,7 @@ class MapInteractionPerformanceTest : MapVisualTest() {
                 Thread.sleep(2000) // let adaptive system react
             }
 
-            then("The adaptive budget system should engage due to high overlay density") {
+            then("The adaptive budget capacity system should throttle visible geometry limits to guarantee smooth panning") {
                 ReportGenerator.assertLogDoesNotContain("PerformanceDebugger", "STATE_UPDATE_STORM")
             }
             

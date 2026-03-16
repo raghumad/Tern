@@ -18,7 +18,14 @@ object ReportGenerator {
     var currentTestName: String? = null
     var currentTestClass: String? = null
 
-    data class Step(val type: String, val description: String, val status: String = "PASS", val screenshotPath: String? = null, val screenshotHash: String? = null)
+    data class Step(
+        val type: String, 
+        val description: String, 
+        val status: String = "PASS", 
+        val screenshotPath: String? = null, 
+        val screenshotHash: String? = null,
+        val timestampMillis: Long = System.currentTimeMillis()
+    )
     data class ScenarioData(val name: String, val steps: List<Step>, val logcat: String?, val perfMetrics: PerformanceMetrics? = null)
     
     data class PerformanceMetrics(
@@ -419,8 +426,11 @@ object ReportGenerator {
                 }
                 
                 // Print the rest of the steps
+                val timeFormatter = java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.US)
                 scenario.steps.filter { it.type != "STORY" }.forEach { step ->
+                    val timestampStr = timeFormatter.format(java.util.Date(step.timestampMillis))
                     writer.write("<div class='step ${step.status}'>")
+                    writer.write("<span style='font-family: monospace; color: #64748b; font-size: 0.8rem; margin-right: 12px;'>[$timestampStr]</span>")
                     writer.write("<strong>${step.type}</strong>: ${step.description}")
                     if (step.screenshotPath != null) {
                         writer.write("<br/><details><summary>Screenshot</summary>")
