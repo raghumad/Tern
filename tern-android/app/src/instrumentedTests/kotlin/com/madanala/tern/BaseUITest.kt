@@ -3,7 +3,6 @@ package com.madanala.tern
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.UiDevice
-import com.madanala.tern.test.MockServer
 import org.junit.After
 import org.junit.Before
 import org.junit.Rule
@@ -15,7 +14,6 @@ import java.io.File
  * Base class for Automated UI Tests.
  * Provides:
  * - ComposeTestRule for UI interaction
- * - MockServer for API mocking
  */
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -31,7 +29,7 @@ abstract class BaseUITest {
         android.Manifest.permission.READ_EXTERNAL_STORAGE
     )
 
-    val mockServer = MockServer()
+
 
     @get:Rule
     val screenshotRule = object : TestWatcher() {
@@ -62,11 +60,9 @@ abstract class BaseUITest {
     fun setup() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         com.madanala.tern.utils.CacheManager.initialize(context)
-        mockServer.server.start()
     }
 
     @After
     fun tearDown() {
-        mockServer.server.shutdown()
     }
 }

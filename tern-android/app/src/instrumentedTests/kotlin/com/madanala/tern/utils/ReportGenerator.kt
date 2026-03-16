@@ -135,7 +135,6 @@ object ReportGenerator {
         if (match == null) {
             val filteredLog = log.lines().filter { 
                 it.contains("PGSpot") || 
-                it.contains("MockServer") || 
                 it.contains("System.out") || 
                 it.contains("MapViewModel") ||
                 it.contains("OverlayManager") ||
@@ -152,7 +151,6 @@ object ReportGenerator {
         if (!validator(match)) {
             val filteredLog = log.lines().filter { 
                 it.contains("PGSpot") || 
-                it.contains("MockServer") || 
                 it.contains("System.out") || 
                 it.contains("MapViewModel") ||
                 it.contains("OverlayManager") ||

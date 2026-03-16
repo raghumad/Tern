@@ -153,13 +153,14 @@ class UniversalCountryCacheManager(
     fun reset() {
         Log.d(TAG, "Resetting UniversalCountryCacheManager state")
         
-        // 1. Cancel only the location monitoring job, let background downloads finish
+        // Cancel all ongoing background downloads and location monitoring jobs
         locationJob?.cancel()
         locationJob = null
         
-        // Note: We don't call cancelChildren() or clear onCountryLoadedListeners 
-        // to avoid breaking the initial data load in tests where the Activity 
-        // is reused or just started.
+        // Actively cancel children to prevent overlapping UI test suites from writing
+        // to the same .flex and .idx files simultaneously, causing silent cache corruption.
+        // We do not cancel the entire scope to allow the SupervisorJob to survive.
+        coroutineScope.coroutineContext.cancelChildren()
         
         lastLocation = null
         currentCountry = null

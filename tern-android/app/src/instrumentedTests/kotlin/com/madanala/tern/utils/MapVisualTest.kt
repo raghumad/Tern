@@ -20,7 +20,6 @@ import android.Manifest
  */
 open class MapVisualTest {
     
-    val mockServer = com.madanala.tern.test.MockServer()
 
     @get:org.junit.Rule
     val testNameRule = org.junit.rules.TestName()
@@ -65,12 +64,6 @@ open class MapVisualTest {
         } catch (e: Exception) {
             // Log.e("MapVisualTest", "Failed to clear logcat: ${e.message}")
         }
-
-        mockServer.start()
-        mockServer.setPGSpotsDispatcher(count = 20) // Provide a default dispatcher for all tests
-        val mockUrl = mockServer.url("/")
-        com.madanala.tern.utils.CacheManager.airspaceCache.setBaseUrlForTesting(mockUrl)
-        com.madanala.tern.utils.CacheManager.pgSpotCache.setBaseUrlForTesting(mockUrl)
         
         Log.i("MapVisualTest", "=== START ${testNameRule.methodName} ===")
         
@@ -92,12 +85,7 @@ open class MapVisualTest {
     @org.junit.After
     fun tearDown() {
         Log.i("MapVisualTest", "=== END ${testNameRule.methodName} ===")
-        
-        // Reset base URLs to prevent test leakage
-        com.madanala.tern.utils.CacheManager.airspaceCache.resetBaseUrlForTesting()
-        com.madanala.tern.utils.CacheManager.pgSpotCache.resetBaseUrlForTesting()
-        
-        mockServer.shutdown()
+
         
         // Final cache clear
         com.madanala.tern.utils.CacheManager.clearAllCaches()
@@ -137,8 +125,9 @@ open class MapVisualTest {
                 store.dispatch(MapAction.UpdateCenter(org.osmdroid.util.GeoPoint(40.015, -105.27)))
                 store.dispatch(MapAction.UpdateZoom(12.0))
                 
-                // Clear Caches
-                com.madanala.tern.utils.CacheManager.clearAllCaches()
+                // [OFFLINE-FIRST DESIGN] 
+                // Do NOT invoke CacheManager.clearAllCaches() here. 
+                // Tests must reuse .flex indexes to avoid rate-limiting the CI pipeline and faithfully validate the app's offline geometry mapping capabilities.
             } catch (e: Exception) {
                 Log.e("MapVisualTest", "Error clearing state: ${e.message}")
             }
@@ -221,6 +210,27 @@ open class MapVisualTest {
         }
         
         throw AssertionError("Timed out waiting for map data. Final: Airspaces=$aCount, PGSpots=$pCount")
+    }
+
+    /**
+     * Actively polls the physical disk layer to determine if the UniversalCountryCacheManager
+     * has successfully closed the memory streams and written the Hilbert Curve .idx files for a country.
+     * This prevents premature test timeouts strictly based on visual UI rendering checks.
+     */
+    fun waitForCacheReadiness(countryCode: String, timeoutMillis: Long = 60000) {
+        val startTime = System.currentTimeMillis()
+        Log.i("MapVisualTest", "Waiting for Physical Cache Readiness (.idx / .flex) for Country: $countryCode")
+        
+        while (System.currentTimeMillis() - startTime < timeoutMillis) {
+            val isReady = com.madanala.tern.utils.CacheManager.airspaceCache.isCached(countryCode)
+            if (isReady) {
+                Log.i("MapVisualTest", "Cache successfully indexed for $countryCode!")
+                return
+            }
+            Thread.sleep(2000)
+        }
+        
+        throw AssertionError("Timed out waiting for $countryCode cache to serialize to disk.")
     }
 
     fun waitForAirspaces(minCount: Int = 1, timeoutMillis: Long = 20000) {

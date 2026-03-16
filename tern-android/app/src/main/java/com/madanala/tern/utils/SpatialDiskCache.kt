@@ -197,6 +197,82 @@ class SpatialDiskCache(
     }
 
     /**
+     * Cache features for a region by streaming them directly from a source
+     */
+    suspend fun cacheFeaturesStream(regionIdRaw: String, streamAction: suspend (appendFeature: (OverlayFeature) -> Unit) -> Boolean): Boolean {
+        val regionId = regionIdRaw.uppercase()
+        try {
+            val flexCacheFile = File(cacheDir, "${regionId}_$cacheName.flex")
+            val indexEntries = mutableListOf<MapOverlayCacheUtils.HilbertIndexEntry>()
+            var processedCount = 0
+            
+            FileOutputStream(flexCacheFile).use { fos ->
+                var currentOffset = 0
+                val builder = com.google.flatbuffers.FlexBuffersBuilder(1024)
+                
+                val appendFeature: (OverlayFeature) -> Unit = { feature ->
+                    builder.clear()
+                    val mapStart = builder.startMap()
+                    
+                    val featureMapStart = builder.startMap()
+                    MapOverlayCacheUtils.serializeMap(builder, feature.feature)
+                    builder.endMap("feature", featureMapStart)
+                    
+                    val centroidMapStart = builder.startMap()
+                    builder.putFloat("latitude", feature.centroid.latitude.toFloat())
+                    builder.putFloat("longitude", feature.centroid.longitude.toFloat())
+                    builder.endMap("centroid", centroidMapStart)
+                    
+                    builder.putInt("hilbertIndex", feature.hilbertIndex)
+                    builder.putString("overlayType", feature.overlayType)
+                    feature.id?.let { builder.putString("id", it) }
+                    
+                    builder.endMap(null, mapStart)
+                    val buffer = builder.finish()
+                    
+                    val length = buffer.remaining()
+                    val lengthBytes = java.nio.ByteBuffer.allocate(4).putInt(length).array()
+                    
+                    fos.write(lengthBytes)
+                    
+                    val data = ByteArray(length)
+                    buffer.get(data)
+                    fos.write(data)
+                    
+                    indexEntries.add(MapOverlayCacheUtils.HilbertIndexEntry(feature.hilbertIndex, currentOffset, 4 + length))
+                    currentOffset += 4 + length
+                    processedCount++
+                }
+                
+                val success = streamAction(appendFeature)
+                if (!success || processedCount == 0) {
+                    return false
+                }
+            }
+            
+            val spatialIndex = MapOverlayCacheUtils.SpatialIndex(indexEntries.sortedBy { it.hilbertIndex })
+            
+            val indexFile = File(cacheDir, "${regionId}_$cacheName.idx")
+            val indexData = objectMapper.writeValueAsBytes(spatialIndex)
+            indexFile.writeBytes(indexData)
+
+            spatialIndexCache[regionId] = spatialIndex
+            
+            memoryMappedBuffers.remove(regionId) 
+            createMemoryMappedBuffer(regionId, flexCacheFile)
+
+            cacheIndex[regionId] = System.currentTimeMillis()
+            saveCacheIndex()
+
+            Log.d(TAG, "Successfully stream cached $processedCount features for $cacheName/$regionId")
+            return true
+        } catch (e: Exception) {
+            Log.e(TAG, "Error stream caching features for $cacheName/$regionId", e)
+            return false
+        }
+    }
+
+    /**
      * Get all cached features for a region (without spatial filtering)
      */
     fun getCachedFeatures(regionIdRaw: String): List<OverlayFeature>? {

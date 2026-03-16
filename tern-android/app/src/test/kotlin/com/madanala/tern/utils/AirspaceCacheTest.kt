@@ -55,13 +55,18 @@ class AirspaceCacheTest {
     @Test
     fun `downloadAndCache downloads, parses and caches data`() = runBlocking {
         val countryCode = "CH"
-        // Valid NDGeoJSON (one feature per line)
-        val geoJson = """
-            {"type": "Feature", "geometry": {"type":"Point","coordinates":[8.5,47.3]}, "properties": {"name":"Test Airspace"}}
-        """.trimIndent()
+        val featureMap = mapOf(
+            "type" to "Feature",
+            "geometry" to mapOf("type" to "Point", "coordinates" to listOf(8.5, 47.3)),
+            "properties" to mapOf("name" to "Test Airspace")
+        )
 
-        // Mock download
-        coEvery { GeoJsonUtils.downloadGeoJson(any()) } returns geoJson
+        // Mock download streaming
+        coEvery { GeoJsonUtils.streamGeoJsonFeatures(any(), any()) } answers {
+            val processFeature = secondArg<(Map<String, Any>) -> Unit>()
+            processFeature.invoke(featureMap)
+            true
+        }
 
         val result = airspaceCache.downloadAndCache(countryCode)
 
@@ -81,9 +86,8 @@ class AirspaceCacheTest {
     @Test
     fun `downloadAndCache handles invalid GeoJSON`() = runBlocking {
         val countryCode = "IT"
-        val invalidJson = "Not JSON"
 
-        coEvery { GeoJsonUtils.downloadGeoJson(any()) } returns invalidJson
+        coEvery { GeoJsonUtils.streamGeoJsonFeatures(any(), any()) } returns false
 
         val result = airspaceCache.downloadAndCache(countryCode)
 
@@ -94,12 +98,18 @@ class AirspaceCacheTest {
     @Test
     fun `getCachedAirspaces returns cached data`() = runBlocking {
         val countryCode = "DE"
-        // Valid NDGeoJSON
-        val geoJson = """
-            {"type": "Feature", "properties": {"name": "Test Airspace"}, "geometry": {"type": "Polygon", "coordinates": [[[10.0, 50.0], [10.0, 50.1], [10.1, 50.1], [10.1, 50.0], [10.0, 50.0]]]}}
-        """.trimIndent()
+        val featureMap = mapOf(
+            "type" to "Feature", 
+            "properties" to mapOf("name" to "Test Airspace"),
+            "geometry" to mapOf("type" to "Polygon", "coordinates" to listOf(listOf(listOf(10.0, 50.0), listOf(10.0, 50.1), listOf(10.1, 50.1), listOf(10.1, 50.0), listOf(10.0, 50.0))))
+        )
 
-        coEvery { GeoJsonUtils.downloadGeoJson(any()) } returns geoJson
+        coEvery { GeoJsonUtils.streamGeoJsonFeatures(any(), any()) } answers {
+            val processFeature = secondArg<(Map<String, Any>) -> Unit>()
+            processFeature.invoke(featureMap)
+            true
+        }
+        
         airspaceCache.downloadAndCache(countryCode)
 
         // Verify we can retrieve it

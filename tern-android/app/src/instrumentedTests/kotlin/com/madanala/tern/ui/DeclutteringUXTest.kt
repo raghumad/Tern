@@ -26,7 +26,6 @@ class DeclutteringUXTest : MapVisualTest() {
         val lon = -105.27
         
         // 1. GIVEN the dispatcher is set BEFORE launching (though activity might be started by rule)
-        mockServer.setPGSpotsDispatcher(count = 10)
         
         scenario("Adaptive Airspace Decluttering during Drag") {
             story("As a pilot, I want the map to declutter when I am interacting with waypoints so I can focus on my route planning.") {
@@ -79,7 +78,6 @@ class DeclutteringUXTest : MapVisualTest() {
     fun testAdaptiveDeclutteringFullScenario() {
         val lat = 40.015
         val lon = -105.27
-        mockServer.setPGSpotsDispatcher(count = 10)
 
         // Setup shared state for the BDD flow
         var downEvent: android.view.MotionEvent? = null

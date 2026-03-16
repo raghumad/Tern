@@ -216,7 +216,7 @@ object MapOverlayCacheUtils {
     /**
      * Helper to parse a single GeoJSON Feature map into an OverlayFeature
      */
-    private fun parseFeature(feature: Map<String, Any>, overlayType: String): OverlayFeature? {
+    fun parseFeature(feature: Map<String, Any>, overlayType: String): OverlayFeature? {
         @Suppress("UNCHECKED_CAST")
         val geometry = feature["geometry"] as? Map<String, Any>
         if (geometry != null) {
@@ -429,7 +429,7 @@ object MapOverlayCacheUtils {
         return Pair(spatialIndex, outputStream.toByteArray())
     }
 
-    private fun serializeMap(builder: com.google.flatbuffers.FlexBuffersBuilder, map: Map<String, Any>) {
+    fun serializeMap(builder: com.google.flatbuffers.FlexBuffersBuilder, map: Map<String, Any>) {
         map.forEach { (key, value) ->
             when (value) {
                 is String -> builder.putString(key, value)
@@ -453,7 +453,7 @@ object MapOverlayCacheUtils {
         }
     }
 
-    private fun serializeList(builder: com.google.flatbuffers.FlexBuffersBuilder, list: List<*>) {
+    fun serializeList(builder: com.google.flatbuffers.FlexBuffersBuilder, list: List<*>) {
         list.forEach { item ->
             when (item) {
                 is String -> builder.putString(item)
