@@ -204,7 +204,15 @@ class PGSpotOverlayManager(
 
 
     override fun onOverlayDetached() {
-        // Log.d(TAG, "PG spots overlay manager detached")
+        Log.d(TAG, "[$this] PG spots overlay manager detached from MapView@${System.identityHashCode(mapView)}")
+
+        // [LIFECYCLE FIX] Actually remove markers from map on detach to prevent orphans
+        mapView?.let { map ->
+            val markers = currentlyRenderedPGSpots.values.map { it.marker }
+            markers.forEach { map.overlays.remove(it) }
+            map.invalidate()
+            Log.d(TAG, "[$this] Removed ${markers.size} orphaned markers from MapView on detach")
+        }
 
         // Remove listener to prevent memory leaks
         countryLoadedListener?.let { 

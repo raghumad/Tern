@@ -34,3 +34,13 @@ This checklist provides the definitive, data-driven criteria for marking a featu
 - [ ] **Haptic Loop**: All state-mutating actions (Save, Deletion, Waypoint Update) trigger a `VibrationEffect` or `HapticFeedback`.
 - [ ] **Contrast Compliance**: Critical flight data (Altitude, Distance) uses high-contrast tokens (e.g., `AeroSlate.PrimaryContrast`).
 - [ ] **The 0.5s Rule**: Critical screen state transitions are glanceable and understood within 0.5 seconds in high-stress simulation.
+
+## 🛡️ 5. Resilience & Stability Protocol
+- [ ] **Root Cause Analysis (RCA)**: 
+    - [ ] Any regressions or high-risk bugs (Lifecycle, Concurrency, Source of Truth) discovered must have a [5 Whys analysis](file:///home/raghu/src/Tern/.agents/skills/aviation-grade-rca/SKILL.md) performed.
+    - [ ] The RCA must result in a structural "Architectural Guardrail" that prevents the entire class of failure.
+- [ ] **State Isolation**: 
+    - [ ] Verified that state is correctly cleared between tests in `MapVisualTest.tearDown()` or equivalent.
+    - [ ] No "Ghost" instances (managers, coroutines, or cache managers) remain after a session is cleared.
+- [ ] **Idempotent Guards**: 
+    - [ ] All critical initialization and state-setting actions have idempotent logic to prevent redundant background noise.

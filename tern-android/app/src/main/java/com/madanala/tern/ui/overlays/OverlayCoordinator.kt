@@ -125,10 +125,11 @@ class OverlayCoordinator {
         val stats = activeManagers.mapValues { it.value.getRenderedCount() }
         val total = stats.values.sum()
         val poolStats = overlayPool.getPoolStats()
+        val mapHash = System.identityHashCode(mapView)
         
-        Log.i(TAG, "Global Overlay Usage: $total total active (Airspace: ${stats[OverlayType.AIRSPACE] ?: 0}, " +
+        Log.i(TAG, "[$this] Global Overlay Usage: $total total active (Airspace: ${stats[OverlayType.AIRSPACE] ?: 0}, " +
                 "PGSpot: ${stats[OverlayType.PG_SPOTS] ?: 0}, Routes: ${stats[OverlayType.ROUTES] ?: 0}) " +
-                "Pool: Markers=${poolStats["markers_available"]}, Polygons=${poolStats["polygons_available"]}")
+                "on MapView@$mapHash. Pool: Markers=${poolStats["markers_available"]}, Polygons=${poolStats["polygons_available"]}")
     }
 
     // Data class for overlays with Hilbert curve values
@@ -164,6 +165,7 @@ class OverlayCoordinator {
     fun initialize(mapStore: MapStore?, mapView: MapView, context: Context) {
         this.mapStore = mapStore
         this.mapView = mapView
+        Log.d(TAG, "[$this] Initializing for MapView@${System.identityHashCode(mapView)}")
         
         // Schedule periodic budget reporting
         batchAnimationScope.launch {
@@ -188,6 +190,8 @@ class OverlayCoordinator {
         }
 
         // Initialize universal country cache manager for all overlay types (Priority 0 fix)
+        // [LIFECYCLE FIX] Shut down old manager first if it exists to prevent orphaned downloaders
+        countryCacheManager?.shutdown()
         countryCacheManager = com.madanala.tern.utils.UniversalCountryCacheManager(context)
         
         // Set up callback to refresh overlays when country data is loaded
@@ -687,16 +691,21 @@ class OverlayCoordinator {
     }
 
     /**
-      * Clean shutdown of all overlays
+      * Clean shutdown of all overlays and coroutine scopes
       */
     fun shutdown() {
-        // Log.d(TAG, "Shutting down OverlayCoordinator (${activeManagers.size} managers)")
+        Log.i(TAG, "[$this] Shutting down OverlayCoordinator for MapView@${System.identityHashCode(mapView)}")
 
-        // Shutdown animation manager first
+        // Shutdown periodic reporting first
+        batchAnimationScope.cancel()
+
+        // Shutdown animation manager
         overlayAnimationManager.shutdown()
 
-        // Shutdown batch animation scope
-        batchAnimationScope.cancel()
+        // Shutdown batch animation scope (Safety check)
+        if (batchAnimationScope.isActive) {
+            batchAnimationScope.cancel()
+        }
 
         // Shutdown universal country cache manager (Priority 0)
         countryCacheManager?.shutdown()

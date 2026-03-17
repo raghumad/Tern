@@ -86,6 +86,17 @@ open class MapVisualTest {
     fun tearDown() {
         Log.i("MapVisualTest", "=== END ${testNameRule.methodName} ===")
 
+        // [HYGIENE FIX] Proactively clear ViewModelStore to trigger onCleared() 
+        // and shutdown leaking coordinators/managers before the next test starts.
+        composeTestRule.runOnUiThread {
+            try {
+                val activity = composeTestRule.activity
+                activity.viewModelStore.clear()
+                Log.d("MapVisualTest", "Proactively cleared Activity ViewModelStore")
+            } catch (e: Exception) {
+                Log.w("MapVisualTest", "Failed to clear ViewModelStore: ${e.message}")
+            }
+        }
         
         // Final cache clear
         com.madanala.tern.utils.CacheManager.clearAllCaches()
@@ -186,12 +197,14 @@ open class MapVisualTest {
         Log.i("MapVisualTest", "Waiting for Map Data: Airspaces >= $minAirspaces, PG Spots >= $minPGSpots")
         
         while (System.currentTimeMillis() - startTime < timeoutMillis) {
+            var currentMapHash = 0
             composeTestRule.runOnUiThread {
                 try {
                     val activity = composeTestRule.activity
                     val rootView = activity.findViewById<android.view.View>(android.R.id.content)
                     val mapView = findMapViewRecursive(rootView)
                     if (mapView != null) {
+                        currentMapHash = System.identityHashCode(mapView)
                         val counts = countOverlaysRecursively(mapView.overlays)
                         aCount = counts.first
                         pCount = counts.second
@@ -202,11 +215,32 @@ open class MapVisualTest {
             }
             
             if (aCount >= minAirspaces && pCount >= minPGSpots) {
-                println("MapVisualTest: waitForMapData SUCCESS: Found $aCount airspaces and $pCount spots")
+                println("MapVisualTest: waitForMapData SUCCESS: Found $aCount airspaces and $pCount spots on MapView@$currentMapHash")
                 return
             }
             
             Thread.sleep(1000)
+        }
+
+        // On failure, dump EVERYTHING for diagnostics
+        composeTestRule.runOnUiThread {
+            val activity = composeTestRule.activity
+            val rootView = activity.findViewById<android.view.View>(android.R.id.content)
+            val mapView = findMapViewRecursive(rootView)
+            val mapHash = System.identityHashCode(mapView)
+            
+            Log.e("MapVisualTest", "DIAGNOSTIC FAILURE DUMP for MapView@$mapHash")
+            if (mapView != null) {
+                Log.e("MapVisualTest", "Overlay count: ${mapView.overlays.size}")
+                mapView.overlays.forEachIndexed { index, overlay ->
+                    val type = overlay.javaClass.simpleName
+                    val hash = System.identityHashCode(overlay)
+                    Log.e("MapVisualTest", "  [$index] Type: $type, Hash: $hash")
+                    if (overlay is org.osmdroid.views.overlay.Polygon) {
+                        Log.e("MapVisualTest", "    Polygon Points: ${overlay.points.size}")
+                    }
+                }
+            }
         }
         
         throw AssertionError("Timed out waiting for map data. Final: Airspaces=$aCount, PGSpots=$pCount")

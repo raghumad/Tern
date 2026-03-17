@@ -179,7 +179,16 @@ class RouteOverlayManager(
     }
 
     override fun onOverlayDetached() {
-        Log.d(TAG, "Route overlay manager detached")
+        Log.d(TAG, "[$this] Route overlay manager detached from MapView@${System.identityHashCode(mapView)}")
+        
+        // [LIFECYCLE FIX] Actually remove route overlays from map on detach to prevent orphans
+        mapView?.let { map ->
+            val overlays = currentlyRenderedRoutes.values.toList()
+            overlays.forEach { map.overlays.remove(it) }
+            map.invalidate()
+            Log.d(TAG, "[$this] Removed ${overlays.size} orphaned route overlays from MapView on detach")
+        }
+
         clearRouteOverlays()
     }
 

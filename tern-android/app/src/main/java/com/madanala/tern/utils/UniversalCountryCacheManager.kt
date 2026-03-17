@@ -460,8 +460,10 @@ class UniversalCountryCacheManager(
 
         val deferredResults = countriesToQuery.map { countryCode ->
             // Use computeIfAbsent to ensure we only have one active query per country code
+            // IMPORTANT: We use the manager's persistent coroutineScope for the async task, 
+            // so it doesn't get cancelled if one of the calling managers cancels its own transient scope.
             activeCountryQueries.computeIfAbsent(countryCode) {
-                async(Dispatchers.IO) {
+                this@UniversalCountryCacheManager.coroutineScope.async(Dispatchers.IO) {
                     try {
                         val features = queryCountryFeatures(normalizedCenter, countryCode, radiusKm)
                         if (features.isEmpty()) {
