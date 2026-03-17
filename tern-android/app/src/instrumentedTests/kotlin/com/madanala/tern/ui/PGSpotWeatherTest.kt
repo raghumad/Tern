@@ -1,5 +1,10 @@
 package com.madanala.tern.ui
 
+import android.util.Log
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.Text
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.onNodeWithTag
@@ -250,4 +255,5 @@ class PGSpotWeatherTest : BddTest() {
             }
         }
     }
+
 }
