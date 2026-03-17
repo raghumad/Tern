@@ -16,6 +16,9 @@ import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Overlay
 import com.madanala.tern.redux.RouteConstants
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 /**
  * Overlay manager for route visualization
@@ -84,6 +87,11 @@ class RouteOverlayManager(
     private var currentRoutes: List<Route> = emptyList()
     private var currentSelectedWaypoint: WaypointSelection? = null
     private var currentSelectedRouteId: String? = null
+    private var weatherState: com.madanala.tern.redux.WeatherState? = null
+    
+    // PERFORMANCE: Cache wind gauge bitmaps to prevent redundant generation
+    private val windGaugeCache = android.util.LruCache<Int, android.graphics.Bitmap>(50)
+
     // Changed to Map for better tracking and incremental updates
     private val currentlyRenderedRoutes = mutableMapOf<String, RouteOverlay>()
 
@@ -197,6 +205,9 @@ class RouteOverlayManager(
             // Log.d(TAG, "Redux state changed - routes enabled: ${state.overlayState.routes.enabled}")
 
             val config = state.overlayState.routes
+            
+            // Sync weather state for waypoint wind gauges
+            this.weatherState = state.weatherState
 
             if (config.enabled) {
                 // Single source of truth: Only display routes from Redux state
@@ -247,6 +258,10 @@ class RouteOverlayManager(
             } else {
                 clearRouteOverlays()
             }
+            
+            // Trigger wind gauge generation if weather data updated
+            generateWaypointWindGauges(state)
+            
         } catch (e: Exception) {
             Log.e(TAG, "Error handling Redux state change in RouteOverlayManager", e)
         }
@@ -262,9 +277,57 @@ class RouteOverlayManager(
         currentRoutes = emptyList()
         currentSelectedWaypoint = null
         currentSelectedRouteId = null
+        weatherState = null
+        windGaugeCache.evictAll()
         clearRouteOverlays()
         currentlyRenderedRoutes.clear()
         Log.d(TAG, "RouteOverlayManager reset complete")
+    }
+
+    /**
+     * Generate wind gauge bitmaps for waypoints that have weather data
+     */
+    private fun generateWaypointWindGauges(state: MapState) {
+        val mapView = mapView ?: return
+        val weatherState = state.weatherState
+        
+        state.routes.forEach { route ->
+            route.waypoints.forEach { waypoint ->
+                val forecast = weatherState.waypointWeathers[waypoint.id]
+                if (forecast != null && forecast.current != null) {
+                    val wind = forecast.current.wind
+                    val cacheKey = arrayOf(
+                        wind.speed.roundToInt(),
+                        wind.direction.roundToInt(),
+                        wind.gust.roundToInt(),
+                        forecast.isStale()
+                    ).contentHashCode()
+                    
+                    if (windGaugeCache.get(cacheKey) == null) {
+                        coroutineScope.launch(Dispatchers.Main) {
+                            try {
+                                val bitmap = com.madanala.tern.utils.ViewToBitmap.createBitmapFromComposable(
+                                    parentView = mapView,
+                                    width = 120, // Waypoints slightly smaller than PG spots
+                                    height = 120
+                                ) {
+                                    com.madanala.tern.ui.components.WindGaugeMarker(
+                                        speed = wind.speed,
+                                        direction = wind.direction,
+                                        gust = wind.gust,
+                                        isStale = forecast.isStale()
+                                    )
+                                }
+                                windGaugeCache.put(cacheKey, bitmap)
+                                mapView.invalidate()
+                            } catch (e: Exception) {
+                                Log.w(TAG, "Failed to generate waypoint wind gauge bitmap", e)
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     override fun performMapMove(center: GeoPoint, zoom: Double) {
@@ -726,14 +789,37 @@ class RouteOverlayManager(
                         }
 
                         if (icon != null) {
-                            // Center icon on screen point
-                            val halfW = (radius * 1.5f).toInt()
-                            val halfH = (radius * 1.5f).toInt()
-                            icon.setBounds(
-                                screenPoint.x - halfW, screenPoint.y - halfH,
-                                screenPoint.x + halfW, screenPoint.y + halfH
-                            )
-                            icon.draw(canvas)
+                            // Center icon or wind gauge on screen point
+                            val halfW = (radius * 1.5f)
+                            val halfH = (radius * 1.5f)
+
+                            // Check for wind gauge bitmap in cache
+                            val forecast = weatherState?.waypointWeathers?.get(waypoint.id)
+                            var windBitmap: Bitmap? = null
+                            if (forecast != null && forecast.current != null) {
+                                val wind = forecast.current.wind
+                                val cacheKey = arrayOf(
+                                    wind.speed.roundToInt(),
+                                    wind.direction.roundToInt(),
+                                    wind.gust.roundToInt(),
+                                    forecast.isStale()
+                                ).contentHashCode()
+                                windBitmap = windGaugeCache.get(cacheKey)
+                            }
+
+                            if (windBitmap != null) {
+                                val rect = RectF(
+                                    screenPoint.x - halfW, screenPoint.y - halfH,
+                                    screenPoint.x + halfW, screenPoint.y + halfH
+                                )
+                                canvas.drawBitmap(windBitmap, null, rect, null)
+                            } else {
+                                icon.setBounds(
+                                    (screenPoint.x - halfW).toInt(), (screenPoint.y - halfH).toInt(),
+                                    (screenPoint.x + halfW).toInt(), (screenPoint.y + halfH).toInt()
+                                )
+                                icon.draw(canvas)
+                            }
                         } else {
                             // Fallback to basic circle if icon loading failed
                             waypointBorderPaint.color = Color.BLUE

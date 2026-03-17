@@ -164,6 +164,8 @@ class OpenMeteoWeatherAPI : WeatherAPI {
                       "&timezone=auto" +
                       "&windspeed_unit=kn"
 
+            Log.d("OpenMeteoWeatherAPI", "Starting batch fetch for ${capped.size} locations. URL: $url")
+
             val request = Request.Builder().url(url).build()
             val result = mutableMapOf<String, WeatherForecast?>()
 
