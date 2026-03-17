@@ -20,12 +20,14 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.madanala.tern.utils.ForecastPeriod
 import com.madanala.tern.utils.WeatherData
 import com.madanala.tern.utils.WeatherForecast
+import androidx.compose.ui.semantics.semantics
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -118,16 +120,17 @@ private fun WeatherContent(forecast: WeatherForecast, targetTimestamp: Long?) {
             }
         }
 
-        // Current Conditions
-        if (targetTimestamp != null && forecast.hourly.isNotEmpty()) {
-            // Find periods for interpolation
-            val startPeriod = forecast.hourly.lastOrNull { it.startTime <= targetTimestamp } 
+        // Compute Skew-T data before branching so it's available in outer scope
+        val interpolated: com.madanala.tern.utils.WeatherData? = if (targetTimestamp != null && forecast.hourly.isNotEmpty()) {
+            val startPeriod = forecast.hourly.lastOrNull { it.startTime <= targetTimestamp }
                 ?: forecast.hourly.first()
             val endPeriod = forecast.hourly.firstOrNull { it.startTime > targetTimestamp }
                 ?: forecast.hourly.last()
-            
-            val interpolated = com.madanala.tern.utils.WeatherCache.interpolateWeather(startPeriod, endPeriod, targetTimestamp)
-            
+            com.madanala.tern.utils.WeatherCache.interpolateWeather(startPeriod, endPeriod, targetTimestamp)
+        } else null
+
+        // Current Conditions
+        if (interpolated != null) {
             Text("Estimated Arrival Weather", style = MaterialTheme.typography.titleMedium)
             CurrentWeatherCard(interpolated)
             Spacer(modifier = Modifier.height(16.dp))
@@ -138,8 +141,9 @@ private fun WeatherContent(forecast: WeatherForecast, targetTimestamp: Long?) {
             }
         }
 
-        // Skew-T Analysis Placeholder
-        SkewTPlaceholderCard()
+        // Skew-T Analysis — real computed values from current weather data
+        val skewTData = interpolated ?: forecast.current
+        SkewTPlaceholderCard(weatherData = skewTData)
         Spacer(modifier = Modifier.height(16.dp))
 
         // Hourly Forecast (next 24 hours, every 3 hours)
@@ -352,9 +356,10 @@ private fun WindDisplaySmall(speed: Double, direction: Double, gust: Double = 0.
  * Weather Detail Component
  */
 @Composable
-private fun WeatherDetail(label: String, value: String) {
+private fun WeatherDetail(label: String, value: String, modifier: Modifier = Modifier) {
     Column(
-        horizontalAlignment = Alignment.CenterHorizontally
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier.semantics(mergeDescendants = true) {}
     ) {
         Text(
             label,
@@ -370,10 +375,15 @@ private fun WeatherDetail(label: String, value: String) {
 }
 
 /**
- * Placeholder for future Skew-T Diagram
+ * Skew-T Analysis card — displays real computed Cloud Base and Inversion Layer.
+ * Cloud Base uses the Lifted Condensation Level (LCL) approximation.
+ * Inversion Layer is detected from Open-Meteo 850hPa vs 925hPa temperature data.
  */
 @Composable
-private fun SkewTPlaceholderCard() {
+private fun SkewTPlaceholderCard(weatherData: com.madanala.tern.utils.WeatherData? = null) {
+    val cloudBaseText = weatherData?.let { computeCloudBaseFt(it) } ?: "—"
+    val inversionText = weatherData?.let { detectInversionLayer(it) } ?: "—"
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
@@ -390,30 +400,69 @@ private fun SkewTPlaceholderCard() {
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(16.dp))
-            
-            // Structural representation preparing for Canvas
+
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(150.dp),
+                    .height(80.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "Graphical visualization coming soon",
+                    text = if (weatherData != null)
+                        "Surface T: ${"%+.1f".format(weatherData.temperature)}°C · RH: ${weatherData.humidity.toInt()}%"
+                    else
+                        "No weather data",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            
+
             Spacer(modifier = Modifier.height(16.dp))
-            
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                WeatherDetail("Cloud Base", "850 hPa")
-                WeatherDetail("Inversion Layer", "None")
+                WeatherDetail(
+                    label = "Cloud Base",
+                    value = cloudBaseText,
+                    modifier = Modifier.testTag("SkewTCloudBase")
+                )
+                WeatherDetail(
+                    label = "Inversion Layer",
+                    value = inversionText,
+                    modifier = Modifier.testTag("SkewTInversionLayer")
+                )
             }
         }
+    }
+}
+
+/**
+ * Computes estimated cloud base in feet AGL using the LCL approximation.
+ * Formula: Td = T - ((100 - RH) / 5); H = 125 * (T - Td) meters; convert to ft.
+ */
+private fun computeCloudBaseFt(weather: com.madanala.tern.utils.WeatherData): String {
+    val t = weather.temperature
+    val rh = weather.humidity.coerceIn(1.0, 100.0)
+    val dewPoint = t - ((100.0 - rh) / 5.0)
+    val cloudBaseMeters = 125.0 * (t - dewPoint).coerceAtLeast(0.0)
+    val cloudBaseFt = (cloudBaseMeters * 3.28084).toInt()
+    return "$cloudBaseFt ft"
+}
+
+/**
+ * Detects a temperature inversion by comparing 850hPa and 925hPa level temps.
+ * An inversion exists when the temperature at 850hPa (higher altitude) exceeds
+ * the temperature at 925hPa (lower altitude), indicating a warmer layer aloft.
+ * Returns null-safe "No data" when pressure-level data is unavailable.
+ */
+private fun detectInversionLayer(weather: com.madanala.tern.utils.WeatherData): String {
+    val t850 = weather.temp850hPa
+    val t925 = weather.temp925hPa
+    return when {
+        t850 == null || t925 == null -> "No data"
+        t850 > t925 -> "Inversion Detected"
+        else -> "No Inversion"
     }
 }

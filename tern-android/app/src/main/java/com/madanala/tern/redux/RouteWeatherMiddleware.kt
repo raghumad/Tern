@@ -33,39 +33,47 @@ class RouteWeatherMiddleware(
 
     private fun fetchRouteWeather(state: MapState, routeId: String) {
         val route = state.routes.find { it.id == routeId } ?: return
-        
+
         // Calculate 4D Trajectory ETAs (default 15 knots paragliding speed)
         val etas = TrajectoryAnalyzer.calculateETAs(route, 15.0)
 
         coroutineScope.launch {
             val waypointForecasts = mutableMapOf<String, WeatherForecast>()
 
+            // CACHE PASS: Check cache for all waypoints first
+            val cacheMissWaypoints = mutableListOf<com.madanala.tern.model.Waypoint>()
             route.waypoints.forEach { waypoint ->
-                try {
+                val cached = weatherCache.queryNearbyWeather(waypoint.lat, waypoint.lon)
+                if (cached != null) {
                     val eta = etas[waypoint.id] ?: System.currentTimeMillis()
-                    
-                    // Check cache for raw forecast data
-                    var forecast = weatherCache.queryNearbyWeather(waypoint.lat, waypoint.lon)
+                    val correctedWeather = interpolateWeatherForEta(cached, eta)
+                    waypointForecasts[waypoint.id] = cached.copy(current = correctedWeather)
+                } else {
+                    cacheMissWaypoints.add(waypoint)
+                }
+            }
 
-                    // Fallback to API if cache miss
-                    if (forecast == null) {
-                        forecast = weatherAPI.fetchForecast(waypoint.lat, waypoint.lon)
+            // BATCH FETCH: Single API call for all cache-miss waypoints
+            if (cacheMissWaypoints.isNotEmpty()) {
+                try {
+                    val locations = cacheMissWaypoints.map { wp ->
+                        com.madanala.tern.utils.LocationRequest(wp.id, wp.lat, wp.lon)
+                    }
+                    val batchResult = weatherAPI.fetchBatchForecast(locations)
+
+                    cacheMissWaypoints.forEach { waypoint ->
+                        val forecast = batchResult[waypoint.id]
                         if (forecast != null) {
                             weatherCache.cacheWeatherData(waypoint.lat, waypoint.lon, forecast)
+                            val eta = etas[waypoint.id] ?: System.currentTimeMillis()
+                            val correctedWeather = interpolateWeatherForEta(forecast, eta)
+                            waypointForecasts[waypoint.id] = forecast.copy(current = correctedWeather)
+                        } else {
+                            Log.w("RouteWeatherMiddleware", "Batch fetch returned null for waypoint ${waypoint.label}")
                         }
                     }
-
-                    if (forecast != null) {
-                        // 4D Transformation: Interpolate weather for the specific ETA
-                        val correctedWeather = interpolateWeatherForEta(forecast, eta)
-                        
-                        // We store a "point-in-time" forecast for the waypoint
-                        waypointForecasts[waypoint.id] = forecast.copy(current = correctedWeather)
-                    } else {
-                        Log.w("RouteWeatherMiddleware", "Failed to fetch weather for waypoint ${waypoint.label}")
-                    }
                 } catch (e: Exception) {
-                    Log.e("RouteWeatherMiddleware", "Error fetching weather for waypoint ${waypoint.label}", e)
+                    Log.e("RouteWeatherMiddleware", "Batch weather fetch failed for route $routeId", e)
                 }
             }
 
@@ -74,6 +82,7 @@ class RouteWeatherMiddleware(
             }
         }
     }
+
 
     /**
      * Interpolate weather data from a forecast for a specific timestamp (4D calculation).
