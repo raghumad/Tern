@@ -31,6 +31,8 @@ import com.madanala.tern.redux.MapAction
 import com.madanala.tern.model.Route
 import com.madanala.tern.model.Waypoint
 import com.madanala.tern.ui.components.Compass
+import com.madanala.tern.ui.components.RoutePlanningHUD
+
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.material3.AlertDialog
@@ -61,7 +63,9 @@ fun MapViewContainer(
     // Register Middleware
     LaunchedEffect(store) {
         store.addMiddleware(com.madanala.tern.redux.MapMiddleware(context.applicationContext))
+        store.addMiddleware(com.madanala.tern.redux.RoutePlanningMiddleware(context.applicationContext))
     }
+
 
     // Core components
     val mapViewModel: MapViewModel = viewModel()
@@ -187,8 +191,20 @@ fun MapViewContainer(
                     .padding(COMPASS_PADDING)
             )
         }
+
+        // Show Route Planning HUD if a route is selected
+        if (state.selectedRouteId != null) {
+            RoutePlanningHUD(
+                state = state,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(WindowInsets.statusBars.asPaddingValues())
+                    .padding(16.dp)
+            )
+        }
     }
 }
+
 
 // Helper to trigger the check
 private const val SMART_SUGGESTION_RADIUS_MILES = 15.5 // ~25km
