@@ -357,6 +357,13 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
      * Set the Redux store for overlay managers (late initialization for ViewModel compatibility)
      */
     fun setMapStore(store: com.madanala.tern.redux.MapStore?) {
+        // [IDEMPOTENT GUARD] Only re-initialize if the store instance actually changed
+        // This prevents lifecycle "stutters" from spawning multiple manager sessions
+        if (store == reduxBridge.mapStore && store != null) {
+            Log.d(TAG, "MapStore already connected - skipping redundant overlay initialization")
+            return
+        }
+
         // Re-initialize overlay system with Redux store FIRST so managers are ready
         // to receive updates from the bridge
         if (store != null) {
@@ -426,13 +433,15 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     override fun onCleared() {
-
+        Log.i(TAG, "[$this] MapViewModel Cleared - shutting down overlay coordinator")
 
         pendingReduxUpdate?.let { mainHandler.removeCallbacks(it) }
+
+        // [LIFECYCLE BOND] Explicitly shutdown coordinator to kill all "ghost" coroutines
+        overlayCoordinator.shutdown()
 
         // Important to release map resources
         mapView.onDetach()
         super.onCleared()
-        Log.i(TAG, "MapViewModel Cleared: $this")
     }
 }

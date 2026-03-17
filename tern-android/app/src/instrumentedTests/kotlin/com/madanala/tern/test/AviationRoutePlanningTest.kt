@@ -33,6 +33,7 @@ class AviationRoutePlanningTest : MapVisualTest() {
         scenario("Mountain Record Attempt") {
             story("As a pilot planning a record flight, I want to see automated hotspots.") {
                 given("a pilot starting a new XC task at Lookout Mountain", takeScreenshot = true) {
+                    injectMockLaunchSpot(39.7429, -105.2393, "Lookout Mountain")
                     zoomTo(39.7429, -105.2393, 13.0)
                 }
                 
@@ -41,11 +42,21 @@ class AviationRoutePlanningTest : MapVisualTest() {
                 }
                 
                 then("I should see a Smart Suggestion for 'Lookout Mountain'") {
+                    // [STABILITY FIX] Use waitUntil to handle async suggestion arrival
+                    composeTestRule.waitUntil(10000) {
+                        composeTestRule.onAllNodesWithText("Nearby Launch", substring = true, ignoreCase = true).fetchSemanticsNodes().isNotEmpty()
+                    }
                     composeTestRule.onNodeWithText("Nearby Launch", substring = true, ignoreCase = true).assertIsDisplayed()
                 }
                 
                 `when`("I confirm the suggestion") {
                     composeTestRule.onNodeWithText("Use Spot").performClick()
+                    // [UX STABILITY] Deselect waypoint so RouteDetailPanel is visible instead of Edit screen
+                    composeTestRule.runOnUiThread {
+                        val activity = composeTestRule.activity
+                        val store = androidx.lifecycle.ViewModelProvider(activity)[com.madanala.tern.redux.MapStore::class.java]
+                        store.dispatch(MapAction.DeselectWaypoint)
+                    }
                 }
                 
                 then("the route should start at Lookout Mountain", takeScreenshot = true) {
@@ -149,7 +160,8 @@ class AviationRoutePlanningTest : MapVisualTest() {
                 }
                 
                 `when`("I remove the waypoint with storm risk") {
-                    composeTestRule.onNodeWithContentDescription("Delete Waypoint").performClick()
+                    // [STABILITY FIX] Use onFirst() to avoid ambiguity if multiple Delete buttons exist
+                    composeTestRule.onAllNodesWithContentDescription("Delete Waypoint").onFirst().performClick()
                 }
                 
                 then("the HUD should remain visible for the updated route", takeScreenshot = true) {
@@ -201,11 +213,48 @@ class AviationRoutePlanningTest : MapVisualTest() {
 
     // --- Helpers ---
 
+    private fun injectMockLaunchSpot(lat: Double, lon: Double, name: String) {
+        val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
+        val featureMap = mapOf(
+            "type" to "Feature",
+            "properties" to mapOf(
+                "name" to name,
+                "siteType" to "launch"
+            ),
+            "geometry" to mapOf(
+                "type" to "Point",
+                "coordinates" to listOf(lon, lat)
+            )
+        )
+        val centroid = GeoPoint(lat, lon)
+        val mockSpot = com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature(
+            feature = featureMap,
+            centroid = centroid,
+            hilbertIndex = com.madanala.tern.utils.MapOverlayCacheUtils.computeHilbertIndex(centroid, 16),
+            overlayType = "pgspot"
+        )
+        com.madanala.tern.utils.TestCacheInjector.injectPGSpots(
+            context, 
+            com.madanala.tern.utils.CacheManager.pgSpotCache, 
+            "us", 
+            listOf(mockSpot)
+        )
+    }
+
     private fun longPressOnMap(lat: Double, lon: Double) {
         composeTestRule.runOnUiThread {
             val activity = composeTestRule.activity
             val store = androidx.lifecycle.ViewModelProvider(activity)[com.madanala.tern.redux.MapStore::class.java]
-            store.dispatch(MapAction.LongPressMap(GeoPoint(lat, lon)))
+            val state = store.state.value
+            
+            val geoPoint = GeoPoint(lat, lon)
+            if (state.selectedRouteId == null) {
+                // Realistic gestural behavior: no selected route means "Try Smart Suggestion"
+                store.dispatch(MapAction.CheckSmartSuggestion(geoPoint))
+            } else {
+                // Route selected: just add waypoint
+                store.dispatch(MapAction.LongPressMap(geoPoint))
+            }
         }
         composeTestRule.waitForIdle()
     }

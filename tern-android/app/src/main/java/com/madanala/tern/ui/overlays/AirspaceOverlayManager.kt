@@ -161,12 +161,12 @@ class AirspaceOverlayManager(
      * RESET state for test stability
      */
     override fun reset() {
-        Log.d("AirspaceOverlayManager", "Resetting AirspaceOverlayManager state")
+        Log.d("AirspaceOverlayManager", "[$this] Resetting AirspaceOverlayManager state")
         lastLoadPosition = null
         lastCheckLocation = null
         // Clear existing overlays to ensure no leakage
         currentlyRenderedAirspaces.clear()
-        Log.d("AirspaceOverlayManager", "AirspaceOverlayManager reset complete")
+        Log.d("AirspaceOverlayManager", "[$this] AirspaceOverlayManager reset complete")
     }
 
 
@@ -179,10 +179,18 @@ class AirspaceOverlayManager(
         super.onAttach(mapView)
         this.mapView = mapView
         isAttached = true
-        // Log.d(TAG, "Airspace overlay manager attached to map")
+        Log.d(TAG, "[$this] Airspace overlay manager attached to MapView@${System.identityHashCode(mapView)}")
     }
     override fun onOverlayDetached() {
-        // Log.d(TAG, "Airspace overlay manager detached")
+        Log.d(TAG, "[$this] Airspace overlay manager detached from MapView@${System.identityHashCode(mapView)}")
+
+        // [LIFECYCLE FIX] Actually remove overlays from map on detach to prevent orphans
+        mapView?.let { map ->
+            val polygons = currentlyRenderedAirspaces.values.toList()
+            polygons.forEach { map.overlays.remove(it) }
+            map.invalidate()
+            Log.d(TAG, "[$this] Removed ${polygons.size} orphaned polygons from MapView on detach")
+        }
 
         // Remove listener to prevent memory leaks
         countryLoadedListener?.let { 
@@ -635,6 +643,7 @@ class AirspaceOverlayManager(
      * Add overlays directly to the map with Z-Index management and pooling
      */
     private fun addOverlaysToMap(map: MapView, airspacesToAdd: List<Map.Entry<String, OverlayFeature>>) {
+            val originalMapHash = System.identityHashCode(map)
             coroutineScope.launch {
                 // Batch create polygons on IO thread to prevent UI blockage
                 val polygonsWithIds = withContext(Dispatchers.IO) {
@@ -657,13 +666,20 @@ class AirspaceOverlayManager(
 
                 // Add to map on UI thread
                 withContext(Dispatchers.Main) {
+                    // [ORPHAN PROTECTION] Verify we are still dealing with the same map
+                    if (System.identityHashCode(mapView) != originalMapHash) {
+                        Log.w(TAG, "[$this] MapView changed during async load! Discarding ${polygonsWithIds.size} polygons for stale MapView@$originalMapHash")
+                        polygonsWithIds.forEach { mOverlayCoordinator?.releasePolygon(it.second) }
+                        return@withContext
+                    }
+
                     polygonsWithIds.forEach { pair ->
                         val (airspaceId, polygon) = pair
                         currentlyRenderedAirspaces[airspaceId] = polygon
                         insertOverlayAtCorrectDepth(map, polygon)
                     }
                     map.invalidate()
-                    Log.d(TAG, "Added ${polygonsWithIds.size} airspaces to map (pooled)")
+                    Log.d(TAG, "[$this] Added ${polygonsWithIds.size} airspaces to MapView@$originalMapHash (pooled)")
                 }
             }
     }
