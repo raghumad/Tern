@@ -1,11 +1,15 @@
 package com.madanala.tern.ui
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.madanala.tern.ui.components.WeatherDetailsDialog
 import com.madanala.tern.utils.BddTest
+import com.madanala.tern.utils.WeatherData
 import com.madanala.tern.utils.WeatherForecast
+import com.madanala.tern.utils.WindData
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -128,15 +132,16 @@ class PGSpotWeatherTest : BddTest() {
     }
 
     @Test
-    fun testSkewTPlaceholderIsVisible() {
-        scenario("Verify Skew-T Analysis Placeholder") {
-            story("As a pilot analyzing a spot's weather, I need to see a dedicated area for Skew-T diagram analysis including Cloud Base and Inversion Layer.") {
-                given("the pilot opens the Weather Details screen for any PG Spot") {
+    fun testSkewTCloudBaseIsComputedFromWeatherData() {
+        scenario("Skew-T Cloud Base Computed from Real Weather Data") {
+            story("As a pilot checking a launch site, I want to see the estimated cloud base so I can assess thermal ceiling and plan my flight altitude.") {
+                given("a forecast with surface temperature of 25°C and relative humidity of 40%") {
+                    // LCL approximation: Td = 25 - ((100-40)/5) = 13°C; CloudBase = 125 * 12 = 1500m = 4921 ft
                     val forecast = WeatherForecast(
                         current = com.madanala.tern.utils.WeatherData(
                             wind = com.madanala.tern.utils.WindData(0.0, 0.0, 0.0),
-                            temperature = 20.0,
-                            humidity = 50.0,
+                            temperature = 25.0,
+                            humidity = 40.0,
                             visibility = 10.0,
                             pressure = 1013.25,
                             cloudCover = 0.0,
@@ -145,7 +150,7 @@ class PGSpotWeatherTest : BddTest() {
                         hourly = emptyList(),
                         daily = emptyList()
                     )
-                    
+
                     composeTestRule.setContent {
                         WeatherDetailsDialog(
                             forecast = forecast,
@@ -156,20 +161,91 @@ class PGSpotWeatherTest : BddTest() {
                     }
                 }
 
-                `when`("the pilot scrolls down the details dialog") {
-                    // Compose will automatically scroll to nodes if needed for assertion
+                `when`("the pilot opens the Weather Details screen for this PG Spot") {
+                    composeTestRule.waitForIdle()
                 }
 
-                then("they should see a 'Skew-T Analysis' section") {
-                    composeTestRule.onNodeWithText("Skew-T Analysis").assertIsDisplayed()
+                this.then("the Cloud Base should display '4921 ft' — computed from temperature and humidity, not hardcoded", takeScreenshot = true) {
+                    composeTestRule.onNodeWithTag("SkewTCloudBase")
+                        .assertTextContains("4921 ft")
                 }
-                
-                and("they should see a placeholder for 'Cloud Base'") {
-                    composeTestRule.onNodeWithText("Cloud Base").assertIsDisplayed()
+            }
+        }
+    }
+
+    @Test
+    fun testInversionLayerIsDetected() {
+        scenario("Skew-T Inversion Layer Detected from Pressure-Level Temperature Data") {
+            story("As a pilot, I want to know if a temperature inversion exists so I can anticipate reduced thermal activity.") {
+                given("an atmosphere where 850hPa (5°C) is warmer than 925hPa (2°C) — classic inversion profile") {
+                    val forecastWithInversion = WeatherForecast(
+                        current = com.madanala.tern.utils.WeatherData(
+                            wind = com.madanala.tern.utils.WindData(0.0, 0.0, 0.0),
+                            temperature = 20.0,
+                            humidity = 50.0,
+                            visibility = 10.0,
+                            pressure = 1013.25,
+                            cloudCover = 0.0,
+                            timestamp = System.currentTimeMillis() / 1000,
+                            temp850hPa = 5.0,  // warmer aloft → inversion
+                            temp925hPa = 2.0
+                        ),
+                        hourly = emptyList(),
+                        daily = emptyList()
+                    )
+
+                    composeTestRule.setContent {
+                        WeatherDetailsDialog(
+                            forecast = forecastWithInversion,
+                            spotName = "Inversion Site",
+                            isLoading = false,
+                            onDismiss = {}
+                        )
+                    }
                 }
-                
-                and("they should see a placeholder for 'Inversion Layer'") {
-                    composeTestRule.onNodeWithText("Inversion Layer").assertIsDisplayed()
+
+                then("the app should report 'Inversion Detected' alerting the pilot to capped thermals", takeScreenshot = true) {
+                    composeTestRule.onNodeWithTag("SkewTInversionLayer")
+                        .assertTextContains("Inversion Detected")
+                }
+            }
+        }
+    }
+
+    @Test
+    fun testNoInversionLayerIsDetected() {
+        scenario("Skew-T Normal Atmosphere Detected") {
+            story("As a pilot, I want to know if conditions are normal so I can expect typical thermal development.") {
+                given("an atmosphere where 850hPa (-2°C) is cooler than 925hPa (5°C) — normal lapse rate") {
+                    val forecastNoInversion = WeatherForecast(
+                        current = com.madanala.tern.utils.WeatherData(
+                            wind = com.madanala.tern.utils.WindData(0.0, 0.0, 0.0),
+                            temperature = 20.0,
+                            humidity = 50.0,
+                            visibility = 10.0,
+                            pressure = 1013.25,
+                            cloudCover = 0.0,
+                            timestamp = System.currentTimeMillis() / 1000,
+                            temp850hPa = -2.0, 
+                            temp925hPa = 5.0
+                        ),
+                        hourly = emptyList(),
+                        daily = emptyList()
+                    )
+
+                    composeTestRule.setContent {
+                        WeatherDetailsDialog(
+                            forecast = forecastNoInversion,
+                            spotName = "Normal Atmosphere",
+                            isLoading = false,
+                            onDismiss = {}
+                        )
+                    }
+                }
+
+                then("the app reports 'No Inversion'", takeScreenshot = true) {
+                    composeTestRule.onNodeWithTag("SkewTInversionLayer")
+                        .assertTextContains("No Inversion")
                 }
             }
         }

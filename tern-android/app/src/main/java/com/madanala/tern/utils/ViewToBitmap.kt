@@ -91,10 +91,15 @@ object ViewToBitmap {
                     }
                 } finally {
                     if (viewAdded) {
-                        safeParent.removeView(view)
+                        // FIX: Wrap removeView in post to avoid NPE in FrameLayout.layoutChildren.
+                        // Removing a child during its own layout/layout-change listener shifts 
+                        // the rug out from under the parent's layout loop.
+                        view.post {
+                            safeParent.removeView(view)
+                            // PERFORMANCE: Explicitly dispose composition to free memory faster
+                            view.disposeComposition()
+                        }
                         viewAdded = false
-                        // PERFORMANCE: Explicitly dispose composition to free memory faster
-                        view.disposeComposition()
                     }
                 }
             }
@@ -102,7 +107,11 @@ object ViewToBitmap {
             // Fallback cleanup if coroutine is cancelled while waiting for layout
             continuation.invokeOnCancellation {
                 if (viewAdded) {
-                    safeParent.removeView(view)
+                    // Must be on main thread
+                    view.post {
+                        safeParent.removeView(view)
+                        view.disposeComposition()
+                    }
                     viewAdded = false
                 }
             }

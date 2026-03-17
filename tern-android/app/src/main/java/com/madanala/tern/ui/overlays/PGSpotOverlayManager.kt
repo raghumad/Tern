@@ -21,6 +21,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.osmdroid.util.BoundingBox
@@ -352,19 +353,17 @@ class PGSpotOverlayManager(
     private fun launchWeatherFetchingForPGSpots(pgSpotIds: Set<String>) {
         if (pgSpotIds.isEmpty()) return
 
-        weatherFetchJob?.cancel() // Cancel any previous weather fetching
+        weatherFetchJob?.cancel() // Cancel any in-flight fetch before starting new one
 
         weatherFetchJob = coroutineScope.launch {
             try {
-
-                // BATCH: Dispatch Redux actions in batches to prevent state update storms
-                val batchSize = 5 // Process 5 spots at a time
+                // BATCH: Dispatch Redux loading actions in small batches to prevent state update storms
+                val batchSize = 5
                 val spotList = pgSpotIds.toList()
 
                 for (i in spotList.indices step batchSize) {
+                    if (!isActive) return@launch
                     val batch = spotList.subList(i, minOf(i + batchSize, spotList.size))
-
-                    // Dispatch Redux actions for this batch
                     batch.forEach { pgSpotId ->
                         val marker = currentlyRenderedPGSpots[pgSpotId]
                         if (marker != null) {
@@ -373,81 +372,109 @@ class PGSpotOverlayManager(
                             ))
                         }
                     }
-
-                    // Small delay between batches to prevent overwhelming Redux
                     delay(100)
                 }
 
-                // PERFORMANCE OPTIMIZATION: Only fetch weather for spots that truly need it
+                // Only process spots that need a weather refresh and are in range
                 val spotsNeedingWeather = pgSpotIds.filter { pgSpotId ->
                     val marker = currentlyRenderedPGSpots[pgSpotId]
                     marker != null && needsWeatherRefresh(pgSpotId) &&
                     isWithinWeatherRange(marker.center, mapView?.boundingBox ?: return@launch)
                 }
 
-                if (spotsNeedingWeather.isNotEmpty()) {
+                if (spotsNeedingWeather.isNotEmpty() && isActive) {
 
-                    // Fetch weather data sequentially to respect API rate limits
+                    // CACHE PASS: Check WeatherCache first to avoid any API calls
+                    val cacheHits = mutableMapOf<String, com.madanala.tern.utils.WeatherForecast>()
+                    val cacheMisses = mutableListOf<String>()
+
                     for (pgSpotId in spotsNeedingWeather) {
+                        if (!isActive) return@launch
                         val marker = currentlyRenderedPGSpots[pgSpotId] ?: continue
+                        val cached = weatherCache.queryNearbyWeather(
+                            marker.center.latitude, marker.center.longitude
+                        )
+                        if (cached != null) cacheHits[pgSpotId] = cached
+                        else cacheMisses.add(pgSpotId)
+                    }
 
-                        try {
-                            // Check cache first (aviation performance optimization)
-                            var weatherForecast = weatherCache.queryNearbyWeather(
-                                marker.center.latitude,
-                                marker.center.longitude
-                            )
+                    // Apply cache hits immediately
+                    cacheHits.forEach { (pgSpotId, forecast) ->
+                        mapStore?.dispatch(WeatherActions.WeatherFetched(pgSpotId, forecast))
+                        updatePGSpotWithWindGauge(pgSpotId, forecast)
+                        updateWeatherTimestamp(pgSpotId)
+                    }
 
-                            // Fetch fresh data if cache miss or stale
-                            if (weatherForecast == null) {
-                                weatherForecast = weatherAPI.fetchForecast(
-                                    marker.center.latitude,
-                                    marker.center.longitude
-                                )
+                    // PROXIMITY CLUSTER: Deduplicate cache-miss spots within 5km
+                    // (spots that close share essentially the same weather cell)
+                    val CLUSTER_RADIUS_DEG = 0.045 // ~5km at mid-latitudes
+                    val representatives = mutableListOf<com.madanala.tern.utils.LocationRequest>()
+                    val clusterMap = mutableMapOf<String, MutableList<String>>() // repId → memberIds
 
-                                // Cache the fresh data for future requests
-                                weatherForecast?.let { forecast ->
+                    for (pgSpotId in cacheMisses) {
+                        if (!isActive) return@launch
+                        val marker = currentlyRenderedPGSpots[pgSpotId] ?: continue
+                        val existingRep = representatives.firstOrNull { rep ->
+                            val dLat = rep.lat - marker.center.latitude
+                            val dLon = rep.lon - marker.center.longitude
+                            kotlin.math.sqrt(dLat * dLat + dLon * dLon) <= CLUSTER_RADIUS_DEG
+                        }
+                        if (existingRep != null) {
+                            clusterMap.getOrPut(existingRep.id) { mutableListOf() }.add(pgSpotId)
+                        } else {
+                            representatives.add(com.madanala.tern.utils.LocationRequest(
+                                id = pgSpotId,
+                                lat = marker.center.latitude,
+                                lon = marker.center.longitude
+                            ))
+                            clusterMap[pgSpotId] = mutableListOf(pgSpotId)
+                        }
+                    }
+
+                    if (representatives.isNotEmpty() && isActive) {
+                        // BATCH FETCH: One API call for all representative locations
+                        val batchResults = weatherAPI.fetchBatchForecast(representatives)
+
+                        for ((repId, forecast) in batchResults) {
+                            if (!isActive) return@launch
+                            val members = clusterMap[repId] ?: listOf(repId)
+
+                            if (forecast != null) {
+                                // Cache and apply the result to all members of this cluster
+                                val repMarker = currentlyRenderedPGSpots[repId]
+                                if (repMarker != null) {
                                     weatherCache.cacheWeatherData(
-                                        marker.center.latitude,
-                                        marker.center.longitude,
+                                        repMarker.center.latitude,
+                                        repMarker.center.longitude,
                                         forecast
                                     )
                                 }
+                                members.forEach { pgSpotId ->
+                                    mapStore?.dispatch(WeatherActions.WeatherFetched(pgSpotId, forecast))
+                                    updatePGSpotWithWindGauge(pgSpotId, forecast)
+                                    updateWeatherTimestamp(pgSpotId)
+                                }
+                            } else {
+                                members.forEach { pgSpotId ->
+                                    mapStore?.dispatch(WeatherActions.WeatherFetchError(
+                                        pgSpotId, Exception("Batch weather fetch returned null")
+                                    ))
+                                }
                             }
-
-                            // Update Redux state with fetched weather
-                            if (weatherForecast != null) {
-                                  mapStore?.dispatch(WeatherActions.WeatherFetched(pgSpotId, weatherForecast))
-                                  updatePGSpotWithWindGauge(pgSpotId, weatherForecast)
-                                  updateWeatherTimestamp(pgSpotId) // Mark weather as fresh
-                              } else {
-                                 mapStore?.dispatch(WeatherActions.WeatherFetchError(
-                                     pgSpotId,
-                                     Exception("Weather fetch returned null")
-                                 ))
-                                 Log.w(TAG, "Weather fetch returned null for PG spot: $pgSpotId")
-                             }
-
-                        } catch (e: Exception) {
-                            // Aviation resilience - single PG spot weather failure doesn't break system
-                            Log.w(TAG, "Failed to fetch weather for PG spot $pgSpotId", e)
-                            mapStore?.dispatch(WeatherActions.WeatherFetchError(pgSpotId, e))
                         }
-
-                        // Respect API rate limits between requests (aviation professional behavior)
-                        delay(500) // 2 requests per second maximum
                     }
                 }
 
                 lastWeatherUpdate = System.currentTimeMillis()
 
             } catch (e: CancellationException) {
-                // Log.d(TAG, "Weather fetching cancelled due to user interaction")
+                // Expected when user pans the map — new fetch will be launched
             } catch (e: Exception) {
                 Log.e(TAG, "Critical error in weather fetching orchestration", e)
             }
         }
     }
+
 
     /**
      * UPDATE PG SPOT WITH DYNAMIC WIND GAUGE

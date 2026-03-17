@@ -28,7 +28,9 @@ data class WeatherData(
     val visibility: Double,
     val pressure: Double,
     val cloudCover: Double, // Percentage 0-100
-    val timestamp: Long // UTC timestamp
+    val timestamp: Long, // UTC timestamp
+    val temp850hPa: Double? = null, // °C at 850hPa pressure level (≈1500m MSL)
+    val temp925hPa: Double? = null  // °C at 925hPa pressure level (≈750m MSL)
 )
 
 data class ForecastPeriod(
@@ -55,11 +57,26 @@ data class WeatherForecast(
 }
 
 /**
+ * Identifies a physical location for a batch weather request.
+ * [id] is returned as the key in the response map, allowing callers to map
+ * back to their own domain objects (PG spot IDs, waypoint IDs, etc.)
+ */
+data class LocationRequest(val id: String, val lat: Double, val lon: Double)
+
+/**
  * WeatherAPI Interface - Supports multiple weather data sources
  * Aviation-grade with graceful failure handling
  */
 interface WeatherAPI {
     suspend fun fetchForecast(lat: Double, lng: Double): WeatherForecast?
+
+    /**
+     * Fetches weather for multiple locations in a single API call.
+     * Significantly reduces API credit usage vs N individual requests.
+     * @return Map of [LocationRequest.id] to [WeatherForecast] (null if that location failed)
+     */
+    suspend fun fetchBatchForecast(locations: List<LocationRequest>): Map<String, WeatherForecast?>
+
     suspend fun isAvailable(): Boolean
 
     companion object {
@@ -68,6 +85,7 @@ interface WeatherAPI {
         const val MS_TO_KNOTS = 1.94384 // Aviation standard conversion
         const val F_TO_C = -17.2222 // Temperature conversion offset
         const val MB_TO_INHG = 0.02953 // Pressure conversion
+        const val MAX_BATCH_LOCATIONS = 50 // Hard cap to stay within Open-Meteo weight limits
     }
 }
 
@@ -88,8 +106,8 @@ class OpenMeteoWeatherAPI : WeatherAPI {
     companion object {
         // OpenMeteo API configuration
         private const val BASE_URL = "https://api.open-meteo.com/v1/forecast"
-        // Updated to include 80m wind, gusts, cloud cover, and visibility
-        private const val HOURLY_PARAMS = "temperature_2m,relative_humidity_2m,precipitation_probability,pressure_msl,wind_speed_10m,wind_direction_10m,wind_speed_80m,wind_direction_80m,wind_gusts_10m,cloud_cover,visibility"
+        // Updated to include 80m wind, gusts, cloud cover, visibility, and pressure-level temps for Skew-T
+        private const val HOURLY_PARAMS = "temperature_2m,relative_humidity_2m,precipitation_probability,pressure_msl,wind_speed_10m,wind_direction_10m,wind_speed_80m,wind_direction_80m,wind_gusts_10m,cloud_cover,visibility,temperature_850hPa,temperature_925hPa"
         private const val DAILY_PARAMS = "temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max,wind_direction_10m_dominant,sunrise,sunset"
         private const val FORECAST_DAYS = 7
         private const val FORECAST_HOURS = 48 // Two days of hourly data
@@ -130,11 +148,68 @@ class OpenMeteoWeatherAPI : WeatherAPI {
             null
         }
     }
+    override suspend fun fetchBatchForecast(locations: List<LocationRequest>): Map<String, WeatherForecast?> = withContext(Dispatchers.IO) {
+        if (locations.isEmpty()) return@withContext emptyMap()
+
+        // Hard cap to stay within Open-Meteo rate-limit weight formula
+        val capped = locations.take(WeatherAPI.MAX_BATCH_LOCATIONS)
+
+        try {
+            val lats = capped.joinToString(",") { it.lat.toString() }
+            val lons = capped.joinToString(",") { it.lon.toString() }
+            val url = "$BASE_URL?latitude=$lats&longitude=$lons" +
+                      "&hourly=$HOURLY_PARAMS" +
+                      "&daily=$DAILY_PARAMS" +
+                      "&forecast_days=$FORECAST_DAYS" +
+                      "&timezone=auto" +
+                      "&windspeed_unit=kn"
+
+            val request = Request.Builder().url(url).build()
+            val result = mutableMapOf<String, WeatherForecast?>()
+
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    // Return null for all on HTTP error
+                    capped.forEach { result[it.id] = null }
+                    return@withContext result
+                }
+
+                val body = response.body?.string() ?: run {
+                    capped.forEach { result[it.id] = null }
+                    return@withContext result
+                }
+
+                // Open-Meteo returns a JSON array when multiple locations are requested
+                @Suppress("UNCHECKED_CAST")
+                val jsonArray = mapper.readValue<List<Map<String, Any>>>(body)
+
+                jsonArray.forEachIndexed { index, jsonData ->
+                    val loc = capped.getOrNull(index) ?: return@forEachIndexed
+                    result[loc.id] = try {
+                        parseForecast(mapper.writeValueAsString(jsonData), loc.lat, loc.lon)
+                    } catch (e: Exception) {
+                        Log.w("OpenMeteoWeatherAPI", "Failed to parse batch entry for ${loc.id}", e)
+                        null
+                    }
+                }
+            }
+
+            result
+        } catch (e: IOException) {
+            Log.w("OpenMeteoWeatherAPI", "Network error during batch fetch", e)
+            capped.associateBy({ it.id }, { null })
+        } catch (e: Exception) {
+            Log.w("OpenMeteoWeatherAPI", "Error during batch fetch parsing", e)
+            capped.associateBy({ it.id }, { null })
+        }
+    }
+
 
     private fun buildUrl(lat: Double, lng: Double): String {
         return "$BASE_URL?latitude=$lat&longitude=$lng" +
                "&hourly=$HOURLY_PARAMS" +
                "&daily=$DAILY_PARAMS" +
+
                "&forecast_days=$FORECAST_DAYS" +
                "&timezone=auto" +
                "&windspeed_unit=kn" // Crucial for aviation - knots standard
@@ -182,6 +257,10 @@ class OpenMeteoWeatherAPI : WeatherAPI {
             val cloudCovers = hourly["cloud_cover"] as? List<Number> ?: return null
             @Suppress("UNCHECKED_CAST")
             val visibilities = hourly["visibility"] as? List<Number>
+            @Suppress("UNCHECKED_CAST")
+            val temps850 = hourly["temperature_850hPa"] as? List<Number>
+            @Suppress("UNCHECKED_CAST")
+            val temps925 = hourly["temperature_925hPa"] as? List<Number>
 
             if (temperatures.isEmpty()) return null
 
@@ -197,7 +276,9 @@ class OpenMeteoWeatherAPI : WeatherAPI {
                 visibility = visibilities?.firstOrNull()?.toDouble()?.let { it / 1000.0 } ?: 10.0,
                 pressure = pressures.firstOrNull()?.toDouble() ?: 1013.25,
                 cloudCover = cloudCovers.firstOrNull()?.toDouble() ?: 0.0,
-                timestamp = System.currentTimeMillis() / 1000
+                timestamp = System.currentTimeMillis() / 1000,
+                temp850hPa = temps850?.firstOrNull()?.toDouble(),
+                temp925hPa = temps925?.firstOrNull()?.toDouble()
             )
         } catch (e: Exception) {
             Log.w("OpenMeteoWeatherAPI", "Failed to extract current weather", e)
@@ -230,6 +311,10 @@ class OpenMeteoWeatherAPI : WeatherAPI {
             val cloudCovers = hourly["cloud_cover"] as? List<Number> ?: return emptyList()
             @Suppress("UNCHECKED_CAST")
             val visibilities = hourly["visibility"] as? List<Number>
+            @Suppress("UNCHECKED_CAST")
+            val temps850 = hourly["temperature_850hPa"] as? List<Number>
+            @Suppress("UNCHECKED_CAST")
+            val temps925 = hourly["temperature_925hPa"] as? List<Number>
 
             val maxPeriods = minOf(times.size, FORECAST_HOURS, temperatures.size)
 
@@ -250,7 +335,9 @@ class OpenMeteoWeatherAPI : WeatherAPI {
                         visibility = visibilities?.getOrNull(i)?.toDouble()?.let { it / 1000.0 } ?: 10.0,
                         pressure = pressures.getOrNull(i)?.toDouble() ?: 1013.25,
                         cloudCover = cloudCovers.getOrNull(i)?.toDouble() ?: 0.0,
-                        timestamp = startTime
+                        timestamp = startTime,
+                        temp850hPa = temps850?.getOrNull(i)?.toDouble(),
+                        temp925hPa = temps925?.getOrNull(i)?.toDouble()
                     )
 
                     periods.add(ForecastPeriod(
