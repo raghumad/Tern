@@ -929,3 +929,36 @@ tasks.register("generatePerformanceReports") {
     }
 }
 
+// --- Shorthand Helpers ---
+
+/**
+ * Shorthand for running instrumentation tests on a connected device.
+ * Usage: ./gradlew device -Ptest=WeatherUXTest
+ * Or: ./gradlew device -Pt=WeatherUXTest
+ */
+tasks.register("device") {
+    group = "verification"
+    description = "Shorthand for connectedDebugAndroidTest. Usage: ./gradlew device -Ptest=ClassName"
+    
+    val testClass = project.findProperty("test") as? String 
+        ?: project.findProperty("t") as? String
+
+    if (testClass != null) {
+        dependsOn("connectedDebugAndroidTest")
+        // Dynamically configure the connectedDebugAndroidTest task
+        tasks.withType<com.android.build.gradle.internal.tasks.DeviceProviderInstrumentTestTask>().configureEach {
+            // Support comma separated classes
+            val fullClasses = testClass.split(",").joinToString(",") { 
+                if (it.contains(".")) it else "com.madanala.tern.ui.$it"
+            }
+            this.testInstrumentationRunnerArguments.put("class", fullClasses)
+        }
+    } else {
+        doLast {
+            println("\n❌ Error: No test class specified.")
+            println("Usage: ./gradlew device -Ptest=WeatherUXTest")
+            println("Usage (short): ./gradlew device -Pt=WeatherUXTest\n")
+        }
+    }
+}
+

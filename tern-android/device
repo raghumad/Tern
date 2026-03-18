@@ -1,0 +1,26 @@
+#!/bin/bash
+# Shorthand for running Tern UI tests
+# Usage: ./device ClassName1 ClassName2 ...
+
+if [ -z "$1" ]; then
+  echo "Usage: ./device ClassName1 [ClassName2 ...]"
+  exit 1
+fi
+
+CLASSES=""
+for arg in "$@"; do
+  CLASS=$arg
+  # Default to com.madanala.tern.ui package if no package is specified
+  if [[ "$CLASS" != *"."* ]]; then
+    CLASS="com.madanala.tern.ui.$CLASS"
+  fi
+  
+  if [ -z "$CLASSES" ]; then
+    CLASSES="$CLASS"
+  else
+    CLASSES="$CLASSES,$CLASS"
+  fi
+done
+
+echo "🚀 Running UI Tests: $CLASSES"
+./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=$CLASSES

@@ -39,7 +39,9 @@ fun RoutePlanningHUD(
             .padding(16.dp)
             .widthIn(max = 240.dp)
             .testTag("RoutePlanningHUD"),
-        colors = CardDefaults.cardColors(containerColor = com.madanala.tern.ui.theme.AeroSlate), // Aviation-Grade: Higher contrast than glass
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface // Aviation-Grade: Use theme surface (AeroSlate)
+        ),
         elevation = CardDefaults.cardElevation(defaultElevation = 12.dp) // Heavier shadow for glare resistance
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
@@ -49,17 +51,25 @@ fun RoutePlanningHUD(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Column {
-                    Text("DISTANCE", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.9f))
+                    Text(
+                        "DISTANCE",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f)
+                    )
                     Text(
                         "${"%.1f".format(route.totalDistanceKm)} km",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.testTag("HUD_Distance")
                     )
                 }
                 Column(horizontalAlignment = Alignment.End) {
-                    Text("FAI PTS", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.9f))
+                    Text(
+                        "FAI PTS",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f)
+                    )
                     Text(
                         "%.1f".format(route.faiPoints),
                         style = MaterialTheme.typography.titleLarge,
@@ -71,7 +81,7 @@ fun RoutePlanningHUD(
             }
 
             Spacer(modifier = Modifier.height(12.dp))
-            HorizontalDivider(color = Color.White.copy(alpha = 0.3f))
+            HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f))
             Spacer(modifier = Modifier.height(12.dp))
 
             // Airspace Warning (Aviation-Grade: High contrast pulse)
@@ -79,12 +89,12 @@ fun RoutePlanningHUD(
             if (hasAirspaceCollision) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = Color.Red),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.error),
                     modifier = Modifier.fillMaxWidth().testTag("HUD_AirspaceWarning")
                 ) {
                     Text(
                         "🛑 CLASS B COLLISION",
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onError,
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(8.dp).align(Alignment.CenterHorizontally)
@@ -94,7 +104,11 @@ fun RoutePlanningHUD(
 
             // Section: Weather (Adaptive Metrics/4D Trajectory)
             Spacer(modifier = Modifier.height(12.dp))
-            Text("4D TRAJECTORY WEATHER", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.9f))
+            Text(
+                "4D TRAJECTORY WEATHER",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f)
+            )
             Spacer(modifier = Modifier.height(4.dp))
             
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -117,12 +131,17 @@ fun RoutePlanningHUD(
                         .testTag("HUD_Weather_StormRisk"),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("⚠️ STORM RISK", color = Color.Yellow, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold) // Yellow for high contrast on Slate
+                    Text(
+                        "⚠️ STORM RISK",
+                        color = MaterialTheme.colorScheme.tertiary, // AeroOrange for high contrast
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
 
             Spacer(modifier = Modifier.height(12.dp))
-            HorizontalDivider(color = Color.White.copy(alpha = 0.3f))
+            HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f))
             Spacer(modifier = Modifier.height(12.dp))
 
             // Section: Sync Status (Aviation Shield)
@@ -142,7 +161,11 @@ fun RoutePlanningHUD(
                         tint = MaterialTheme.colorScheme.primary
                     )
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("OFFLINE SECURED", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.9f))
+                    Text(
+                        "OFFLINE SECURED",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f)
+                    )
                 }
                 
                 // Flight Ready Shield
@@ -162,8 +185,18 @@ fun RoutePlanningHUD(
 @Composable
 fun WeatherMetricItem(label: String, value: String, tag: String) {
     Column {
-        Text(label, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.8f))
-        Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.testTag(tag))
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+        )
+        Text(
+            value,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.testTag(tag)
+        )
     }
 }
 

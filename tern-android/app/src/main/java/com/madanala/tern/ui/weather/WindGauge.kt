@@ -38,6 +38,7 @@ fun WindGauge(
 ) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(contentAlignment = Alignment.Center, modifier = modifier.size(size)) {
+            val arrowColor = MaterialTheme.colorScheme.onSurface
             Canvas(modifier = Modifier.size(size)) {
                 val strokeWidth = 8.dp.toPx()
                 val radius = (size.toPx() - strokeWidth) / 2
@@ -80,7 +81,7 @@ fun WindGauge(
                             lineTo(center.x + 10f, center.y - arrowLength + 20f)
                             close()
                         }
-                        drawPath(path, Color.White)
+                        drawPath(path, arrowColor)
                     }
                 }
             }
