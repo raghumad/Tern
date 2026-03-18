@@ -64,6 +64,7 @@ fun MapViewContainer(
     LaunchedEffect(store) {
         store.addMiddleware(com.madanala.tern.redux.MapMiddleware(context.applicationContext))
         store.addMiddleware(com.madanala.tern.redux.RoutePlanningMiddleware(context.applicationContext))
+        store.addMiddleware(com.madanala.tern.redux.WeatherMiddleware())
     }
 
 

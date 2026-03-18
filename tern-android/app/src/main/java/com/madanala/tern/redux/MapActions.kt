@@ -145,7 +145,7 @@ sealed class WeatherActions {
     data class SetWeatherDetailsEnabled(val enabled: Boolean) : WeatherActions()
 
     // UI controls for weather details
-    data class ShowWeatherDetails(val pgSpotId: String, val forecast: com.madanala.tern.utils.WeatherForecast?) : WeatherActions()
+    data class ShowWeatherDetails(val pgSpotId: String, val spotName: String, val forecast: com.madanala.tern.utils.WeatherForecast?) : WeatherActions()
     data object DismissWeatherDetails : WeatherActions()
 
     // Cache management

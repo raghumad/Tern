@@ -133,18 +133,24 @@ class OpenMeteoWeatherAPI : WeatherAPI {
             val request = Request.Builder().url(url).build()
 
             client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return@withContext null
+                if (!response.isSuccessful) {
+                    Log.w("OpenMeteoWeatherAPI", "API Error: ${response.code} ${response.message}")
+                    return@withContext null
+                }
 
-                val body = response.body?.string() ?: return@withContext null
+                val body = response.body?.string() ?: run {
+                    Log.w("OpenMeteoWeatherAPI", "API Empty Body")
+                    return@withContext null
+                }
                 parseForecast(body, lat, lng)
             }
         } catch (e: IOException) {
             // Aviation-grade - fail gracefully without breaking app
-            android.util.Log.w("OpenMeteoWeatherAPI", "Network error fetching forecast", e)
+            Log.w("OpenMeteoWeatherAPI", "Network error fetching forecast", e)
             null
         } catch (e: Exception) {
             // Any parsing/other errors - fail gracefully
-            android.util.Log.w("OpenMeteoWeatherAPI", "Error parsing forecast data", e)
+            Log.w("OpenMeteoWeatherAPI", "Error parsing forecast data", e)
             null
         }
     }
@@ -163,8 +169,6 @@ class OpenMeteoWeatherAPI : WeatherAPI {
                       "&forecast_days=$FORECAST_DAYS" +
                       "&timezone=auto" +
                       "&windspeed_unit=kn"
-
-            Log.d("OpenMeteoWeatherAPI", "Starting batch fetch for ${capped.size} locations. URL: $url")
 
             val request = Request.Builder().url(url).build()
             val result = mutableMapOf<String, WeatherForecast?>()

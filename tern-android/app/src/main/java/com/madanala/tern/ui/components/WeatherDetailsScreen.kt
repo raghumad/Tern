@@ -53,7 +53,8 @@ fun WeatherDetailsDialog(
                     text = "Weather - $spotName",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.testTag("WeatherDialogTitle")
                 )
                 Text(
                     text = "Aviation Forecast",
@@ -68,12 +69,14 @@ fun WeatherDetailsDialog(
                     modifier = Modifier.fillMaxWidth().height(200.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    androidx.compose.material3.CircularProgressIndicator()
+                    androidx.compose.material3.CircularProgressIndicator(
+                        modifier = Modifier.testTag("WeatherLoadingIndicator")
+                    )
                 }
             } else if (forecast == null) {
                 Text(
                     "Weather data unavailable",
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().testTag("WeatherUnavailableMessage"),
                     textAlign = TextAlign.Center
                 )
             } else {
@@ -211,17 +214,17 @@ private fun CurrentWeatherCard(weather: WeatherData) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                WeatherDetail("Humidity", "${weather.humidity.toInt()}%")
-                WeatherDetail("Pressure", "${weather.pressure.toInt()} hPa")
-                WeatherDetail("Visibility", "${weather.visibility.toInt()} km")
+                WeatherDetail("Humidity", "${weather.humidity.toInt()}%", Modifier.testTag("WeatherHumidityValue"))
+                WeatherDetail("Pressure", "${weather.pressure.toInt()} hPa", Modifier.testTag("WeatherPressureValue"))
+                WeatherDetail("Visibility", "${weather.visibility.toInt()} km", Modifier.testTag("WeatherVisibilityValue"))
             }
             Spacer(modifier = Modifier.height(8.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                WeatherDetail("Gust", "${weather.wind.gust.toInt()} kt")
-                WeatherDetail("Cloud Cover", "${weather.cloudCover.toInt()}%")
+                WeatherDetail("Gust", "${weather.wind.gust.toInt()} kt", Modifier.testTag("WeatherGustValue"))
+                WeatherDetail("Cloud Cover", "${weather.cloudCover.toInt()}%", Modifier.testTag("WeatherCloudCoverValue"))
             }
         }
     }
@@ -429,9 +432,27 @@ private fun SkewTPlaceholderCard(weatherData: com.madanala.tern.utils.WeatherDat
                     modifier = Modifier.testTag("SkewTCloudBase")
                 )
                 WeatherDetail(
-                    label = "Inversion Layer",
+                    label = "Inversion",
                     value = inversionText,
                     modifier = Modifier.testTag("SkewTInversionLayer")
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                WeatherDetail(
+                    label = "Lapse Rate",
+                    value = weatherData?.let { computeLapseRate(it) } ?: "—",
+                    modifier = Modifier.testTag("WeatherLapseRate")
+                )
+                WeatherDetail(
+                    label = "Storm Risk",
+                    value = weatherData?.let { evaluateStormRisk(it) } ?: "—",
+                    modifier = Modifier.testTag("WeatherStormRisk")
                 )
             }
         }
@@ -462,7 +483,37 @@ private fun detectInversionLayer(weather: com.madanala.tern.utils.WeatherData): 
     val t925 = weather.temp925hPa
     return when {
         t850 == null || t925 == null -> "No data"
-        t850 > t925 -> "Inversion Detected"
-        else -> "No Inversion"
+        t850 > t925 -> "Inversion" // Shortened for UX
+        else -> "Normal"
+    }
+}
+
+/**
+ * Computes Lapse Rate in °C per 1000m based on surface vs 850hPa level (≈1500m).
+ * Standard lapse rate is 6.5°C/km. >8.0 indicates high instability.
+ */
+private fun computeLapseRate(weather: WeatherData): String {
+    val tSfc = weather.temperature
+    val t850 = weather.temp850hPa ?: return "No data"
+    
+    // Lapse Rate = (T_lower - T_upper) / (Alt_upper - Alt_lower)
+    // 850hPa is approx 1500m. Surface is 0m.
+    val lapseRate = (tSfc - t850) / 1.5
+    return "%.1f°/km".format(lapseRate)
+}
+
+/**
+ * Evaluates storm risk based on lapse rate instability and moisture.
+ * Logic: High Lapse Rate (>8) + High Humidity (>70%) = High Risk.
+ */
+private fun evaluateStormRisk(weather: WeatherData): String {
+    val tSfc = weather.temperature
+    val t850 = weather.temp850hPa ?: return "No data"
+    val lapseRate = (tSfc - t850) / 1.5
+    
+    return when {
+        lapseRate > 8.5 && weather.humidity > 75 -> "High (Thunder)"
+        lapseRate > 7.0 && weather.humidity > 60 -> "Moderate"
+        else -> "Low"
     }
 }
