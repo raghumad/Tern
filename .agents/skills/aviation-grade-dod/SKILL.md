@@ -26,6 +26,7 @@ This checklist provides the definitive, data-driven criteria for marking a featu
 ## 👁️ 3. Semantic UI & BDD Verification
 - [ ] **Pilot Status Visibility**: Background operations (caching, sync) are represented by active UI state changes (Icons, HUD shields).
 - [ ] **BDD Fidelity**: At least one pilot-centric `scenario` added to the instrumented test suite.
+- [ ] **Closed-Loop Verification**: All map interaction tests must use state assertions (e.g. `assertMapLocation`) to verify the physical UI reached the intended geographical state.
 - [ ] **Assertion Accuracy**: UI tests assert against unique `Modifier.testTag` IDs rather than text strings (to ensure localization stability).
 - [ ] **Empirical Proof**: Verified the existence of BDD screenshots in `build/reports/bdd-report`.
 

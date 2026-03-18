@@ -45,6 +45,11 @@ Before implementing a new class, state property, or constant, ask the following 
 - **Result**: Conflicting taxonomy obscured logcat analysis, creating the illusion that the dynamic capacity governor was malfunctioning or aggressively dropping SLA budgets.
 - **Solution**: Decouple the terminology. Rename the coordinator's metric to "Global Overlay Usage". The SSOT for terminology is equally as important as the SSOT for memory state!
 
+### Anti-Pattern: One-Way Reactive Bridge
+- **Previous State**: `ReduxMapBridge` only synchronized state from the MapView → Redux. 
+- **Result**: Attempting to move the map via a Redux action was "lost" because the MapView wasn't observing the store for its own camera state.
+- **Solution**: Implement Bidirectional Synchronization. Redux MUST be the Source of Truth for the map camera. If the store says the center is X, the map MUST move to X reactively.
+
 ## Diagnostic Checklist
 - [ ] Have I identified the **Owner** of this information?
 - [ ] Is this value **Purely Derived**? (If so, use a `val` getter).

@@ -22,6 +22,10 @@ When architecting UI automated tests utilizing the custom BDD reporting framewor
 **Symptom:** A BDD step reads `when("I create a physical map route")`, but the code block only performs `ReportGenerator.logStep(...)` without modifying any UI state.
 **Principle:** BDD steps are not stubs. Every `when` or `given` action MUST trigger physical Redux `MapAction` dispatches or Espresso UI interactions that manifest visually on the Compose canvas. The subsequent `then` step must natively assert those elements exist *before* the BDD engine captures the screenshot.
 
-## ⏱️ 4. Logcat Temporal Synchronization
-**Symptom:** A BDD HTML report indicates `RESULT: Scenario Passed`, but the developer cannot identify *when* that step physically occurred inside the massive Android Logcat execution stream.
-**Principle:** BDD Step models must natively capture `System.currentTimeMillis()`. The HTML `ReportGenerator` MUST print the formatted timestamp `[HH:mm:ss.SSS]` inside every execution step block. This guarantees 1:1 cross-referencing between the UI assertion milestone and the underlying system `Log.i` performance metrics.
+## 🎬 5. Closed-Loop State Verification
+**Symptom:** Tests pass because the "Action" (e.g. `swipeMap`) was invoked, but the map never actually reached the destination or the overlays never rendered.
+**Principle:** **Aviation-grade tests are Closed-Loop.** Every interaction must conclude with a state-based assertion (e.g. `assertMapLocation(lat, lon)`). Do not assume the Viewport followed the Redux command; verify the physical `MapView.mapCenter` directly.
+
+## 🕹️ 6. Deterministic Interaction Steps
+**Symptom:** Rapid swipes trigger the map's physics-based momentum (fling), causing non-deterministic "landing" zones in tests.
+**Principle:** Simulated gestures must be deterministic. Use a higher number of `steps` (e.g. 20+) for swipes to provide sufficient friction, preventing the OS from injecting erratic momentum that throws the map off-course during automated execution.
