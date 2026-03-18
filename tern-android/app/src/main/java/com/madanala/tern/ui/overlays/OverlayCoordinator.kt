@@ -48,6 +48,9 @@ class OverlayCoordinator {
 
     // Universal overlay animation manager for smooth transitions
     private val overlayAnimationManager = OverlayAnimationManager()
+    
+    // Adaptive overlay system for centralized memory management
+    private var adaptiveOverlaySystem: com.madanala.tern.utils.AdaptiveOverlaySystem? = null
 
     // Batch overlay operations for Hilbert curve ordering
     private val pendingAdditions = mutableListOf<OverlayWithInfo>()
@@ -71,8 +74,14 @@ class OverlayCoordinator {
     inner class UniversalOverlayPool {
         private val markerPool = mutableListOf<org.osmdroid.views.overlay.Marker>()
         private val polygonPool = mutableListOf<org.osmdroid.views.overlay.Polygon>()
-        private val MAX_POOL_SIZE = 100
-
+        private var maxPoolSize = 100
+        
+        fun setMaxPoolSize(size: Int) {
+            maxPoolSize = size
+            // Note: We don't prune immediately, but future releases will be capped
+            Log.d("OverlayPool", "Resizing UniversalOverlayPool to $size")
+        }
+        
         fun acquireMarker(mapView: MapView): org.osmdroid.views.overlay.Marker {
             return if (markerPool.isNotEmpty()) {
                 markerPool.removeAt(markerPool.size - 1).apply {
@@ -86,13 +95,13 @@ class OverlayCoordinator {
                 org.osmdroid.views.overlay.Marker(mapView)
             }
         }
-
+        
         fun releaseMarker(marker: org.osmdroid.views.overlay.Marker) {
-            if (markerPool.size < MAX_POOL_SIZE) {
+            if (markerPool.size < maxPoolSize) {
                 markerPool.add(marker)
             }
         }
-
+        
         fun acquirePolygon(mapView: MapView): org.osmdroid.views.overlay.Polygon {
             return if (polygonPool.isNotEmpty()) {
                 polygonPool.removeAt(polygonPool.size - 1).apply {
@@ -103,9 +112,9 @@ class OverlayCoordinator {
                 org.osmdroid.views.overlay.Polygon()
             }
         }
-
+        
         fun releasePolygon(polygon: org.osmdroid.views.overlay.Polygon) {
-            if (polygonPool.size < MAX_POOL_SIZE) {
+            if (polygonPool.size < maxPoolSize) {
                 polygonPool.add(polygon)
             }
         }
@@ -189,6 +198,14 @@ class OverlayCoordinator {
             mapView.overlays.add(routeLayer)
         }
 
+        // Initialize adaptive overlay system for centralized memory management
+        adaptiveOverlaySystem = com.madanala.tern.utils.AdaptiveOverlaySystem(context).apply {
+            startMonitoring(
+                onMemoryStateChanged = { /* Handled by individual managers */ },
+                onBudgetChanged = { budget -> onOverlayBudgetChanged(budget) }
+            )
+        }
+
         // Initialize universal country cache manager for all overlay types (Priority 0 fix)
         // [LIFECYCLE FIX] Shut down old manager first if it exists to prevent orphaned downloaders
         countryCacheManager?.shutdown()
@@ -209,7 +226,7 @@ class OverlayCoordinator {
         }
         
         // Log.d(TAG, "Universal country cache manager initialized for all overlay types")
-
+        
         // Trigger performance debugger initialization for development monitoring
         // PerformanceDebugger.triggerTestEvents() removed as it's no longer available
 
@@ -220,6 +237,11 @@ class OverlayCoordinator {
             startStateObservation()
         }
     }
+
+    /**
+     * Get the centralized adaptive overlay system
+     */
+    fun getAdaptiveOverlaySystem(): com.madanala.tern.utils.AdaptiveOverlaySystem? = adaptiveOverlaySystem
 
     /**
      * Add an overlay manager to the coordinator
@@ -334,6 +356,18 @@ class OverlayCoordinator {
                 manager.performMapMove(centerPoint, zoom)
             }
         }
+    }
+
+    /**
+     * Handle overlay budget changes at the coordinator level
+     */
+    fun onOverlayBudgetChanged(budget: com.madanala.tern.utils.OverlayBudget) {
+        // Sync pool sizes with current system-wide budget
+        // Adding a 2x buffer to account for overlapping managers and rapid interaction churn
+        overlayPool.setMaxPoolSize(budget.totalOverlays * 2)
+        
+        // Propagate to managers (redundant as they also listen, but ensures consistency)
+        activeManagers.values.forEach { it.onReduxStateChanged(mapStore?.state?.value ?: return@forEach) }
     }
 
     /**

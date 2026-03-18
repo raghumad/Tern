@@ -23,6 +23,12 @@ Any UI elements generated from spatial data (Markers, Polygons, Paths) must be m
 ### 5. Dynamic Spatial Boundaries
 Never hardcode geographic, political, or spatial boundaries (e.g., country adjacency maps). All spatial resolutions MUST use dynamic geocoding (e.g., `CountryUtils.getNearbyCountryCodes`) or mathematical spatial indexing. This guarantees global portability and prevents the system from being restricted to hand-coded regions.
 
+### 6. Memory-Efficient View-to-Bitmap Caching
+For dynamic overlays (e.g., Wind Gauges) generated from UI views, use a sufficiently sized `LruCache` to prevent "Cache Thrashing" and excessive `ComposeView` allocations during rapid panning in high-density regions.
+
+### 7. Centralized Adaptive Budgeting (SSOT)
+All resource-intensive caches (bitmaps, object pools, active feature sets) MUST be dynamically resized based on the centralized `AdaptiveOverlaySystem` budget provided by the `OverlayCoordinator`. Never hardcode cache sizes for map overlays; instead, subscribe to `onOverlayBudgetChanged` and call `LruCache.resize()` to ensure the system's memory-aware "Source of Truth" is consistently applied.
+
 ## When to Apply
 
 - **Feature Scanning**: Any task that involves "scanning" or "querying" local feature caches.
@@ -41,6 +47,7 @@ Never hardcode geographic, political, or spatial boundaries (e.g., country adjac
 - [ ] Is the data being read directly from a memory-mapped buffer instead of a full heap list?
 - [ ] Is the query using a Hilbert index to narrow the search space?
 - [ ] Are we avoiding `JSON` parsing in the hot path (map movement)?
-- [ ] Is the result set limited by a global performance budget?
+- [ ] **Adaptive Budgeting**: Is the resource (bitmap cache, object pool) dynamically resized based on `OverlayBudget`? (No hardcoded limits).
+- [ ] **Spatial SSOT**: Is the query key specific enough (e.g., location + radius) to prevent stale results from different areas of the same country?
 - [ ] Does the test suite include a "Rapid Panning" stress test for this data?
 - [ ] Are spatial boundaries and regional adjacencies resolved dynamically rather than hardcoded?

@@ -183,9 +183,8 @@ abstract class BaseOverlayManager(
         this.mapView = mapView
         isAttached = true
 
-
-        // Initialize adaptive overlay system
-        initializeAdaptiveOverlaySystem()
+        // No longer initializes adaptive system locally.
+        // It's provided by the OverlayCoordinator via setOverlayCoordinator.
 
         // Start listening to Redux state
         startReduxSubscription()
@@ -331,7 +330,19 @@ abstract class BaseOverlayManager(
     override fun setOverlayCoordinator(coordinator: OverlayCoordinator?) {
         this.mOverlayCoordinator = coordinator
         this.animationManager = coordinator?.getAnimationManager()
-        // Log.d(TAG, "Overlay coordinator and animation manager connected")
+        
+        // [ADAPTIVE CENTRALIZATION] Receive the centralized adaptive system from the coordinator
+        val system = coordinator?.getAdaptiveOverlaySystem()
+        if (system != null) {
+            this.adaptiveOverlaySystem = system
+            // Start monitoring if not already (or just handle callbacks)
+            // The coordinator handles the primary monitoring, but we still need our local callbacks
+            system.startMonitoring(
+                onMemoryStateChanged = { memoryState: ApplicationMemoryState -> handleMemoryStateChanged(memoryState) },
+                onBudgetChanged = { budget: OverlayBudget -> handleBudgetChanged(budget) },
+                flightPhase = currentFlightPhase
+            )
+        }
     }
 
 
@@ -413,31 +424,7 @@ abstract class BaseOverlayManager(
     }
 
     // === MEMORY-BASED ADAPTIVE OVERLAY SYSTEM ===
-
-    /**
-     * Initialize the adaptive overlay system for memory-based allocation
-     */
-    private fun initializeAdaptiveOverlaySystem() {
-        try {
-            adaptiveOverlaySystem = AdaptiveOverlaySystem(mapView?.context ?: return)
-            // Log.d(TAG, "Adaptive overlay system initialized")
-
-            // Start monitoring with callbacks
-            adaptiveOverlaySystem?.startMonitoring(
-                onMemoryStateChanged = { memoryState ->
-                    handleMemoryStateChanged(memoryState)
-                },
-                onBudgetChanged = { budget ->
-                    handleBudgetChanged(budget)
-                },
-                flightPhase = currentFlightPhase
-            )
-
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to initialize adaptive overlay system", e)
-            // Continue without adaptive system (graceful degradation)
-        }
-    }
+    // Local initialization removed in favor of centralized system in OverlayCoordinator
 
     /**
      * Handle memory state changes from the adaptive system

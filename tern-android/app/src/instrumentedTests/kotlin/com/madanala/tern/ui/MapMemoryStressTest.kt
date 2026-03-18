@@ -38,23 +38,21 @@ class MapMemoryStressTest : MapVisualTest() {
             given("The map is centered on Chamonix, French Alps (High PG Spot Density)") {
                  // Chamonix: 45.9237, 6.8694
                  CountryUtils.setTestCountryCode("FR")
-                 val mapViewModel = ViewModelProvider(activity)[com.madanala.tern.ui.components.MapViewModel::class.java]
-                 mapViewModel.mapView.controller.setZoom(12.0)
-                 mapViewModel.mapView.controller.setCenter(GeoPoint(45.9237, 6.8694))
                  
+                 // Use Redux as ONLY Source of Truth for camera
                  store.dispatch(MapAction.UpdateCenter(GeoPoint(45.9237, 6.8694)))
                  store.dispatch(MapAction.UpdateZoom(12.0))
+                 
                  composeTestRule.waitForIdle()
+                 // [CLOSED-LOOP] Verify the move actually happened
+                 assertMapLocation(45.9237, 6.8694)
                  
                  // Wait for debounce in BaseOverlayManager (300ms) to fire performMapMove
                  Thread.sleep(500)
                  
                  // Wait for PG spots to load and render initially
-                 try {
-                     waitForPGSpots(minCount = 5, timeoutMillis = 10000)
-                 } catch (e: AssertionError) {
-                     android.util.Log.w("MapMemoryStressTest", "PGSpots failed to load (likely Cloudflare 429 Rate Limit from CI execution). Continuing memory stress test with Airspaces only. Original error: ${e.message}")
-                 }
+                 // [STRICT VERIFICATION] Remove try-catch to expose failures
+                 waitForPGSpots(minCount = 5, timeoutMillis = 20000)
                  PerformanceDebugger.logHeapUsage("STRESS_START_AFTER_LOAD")
             }
 
