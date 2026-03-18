@@ -82,7 +82,7 @@ class PGSpotCacheTest {
         """.trimIndent()
 
         // Mock download
-        coEvery { GeoJsonUtils.downloadGeoJson(any()) } returns geoJson
+        coEvery { GeoJsonUtils.downloadGeoJson(any(), any()) } returns geoJson
 
         val result = pgSpotCache.downloadAndCache(countryCode)
 
@@ -135,7 +135,7 @@ class PGSpotCacheTest {
         val countryCode = "IT"
         val invalidJson = "Not JSON"
 
-        coEvery { GeoJsonUtils.downloadGeoJson(any()) } returns invalidJson
+        coEvery { GeoJsonUtils.downloadGeoJson(any(), any()) } returns invalidJson
 
         val result = pgSpotCache.downloadAndCache(countryCode)
 

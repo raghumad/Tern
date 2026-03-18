@@ -111,6 +111,15 @@ data class OverlayState(
 )
 
 /**
+ * State for the currently displayed weather details dialog
+ */
+data class WeatherDialogState(
+    val pgSpotId: String,
+    val spotName: String,
+    val forecast: com.madanala.tern.utils.WeatherForecast?
+)
+
+/**
  * Weather state for dynamic PG spot weather overlays
  */
 data class WeatherState(
@@ -121,7 +130,7 @@ data class WeatherState(
     val errors: Map<String, Throwable> = emptyMap(),
     val showWeatherGauges: Boolean = true,
     val showWeatherDetails: Boolean = true,
-    val showingWeatherDialog: Pair<String, com.madanala.tern.utils.WeatherForecast>? = null,
+    val showingWeatherDialog: WeatherDialogState? = null,
     val weatherAPIOnline: Boolean = true,
     val cacheSize: Int = 0,
     val cacheHits: Int = 0,

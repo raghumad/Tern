@@ -666,7 +666,11 @@ fun weatherReducer(state: MapState, action: WeatherActions): MapState = when (ac
     // UI controls for weather details
     is WeatherActions.ShowWeatherDetails -> {
         val newWeatherState = state.weatherState.copy(
-            showingWeatherDialog = action.forecast?.let { Pair(action.pgSpotId, it) }
+            showingWeatherDialog = WeatherDialogState(
+                pgSpotId = action.pgSpotId,
+                spotName = action.spotName,
+                forecast = action.forecast
+            )
         )
         state.copy(weatherState = newWeatherState)
     }

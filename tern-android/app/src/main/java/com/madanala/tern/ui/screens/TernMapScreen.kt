@@ -187,11 +187,11 @@ fun TernMapScreen(
     }
 
     // Show weather details dialog when PG spot is tapped
-    state.weatherState.showingWeatherDialog?.let { (pgSpotId, forecast) ->
+    state.weatherState.showingWeatherDialog?.let { dialogState ->
         WeatherDetailsDialog(
-            forecast = forecast,
-            spotName = pgSpotId,
-            isLoading = state.weatherState.fetchingSpots.contains(pgSpotId),
+            forecast = dialogState.forecast ?: state.weatherState.spotWeathers[dialogState.pgSpotId],
+            spotName = dialogState.spotName,
+            isLoading = state.weatherState.fetchingSpots.contains(dialogState.pgSpotId),
             onDismiss = {
                 store.dispatch(WeatherActions.DismissWeatherDetails)
             }
