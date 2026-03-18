@@ -45,10 +45,12 @@ Before implementing a new class, state property, or constant, ask the following 
 - **Result**: Conflicting taxonomy obscured logcat analysis, creating the illusion that the dynamic capacity governor was malfunctioning or aggressively dropping SLA budgets.
 - **Solution**: Decouple the terminology. Rename the coordinator's metric to "Global Overlay Usage". The SSOT for terminology is equally as important as the SSOT for memory state!
 
-### Anti-Pattern: One-Way Reactive Bridge
-- **Previous State**: `ReduxMapBridge` only synchronized state from the MapView → Redux. 
-- **Result**: Attempting to move the map via a Redux action was "lost" because the MapView wasn't observing the store for its own camera state.
 - **Solution**: Implement Bidirectional Synchronization. Redux MUST be the Source of Truth for the map camera. If the store says the center is X, the map MUST move to X reactively.
+
+### Anti-Pattern: Fragmented Resource Budgets
+- **Previous State**: Individual overlay managers (`PGSpotOverlayManager.kt`) hardcoded their own cache sizes or initialized redundant `AdaptiveOverlaySystem` monitors.
+- **Result**: Conflicting resource limits and high GC pressure in high-density regions because the local "truth" (e.g. 50 spots) contradicted the system's actual capacity (e.g. 400 spots).
+- **Solution**: Centralize budget distribution in `OverlayCoordinator.kt`. Managers MUST query the single `AdaptiveOverlaySystem` instance provided by the coordinator and resize their internal caches dynamically via `onOverlayBudgetChanged`.
 
 ## Diagnostic Checklist
 - [ ] Have I identified the **Owner** of this information?

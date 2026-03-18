@@ -29,7 +29,6 @@ class UniversalCountryCacheManager(
     private var lastLocation: GeoPoint? = null
     private var currentCountry: String? = null
     private var locationJob: kotlinx.coroutines.Job? = null
-    private val activeCountryQueries = java.util.concurrent.ConcurrentHashMap<String, Deferred<List<com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature>>>()
     // Enhanced access tracking for intelligent cache management
     private val countryAccessMetadata = mutableMapOf<String, CountryAccessMetadata>()
     private val accessOrderedCountries = LinkedHashSet<String>() // LRU ordering for cache eviction
@@ -166,7 +165,6 @@ class UniversalCountryCacheManager(
         currentCountry = null
         cachedCountries.clear()
         downloadingCountries.clear()
-        activeCountryQueries.clear()
         
         synchronized(countryAccessMetadata) {
             countryAccessMetadata.clear()
@@ -459,26 +457,18 @@ class UniversalCountryCacheManager(
         Log.d(TAG, "queryMultiCountryArea: Querying ${countriesToQuery.size} countries ($countriesToQuery) at $normalizedCenter")
 
         val deferredResults = countriesToQuery.map { countryCode ->
-            // Use computeIfAbsent to ensure we only have one active query per country code
-            // IMPORTANT: We use the manager's persistent coroutineScope for the async task, 
-            // so it doesn't get cancelled if one of the calling managers cancels its own transient scope.
-            activeCountryQueries.computeIfAbsent(countryCode) {
-                this@UniversalCountryCacheManager.coroutineScope.async(Dispatchers.IO) {
-                    try {
-                        val features = queryCountryFeatures(normalizedCenter, countryCode, radiusKm)
-                        if (features.isEmpty()) {
-                            Log.v(TAG, "queryMultiCountryArea: Country $countryCode returned 0 features at $normalizedCenter")
-                        } else {
-                            Log.d(TAG, "queryMultiCountryArea: Country $countryCode returned ${features.size} features")
-                        }
-                        features
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Error querying country $countryCode", e)
-                        emptyList()
-                    } finally {
-                        // Remove from active queries when done so subsequent pans can trigger fresh queries
-                        activeCountryQueries.remove(countryCode)
+            this@UniversalCountryCacheManager.coroutineScope.async(Dispatchers.IO) {
+                try {
+                    val features = queryCountryFeatures(normalizedCenter, countryCode, radiusKm)
+                    if (features.isEmpty()) {
+                        Log.v(TAG, "queryMultiCountryArea: Country $countryCode returned 0 features at $normalizedCenter")
+                    } else {
+                        Log.d(TAG, "queryMultiCountryArea: Country $countryCode returned ${features.size} features")
                     }
+                    features
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error querying country $countryCode", e)
+                    emptyList()
                 }
             }
         }

@@ -143,7 +143,7 @@ class PGSpotOverlayManager(
 
     // PERFORMANCE CACHES: Drastically reduces GC pressure during map interaction
     private var cachedStaticIcon: Bitmap? = null
-    private val windGaugeCache = LruCache<Int, Bitmap>(50) // Cache last 50 unique wind gauge bitmaps
+    private val windGaugeCache = LruCache<Int, Bitmap>(50) // Default size, resized dynamically via budget
 
     data class PGSpotMarker(
          val marker: Marker,
@@ -430,7 +430,7 @@ class PGSpotOverlayManager(
                         // 🚀 PERFORMANCE: reuse Bitmap instance and reset anchor
                         marker.icon = android.graphics.drawable.BitmapDrawable(applicationContext.resources, bitmap)
                         marker.setAnchor(org.osmdroid.views.overlay.Marker.ANCHOR_CENTER, org.osmdroid.views.overlay.Marker.ANCHOR_CENTER)
-                        mapView.invalidate()
+                        mapView?.invalidate()
                     } catch (e: Exception) {
                         Log.w(TAG, "Failed to generate bitmap for PG spot $pgSpotId", e)
                     }
@@ -687,6 +687,7 @@ class PGSpotOverlayManager(
             // Calculate distance from user for prioritization
             val center = feature.centroid
             val distanceKm = calculateDistanceFromUser(center)
+
 
             // Store marker with weather capability and initial timestamp
             val pgSpotMarker = PGSpotMarker(
@@ -967,24 +968,6 @@ class PGSpotOverlayManager(
         mapView?.invalidate()
     }
 
-    /**
-     * Handle overlay budget changes with generalized logging
-     */
-    override fun onOverlayBudgetChanged(budget: com.madanala.tern.utils.OverlayBudget) {
-        super.onOverlayBudgetChanged(budget)
-
-        // Get actually visible PG spots (added to map vs just created)
-        val actuallyVisibleSpots = currentlyRenderedPGSpots.count { (_, markerData) ->
-            mapView?.overlays?.contains(markerData.marker) == true &&
-            isPointInBoundingBox(markerData.center, mapView?.boundingBox ?: return@count false)
-        }
-
-        // Generic logging for "Overlay Budget" as requested (SSOT)
-        Log.i(TAG, "Overlay Budget [PG_SPOT]: ${budget.totalOverlays} total capacity (Created: ${currentlyRenderedPGSpots.size}, Visible: $actuallyVisibleSpots)")
-        
-        // Let coordinator handle global summary reporting
-        mOverlayCoordinator?.reportGlobalOverlayUsage()
-    }
 
     /**
      * Handle memory state changes for PG spot-specific optimizations
@@ -998,6 +981,29 @@ class PGSpotOverlayManager(
             Log.w(TAG, "Memory pressure detected - triggering enhanced PG spot cleanup")
             triggerEmergencyCleanup()
         }
+    }
+    
+    /**
+     * Handle overlay budget changes with dynamic cache resizing and usage reporting
+     */
+    override fun onOverlayBudgetChanged(budget: com.madanala.tern.utils.OverlayBudget) {
+        super.onOverlayBudgetChanged(budget)
+        
+        // 1. Dynamically resize bitmap cache based on current overlay budget
+        // This ensures the cache follows the "Source of Truth" for memory allocation
+        windGaugeCache.resize(budget.totalOverlays)
+        
+        // 2. Usage Reporting (SSOT alignment)
+        val actuallyVisibleSpots = currentlyRenderedPGSpots.count { (_, markerData) ->
+            mapView?.overlays?.contains(markerData.marker) == true &&
+            isPointInBoundingBox(markerData.center, mapView?.boundingBox ?: return@count false)
+        }
+        Log.i(TAG, "Overlay Budget [PG_SPOT]: ${budget.totalOverlays} total capacity (Created: ${currentlyRenderedPGSpots.size}, Visible: $actuallyVisibleSpots)")
+        
+        // 3. Let coordinator handle global summary reporting
+        mOverlayCoordinator?.reportGlobalOverlayUsage()
+        
+        Log.d(TAG, "Dynamic Budget: Resizing windGaugeCache to ${budget.totalOverlays} (Budget: ${budget.totalOverlays})")
     }
 
     /**
