@@ -133,7 +133,7 @@ fun RouteDetailPanel(
                 .testTag("RouteDetailPanel"),
             elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
             colors = CardDefaults.cardColors(
-                containerColor = com.madanala.tern.ui.theme.AeroGlass
+                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f) // Aviation-Grade: Use theme surface with glass alpha
             )
         ) {
             Column(
@@ -219,8 +219,8 @@ fun RouteSearchContent(store: MapStore) {
             singleLine = true,
             leadingIcon = { Icon(androidx.compose.material.icons.Icons.Default.Search, contentDescription = null) },
             colors = TextFieldDefaults.colors(
-                unfocusedContainerColor = com.madanala.tern.ui.theme.AeroSlate,
-                focusedContainerColor = com.madanala.tern.ui.theme.AeroSlate
+                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                focusedContainerColor = MaterialTheme.colorScheme.surface
             )
         )
         
@@ -378,7 +378,7 @@ fun RouteDetailsContent(
 
                     Card(
                         colors = CardDefaults.cardColors(
-                            containerColor = com.madanala.tern.ui.theme.AeroSlate
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant
                         ),
                         modifier = Modifier.fillMaxWidth()
                     ) {

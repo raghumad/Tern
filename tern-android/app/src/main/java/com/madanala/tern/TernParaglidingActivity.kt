@@ -33,7 +33,7 @@ class TernParaglidingActivity : ComponentActivity() {
         Configuration.getInstance().userAgentValue = packageName
 
         setContent {
-            TernTheme {
+            TernTheme(darkTheme = true) { // Aviation-Grade: Force Aero Stealth (Dark) for visual consistency & cockpit readability
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     TernMapScreen()
                 }

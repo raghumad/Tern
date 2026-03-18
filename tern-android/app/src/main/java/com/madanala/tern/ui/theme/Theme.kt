@@ -51,8 +51,11 @@ private val DarkColorScheme = darkColorScheme(
     surface = AeroSlate,
     onPrimary = Color.Black,
     onSecondary = Color.Black,
+    onTertiary = Color.Black,
     onBackground = Color.White,
-    onSurface = Color.White
+    onSurface = Color.White,
+    surfaceVariant = AeroSlate.copy(alpha = 0.7f),
+    onSurfaceVariant = Sleet
 )
 
 private val LightColorScheme = lightColorScheme(
@@ -64,7 +67,8 @@ private val LightColorScheme = lightColorScheme(
     onPrimary = Color.White,
     onSecondary = Color.Black,
     onBackground = AeroCharcoal,
-    onSurface = AeroCharcoal
+    onSurface = AeroCharcoal,
+    onSurfaceVariant = AeroCharcoal.copy(alpha = 0.7f)
 )
 
 @Composable
