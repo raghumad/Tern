@@ -22,9 +22,14 @@ fun WindGaugeMarker(
     gust: Double = 0.0,
     isStale: Boolean = false
 ) {
-    val backgroundColor = if (isStale) Color.LightGray else MaterialTheme.colorScheme.surface
-    val borderColor = if (isStale) Color.Gray else MaterialTheme.colorScheme.primary
-    val contentColor = if (isStale) Color.Gray else MaterialTheme.colorScheme.onSurface
+    val backgroundColor = if (isStale) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface
+    val borderColor = if (isStale) MaterialTheme.colorScheme.outlineVariant else MaterialTheme.colorScheme.primary
+    val contentColor = if (isStale) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
+    
+    // Gradient colors for the indicator
+    val activeGradient = listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.secondary)
+    val staleGradient = listOf(MaterialTheme.colorScheme.outlineVariant, MaterialTheme.colorScheme.outlineVariant)
+    val indicatorGradient = if (isStale) staleGradient else activeGradient
 
     Box(
         modifier = Modifier
@@ -41,7 +46,7 @@ fun WindGaugeMarker(
             label = "", // No label for marker to save space
             unit = "kt",
             directionDegrees = direction,
-            gradientColors = if (isStale) listOf(Color.Gray, Color.Gray) else listOf(Color.Blue, Color.Cyan),
+            gradientColors = indicatorGradient,
             size = 48.dp,
             modifier = Modifier.align(Alignment.Center)
         )

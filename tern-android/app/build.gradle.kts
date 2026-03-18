@@ -56,7 +56,7 @@ android {
         // execution = "ANDROIDX_TEST_ORCHESTRATOR" // Commented out to run tests in single process
         
         managedDevices {
-            devices {
+            allDevices {
                 create<com.android.build.api.dsl.ManagedVirtualDevice>("pixel9proapi35") {
                     device = "Pixel 9 Pro"
                     apiLevel = 35
@@ -940,19 +940,14 @@ tasks.register("device") {
     group = "verification"
     description = "Shorthand for connectedDebugAndroidTest. Usage: ./gradlew device -Ptest=ClassName"
     
-    val testClass = project.findProperty("test") as? String 
-        ?: project.findProperty("t") as? String
-
+    val testClass = project.findProperty("test") as? String ?: project.findProperty("t") as? String
     if (testClass != null) {
-        dependsOn("connectedDebugAndroidTest")
-        // Dynamically configure the connectedDebugAndroidTest task
-        tasks.withType<com.android.build.gradle.internal.tasks.DeviceProviderInstrumentTestTask>().configureEach {
-            // Support comma separated classes
-            val fullClasses = testClass.split(",").joinToString(",") { 
-                if (it.contains(".")) it else "com.madanala.tern.ui.$it"
-            }
-            this.testInstrumentationRunnerArguments.put("class", fullClasses)
+        val fullClasses = testClass.split(",").joinToString(",") { 
+            if (it.contains(".")) it else "com.madanala.tern.ui.$it"
         }
+        // Set the project property that AGP's test task automatically picks up
+        project.extensions.extraProperties.set("android.testInstrumentationRunnerArguments.class", fullClasses)
+        dependsOn("connectedDebugAndroidTest")
     } else {
         doLast {
             println("\n❌ Error: No test class specified.")

@@ -97,7 +97,7 @@ class RouteOverlayManager(
 
     // Paint objects for route rendering
     private val routePaint = Paint().apply {
-        color = Color.BLUE
+        color = Color.parseColor("#00D4FF") // AeroNeonCyan
         strokeWidth = ROUTE_LINE_WIDTH
         style = Paint.Style.STROKE
         strokeCap = Paint.Cap.ROUND
@@ -112,35 +112,35 @@ class RouteOverlayManager(
     }
 
     private val waypointBorderPaint = Paint().apply {
-        color = Color.BLUE
+        color = Color.parseColor("#0F172A") // AeroCharcoal border
         style = Paint.Style.STROKE
         strokeWidth = WAYPOINT_BORDER_WIDTH
         isAntiAlias = true
     }
 
     private val labelPaint = Paint().apply {
-        color = Color.BLACK
+        color = Color.WHITE
         textSize = LABEL_TEXT_SIZE
         textAlign = Paint.Align.CENTER
         isAntiAlias = true
     }
 
     private val selectionPaint = Paint().apply {
-        color = Color.YELLOW
+        color = Color.parseColor("#FF9E00") // AeroOrange
         style = Paint.Style.STROKE
         strokeWidth = SELECTION_HIGHLIGHT_WIDTH
         isAntiAlias = true
     }
 
     private val dragPaint = Paint().apply {
-        color = Color.argb(180, 0, 255, 255) // Vibrant aviation cyan with 70% opacity
+        color = Color.argb(180, 0, 212, 255) // AeroNeonCyan with 70% opacity
         style = Paint.Style.STROKE
         strokeWidth = SELECTION_HIGHLIGHT_WIDTH + 2f // Thicker for "glow" effect
         isAntiAlias = true
     }
 
     private val routeSelectionPaint = Paint().apply {
-        color = Color.MAGENTA
+        color = Color.parseColor("#FF9E00") // AeroOrange
         style = Paint.Style.STROKE
         strokeWidth = ROUTE_SELECTION_HIGHLIGHT_WIDTH
         isAntiAlias = true
@@ -676,7 +676,7 @@ class RouteOverlayManager(
 
     private val cylinderPaint by lazy {
         Paint().apply {
-            color = Color.argb(40, 0, 255, 0) // Transparent Green
+            color = Color.argb(40, 0, 212, 255) // AeroNeonCyan low alpha
             style = Paint.Style.FILL
             isAntiAlias = true
         }
@@ -684,7 +684,7 @@ class RouteOverlayManager(
 
     private val cylinderStrokePaint by lazy {
         Paint().apply {
-            color = Color.argb(150, 0, 255, 0) // Semi-transparent Green Stroke
+            color = Color.argb(150, 0, 212, 255) // AeroNeonCyan medium alpha
             style = Paint.Style.STROKE
             strokeWidth = 2f
             isAntiAlias = true
@@ -693,7 +693,7 @@ class RouteOverlayManager(
 
     private val arrowPaint by lazy {
         Paint().apply {
-            color = Color.BLUE
+            color = Color.parseColor("#00D4FF") // AeroNeonCyan
             style = Paint.Style.FILL_AND_STROKE
             strokeWidth = 4f
             isAntiAlias = true
@@ -822,7 +822,7 @@ class RouteOverlayManager(
                             }
                         } else {
                             // Fallback to basic circle if icon loading failed
-                            waypointBorderPaint.color = Color.BLUE
+                            waypointBorderPaint.color = Color.parseColor("#0F172A")
                             canvas.drawCircle(screenPoint.x.toFloat(), screenPoint.y.toFloat(), radius, waypointPaint)
                             canvas.drawCircle(screenPoint.x.toFloat(), screenPoint.y.toFloat(), radius, waypointBorderPaint)
                         }

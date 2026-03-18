@@ -15,6 +15,10 @@ import java.io.RandomAccessFile
 import java.nio.MappedByteBuffer
 import java.nio.channels.FileChannel
 import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 /**
  * PG SPOT CACHE - FlexBuffers + Hilbert Spatial Indexing
@@ -31,11 +35,13 @@ class PGSpotCache(context: Context) {
     companion object {
         const val PG_SPOT_CACHE_HOURS = 4320  // 6 months (180 days)
         private const val TAG = "PGSpotCache"
+        private const val USER_AGENT = "Tern-Paragliding-App/1.0"
     }
 
     // Delegate storage and indexing to generic SpatialDiskCache
     private val diskCache = SpatialDiskCache(context, "pgspots", PG_SPOT_CACHE_HOURS)
     private val downloadInProgress = ConcurrentHashMap<String, Boolean>()
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     /**
      * Check if cached PG spot data exists and is fresh for country
@@ -54,9 +60,9 @@ class PGSpotCache(context: Context) {
     /**
      * Cache PG spots data from standard GeoJSON API
      */
-    // Base URL for API - modifiable for testing
+    // Base URL for API - updated to new /api/geojson path
     @Volatile
-    private var baseUrl = "https://www.paraglidingearth.com"
+    private var baseUrl = "https://www.paraglidingearth.com/api/geojson"
 
     @androidx.annotation.VisibleForTesting
     fun setBaseUrlForTesting(url: String) {
@@ -65,7 +71,7 @@ class PGSpotCache(context: Context) {
 
     @androidx.annotation.VisibleForTesting
     fun resetBaseUrlForTesting() {
-        baseUrl = "https://www.paraglidingearth.com"
+        baseUrl = "https://www.paraglidingearth.com/api/geojson"
     }
 
     /**
@@ -88,12 +94,31 @@ class PGSpotCache(context: Context) {
         }
 
         try {
-            // PG Earth API structure
-            val url = if (baseUrl.endsWith("/")) "${baseUrl}getCountrySites.php?iso=${countryCode.lowercase()}&format=geojson"
-                      else "${baseUrl}/getCountrySites.php?iso=${countryCode.lowercase()}&format=geojson"
+            // New PG Earth API structure (v2)
+            // Example: https://www.paraglidingearth.com/api/geojson/getCountrySites.php?iso=us
+            val url = if (baseUrl.endsWith("/")) "${baseUrl}getCountrySites.php?iso=${countryCode.lowercase()}"
+                      else "${baseUrl}/getCountrySites.php?iso=${countryCode.lowercase()}"
             Log.d(TAG, "Starting PG spots download for $countryCode from: $url")
 
-            val geoJsonString = GeoJsonUtils.downloadGeoJson(url)
+            // Implement exponential backoff for polite API usage
+            var backoffMs = 1000L
+            var geoJsonString: String? = null
+            var lastError: Exception? = null
+
+            for (attempt in 1..3) {
+                try {
+                    geoJsonString = GeoJsonUtils.downloadGeoJson(url, USER_AGENT)
+                    if (geoJsonString != null) break
+                    
+                    Log.w(TAG, "Download attempt $attempt returned null for $countryCode, retrying in ${backoffMs}ms...")
+                } catch (e: Exception) {
+                    lastError = e
+                    Log.w(TAG, "Download attempt $attempt failed for $countryCode: ${e.message}, retrying in ${backoffMs}ms...")
+                }
+                
+                kotlinx.coroutines.delay(backoffMs)
+                backoffMs *= 2
+            }
 
             if (geoJsonString != null) {
                 Log.d(TAG, "Downloaded ${geoJsonString.length} bytes of PG spots data for $countryCode")
@@ -193,6 +218,61 @@ class PGSpotCache(context: Context) {
                 Log.w(TAG, "Cleaning up corrupted cache for $countryCode")
                 clearCacheForCountry(countryCode)
             }
+        }
+    }
+
+    /**
+     * Check for modified sites and invalidate affected caches to trigger a rebuild
+     * @param days Number of days to look back for modifications (default 7)
+     */
+    suspend fun checkForUpdates(days: Int = 7) {
+        try {
+            val url = if (baseUrl.endsWith("/")) "${baseUrl}getModifiedSites.php?days=$days"
+                      else "${baseUrl}/getModifiedSites.php?days=$days"
+            Log.i(TAG, "Checking for incremental PG spot updates from: $url")
+
+            val geoJsonString = GeoJsonUtils.downloadGeoJson(url, USER_AGENT)
+            if (geoJsonString == null) return
+
+            // Parse features to find which countries have new/modified data
+            val features = if (GeoJsonUtils.isNdGeoJson(geoJsonString)) {
+                MapOverlayCacheUtils.parseNdGeoJsonToFeatures(geoJsonString, "pgspot")
+            } else {
+                MapOverlayCacheUtils.parseGeoJsonToFeatures(geoJsonString, "pgspot")
+            }
+
+            if (features.isEmpty()) {
+                Log.d(TAG, "No modified PG spots found in last $days days")
+                return
+            }
+
+            // Identify affected countries using properties["countryCode"]
+            val affectedCountries = features.mapNotNull { feature ->
+                // Accessing properties via Jackson map returned by GeoJsonUtils
+                @Suppress("UNCHECKED_CAST")
+                val properties = feature.feature["properties"] as? Map<String, Any>
+                properties?.get("countryCode") as? String
+            }.toSet()
+
+            Log.i(TAG, "Detected ${features.size} modified sites across ${affectedCountries.size} countries: $affectedCountries")
+
+            // Invalidate caches for affected countries to trigger full rebuild on next access
+            affectedCountries.forEach { countryCode ->
+                val upperCode = countryCode.uppercase()
+                if (isCached(upperCode)) {
+                    Log.i(TAG, "Invalidating PG spot cache for $upperCode due to remote modifications")
+                    clearCacheForCountry(upperCode)
+                    
+                    // PROACTIVE: Trigger background download for active regions (those already cached)
+                    // We don't wait for it here
+                    scope.launch {
+                        downloadAndCache(upperCode)
+                    }
+                }
+            }
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Error checking for PG spot updates: ${e.message}")
         }
     }
 

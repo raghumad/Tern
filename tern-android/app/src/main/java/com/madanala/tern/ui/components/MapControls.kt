@@ -6,6 +6,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.Dp
@@ -17,6 +18,9 @@ fun Compass(
     modifier: Modifier = Modifier,
     size: Dp = 48.dp
 ) {
+    val ringColor = MaterialTheme.colorScheme.outline
+    val northColor = MaterialTheme.colorScheme.error
+
     Canvas(
         modifier = modifier
             .size(size) // Use the size parameter
@@ -27,7 +31,7 @@ fun Compass(
 
         // Draw the outer circle
         drawCircle(
-            color = Color.DarkGray,
+            color = ringColor,
             radius = radius,
             center = center,
             style = Stroke(width = 4.dp.toPx())
@@ -45,7 +49,7 @@ fun Compass(
         // Draw the carat
         drawPath(
             path = path,
-            color = Color.Red
+            color = northColor
         )
     }
 }

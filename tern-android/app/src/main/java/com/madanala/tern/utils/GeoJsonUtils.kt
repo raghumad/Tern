@@ -31,11 +31,15 @@ object GeoJsonUtils {
      * @param url The URL to download from
      * @return The GeoJSON data as a string, or null if download failed or content is invalid
      */
-    suspend fun downloadGeoJson(url: String): String? {
+    suspend fun downloadGeoJson(url: String, userAgent: String? = null): String? {
         return withContext(Dispatchers.IO) {
             try {
                 android.util.Log.i("GeoJsonUtils", "Executing HTTP download for: $url")
-                val request = Request.Builder().url(url).build()
+                val requestBuilder = Request.Builder().url(url)
+                if (userAgent != null) {
+                    requestBuilder.header("User-Agent", userAgent)
+                }
+                val request = requestBuilder.build()
                 client.newCall(request).execute().use { response ->
                     if (response.isSuccessful) {
                         val body = response.body

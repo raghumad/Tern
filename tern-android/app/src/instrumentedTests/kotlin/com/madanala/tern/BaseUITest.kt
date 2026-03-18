@@ -16,7 +16,9 @@ import java.io.File
  * - ComposeTestRule for UI interaction
  */
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import com.madanala.tern.ui.theme.TernTheme
 
 abstract class BaseUITest {
 
@@ -28,6 +30,17 @@ abstract class BaseUITest {
         android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
         android.Manifest.permission.READ_EXTERNAL_STORAGE
     )
+
+    /**
+     * Set content wrapped in TernTheme(darkTheme = true) for aviation-standard testing.
+     */
+    fun setThemeContent(content: @Composable () -> Unit) {
+        composeTestRule.setContent {
+            TernTheme(darkTheme = true) {
+                content()
+            }
+        }
+    }
 
 
 

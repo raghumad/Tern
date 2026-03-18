@@ -41,7 +41,7 @@ class WeatherUXTest : BddTest() {
 
                 // WHEN the Weather Details Dialog is shown
                 `when`("The Weather Details Dialog is displayed") {
-                    composeTestRule.setContent {
+                    setThemeContent {
                         WeatherDetailsDialog(forecast = forecast, onDismiss = {})
                     }
                 }
@@ -98,7 +98,7 @@ class WeatherUXTest : BddTest() {
 
                 // WHEN the Weather Details Dialog is shown
                 `when`("The Weather Details Dialog is displayed") {
-                    composeTestRule.setContent {
+                    setThemeContent {
                         WeatherDetailsDialog(forecast = forecast, onDismiss = {})
                     }
                 }
@@ -144,7 +144,7 @@ class WeatherUXTest : BddTest() {
                 }
 
                 `when`("the pilot views the route weather panel at an estimated arrival time of 12:30") {
-                    composeTestRule.setContent {
+                    setThemeContent {
                         WeatherDetailsDialog(
                             forecast = forecast,
                             targetArrivalTimestamp = now + 1800, // half hour later

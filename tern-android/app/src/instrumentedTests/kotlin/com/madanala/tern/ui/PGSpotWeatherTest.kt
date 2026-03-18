@@ -26,7 +26,7 @@ class PGSpotWeatherTest : BddTest() {
         scenario("Verify Weather Loading State") {
             story("As a pilot, I want to see a loading indicator when weather data is being fetched") {
                 given("we are loading weather data") {
-                    composeTestRule.setContent {
+                    setThemeContent {
                         WeatherDetailsDialog(
                             forecast = null,
                             spotName = "Test Spot",
@@ -56,7 +56,7 @@ class PGSpotWeatherTest : BddTest() {
                         daily = emptyList()
                     )
                     
-                    composeTestRule.setContent {
+                    setThemeContent {
                         WeatherDetailsDialog(
                             forecast = forecast,
                             spotName = "Test Spot",
@@ -82,7 +82,7 @@ class PGSpotWeatherTest : BddTest() {
         scenario("Verify Weather Unavailable State") {
             story("As a pilot, I want to see an unavailable message if there is no weather data and it's not loading") {
                 given("we have NO data and are NOT loading") {
-                    composeTestRule.setContent {
+                    setThemeContent {
                         WeatherDetailsDialog(
                             forecast = null,
                             spotName = "Test Spot",
@@ -119,7 +119,7 @@ class PGSpotWeatherTest : BddTest() {
                     )
                     
                     // When the pilot opens the Weather Details screen for a PG Spot
-                    composeTestRule.setContent {
+                    setThemeContent {
                         WeatherDetailsDialog(
                             forecast = forecast,
                             spotName = "Test Spot",
@@ -156,7 +156,7 @@ class PGSpotWeatherTest : BddTest() {
                         daily = emptyList()
                     )
 
-                    composeTestRule.setContent {
+                    setThemeContent {
                         WeatherDetailsDialog(
                             forecast = forecast,
                             spotName = "Test Spot",
@@ -199,7 +199,7 @@ class PGSpotWeatherTest : BddTest() {
                         daily = emptyList()
                     )
 
-                    composeTestRule.setContent {
+                    setThemeContent {
                         WeatherDetailsDialog(
                             forecast = forecastWithInversion,
                             spotName = "Inversion Site",
@@ -238,7 +238,7 @@ class PGSpotWeatherTest : BddTest() {
                         daily = emptyList()
                     )
 
-                    composeTestRule.setContent {
+                    setThemeContent {
                         WeatherDetailsDialog(
                             forecast = forecastNoInversion,
                             spotName = "Normal Atmosphere",
