@@ -172,7 +172,7 @@ fun RoutePlanningHUD(
                 Icon(
                     imageVector = Icons.Default.Shield,
                     contentDescription = "Flight Ready",
-                    tint = Color.Green,
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier
                         .size(24.dp)
                         .testTag("HUD_FlightReady_Shield")

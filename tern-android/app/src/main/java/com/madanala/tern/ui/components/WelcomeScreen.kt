@@ -37,7 +37,7 @@ fun WelcomeScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color.Cyan),
+            .background(MaterialTheme.colorScheme.background),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -65,10 +65,10 @@ fun WelcomeScreen(
                         fontFamily = gruppoFont,
                         fontSize = 40.sp,
                         fontWeight = FontWeight.W900,
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onBackground,
                         shadow = Shadow(
-                            color = Color.Black,
-                            blurRadius = 5f
+                            color = Color.Black.copy(alpha = 0.5f),
+                            blurRadius = 8f
                         ),
                         letterSpacing = 1.5.sp
                     )
@@ -119,10 +119,10 @@ private fun InitialWelcomeView(gruppoFont: FontFamily) {
                 fontFamily = gruppoFont,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Normal,
-                color = Color.White.copy(alpha = 0.8f),
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f),
                 shadow = Shadow(
-                    color = Color.Black,
-                    blurRadius = 2f
+                    color = Color.Black.copy(alpha = 0.3f),
+                    blurRadius = 4f
                 )
             ),
             textAlign = TextAlign.Center
@@ -150,7 +150,7 @@ private fun AcquiringGpsView(gruppoFont: FontFamily, isFinalAcquisition: Boolean
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
             CircularProgressIndicator(
-                color = Color.White,
+                color = MaterialTheme.colorScheme.primary,
                 strokeWidth = 2.dp,
                 modifier = Modifier.size(16.dp)
             )
@@ -163,7 +163,7 @@ private fun AcquiringGpsView(gruppoFont: FontFamily, isFinalAcquisition: Boolean
                     fontFamily = gruppoFont,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Normal,
-                    color = Color.White
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             )
         }
@@ -194,7 +194,7 @@ private fun GpsLostView(gruppoFont: FontFamily, onRetryGps: () -> Unit) {
                     fontFamily = gruppoFont,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Normal,
-                    color = Color.Red.copy(alpha = 0.9f)
+                    color = MaterialTheme.colorScheme.error
                 ),
                 textAlign = TextAlign.Center
             )
@@ -239,7 +239,7 @@ private fun PermissionRequiredView(gruppoFont: FontFamily) {
                     fontFamily = gruppoFont,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Normal,
-                    color = Color.Red.copy(alpha = 0.9f)
+                    color = MaterialTheme.colorScheme.error
                 ),
                 textAlign = TextAlign.Center
             )
@@ -252,7 +252,7 @@ private fun PermissionRequiredView(gruppoFont: FontFamily) {
                     fontFamily = gruppoFont,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Normal,
-                    color = Color.White.copy(alpha = 0.8f)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 ),
                 textAlign = TextAlign.Center
             )

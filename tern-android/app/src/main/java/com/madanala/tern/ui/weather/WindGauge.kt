@@ -39,6 +39,7 @@ fun WindGauge(
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(contentAlignment = Alignment.Center, modifier = modifier.size(size)) {
             val arrowColor = MaterialTheme.colorScheme.onSurface
+            val arcBackgroundColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
             Canvas(modifier = Modifier.size(size)) {
                 val strokeWidth = 8.dp.toPx()
                 val radius = (size.toPx() - strokeWidth) / 2
@@ -46,7 +47,7 @@ fun WindGauge(
                 
                 // Background Arc
                 drawArc(
-                    color = Color.Gray.copy(alpha = 0.3f),
+                    color = arcBackgroundColor,
                     startAngle = 135f,
                     sweepAngle = 270f,
                     useCenter = false,

@@ -188,7 +188,7 @@ fun PlanningTabButton(label: String, isSelected: Boolean, onClick: () -> Unit) {
         onClick = onClick,
         colors = ButtonDefaults.buttonColors(
             containerColor = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
-            contentColor = if (isSelected) Color.Black else Color.White
+            contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
         ),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
         modifier = Modifier
@@ -244,7 +244,7 @@ fun RouteSearchContent(store: MapStore) {
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
                         Text(name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
-                        Text("${"%.3f".format(point.latitude)}, ${"%.3f".format(point.longitude)}", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                        Text("${"%.3f".format(point.latitude)}, ${"%.3f".format(point.longitude)}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -279,11 +279,11 @@ fun RouteLibraryContent(store: MapStore) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(androidx.compose.material.icons.Icons.Default.Description, contentDescription = null, tint = Color.Gray)
+                        Icon(androidx.compose.material.icons.Icons.Default.Description, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(modifier = Modifier.width(12.dp))
                         Text(route.name, style = MaterialTheme.typography.bodyMedium)
                     }
-                    Icon(androidx.compose.material.icons.Icons.Default.KeyboardArrowRight, contentDescription = null, tint = Color.Gray)
+                    Icon(androidx.compose.material.icons.Icons.Default.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }

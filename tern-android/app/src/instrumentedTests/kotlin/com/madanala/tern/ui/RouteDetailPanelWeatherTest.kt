@@ -60,7 +60,7 @@ class RouteDetailPanelWeatherTest : com.madanala.tern.utils.BddTest() {
                     testStore.dispatch(com.madanala.tern.redux.MapAction.SelectRoute(testRoute.id))
                     testStore.dispatch(com.madanala.tern.redux.WeatherActions.RouteWeatherFetched(testRoute.id, mapOf("wp_1" to forecastWp1)))
 
-                    composeTestRule.setContent {
+                    setThemeContent {
                         RouteDetailPanel(
                             store = testStore,
                             isVisible = true,
