@@ -1,26 +1,64 @@
 #!/bin/bash
 # Shorthand for running Tern UI tests
-# Usage: ./device ClassName1 ClassName2 ...
+# Usage: ./device ClassName1 ClassName2 ... or ./device Keyword
 
 if [ -z "$1" ]; then
-  echo "Usage: ./device ClassName1 [ClassName2 ...]"
+  echo "Usage: ./device ClassName [Keyword...]"
   exit 1
 fi
 
+# 1. Discover only instrumented tests in the source tree to allow fuzzy matching
+# Build a list of full qualified names from the file paths
+TEST_FILES=$(find app/src/instrumentedTests/kotlin -name "*Test.kt" 2>/dev/null)
+
 CLASSES=""
+
+# Helper to append a unique class to the list
+add_class() {
+    local cls=$1
+    if [ -z "$CLASSES" ]; then
+        CLASSES="$cls"
+    else
+        # Avoid duplicate entries if multiple keywords match the same test
+        if [[ ",$CLASSES," != *",$cls,"* ]]; then
+            CLASSES="$CLASSES,$cls"
+        fi
+    fi
+}
+
 for arg in "$@"; do
-  CLASS=$arg
-  # Default to com.madanala.tern.ui package if no package is specified
-  if [[ "$CLASS" != *"."* ]]; then
-    CLASS="com.madanala.tern.ui.$CLASS"
-  fi
-  
-  if [ -z "$CLASSES" ]; then
-    CLASSES="$CLASS"
-  else
-    CLASSES="$CLASSES,$CLASS"
-  fi
+    # 2. Try to find fuzzy matches for the argument (case-insensitive)
+    MATCHING_FILES=$(echo "$TEST_FILES" | grep -i "$arg")
+    
+    if [ -n "$MATCHING_FILES" ]; then
+        for file in $MATCHING_FILES; do
+            # Extract package and class name from path
+            # Example: app/src/instrumentedTests/kotlin/com/madanala/tern/ui/PGSpotWeatherTest.kt
+            # Rel path from 'kotlin/': com/madanala/tern/ui/PGSpotWeatherTest.kt
+            REL_PATH=${file#*kotlin/}
+            # Remove extension and replace / with .
+            CLASS_NAME=$(echo ${REL_PATH%.kt} | tr '/' '.')
+            add_class "$CLASS_NAME"
+        done
+    else
+        # 3. Fallback to exact name if no fuzzy matches found
+        # If it doesn't have a dot, default to the most common package
+        if [[ "$arg" != *"."* ]]; then
+            add_class "com.madanala.tern.ui.$arg"
+        else
+            add_class "$arg"
+        fi
+    fi
 done
 
+if [ -z "$CLASSES" ]; then
+    echo "❌ No tests found matching: $@"
+    exit 1
+fi
+
+# Clearing stale BDD reports to ensure fresh results
+echo "🧹 Clearing stale BDD reports..."
+rm -rf app/build/reports/bdd-report/*
+
 echo "🚀 Running UI Tests: $CLASSES"
-./gradlew :app:pixel9proapi35DebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=$CLASSES
+./gradlew :app:pixel9proapi35DebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class="$CLASSES"

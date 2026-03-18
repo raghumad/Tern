@@ -36,10 +36,16 @@ class AirspaceUXTest : MapVisualTest() {
                     // Pan the map far enough to trigger reload (> 5km)
                     ReportGenerator.logStep("ACTION", "Panning to high density airspace area")
                     composeTestRule.runOnUiThread {
-                        val mapView = MapTestHelper.findMapView(composeTestRule.activity.findViewById(android.R.id.content))
-                        mapView?.controller?.setCenter(GeoPoint(40.1, -105.2))
-                        mapView?.controller?.setZoom(13.0) 
+                        val activity = composeTestRule.activity
+                        val store = androidx.lifecycle.ViewModelProvider(activity)[com.madanala.tern.redux.MapStore::class.java]
+                        // [SOURCE OF TRUTH] Use Redux to move the camera
+                        store.dispatch(com.madanala.tern.redux.MapAction.UpdateCenter(GeoPoint(40.1, -105.2)))
+                        store.dispatch(com.madanala.tern.redux.MapAction.UpdateZoom(13.0))
                     }
+                    
+                    composeTestRule.waitForIdle()
+                    // [CLOSED-LOOP] Verify the map actually moved to the target
+                    assertMapLocation(40.1, -105.2)
                     
                     waitForAirspaces(minCount = 1, timeoutMillis = 45000)
                     

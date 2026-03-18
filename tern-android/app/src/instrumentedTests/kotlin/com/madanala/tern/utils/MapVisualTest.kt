@@ -186,6 +186,38 @@ open class MapVisualTest {
     }
 
     /**
+     * Asserts that the map is currently centered at the expected location.
+     */
+    fun assertMapLocation(expectedLat: Double, expectedLon: Double, tolerance: Double = 0.5) {
+        var actualCenter: GeoPoint? = null
+        composeTestRule.runOnUiThread {
+            try {
+                val activity = composeTestRule.activity
+                val rootView = activity.findViewById<android.view.View>(android.R.id.content)
+                val mapView = findMapViewRecursive(rootView)
+                actualCenter = mapView?.mapCenter as? GeoPoint
+            } catch (e: Exception) {
+                Log.e("MapVisualTest", "Error getting map center: ${e.message}")
+            }
+        }
+        
+        val actual = actualCenter
+        if (actual == null) {
+            throw AssertionError("Could not determine map center")
+        }
+
+        val latDiff = Math.abs(actual.latitude - expectedLat)
+        val lonDiff = Math.abs(actual.longitude - expectedLon)
+        
+        if (latDiff > tolerance || lonDiff > tolerance) {
+            ReportGenerator.logStep("ASSERT", "Map location mismatch: Expected ($expectedLat, $expectedLon), Actual (${actual.latitude}, ${actual.longitude})", "FAIL")
+            throw AssertionError("Map location mismatch. Expected (~$expectedLat, ~$expectedLon), but was (${actual.latitude}, ${actual.longitude}). Tolerance: $tolerance")
+        }
+        
+        ReportGenerator.logStep("ASSERT", "Map location verified: near ($expectedLat, $expectedLon)", "PASS")
+    }
+
+    /**
      * Consolidates waiting for both airspaces and PG spots with shared timeout/polling
      * Uses recursive counting to handle nested FolderOverlays (Priority: Stability Fix)
      */

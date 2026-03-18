@@ -241,6 +241,31 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
             initializeLocationOverlay()
             startLocationUpdates()
         }
+        
+        // Bidirectional Sync: Observe camera changes from Redux (Source of Truth)
+        reduxBridge.onCameraMove = { center, zoom ->
+            // [LOOP BREAKER] Only update the MapView if this movement came from 
+            // an external source (e.g. an action besides our debounced tracker)
+            // or if the difference is significant.
+            
+            val centerChanged = lastDispatchedCenter == null || center.distanceToAsDouble(lastDispatchedCenter) > 1.0f
+            val zoomChanged = zoom != null && (lastDispatchedZoom == null || kotlin.math.abs(zoom - lastDispatchedZoom!!) > 0.01)
+
+            if (centerChanged || zoomChanged) {
+                mainHandler.post {
+                    if (centerChanged) {
+                        mapView.controller.setCenter(center)
+                    }
+                    if (zoomChanged && zoom != null) {
+                        mapView.controller.setZoom(zoom)
+                    }
+                    
+                    // Update baseline to match current Redux state to prevent immediate re-dispatch
+                    lastDispatchedCenter = center.normalizePrecision()
+                    if (zoom != null) lastDispatchedZoom = zoom
+                }
+            }
+        }
     }
 
     /**

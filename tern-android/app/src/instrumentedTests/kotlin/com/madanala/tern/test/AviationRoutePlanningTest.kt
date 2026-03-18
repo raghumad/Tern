@@ -35,6 +35,7 @@ class AviationRoutePlanningTest : MapVisualTest() {
                 given("a pilot starting a new XC task at Lookout Mountain", takeScreenshot = true) {
                     injectMockLaunchSpot(39.7429, -105.2393, "Lookout Mountain")
                     zoomTo(39.7429, -105.2393, 13.0)
+                    assertMapLocation(39.7429, -105.2393)
                 }
                 
                 `when`("I long-press on Lookout Mountain launch") {
@@ -119,6 +120,8 @@ class AviationRoutePlanningTest : MapVisualTest() {
                         )
                     )
                     showRouteOnMap(mockRoute)
+                    // Verify the map correctly centered on the route launch
+                    assertMapLocation(39.7429, -105.2393)
                 }
                 
                 then("the competition task should be loaded", takeScreenshot = true) {

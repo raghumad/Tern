@@ -42,18 +42,30 @@ class MapInteractionPerformanceTest : MapVisualTest() {
             }
 
             `when`("The user rapidly pans the map east towards Washington DC") {
-                // DC coordinates: 38.9072, -77.0369
-                // Use the generic swipe helper to simulate a fast user swipe
-                // Note: a single swipe might not cover the whole distance, but it triggers the panning logic
-                MapTestHelper.swipeMap(
-                    activity = activity,
-                    startLat = 40.0150, 
-                    startLon = -105.2705,
-                    endLat = 38.9072,
-                    endLon = -77.0369,
-                    steps = 10 // Fast swipe
-                )
-                // Let the map settle
+                // DC is at -77. Boulder is at -105. 
+                // To simulate rapid panning, we perform a sequence of fast swipes.
+                // Note: Swiping from Center to West (smaller Lon) pans the map East.
+                
+                val mapViewModel = ViewModelProvider(activity)[com.madanala.tern.ui.components.MapViewModel::class.java]
+                val instrumentation = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation()
+                
+                repeat(8) {
+                    val center = mapViewModel.mapView.mapCenter as GeoPoint
+                    MapTestHelper.swipeMap(
+                        activity = activity,
+                        startLat = center.latitude,
+                        startLon = center.longitude,
+                        endLat = center.latitude,
+                        endLon = center.longitude - 2.0, // Move viewport East
+                        steps = 20 // Slower to prevent extreme flinging
+                    )
+                    composeTestRule.waitForIdle()
+                }
+                
+                // Finally, jump to DC to ensure we are testing the "settled" state of the target
+                // [VERIFICATION] Now uses pure Redux action to verify bidirectional sync (Source of Truth)
+                store.dispatch(MapAction.UpdateCenter(GeoPoint(38.9072, -77.0369)))
+                
                 composeTestRule.waitForIdle()
                 Thread.sleep(2000)
             }
@@ -64,7 +76,8 @@ class MapInteractionPerformanceTest : MapVisualTest() {
             }
 
             and("Only render the overlays for the final destination once settled", takeScreenshot = true) {
-                // We just capture a screenshot to prove it didn't crash and rendered the end state
+                // CLOSED-LOOP VERIFICATION: Ensure we actually reached the target
+                assertMapLocation(38.9072, -77.0369, tolerance = 0.5)
             }
             
             and("The UI should remain responsive during the pan without dropping frames") {
