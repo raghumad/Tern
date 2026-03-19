@@ -20,6 +20,10 @@ import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Polygon
+import com.madanala.tern.utils.OverlayBudget
+import com.madanala.tern.utils.ApplicationMemoryState
+import com.madanala.tern.utils.MemoryPressureLevel
+import com.madanala.tern.utils.DistanceZone
 
 /**
  * Custom exception for invalid geographic coordinates
@@ -304,17 +308,19 @@ class AirspaceOverlayManager(
 
             centerStr
         ))
+        // [ADAPTIVE] Airspaces use the budget implicitly during next map move
+        // No local cache to resize currently for airspaces
     }
 
     /**
-     * Handle memory state changes for airspace-specific optimizations
+     * Handle memory state changes from the adaptive system
      */
-    override fun onMemoryStateChanged(memoryState: com.madanala.tern.utils.ApplicationMemoryState) {
+    override fun onMemoryStateChanged(memoryState: ApplicationMemoryState) {
         super.onMemoryStateChanged(memoryState)
 
-        // If memory pressure is high, trigger immediate viewport cleanup
-        if (memoryState.calculatedPressure == com.madanala.tern.utils.MemoryPressureLevel.CRITICAL_MEMORY ||
-            memoryState.calculatedPressure == com.madanala.tern.utils.MemoryPressureLevel.LOW_MEMORY) {
+        // If memory pressure is high, trigger enhanced cleanup
+        if (memoryState.calculatedPressure == MemoryPressureLevel.LOW_MEMORY ||
+            memoryState.calculatedPressure == MemoryPressureLevel.CRITICAL_MEMORY) {
             Log.w(TAG, "Memory pressure detected - triggering enhanced airspace cleanup")
             triggerEmergencyCleanup()
         }
@@ -481,17 +487,23 @@ class AirspaceOverlayManager(
             // Use universal country cache manager for intelligent country management
             countryCacheManager?.let { countryCache ->
                 // Notify cache manager of location change to trigger downloads/preloading if needed
-                countryCache.onLocationChanged(center)
-        // Query multiple countries intelligently using the universal cache manager
+                // 🎯 Aviation Safety: Determine adaptive radius/budget based on zoom level
+                val zoom = mapView?.zoomLevelDouble ?: 12.0
+                val radiusKm = calculateAdaptiveQueryRadius(zoom)
+                
+                // Get current budget to set hydration limit (Lazy Hydration)
+                val budgetOverlays = getCurrentOverlayBudget()?.totalOverlays ?: 100
+                val hydrationLimit = budgetOverlays * 2 // Search buffer
+
                 val nearbyFeatures = withContext(Dispatchers.IO) {
                     // Query multiple countries intelligently using the universal cache manager
-                    val allFeatures = countryCache.queryMultiCountryArea(center, spatialQueryRadiusKm)
+                    val allFeatures = countryCache.queryMultiCountryArea(center, radiusKm, hydrationLimit)
                     
-                    // Filter for airspaces only (since UniversalCountryCacheManager returns all types, case-insensitive for robustness)
+                    // Filter for airspaces only
                     allFeatures.filter { it.overlayType.equals("airspace", ignoreCase = true) }
                 }
 
-                Log.d(TAG, "loadAirspaceForLocation: Query result - Airspaces: ${nearbyFeatures.size}")
+                Log.d(TAG, "loadAirspaceForLocation: Query result - Radius: ${radiusKm}km, Limit: $hydrationLimit, Features: ${nearbyFeatures.size}")
 
                 if (nearbyFeatures.isNotEmpty()) {
                     mapView?.let { map ->

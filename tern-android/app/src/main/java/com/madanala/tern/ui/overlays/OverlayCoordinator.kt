@@ -347,6 +347,9 @@ class OverlayCoordinator {
 
         // Route through Universal Country Cache Manager for intelligent country management (Priority 0)
         countryCacheManager?.onLocationChanged(centerPoint)
+        
+        // Sync zoom with adaptive overlay system for budget awareness
+        adaptiveOverlaySystem?.updateZoom(zoom)
 
         // Continue with existing overlay manager notifications
         activeManagers.values.forEach { manager ->

@@ -26,13 +26,24 @@ class AdaptiveOverlaySystem(private val context: Context) {
     private var currentMemoryState: ApplicationMemoryState? = null
     private var lastBudgetCalculation = 0L
     private val BUDGET_CACHE_DURATION_MS = 5000L // Cache budgets for 5 seconds
+    
+    // Central zoom state for budget awareness (Priority 0)
+    private var currentZoom: Double = 12.0
+
+    /**
+     * Update current zoom level centrally
+     */
+    fun updateZoom(zoom: Double) {
+        this.currentZoom = zoom
+    }
 
     /**
      * Get optimal overlay budget for current device and memory conditions
      */
     fun getOptimalOverlayBudget(
         flightPhase: FlightPhase = FlightPhase.LAUNCH,
-        currentOverlayCount: Int = 0
+        currentOverlayCount: Int = 0,
+        zoom: Double = currentZoom
     ): OverlayBudget {
 
         val memoryState = getCurrentMemoryState()
@@ -60,7 +71,7 @@ class AdaptiveOverlaySystem(private val context: Context) {
             totalOverlays = targetBudget,
             memoryPressure = memoryState.calculatedPressure,
             flightPhase = flightPhase,
-            zoneBudgets = calculateZoneBudgets(targetBudget, memoryState, flightPhase),
+            zoneBudgets = calculateZoneBudgets(targetBudget, memoryState, flightPhase, zoom),
             recommendation = generateBudgetRecommendation(targetBudget, memoryState, flightPhase)
         )
     }
@@ -111,12 +122,13 @@ class AdaptiveOverlaySystem(private val context: Context) {
     private fun calculateZoneBudgets(
         totalBudget: Int,
         memoryState: ApplicationMemoryState,
-        flightPhase: FlightPhase
+        flightPhase: FlightPhase,
+        zoom: Double
     ): Map<DistanceZone, Int> {
 
         // Use aviation safety budget allocation for critical memory pressure
         if (memoryState.calculatedPressure == MemoryPressureLevel.CRITICAL_MEMORY) {
-            return DistanceZoneUtils.getAviationSafetyBudget(totalBudget, memoryState.calculatedPressure)
+            return DistanceZoneUtils.getAviationSafetyBudget(totalBudget, memoryState.calculatedPressure, zoom)
         }
 
         // Improved zone allocation that redistributes unused budget
