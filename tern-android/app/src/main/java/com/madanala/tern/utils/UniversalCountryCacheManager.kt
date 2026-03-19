@@ -439,12 +439,15 @@ class UniversalCountryCacheManager(
     fun isCountryCached(country: String): Boolean = country in cachedCountries
 
     /**
-     * Query features from multiple countries using spatial indexing
-     * This method provides the spatial query functionality for overlay managers
+     * Query features from multiple countries using spatial indexing with Lazy Hydration
+     * @param center Current map center
+     * @param radiusKm Search radius
+     * @param limit Maximum number of features to hydrate (Budget-aware)
      */
     suspend fun queryMultiCountryArea(
         center: GeoPoint,
-        radiusKm: Double
+        radiusKm: Double,
+        limit: Int = 1000
     ): List<com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature> = coroutineScope {
         val normalizedCenter = center.normalizePrecision()
         
@@ -459,7 +462,7 @@ class UniversalCountryCacheManager(
         val deferredResults = countriesToQuery.map { countryCode ->
             this@UniversalCountryCacheManager.coroutineScope.async(Dispatchers.IO) {
                 try {
-                    val features = queryCountryFeatures(normalizedCenter, countryCode, radiusKm)
+                    val features = queryCountryFeatures(normalizedCenter, countryCode, radiusKm, limit)
                     if (features.isEmpty()) {
                         Log.v(TAG, "queryMultiCountryArea: Country $countryCode returned 0 features at $normalizedCenter")
                     } else {
@@ -477,7 +480,9 @@ class UniversalCountryCacheManager(
         if (allFeatures.isNotEmpty()) {
             Log.d(TAG, "Total features from ${countriesToQuery.size} countries: ${allFeatures.size}")
         }
-        allFeatures
+        
+        // Final capping across all countries combined
+        if (allFeatures.size > limit) allFeatures.take(limit) else allFeatures
     }
 
     /**
@@ -486,7 +491,8 @@ class UniversalCountryCacheManager(
     private suspend fun queryCountryFeatures(
         center: GeoPoint,
         countryCode: String,
-        radiusKm: Double
+        radiusKm: Double,
+        limit: Int
     ): List<com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature> {
         val features = mutableListOf<com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature>()
         
@@ -495,7 +501,7 @@ class UniversalCountryCacheManager(
             if (airspaceCache.isCached(countryCode)) {
                 // queryNearbyFeatures takes miles. radiusKm is in km.
                 val radiusMiles = radiusKm * 0.621371
-                features.addAll(airspaceCache.queryNearbyFeatures(countryCode, center, radiusMiles))
+                features.addAll(airspaceCache.queryNearbyFeatures(countryCode, center, radiusMiles, limit))
             }
 
             // 2. Query PG Spots
@@ -503,7 +509,7 @@ class UniversalCountryCacheManager(
                 // Use 200.0 miles (approx 320km) or convert radiusKm to miles. 
                 // queryNearbyPGSpots takes miles. radiusKm is in km.
                 val radiusMiles = radiusKm * 0.621371
-                features.addAll(pgSpotCache.queryNearbyPGSpots(countryCode, center, radiusMiles))
+                features.addAll(pgSpotCache.queryNearbyPGSpots(countryCode, center, radiusMiles, limit))
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error querying features for country $countryCode", e)

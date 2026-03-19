@@ -29,6 +29,12 @@ For dynamic overlays (e.g., Wind Gauges) generated from UI views, use a sufficie
 ### 7. Centralized Adaptive Budgeting (SSOT)
 All resource-intensive caches (bitmaps, object pools, active feature sets) MUST be dynamically resized based on the centralized `AdaptiveOverlaySystem` budget provided by the `OverlayCoordinator`. Never hardcode cache sizes for map overlays; instead, subscribe to `onOverlayBudgetChanged` and call `LruCache.resize()` to ensure the system's memory-aware "Source of Truth" is consistently applied.
 
+### 8. Lazy Budget-Aware Hydration
+Always apply rendering budgets *before* object hydration. In spatial queries, "peek" at feature centroids in the memory-mapped buffer to calculate distances and sort/thin features *prior* to full `OverlayFeature` allocation. This prevents JVM heap spikes during wide-area (regional) map navigation by keeping non-visible data in the native buffer.
+
+### 9. Zoom-Aware Spatial Scaling
+Scale data query radii and feature density budgets based on the map's current zoom level. A fixed search radius (e.g., 200km) is insufficient for regional situational awareness (Zoom 5) and excessively "heavy" for local views (Zoom 15). Use adaptive spatial scaling (e.g., 20km at Z15 to 1000km at Z5) to ensure the screen is fully populated without OOM risk.
+
 ## When to Apply
 
 - **Feature Scanning**: Any task that involves "scanning" or "querying" local feature caches.
@@ -49,5 +55,7 @@ All resource-intensive caches (bitmaps, object pools, active feature sets) MUST 
 - [ ] Are we avoiding `JSON` parsing in the hot path (map movement)?
 - [ ] **Adaptive Budgeting**: Is the resource (bitmap cache, object pool) dynamically resized based on `OverlayBudget`? (No hardcoded limits).
 - [ ] **Spatial SSOT**: Is the query key specific enough (e.g., location + radius) to prevent stale results from different areas of the same country?
-- [ ] Does the test suite include a "Rapid Panning" stress test for this data?
-- [ ] Are spatial boundaries and regional adjacencies resolved dynamically rather than hardcoded?
+- [ ] **Lazy Hydration**: Is the budget (limit) applied *before* object creation in the disk cache?
+- [ ] **Zoom-Aware Scaling**: Does the query radius adjust dynamically based on the current zoom level?
+- [ ] **Regional Context**: Does the budgeting logic preserve minimal context for regional views (Zoom < 8) even under memory pressure? (No "Halo Effect").
+- [ ] Does the test suite include a "Regional Zoom-Out" stress test for this data?

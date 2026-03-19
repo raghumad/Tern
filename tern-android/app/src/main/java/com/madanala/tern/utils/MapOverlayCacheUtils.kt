@@ -498,6 +498,36 @@ object MapOverlayCacheUtils {
     }
 
     /**
+     * PEAK CENTROID WITHOUT FULL HYDRATION
+     * Extremely fast, zero-copy read from memory-mapped buffer.
+     * Used for pre-sort/budgeting before full OverlayFeature allocation.
+     */
+    fun peekCentroid(buffer: ByteBuffer): GeoPoint? {
+        try {
+            // Buffer is at start of record (length prefix)
+            if (buffer.remaining() < 4) return null
+            val length = buffer.getInt()
+            if (length <= 0) return null
+            
+            // Slice the buffer for the feature data (zero-copy)
+            val featureSlice = buffer.slice()
+            featureSlice.limit(length)
+            
+            // Advance original buffer
+            buffer.position(buffer.position() + length)
+            
+            val root = com.google.flatbuffers.FlexBuffers.getRoot(featureSlice)
+            val centroidMap = root.asMap().get("centroid").asMap()
+            val latitude = centroidMap.get("latitude").asFloat().toDouble()
+            val longitude = centroidMap.get("longitude").asFloat().toDouble()
+            
+            return GeoPoint(latitude, longitude)
+        } catch (e: Exception) {
+            return null
+        }
+    }
+
+    /**
      * Deserialize a single FlexBuffer feature from the ByteBuffer.
      * Assumes the buffer is positioned at the start of a length-prefixed FlexBuffer.
      */

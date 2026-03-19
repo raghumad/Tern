@@ -220,10 +220,12 @@ object DistanceZoneUtils {
 
     /**
      * Get aviation safety budget that preserves critical overlays
+     * Budget is now zoom-aware to prevent "Halo Effect" at regional levels.
      */
     fun getAviationSafetyBudget(
         totalBudget: Int,
-        memoryPressure: MemoryPressureLevel
+        memoryPressure: MemoryPressureLevel,
+        zoom: Double = 12.0
     ): Map<DistanceZone, Int> {
         val safetyCriticalZones = DistanceZone.getSafetyCriticalZones()
         val nonCriticalBudget = totalBudget * 0.3 // Reserve 70% for safety-critical
@@ -242,8 +244,20 @@ object DistanceZoneUtils {
             val allocation = when (memoryPressure) {
                 MemoryPressureLevel.HIGH_MEMORY -> (remainingBudget * 0.25).toInt()
                 MemoryPressureLevel.MEDIUM_MEMORY -> (remainingBudget * 0.2).toInt()
-                MemoryPressureLevel.LOW_MEMORY -> (remainingBudget * 0.1).toInt()
-                MemoryPressureLevel.CRITICAL_MEMORY -> 0
+                MemoryPressureLevel.LOW_MEMORY -> {
+                    // At low zoom, give more to MID/FAR to prevent Halo Effect
+                    if (zoom < 8.0 && (zone == DistanceZone.MID || zone == DistanceZone.NEAR)) {
+                         (remainingBudget * 0.15).toInt()
+                    } else {
+                         (remainingBudget * 0.1).toInt()
+                    }
+                }
+                MemoryPressureLevel.CRITICAL_MEMORY -> {
+                    // Even in critical, show minimal regional context if zoomed out
+                    if (zoom < 8.0 && zone == DistanceZone.MID) {
+                        (remainingBudget * 0.05).toInt().coerceAtLeast(5)
+                    } else 0
+                }
             }
             safetyBudget[zone] = allocation
         }

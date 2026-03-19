@@ -299,12 +299,19 @@ class SpatialDiskCache(
     }
 
     /**
-     * Query nearby features using Hilbert spatial indexing
+     * Query nearby features using Hilbert spatial indexing with Lazy Hydration limit
+     * @param regionIdRaw Region/Country code
+     * @param center Current map center
+     * @param maxDistanceMiles Search radius
+     * @param limit Maximum number of features to hydrate (Budget-aware)
+     * @return List of hydrated OverlayFeatures
      */
-    /**
-     * Query nearby features using Hilbert spatial indexing
-     */
-    fun queryNearby(regionIdRaw: String, center: GeoPoint, maxDistanceMiles: Double): List<OverlayFeature> {
+    fun queryNearby(
+        regionIdRaw: String, 
+        center: GeoPoint, 
+        maxDistanceMiles: Double,
+        limit: Int = 1000 // Default generous limit for non-budgeted calls
+    ): List<OverlayFeature> {
         val regionId = regionIdRaw.uppercase()
         try {
             // Verify cached data exists
@@ -322,15 +329,30 @@ class SpatialDiskCache(
             val maxDistanceMeters = maxDistanceMiles * 1609.34
             val range = (maxDistanceMeters / 1000.0 * 1000.0).toLong().coerceAtLeast(1000)
 
-            // Find relevant indices
+            // Find relevant indices from Hilbert curve (approximate spatial proximity)
             val relevantEntries = spatialIndex.findNearbyIndices(centerIndex, range)
 
-            // Deserialize relevant features
-            val nearbyFeatures = relevantEntries.mapNotNull { entry ->
+            // OPTIMIZATION: If too many entries, sort them by actual distance using peekCentroid
+            // before full hydration to keep JVM heap clean.
+            val processedEntries = if (relevantEntries.size > limit) {
+                relevantEntries.mapNotNull { entry ->
+                    synchronized(mappedBuffer) {
+                        mappedBuffer.position(entry.byteOffset)
+                        val centroid = MapOverlayCacheUtils.peekCentroid(mappedBuffer)
+                        if (centroid != null) {
+                            entry to center.distanceToAsDouble(centroid)
+                        } else null
+                    }
+                }.sortedBy { it.second }
+                 .take(limit)
+                 .map { it.first }
+            } else {
+                relevantEntries
+            }
+
+            // Hydrate only the thinned/relevant features
+            val nearbyFeatures = processedEntries.mapNotNull { entry ->
                 try {
-                    // entry.byteOffset points to the start of the record (length prefix)
-                    // entry.byteLength includes the 4-byte length prefix
-                    
                     if (entry.byteLength <= 4) return@mapNotNull null
 
                     val featureBytes = ByteArray(entry.byteLength)
@@ -341,8 +363,9 @@ class SpatialDiskCache(
 
                     val overlayFeature = MapOverlayCacheUtils.deserializeSingleFlexBufferFeature(java.nio.ByteBuffer.wrap(featureBytes))
                     
-                    // Final distance validation
-                    if (overlayFeature != null && center.distanceToAsDouble(overlayFeature.centroid) <= maxDistanceMeters) {
+                    // Final distance validation (if not already sorted/filtered)
+                    val distanceMeters = center.distanceToAsDouble(overlayFeature?.centroid ?: GeoPoint(0.0, 0.0))
+                    if (overlayFeature != null && distanceMeters <= maxDistanceMeters) {
                         overlayFeature
                     } else {
                         null
@@ -353,7 +376,7 @@ class SpatialDiskCache(
                 }
             }
 
-            return nearbyFeatures
+            return if (nearbyFeatures.size > limit) nearbyFeatures.take(limit) else nearbyFeatures
 
         } catch (e: Exception) {
             Log.e(TAG, "Error querying nearby features for $cacheName/$regionId", e)

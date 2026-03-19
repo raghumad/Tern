@@ -102,8 +102,8 @@ class AirspaceCache(context: Context) {
     /**
      * Query nearby airspaces using Hilbert spatial indexing for memory efficiency
      */
-    fun queryNearbyFeatures(countryCode: String, center: GeoPoint, maxDistanceMiles: Double): List<OverlayFeature> {
-        return diskCache.queryNearby(countryCode, center, maxDistanceMiles)
+    fun queryNearbyFeatures(countryCode: String, center: GeoPoint, maxDistanceMiles: Double, limit: Int = 1000): List<OverlayFeature> {
+        return diskCache.queryNearby(countryCode, center, maxDistanceMiles, limit)
     }
 
     /**

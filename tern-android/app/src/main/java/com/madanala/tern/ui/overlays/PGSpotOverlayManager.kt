@@ -33,6 +33,10 @@ import android.graphics.drawable.BitmapDrawable
 import android.util.LruCache
 import com.madanala.tern.redux.RouteConstants
 import com.madanala.tern.utils.PGSpotCache
+import com.madanala.tern.utils.OverlayBudget
+import com.madanala.tern.utils.ApplicationMemoryState
+import com.madanala.tern.utils.MemoryPressureLevel
+import com.madanala.tern.utils.DistanceZone
 
 /**
  * ADVANCED AVIATION PG SPOTS MANAGER
@@ -482,18 +486,24 @@ class PGSpotOverlayManager(
             // Refactor: Use UniversalCountryCacheManager for intelligent multi-country loading
             // This matches the robust implementation in AirspaceOverlayManager
             countryCacheManager?.let { countryCache ->
-                // Notify cache manager of location change to trigger downloads if needed
-                countryCache.onLocationChanged(center)
+                // 🎯 Aviation Safety: Determine adaptive radius/budget based on zoom level
+                val zoom = mapView?.zoomLevelDouble ?: 12.0
+                val radiusKm = calculateAdaptiveQueryRadius(zoom)
                 
+                // Get current budget to set hydration limit (Lazy Hydration)
+                val budgetOverlays = getCurrentOverlayBudget()?.totalOverlays ?: 100
+                val hydrationLimit = budgetOverlays * 2 // Search buffer
+
                 // Query multiple countries intelligently using the universal cache manager
                 val nearbyFeatures = withContext(Dispatchers.IO) {
-                    val allFeatures = countryCache.queryMultiCountryArea(center, 200.0) // 200km radius
+                    // Query multiple countries intelligently using the universal cache manager
+                    val allFeatures = countryCache.queryMultiCountryArea(center, radiusKm, hydrationLimit)
                     
-                    // Filter for PG spots only (case-insensitive for robustness)
+                    // Filter for PG spots
                     allFeatures.filter { it.overlayType.equals("pgspot", ignoreCase = true) }
                 }
 
-                Log.d(TAG, "loadPGSpotsForLocation: Query result - PG Spots: ${nearbyFeatures.size}")
+                Log.d(TAG, "loadPGSpotsForLocation: Query result - Radius: ${radiusKm}km, Limit: $hydrationLimit, Features: ${nearbyFeatures.size}")
 
                 if (nearbyFeatures.isNotEmpty()) {
                     renderPGSpotFeaturesWithWeather(nearbyFeatures, center)
@@ -635,7 +645,7 @@ class PGSpotOverlayManager(
         
         // Log names for test verification
         if (prioritizedFeatures.isNotEmpty()) {
-             val name = prioritizedFeatures.first().feature["properties"]?.let { (it as? Map<*, *>)?.get("name") } ?: "Unknown"
+             val name = prioritizedFeatures.first().feature["name"] as? String ?: "Unknown"
              Log.d(TAG, "Rendered ${prioritizedFeatures.size} PG Spots. First: $name")
         }
     }
@@ -972,12 +982,15 @@ class PGSpotOverlayManager(
     /**
      * Handle memory state changes for PG spot-specific optimizations
      */
-    override fun onMemoryStateChanged(memoryState: com.madanala.tern.utils.ApplicationMemoryState) {
+    /**
+     * Handle memory state changes from the adaptive system
+     */
+    override fun onMemoryStateChanged(memoryState: ApplicationMemoryState) {
         super.onMemoryStateChanged(memoryState)
 
         // If memory pressure is high, trigger enhanced cleanup and reduce weather updates
-        if (memoryState.calculatedPressure == com.madanala.tern.utils.MemoryPressureLevel.LOW_MEMORY ||
-            memoryState.calculatedPressure == com.madanala.tern.utils.MemoryPressureLevel.CRITICAL_MEMORY) {
+        if (memoryState.calculatedPressure == MemoryPressureLevel.LOW_MEMORY ||
+            memoryState.calculatedPressure == MemoryPressureLevel.CRITICAL_MEMORY) {
             Log.w(TAG, "Memory pressure detected - triggering enhanced PG spot cleanup")
             triggerEmergencyCleanup()
         }
@@ -986,7 +999,7 @@ class PGSpotOverlayManager(
     /**
      * Handle overlay budget changes with dynamic cache resizing and usage reporting
      */
-    override fun onOverlayBudgetChanged(budget: com.madanala.tern.utils.OverlayBudget) {
+    override fun onOverlayBudgetChanged(budget: OverlayBudget) {
         super.onOverlayBudgetChanged(budget)
         
         // 1. Dynamically resize bitmap cache based on current overlay budget
@@ -1138,7 +1151,7 @@ class PGSpotOverlayManager(
         if (currentlyRenderedPGSpots.isEmpty()) return 0
 
         val mapCenter = mapView?.mapCenter ?: return 0
-        val coreZoneThreshold = com.madanala.tern.utils.DistanceZone.CORE.maxKm
+        val coreZoneThreshold = DistanceZone.CORE.maxKm
 
         // Find safety-critical PG spots in CORE zone (closest landing options)
         val safetyCriticalSpots = currentlyRenderedPGSpots.entries.filter { (_, pgSpotMarker) ->

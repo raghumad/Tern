@@ -172,8 +172,8 @@ class PGSpotCache(context: Context) {
     /**
      * Query nearby PG spots using Hilbert spatial indexing for memory efficiency
      */
-    fun queryNearbyPGSpots(countryCode: String, center: GeoPoint, maxDistanceMiles: Double): List<OverlayFeature> {
-        return diskCache.queryNearby(countryCode, center, maxDistanceMiles)
+    fun queryNearbyPGSpots(countryCode: String, center: GeoPoint, maxDistanceMiles: Double, limit: Int = 1000): List<OverlayFeature> {
+        return diskCache.queryNearby(countryCode, center, maxDistanceMiles, limit)
     }
 
     /**

@@ -133,8 +133,20 @@ abstract class BaseOverlayManager(
     }
 
     /**
+     * Calculate an adaptive query radius based on zoom level.
+     * Prevents "Halo Effect" (empty map at low zoom) and "Greedy Load" (OOM at high zoom).
+     */
+    protected fun calculateAdaptiveQueryRadius(zoom: Double): Double {
+        return when {
+            zoom >= 13.0 -> 20.0     // Local view: focus on immediate vicinity
+            zoom >= 10.0 -> 100.0    // Intermediate: broad local context
+            zoom >= 7.0 -> 400.0     // Regional: 400km covers most screens
+            else -> 1000.0           // Continental: 1000km for regional situational awareness
+        }
+    }
+
+    /**
      * Prioritize features based on strict zone-based budgeting
-     * Enforces limits per zone (CORE, NEAR, FAR) to ensure consistent density
      */
     protected fun <T> prioritizeFeaturesByZone(
         items: List<T>,
