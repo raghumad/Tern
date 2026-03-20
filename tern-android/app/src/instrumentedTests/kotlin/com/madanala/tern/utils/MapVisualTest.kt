@@ -272,19 +272,26 @@ open class MapVisualTest {
             val mapView = findMapViewRecursive(rootView)
             val mapHash = System.identityHashCode(mapView)
             
-            Log.e("MapVisualTest", "DIAGNOSTIC FAILURE DUMP for MapView@$mapHash")
-            if (mapView != null) {
-                Log.e("MapVisualTest", "Overlay count: ${mapView.overlays.size}")
-                mapView.overlays.forEachIndexed { index, overlay ->
-                    val type = overlay.javaClass.simpleName
+            fun dumpOverlays(list: List<org.osmdroid.views.overlay.Overlay>, indent: String = "  ") {
+                list.forEachIndexed { index, overlay ->
+                    val type = overlay::class.simpleName
                     val hash = System.identityHashCode(overlay)
-                    Log.e("MapVisualTest", "  [$index] Type: $type, Hash: $hash")
+                    Log.e("MapVisualTest", "$indent[$index] Type: $type, Hash: $hash")
+                    
                     if (overlay is org.osmdroid.views.overlay.Polygon) {
                         @Suppress("DEPRECATION")
-                        val pointsSize = overlay.points.size
-                        Log.e("MapVisualTest", "    Polygon Points: $pointsSize")
+                        val pointsSize = overlay.getPoints().size
+                        Log.e("MapVisualTest", "$indent  Polygon Points: $pointsSize")
+                    } else if (overlay is org.osmdroid.views.overlay.FolderOverlay) {
+                        dumpOverlays(overlay.items, "$indent  ")
                     }
                 }
+            }
+
+            Log.e("MapVisualTest", "DIAGNOSTIC FAILURE DUMP for MapView@$mapHash")
+            if (mapView != null) {
+                Log.e("MapVisualTest", "Top-level Overlay count: ${mapView.overlays.size}")
+                dumpOverlays(mapView.overlays)
             }
         }
         
