@@ -39,3 +39,18 @@ In Tern, we do not test code; we validate **Pilot Outcomes**. A feature is only 
 **The Law:**
 - Capture screenshots at every `given` and `then` milestone.
 - Analyze screenshots specifically for **Aviation-Grade UX** adherence (Contrast, Glanceability, Hitboxes).
+
+## 🌍 6. The Real-Time Mandate
+**The Principle:** Safety-critical features must be validated against real-world chaos, not static mocks.
+**The Law:**
+- Instrumented tests MUST target real-time APIs (e.g., Open-Meteo, PGSpots) wherever possible.
+- Avoid `injectMock*` helpers for paragliding spots or weather forecasts; use real IDs and coordinates.
+- **Verification:** Ensure the test triggers a network fetch and waits for the real response.
+
+## 📏 7. Watermark Validation
+**The Principle:** Real-time data is dynamic; validation must be resilient but firm.
+**The Law:**
+- Use "Watermark" assertions (RegEx, Unit existence) instead of exact string matching.
+- **BAD:** `assertTextContains("12.5 kt")` (Will fail if the wind changes).
+- **GOOD:** `assertTextContains("kt")` or `assert(hasText(Regex("\\d+(\\.\\d+)? kt")))`.
+- Ensure the unit (kt, km, ft) exists to verify the data layer is successfully mapped to the UI.
