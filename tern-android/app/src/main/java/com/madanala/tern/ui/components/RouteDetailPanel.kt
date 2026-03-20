@@ -359,7 +359,7 @@ fun RouteDetailsContent(
         } else {
             LazyColumn(
                 modifier = Modifier
-                    .heightIn(max = 280.dp)
+                    .heightIn(max = 450.dp)
                     .testTag("WaypointList"),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {

@@ -22,6 +22,7 @@ This checklist provides the definitive, data-driven criteria for marking a featu
 - [ ] **Pragmatic Scope**: Feature implementation involves fewer than 5 new classes (ref. [Pragmatic Architecture](file:///home/raghu/src/Tern/.agents/skills/pragmatic-architecture/SKILL.md)).
 - [ ] **Source of Truth**: All new performance, memory, or safety thresholds are centralized (e.g., in `MemoryPressureLevel.kt`) rather than inlined.
 - [ ] **Redux Strictness**: State changes are triggered ONLY via `MapAction` -> `Middleware` -> `Reducer`. Zero direct state mutations.
+- [ ] **Density-Aware Rendering**: All dynamic overlays (Bitmaps) must be generated using `createBitmapFromComposableDP` or equivalent density-aware logic. No hardcoded pixel dimensions allowed.
 
 ## 👁️ 3. Semantic UI & BDD Verification
 - [ ] **Pilot Status Visibility**: Background operations (caching, sync) are represented by active UI state changes (Icons, HUD shields).

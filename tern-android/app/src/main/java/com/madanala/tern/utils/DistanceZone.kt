@@ -241,12 +241,12 @@ object DistanceZoneUtils {
         val nonCriticalZones = DistanceZone.values().filter { !it.safetyCritical }
 
         nonCriticalZones.forEach { zone ->
-            val allocation = when (memoryPressure) {
+                val allocation = when (memoryPressure) {
                 MemoryPressureLevel.HIGH_MEMORY -> (remainingBudget * 0.25).toInt()
                 MemoryPressureLevel.MEDIUM_MEMORY -> (remainingBudget * 0.2).toInt()
                 MemoryPressureLevel.LOW_MEMORY -> {
                     // At low zoom, give more to MID/FAR to prevent Halo Effect
-                    if (zoom < 8.0 && (zone == DistanceZone.MID || zone == DistanceZone.NEAR)) {
+                    if (zoom < ZoomCategory.REGIONAL_THRESHOLD && (zone == DistanceZone.MID || zone == DistanceZone.NEAR)) {
                          (remainingBudget * 0.15).toInt()
                     } else {
                          (remainingBudget * 0.1).toInt()
@@ -254,11 +254,12 @@ object DistanceZoneUtils {
                 }
                 MemoryPressureLevel.CRITICAL_MEMORY -> {
                     // Even in critical, show minimal regional context if zoomed out
-                    if (zoom < 8.0 && zone == DistanceZone.MID) {
+                    if (zoom < ZoomCategory.REGIONAL_THRESHOLD && zone == DistanceZone.MID) {
                         (remainingBudget * 0.05).toInt().coerceAtLeast(5)
                     } else 0
                 }
             }
+
             safetyBudget[zone] = allocation
         }
 

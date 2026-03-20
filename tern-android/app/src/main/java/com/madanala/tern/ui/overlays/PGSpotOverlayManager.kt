@@ -141,12 +141,13 @@ class PGSpotOverlayManager(
     // Track rendered PG spots and weather status for efficient updates
     private val currentlyRenderedPGSpots = mutableMapOf<String, PGSpotMarker>()
     private val visiblePGSpots = mutableSetOf<String>() // Currently visible in viewport
+    private var lastZoomCategory = com.madanala.tern.utils.ZoomCategory.DETAIL
 
     // Aviation safety thresholds (inherited from airspace system with PG spot optimizations)
     private val checkDistanceKm = 2.0  // Smaller than airspace - PG spots are denser
 
     // PERFORMANCE CACHES: Drastically reduces GC pressure during map interaction
-    private var cachedStaticIcon: Bitmap? = null
+    private val zoomPartitionedCache = android.util.LruCache<com.madanala.tern.utils.ZoomCategory, Bitmap>(4)
     private val windGaugeCache = LruCache<Int, Bitmap>(50) // Default size, resized dynamically via budget
 
     data class PGSpotMarker(
@@ -261,7 +262,12 @@ class PGSpotOverlayManager(
             }
         }
 
-
+        // Detect ZoomCategory change to trigger batch icon refresh (RFC 005)
+        val currentCategory = com.madanala.tern.utils.ZoomCategory.fromZoom(zoom)
+        if (currentCategory != lastZoomCategory) {
+            lastZoomCategory = currentCategory
+            refreshIconScaling(currentCategory)
+        }
 
         checkAndLoadPGSpots(center)
     }
@@ -401,40 +407,51 @@ class PGSpotOverlayManager(
                 coroutineScope.launch(Dispatchers.Main) {
                     try {
                         val mapView = mapView ?: return@launch
-                        
-                        // PERFORMANCE: Create unique key based on wind conditions for caching
+                                    // PERFORMANCE: Create unique key based on wind conditions and hazard visibility (RFC 005)
+                        val showHazards = lastZoomCategory.showHazardIndicators
                         val cacheKey = arrayOf(
                             wind.speed.roundToInt(),
                             wind.direction.roundToInt(),
                             wind.gust.roundToInt(),
-                            forecast.isStale()
+                            forecast.isStale(),
+                            forecast.hasConvectiveDanger(),
+                            forecast.hasThunderstorm(),
+                            showHazards
                         ).contentHashCode()
-
+ 
                         var bitmap = windGaugeCache.get(cacheKey)
                         
                         if (bitmap == null) {
                             // THROTTLING: Slightly stagger the generation if many updates happen simultaneously
                             delay(30) 
                             
-                            bitmap = com.madanala.tern.utils.ViewToBitmap.createBitmapFromComposable(
-                                parentView = mapView,
-                                width = 150, 
-                                height = 150
-                            ) {
+                        bitmap = com.madanala.tern.utils.ViewToBitmap.createBitmapFromComposableDP(
+                            parentView = mapView,
+                            widthDp = 64, 
+                            heightDp = 64
+                        ) {
                                 com.madanala.tern.ui.components.WindGaugeMarker(
                                     speed = wind.speed,
                                     direction = wind.direction,
                                     gust = wind.gust,
-                                    isStale = forecast.isStale()
+                                    isStale = forecast.isStale(),
+                                    hasConvectiveDanger = forecast.hasConvectiveDanger(),
+                                    hasThunderstorm = forecast.hasThunderstorm(),
+                                    showHazards = showHazards
                                 )
                             }
-                            windGaugeCache.put(cacheKey, bitmap)
+                            if (bitmap != null) {
+                                windGaugeCache.put(cacheKey, bitmap)
+                            }
                         }
                         
                         // 🚀 PERFORMANCE: reuse Bitmap instance and reset anchor
-                        marker.icon = android.graphics.drawable.BitmapDrawable(applicationContext.resources, bitmap)
-                        marker.setAnchor(org.osmdroid.views.overlay.Marker.ANCHOR_CENTER, org.osmdroid.views.overlay.Marker.ANCHOR_CENTER)
-                        mapView?.invalidate()
+                        bitmap?.let {
+                            marker.icon = android.graphics.drawable.BitmapDrawable(applicationContext.resources, it)
+                            marker.setAnchor(org.osmdroid.views.overlay.Marker.ANCHOR_CENTER, org.osmdroid.views.overlay.Marker.ANCHOR_CENTER)
+                            mapView?.invalidate()
+                        }
+
                     } catch (e: Exception) {
                         Log.w(TAG, "Failed to generate bitmap for PG spot $pgSpotId", e)
                     }
@@ -497,6 +514,7 @@ class PGSpotOverlayManager(
                 // Query multiple countries intelligently using the universal cache manager
                 val nearbyFeatures = withContext(Dispatchers.IO) {
                     // Query multiple countries intelligently using the universal cache manager
+                    countryCache.onLocationChanged(center)
                     val allFeatures = countryCache.queryMultiCountryArea(center, radiusKm, hydrationLimit)
                     
                     // Filter for PG spots
@@ -797,22 +815,34 @@ class PGSpotOverlayManager(
             setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
             alpha = 1.0f // Ensure reset from pooling
 
-            // PERFORMANCE: Use class-level cache for the static icon to avoid redundant scaling
-            if (cachedStaticIcon == null) {
+            // PERFORMANCE: Use Zoom-Partitioned cache for the static icon to avoid redundant scaling
+            val currentZoom = map.zoomLevelDouble
+            val category = com.madanala.tern.utils.ZoomCategory.fromZoom(currentZoom)
+            
+            // Apply scale and alpha based on ZoomCategory (Aviation-Grade Scaling - RFC 005)
+            alpha = category.iconAlpha
+
+            var cachedIcon = zoomPartitionedCache.get(category)
+            if (cachedIcon == null) {
                 try {
                     val drawable = ContextCompat.getDrawable(applicationContext, R.mipmap.ic_launcher)
                     drawable?.let {
                         val originalBitmap = it.toBitmap()
-                        val scaledWidth = Math.max(1, originalBitmap.width / 2)
-                        val scaledHeight = Math.max(1, originalBitmap.height / 2)
-                        cachedStaticIcon = originalBitmap.scale(scaledWidth, scaledHeight, true)
+                        
+                        // Scale factors based on RFC 005 SSOT
+                        val scaleFactor = category.iconScale
+
+                        val scaledWidth = Math.max(1, (originalBitmap.width * scaleFactor).toInt())
+                        val scaledHeight = Math.max(1, (originalBitmap.height * scaleFactor).toInt())
+                        cachedIcon = originalBitmap.scale(scaledWidth, scaledHeight, true)
+                        zoomPartitionedCache.put(category, cachedIcon)
                     }
                 } catch (e: Exception) {
-                    Log.w(TAG, "Failed to load/scale PG spot icon", e)
+                    Log.w(TAG, "Failed to load/scale PG spot icon for $category", e)
                 }
             }
 
-            cachedStaticIcon?.let {
+            cachedIcon?.let {
                 icon = BitmapDrawable(applicationContext.resources, it)
             }
         }
@@ -836,7 +866,12 @@ class PGSpotOverlayManager(
     }
 
     private fun isWithinWeatherRange(center: GeoPoint, viewport: BoundingBox): Boolean {
-        return isPointInBoundingBox(center, viewport)
+        // Must be in viewport AND within CORE/NEAR zones (RFC 005)
+        if (!isPointInBoundingBox(center, viewport)) return false
+        
+        val distanceKm = calculateDistanceFromUser(center)
+        val zone = com.madanala.tern.utils.DistanceZone.fromDistanceKm(distanceKm)
+        return zone == com.madanala.tern.utils.DistanceZone.CORE || zone == com.madanala.tern.utils.DistanceZone.NEAR
     }
 
     private fun isPointInBoundingBox(point: GeoPoint, boundingBox: BoundingBox): Boolean {
@@ -892,7 +927,36 @@ class PGSpotOverlayManager(
     }
 
     private fun launchWeatherFetchingForVisiblePGSpots() {
-        val visibleIds = visiblePGSpots.toSet()
+        Log.d(TAG, "launchWeatherFetchingForVisiblePGSpots called. visiblePGSpots size: ${visiblePGSpots.size}")
+        val viewport = mapView?.boundingBox
+        if (viewport == null) {
+            Log.w(TAG, "Cannot launch weather fetch: Viewport is null")
+            return
+        }
+
+        if (visiblePGSpots.isEmpty()) {
+            Log.d(TAG, "visiblePGSpots empty, proactively determining for viewport: $viewport")
+            visiblePGSpots.clear()
+            visiblePGSpots.addAll(determineVisiblePGSpots(viewport))
+        }
+
+        Log.d(TAG, "visiblePGSpots IDs: $visiblePGSpots")
+        Log.d(TAG, "currentlyRenderedPGSpots keys: ${currentlyRenderedPGSpots.keys}")
+
+        val visibleIds = visiblePGSpots.filter { id ->
+            currentlyRenderedPGSpots[id]?.let { feature ->
+                val distanceKm = calculateDistanceFromUser(feature.center)
+                val zone = com.madanala.tern.utils.DistanceZone.fromDistanceKm(distanceKm)
+                Log.d(TAG, "Spot $id at distance $distanceKm km (Zone: $zone)")
+                zone == com.madanala.tern.utils.DistanceZone.CORE || zone == com.madanala.tern.utils.DistanceZone.NEAR
+            } ?: run {
+                Log.d(TAG, "Spot $id (from visiblePGSpots) NOT found in currentlyRenderedPGSpots")
+                false
+            }
+        }.toSet()
+        
+        Log.d(TAG, "Final visibleIds for fetch: $visibleIds")
+
         if (visibleIds.isNotEmpty()) {
             launchWeatherFetchingForPGSpots(visibleIds)
         }
@@ -936,8 +1000,8 @@ class PGSpotOverlayManager(
 
 
     private fun generatePGSpotId(feature: OverlayFeature): String {
-        // Generate unique ID for PG spot tracking
-        return "pg_${feature.centroid.latitude}_${feature.centroid.longitude}".replace(".", "_")
+        // Generate unique ID for PG spot tracking - prioritize provided ID for traceability
+        return feature.id ?: "pg_${feature.centroid.latitude}_${feature.centroid.longitude}".replace(".", "_")
     }
 
     override fun onReduxStateChanged(state: MapState) {
@@ -970,7 +1034,9 @@ class PGSpotOverlayManager(
         }
     }
     override fun onFocusModeChanged(enabled: Boolean) {
-        val targetAlpha = if (enabled) 0.3f else 1.0f
+        val zoomCategory = getCurrentZoomCategory()
+        val baseAlpha = zoomCategory.iconAlpha
+        val targetAlpha = if (enabled) baseAlpha * 0.3f else baseAlpha
         
         currentlyRenderedPGSpots.values.forEach { pgSpotMarker ->
             pgSpotMarker.marker.alpha = targetAlpha
@@ -999,7 +1065,48 @@ class PGSpotOverlayManager(
     /**
      * Handle overlay budget changes with dynamic cache resizing and usage reporting
      */
-    override fun onOverlayBudgetChanged(budget: OverlayBudget) {
+    /**
+     * Batch refresh all currently rendered icons when zoom category changes.
+     * PERFORMANCE: Only updates markers that are currently in the overlay list.
+     */
+    private fun refreshIconScaling(category: com.madanala.tern.utils.ZoomCategory) {
+        val map = mapView ?: return
+        
+        // Scale and alpha based on RFC 005 SSOT
+        val scaleFactor = category.iconScale
+        val baseAlpha = category.iconAlpha
+
+        var cachedIcon = zoomPartitionedCache.get(category)
+        if (cachedIcon == null) {
+            try {
+                val drawable = ContextCompat.getDrawable(applicationContext, R.mipmap.ic_launcher)
+                drawable?.let {
+                    val originalBitmap = it.toBitmap()
+                    val scaledWidth = Math.max(1, (originalBitmap.width * scaleFactor).toInt())
+                    val scaledHeight = Math.max(1, (originalBitmap.height * scaleFactor).toInt())
+                    cachedIcon = originalBitmap.scale(scaledWidth, scaledHeight, true)
+                    zoomPartitionedCache.put(category, cachedIcon)
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to refresh icon cache for $category", e)
+            }
+        }
+
+        cachedIcon?.let { bitmap ->
+            val drawable = BitmapDrawable(applicationContext.resources, bitmap)
+            val focusFactor = if (_isFocusMode) 0.3f else 1.0f
+            val targetAlpha = baseAlpha * focusFactor
+            
+            currentlyRenderedPGSpots.values.forEach { pgSpotMarker ->
+                pgSpotMarker.marker.icon = drawable
+                pgSpotMarker.marker.alpha = targetAlpha
+            }
+        }
+        
+        mapView?.invalidate()
+    }
+
+    override fun onOverlayBudgetChanged(budget: com.madanala.tern.utils.OverlayBudget) {
         super.onOverlayBudgetChanged(budget)
         
         // 1. Dynamically resize bitmap cache based on current overlay budget

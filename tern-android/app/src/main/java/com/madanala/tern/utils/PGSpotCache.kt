@@ -36,6 +36,21 @@ class PGSpotCache(context: Context) {
         const val PG_SPOT_CACHE_HOURS = 4320  // 6 months (180 days)
         private const val TAG = "PGSpotCache"
         private const val USER_AGENT = "Tern-Paragliding-App/1.0"
+
+        // Base URL for API - moved to companion for global test redirection
+        @Volatile
+        var baseUrl = "https://www.paraglidingearth.com/api/geojson"
+            private set
+
+        @androidx.annotation.VisibleForTesting
+        fun setBaseUrlForTesting(url: String) {
+            baseUrl = url
+        }
+
+        @androidx.annotation.VisibleForTesting
+        fun resetBaseUrlForTesting() {
+            baseUrl = "https://www.paraglidingearth.com/api/geojson"
+        }
     }
 
     // Delegate storage and indexing to generic SpatialDiskCache
@@ -57,22 +72,6 @@ class PGSpotCache(context: Context) {
         return diskCache.getCachedFeatures(countryCode)
     }
 
-    /**
-     * Cache PG spots data from standard GeoJSON API
-     */
-    // Base URL for API - updated to new /api/geojson path
-    @Volatile
-    private var baseUrl = "https://www.paraglidingearth.com/api/geojson"
-
-    @androidx.annotation.VisibleForTesting
-    fun setBaseUrlForTesting(url: String) {
-        baseUrl = url
-    }
-
-    @androidx.annotation.VisibleForTesting
-    fun resetBaseUrlForTesting() {
-        baseUrl = "https://www.paraglidingearth.com/api/geojson"
-    }
 
     /**
      * Cache PG spots data from standard GeoJSON API

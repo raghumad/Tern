@@ -12,6 +12,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import org.osmdroid.util.GeoPoint
 
 /**
  * Middleware handling side-effects for Aviation Weather fetching.
@@ -46,7 +47,18 @@ class WeatherMiddleware(
                     return@launch
                 }
 
-                // API Fetch
+                // API Fetch - Restrict to CORE and NEAR zones (RFC 005)
+                val mapCenter = store.state.value.center ?: store.state.value.userLocation
+                val distanceKm = mapCenter?.let { 
+                    org.osmdroid.util.GeoPoint(action.latitude, action.longitude).distanceToAsDouble(it) / 1000.0
+                } ?: Double.MAX_VALUE
+
+                val zone = com.madanala.tern.utils.DistanceZone.fromDistanceKm(distanceKm)
+                if (zone != com.madanala.tern.utils.DistanceZone.CORE && zone != com.madanala.tern.utils.DistanceZone.NEAR) {
+                    // Skip API fetch for distant spots to optimize performance/API costs
+                    return@launch
+                }
+
                 val forecast = weatherAPI.fetchForecast(action.latitude, action.longitude)
                 if (forecast != null) {
                     weatherCache.cacheWeatherData(action.latitude, action.longitude, forecast)
@@ -77,16 +89,31 @@ class WeatherMiddleware(
                     }
                 }
 
-                // API PASS
+                // API PASS - Restrict to CORE and NEAR zones (RFC 005)
                 if (cacheMisses.isNotEmpty()) {
-                    val batchResult = weatherAPI.fetchBatchForecast(cacheMisses)
-                    batchResult.forEach { (id, forecast) ->
-                        if (forecast != null) {
-                            results[id] = forecast
-                            // Find the original lat/lon for caching
-                            val original = action.spots.find { it.first == id }
-                            if (original != null) {
-                                weatherCache.cacheWeatherData(original.second, original.third, forecast)
+                    val state = store.state.value
+                    val mapCenter = state.center ?: state.userLocation
+                    val filteredMisses = cacheMisses.filter { req ->
+                        val referencePoint = mapCenter ?: state.userLocation
+                        val distanceKm = if (referencePoint != null) {
+                            GeoPoint(req.lat, req.lon).distanceToAsDouble(referencePoint) / 1000.0
+                        } else {
+                            0.0 // Allow fetch if we don't have a reference location yet (cold start)
+                        }
+                        val zone = com.madanala.tern.utils.DistanceZone.fromDistanceKm(distanceKm)
+                        zone == com.madanala.tern.utils.DistanceZone.CORE || zone == com.madanala.tern.utils.DistanceZone.NEAR
+                    }
+
+                    if (filteredMisses.isNotEmpty()) {
+                        val batchResult = weatherAPI.fetchBatchForecast(filteredMisses)
+                        batchResult.forEach { (id, forecast) ->
+                            if (forecast != null) {
+                                results[id] = forecast
+                                // Find the original lat/lon for caching
+                                val original = action.spots.find { it.first == id }
+                                if (original != null) {
+                                    weatherCache.cacheWeatherData(original.second, original.third, forecast)
+                                }
                             }
                         }
                     }

@@ -300,22 +300,26 @@ class RouteOverlayManager(
                         wind.speed.roundToInt(),
                         wind.direction.roundToInt(),
                         wind.gust.roundToInt(),
-                        forecast.isStale()
+                        forecast.isStale(),
+                        forecast.hasConvectiveDanger(),
+                        forecast.hasThunderstorm()
                     ).contentHashCode()
                     
                     if (windGaugeCache.get(cacheKey) == null) {
                         coroutineScope.launch(Dispatchers.Main) {
                             try {
-                                val bitmap = com.madanala.tern.utils.ViewToBitmap.createBitmapFromComposable(
+                                val bitmap = com.madanala.tern.utils.ViewToBitmap.createBitmapFromComposableDP(
                                     parentView = mapView,
-                                    width = 120, // Waypoints slightly smaller than PG spots
-                                    height = 120
+                                    widthDp = 64, // Sufficient for 56dp marker
+                                    heightDp = 64
                                 ) {
                                     com.madanala.tern.ui.components.WindGaugeMarker(
                                         speed = wind.speed,
                                         direction = wind.direction,
                                         gust = wind.gust,
-                                        isStale = forecast.isStale()
+                                        isStale = forecast.isStale(),
+                                        hasConvectiveDanger = forecast.hasConvectiveDanger(),
+                                        hasThunderstorm = forecast.hasThunderstorm()
                                     )
                                 }
                                 windGaugeCache.put(cacheKey, bitmap)
@@ -802,7 +806,9 @@ class RouteOverlayManager(
                                     wind.speed.roundToInt(),
                                     wind.direction.roundToInt(),
                                     wind.gust.roundToInt(),
-                                    forecast.isStale()
+                                    forecast.isStale(),
+                                    forecast.hasConvectiveDanger(),
+                                    forecast.hasThunderstorm()
                                 ).contentHashCode()
                                 windBitmap = windGaugeCache.get(cacheKey)
                             }

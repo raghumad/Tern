@@ -305,7 +305,7 @@ private val testDispatcher = StandardTestDispatcher()
     private fun createStateWithRoutes(count: Int, enabled: Boolean = true): MapState {
         val routes = (1..count).map { 
             Route(id = "route$it", waypoints = listOf(
-                Waypoint(lat = 40.0 + it, lon = -74.0 + it)
+                Waypoint(lat = 40.0 + (it * 0.1), lon = -74.0 + (it * 0.1))
             ))
         }
         val overlayState = OverlayState(routes = OverlayConfig(enabled = enabled))
