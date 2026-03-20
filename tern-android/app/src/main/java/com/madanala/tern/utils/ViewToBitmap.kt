@@ -26,8 +26,29 @@ object ViewToBitmap {
 
     /**
      * Converts a Composable to a Bitmap asynchronously by attaching to a parent view.
-     * Must be called on the main thread.
+     * Dimensions are provided in DP (Density-independent Pixels) and converted to 
+     * physical pixels based on device density.
      */
+    suspend fun createBitmapFromComposableDP(
+        parentView: ViewGroup,
+        widthDp: Int,
+        heightDp: Int,
+        lifecycleOwner: LifecycleOwner? = null,
+        viewModelStoreOwner: ViewModelStoreOwner? = null,
+        savedStateRegistryOwner: SavedStateRegistryOwner? = null,
+        content: @Composable () -> Unit
+    ): Bitmap {
+        val density = parentView.context.resources.displayMetrics.density
+        val widthPx = (widthDp * density).toInt()
+        val heightPx = (heightDp * density).toInt()
+        
+        return createBitmapFromComposable(
+            parentView, widthPx, heightPx, 
+            lifecycleOwner, viewModelStoreOwner, savedStateRegistryOwner, 
+            content
+        )
+    }
+
     suspend fun createBitmapFromComposable(
         parentView: ViewGroup,
         width: Int,
@@ -80,6 +101,19 @@ object ViewToBitmap {
             view.doOnLayout { 
                 try {
                     if (continuation.isActive) {
+                        // DIAGNOSTIC GUARD: Check if Composable's intrinsic size fits in buffer
+                        // Note: Measuring children in Compose is usually done via modifiers, 
+                        // but here we check the View's own measure output.
+                        if (view.measuredWidth > width || view.measuredHeight > height) {
+                            val msg = "ViewToBitmap: Clipping detected! Composable (${view.measuredWidth}x${view.measuredHeight}px) " +
+                                     "is larger than request (${width}x${height}px)"
+                            if (com.madanala.tern.BuildConfig.DEBUG) {
+                                throw IllegalStateException(msg)
+                            } else {
+                                android.util.Log.e("ViewToBitmap", msg)
+                            }
+                        }
+
                         val bitmap = createBitmap(width, height, Bitmap.Config.ARGB_8888)
                         val canvas = Canvas(bitmap)
                         view.draw(canvas)
@@ -92,8 +126,6 @@ object ViewToBitmap {
                 } finally {
                     if (viewAdded) {
                         // FIX: Wrap removeView in post to avoid NPE in FrameLayout.layoutChildren.
-                        // Removing a child during its own layout/layout-change listener shifts 
-                        // the rug out from under the parent's layout loop.
                         view.post {
                             safeParent.removeView(view)
                             // PERFORMANCE: Explicitly dispose composition to free memory faster
@@ -107,7 +139,6 @@ object ViewToBitmap {
             // Fallback cleanup if coroutine is cancelled while waiting for layout
             continuation.invokeOnCancellation {
                 if (viewAdded) {
-                    // Must be on main thread
                     view.post {
                         safeParent.removeView(view)
                         view.disposeComposition()

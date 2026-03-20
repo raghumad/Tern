@@ -16,6 +16,11 @@ import org.osmdroid.util.GeoPoint
 
 @RunWith(AndroidJUnit4::class)
 class MapMemoryStressTest : MapVisualTest() {
+    
+    @org.junit.After
+    fun stopWeatherServer() {
+        com.madanala.tern.utils.WeatherTestHelper.stopServer()
+    }
 
     @Test
     fun testAlpineHighDensityMemoryStress() {
@@ -35,10 +40,17 @@ class MapMemoryStressTest : MapVisualTest() {
             val activity = composeTestRule.activity as TernParaglidingActivity
             val store = ViewModelProvider(activity)[MapStore::class.java]
             
-            given("The map is centered on Chamonix, French Alps (High PG Spot Density)") {
+            given("The map is centered on Chamonix, French Alps (High PG Spot Density) with REAL weather simulation") {
                  // Chamonix: 45.9237, 6.8694
-                 CountryUtils.setTestCountryCode("FR")
                  
+                 // Start Mock Weather Server FIRST with persistent 12kt wind
+                 val mockUrl = com.madanala.tern.utils.WeatherTestHelper.startServer()
+                 com.madanala.tern.utils.PGSpotCache.setBaseUrlForTesting(mockUrl)
+                 com.madanala.tern.utils.WeatherTestHelper.setDispatcher(speed = 12.0, direction = 220.0)
+
+                 // THEN set country code to trigger downloads using the NEW base URL
+                 CountryUtils.setTestCountryCode("FR")
+
                  // Use Redux as ONLY Source of Truth for camera
                  store.dispatch(MapAction.UpdateCenter(GeoPoint(45.9237, 6.8694)))
                  store.dispatch(MapAction.UpdateZoom(12.0))
@@ -50,10 +62,13 @@ class MapMemoryStressTest : MapVisualTest() {
                  // Wait for debounce in BaseOverlayManager (300ms) to fire performMapMove
                  Thread.sleep(500)
                  
-                 // Wait for PG spots to load and render initially
-                 // [STRICT VERIFICATION] Remove try-catch to expose failures
-                 waitForPGSpots(minCount = 5, timeoutMillis = 20000)
-                 PerformanceDebugger.logHeapUsage("STRESS_START_AFTER_LOAD")
+                 // Wait for PG spots to load and render initially - they should now transition to Wind Gauges
+                 waitForPGSpots(minCount = 5, timeoutMillis = 30000)
+                 
+                 // Give extra time for the 5+ wind gauges to be generated via ViewToBitmap
+                 Thread.sleep(5000)
+                 
+                 PerformanceDebugger.logHeapUsage("STRESS_START_AFTER_LOAD_WITH_WEATHER")
             }
 
             `when`("The user performs sustained rapid panning for 10 seconds") {

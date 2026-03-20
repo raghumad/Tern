@@ -275,11 +275,13 @@ class AirspaceOverlayManager(
     }
 
     override fun onFocusModeChanged(enabled: Boolean) {
-        val targetAlpha = if (enabled) 0x10 else 0x40 // ~6% vs 25% opacity
+        val zoomCategory = getCurrentZoomCategory()
+        val baseAlpha = if (zoomCategory.minZoom < com.madanala.tern.utils.ZoomCategory.REGIONAL_THRESHOLD) 0x20 else 0x40
+        val targetAlpha = if (enabled) (baseAlpha * 0.3f).toInt() else baseAlpha
         
         currentlyRenderedAirspaces.values.forEach { polygon ->
             polygon.fillPaint.alpha = targetAlpha
-            polygon.outlinePaint.alpha = targetAlpha * 2 // Slightly more visible outline
+            polygon.outlinePaint.alpha = Math.min(255, targetAlpha * 2)
         }
         mapView?.invalidate()
     }
@@ -497,6 +499,7 @@ class AirspaceOverlayManager(
 
                 val nearbyFeatures = withContext(Dispatchers.IO) {
                     // Query multiple countries intelligently using the universal cache manager
+                    countryCache.onLocationChanged(center)
                     val allFeatures = countryCache.queryMultiCountryArea(center, radiusKm, hydrationLimit)
                     
                     // Filter for airspaces only

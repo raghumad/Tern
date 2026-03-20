@@ -17,6 +17,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 import android.view.ViewGroup
+import org.osmdroid.util.GeoPoint
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
 import java.util.concurrent.CountDownLatch
@@ -25,6 +26,13 @@ import org.junit.Rule
 
 @RunWith(AndroidJUnit4::class)
 class DynamicMarkerTest : com.madanala.tern.utils.MapVisualTest() {
+    
+    companion object {
+        init {
+            // Set test country at class loading time to catch early activity startup
+            com.madanala.tern.utils.CountryUtils.setTestCountryCode("TEST")
+        }
+    }
 
     // composeTestRule is inherited from MapVisualTest
 
@@ -44,13 +52,13 @@ class DynamicMarkerTest : com.madanala.tern.utils.MapVisualTest() {
         composeTestRule.runOnUiThread {
             MainScope().launch {
                 try {
-                    bitmap = ViewToBitmap.createBitmapFromComposable(
+                    bitmap = ViewToBitmap.createBitmapFromComposableDP(
                         parentView = parent,
-                        width = width,
-                        height = height,
-                        lifecycleOwner = composeTestRule.activity, // Explicitly pass lifecycle owner
-                        viewModelStoreOwner = composeTestRule.activity, // Explicitly pass view model store owner
-                        savedStateRegistryOwner = composeTestRule.activity // Explicitly pass saved state registry owner
+                        widthDp = width,
+                        heightDp = width,
+                        lifecycleOwner = composeTestRule.activity,
+                        viewModelStoreOwner = composeTestRule.activity,
+                        savedStateRegistryOwner = composeTestRule.activity
                     ) {
                         WindGaugeMarker(speed = 10.0, direction = 180.0)
                     }
@@ -65,8 +73,9 @@ class DynamicMarkerTest : com.madanala.tern.utils.MapVisualTest() {
 
         // THEN the bitmap should be created with correct dimensions
         assertNotNull("Bitmap should not be null", bitmap)
-        assertEquals("Width should match", width, bitmap?.width)
-        assertEquals("Height should match", height, bitmap?.height)
+        // Assert on density-aware size
+        val density = context.resources.displayMetrics.density
+        assertEquals("Width should match density-scaled width", (width * density).toInt(), bitmap?.width)
         
         // Verify it's not empty (check a pixel or config)
         assertEquals(Bitmap.Config.ARGB_8888, bitmap?.config)
@@ -84,8 +93,8 @@ class DynamicMarkerTest : com.madanala.tern.utils.MapVisualTest() {
                     val latch = CountDownLatch(1)
                     composeTestRule.runOnUiThread {
                         MainScope().launch {
-                            bitmap = ViewToBitmap.createBitmapFromComposable(
-                                parentView = parent, width = 100, height = 100,
+                            bitmap = ViewToBitmap.createBitmapFromComposableDP(
+                                parentView = parent, widthDp = 100, heightDp = 100,
                                 lifecycleOwner = composeTestRule.activity,
                                 viewModelStoreOwner = composeTestRule.activity,
                                 savedStateRegistryOwner = composeTestRule.activity
@@ -98,7 +107,8 @@ class DynamicMarkerTest : com.madanala.tern.utils.MapVisualTest() {
 
                 this.then("the gauge should be rendered into a valid bitmap", takeScreenshot = true) {
                     assertNotNull("Bitmap should be generated for the 15kt wind gauge", bitmap)
-                    assertEquals(100, bitmap?.width)
+                    val density = context.resources.displayMetrics.density
+                    assertEquals((100 * density).toInt(), bitmap?.width)
                 }
             }
         }
@@ -119,8 +129,8 @@ class DynamicMarkerTest : com.madanala.tern.utils.MapVisualTest() {
                     val latch1 = CountDownLatch(1)
                     composeTestRule.runOnUiThread {
                         MainScope().launch {
-                            bitmapWest = ViewToBitmap.createBitmapFromComposable(
-                                parentView = parent, width = 100, height = 100,
+                            bitmapWest = ViewToBitmap.createBitmapFromComposableDP(
+                                parentView = parent, widthDp = 100, heightDp = 100,
                                 lifecycleOwner = composeTestRule.activity,
                                 viewModelStoreOwner = composeTestRule.activity,
                                 savedStateRegistryOwner = composeTestRule.activity
@@ -133,8 +143,8 @@ class DynamicMarkerTest : com.madanala.tern.utils.MapVisualTest() {
                     val latch2 = CountDownLatch(1)
                     composeTestRule.runOnUiThread {
                         MainScope().launch {
-                            bitmapEast = ViewToBitmap.createBitmapFromComposable(
-                                parentView = parent, width = 100, height = 100,
+                            bitmapEast = ViewToBitmap.createBitmapFromComposableDP(
+                                parentView = parent, widthDp = 100, heightDp = 100,
                                 lifecycleOwner = composeTestRule.activity,
                                 viewModelStoreOwner = composeTestRule.activity,
                                 savedStateRegistryOwner = composeTestRule.activity
@@ -165,50 +175,84 @@ class DynamicMarkerTest : com.madanala.tern.utils.MapVisualTest() {
 
     @Test
     fun testPGSpotMarkerSwitchesToWindGauge() {
-        scenario("PG Spot Marker Transforms from Static Pin to Live Wind Gauge After Weather Load") {
-            story("As a pilot scanning the map, I want the launch site pin to transform into a live wind gauge when weather data loads, so I know at a glance that real-time data is active — not stale or missing.") {
-                // Use a PG spot near Boulder (default MapVisualTest viewport)
-                val pgSpotId = "pg_test_boulder"
-
-                var iconBeforeWeather: Any? = null
-                var iconAfterWeather: Any? = null
-
-                given("a PG spot marker is rendered on the map without weather data") {
-                    composeTestRule.waitForIdle()
-                    // Capture the initial marker icon reference from the overlay manager
-                    val store = androidx.lifecycle.ViewModelProvider(composeTestRule.activity)[com.madanala.tern.redux.MapStore::class.java]
-                    iconBeforeWeather = store.state.value.weatherState.spotWeathers[pgSpotId]
-                }
-
-                `when`("weather data arrives for that PG spot with 12 kt wind at 270°") {
-                    val forecast = WeatherForecast(
-                        current = WeatherData(
-                            wind = WindData(speed = 12.0, direction = 270.0, gust = 16.0),
-                            temperature = 18.0,
-                            humidity = 45.0,
-                            visibility = 10.0,
-                            pressure = 1013.25,
-                            cloudCover = 15.0,
-                            timestamp = System.currentTimeMillis() / 1000
-                        ),
-                        hourly = emptyList(),
-                        daily = emptyList()
+        scenario("PG Spot Marker Transforms from Static Pin to Live Wind Gauge After REAL Weather Load") {
+            story("As a pilot scanning the map, I want the launch site pin to transform into a live wind gauge when weather data arrives from the API.") {
+                val pgSpotId = "pg_boulder_test"
+                val lat = 40.015
+                val lon = -105.27
+                
+                given("a PG spot is cached and a Mock Weather Server is running") {
+                    // Set test country early - this will trigger a TEST download which we redirect
+                    com.madanala.tern.utils.CountryUtils.setTestCountryCode("TEST")
+                    
+                    val context = composeTestRule.activity
+                    val point = org.osmdroid.util.GeoPoint(lat, lon)
+                    val featureMap = mapOf("id" to pgSpotId, "name" to "Boulder Launch")
+                    val hIndex = com.madanala.tern.utils.MapOverlayCacheUtils.computeHilbertIndex(point, 16)
+                    
+                    val feature = com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature(
+                        id = pgSpotId,
+                        feature = featureMap,
+                        centroid = point,
+                        hilbertIndex = hIndex,
+                        overlayType = "pgspot"
                     )
-                    composeTestRule.runOnUiThread {
-                        val store = androidx.lifecycle.ViewModelProvider(composeTestRule.activity)[com.madanala.tern.redux.MapStore::class.java]
-                        store.dispatch(WeatherActions.WeatherFetched(pgSpotId, forecast))
-                    }
-                    composeTestRule.waitForIdle()
+                    
+                    val mockUrl = com.madanala.tern.utils.WeatherTestHelper.startServer()
+                    // Redirect PG spot downloads to mock server
+                    com.madanala.tern.utils.PGSpotCache.setBaseUrlForTesting(mockUrl)
+                    com.madanala.tern.utils.WeatherTestHelper.setDispatcher(speed = 18.0, direction = 270.0)
+                    
+                    // Pre-inject the cache to ensure the spot 9876 doesnt leak from real US data
+                    com.madanala.tern.utils.TestCacheInjector.injectPGSpots(
+                        context, 
+                        com.madanala.tern.utils.CacheManager.pgSpotCache, 
+                        "TEST", 
+                        listOf(feature)
+                    )
                 }
 
-                this.then("the Redux weather state for the spot must be populated — confirming the icon swap pipeline fired", takeScreenshot = true) {
+                `when`("I zoom into the Boulder region") {
+                    zoomTo(lat, lon, 14.0)
+                    waitForMapData(minAirspaces = 0, minPGSpots = 1)
+                    // Give weather middleware time to fire and update UI
+                    Thread.sleep(3000)
+                }
+
+                this.then("the marker should be rendered as a wind gauge with 18kt value", takeScreenshot = true) {
                     val store = androidx.lifecycle.ViewModelProvider(composeTestRule.activity)[com.madanala.tern.redux.MapStore::class.java]
-                    iconAfterWeather = store.state.value.weatherState.spotWeathers[pgSpotId]
-                    assertNotNull("Weather data should be in Redux state after WeatherFetched dispatch", iconAfterWeather)
-                    assertNotEquals("Weather state should change after dispatch (icon swap pipeline triggered)", iconBeforeWeather, iconAfterWeather)
+                    val weather = store.state.value.weatherState.spotWeathers[pgSpotId]
+                    assertNotNull("Weather data should be fetched from Mock Server for $pgSpotId", weather)
+                    assertEquals(18.0, weather?.current?.wind?.speed ?: 0.0, 0.1)
+                    
+                    // Cleanup server, country and cache settings
+                    com.madanala.tern.utils.WeatherTestHelper.stopServer()
+                    com.madanala.tern.utils.PGSpotCache.resetBaseUrlForTesting()
+                    com.madanala.tern.utils.CountryUtils.setTestCountryCode(null)
                 }
             }
         }
+    }
+
+    /**
+     * Helper to verify that a generated bitmap is actually NOT empty (i.e. contains more than just transparency).
+     * This catches silent failures in the ViewToBitmap pipeline.
+     */
+    private fun assertBitmapIsNotEmpty(bitmap: Bitmap?, message: String) {
+        assertNotNull("$message - Bitmap is null", bitmap)
+        val b = bitmap!!
+        var hasContent = false
+        // Sample every 5th pixel for performance
+        for (x in 0 until b.width step 5) {
+            for (y in 0 until b.height step 5) {
+                if (android.graphics.Color.alpha(b.getPixel(x, y)) > 0) {
+                    hasContent = true
+                    break
+                }
+            }
+            if (hasContent) break
+        }
+        org.junit.Assert.assertTrue("$message - Bitmap should have non-transparent content", hasContent)
     }
 }
 

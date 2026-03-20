@@ -46,13 +46,32 @@ data class WeatherForecast(
     val hourly: List<ForecastPeriod>
 ) {
     fun isStale(): Boolean {
-        // Data is stale if generated more than 4 hours ago
-        // Note: This is a heuristic. Ideally we check the 'generationtime_ms' from API
-        // or the cache timestamp. For now, we check if the first hourly forecast is in the past.
         val firstHourly = hourly.firstOrNull() ?: return true
         val now = System.currentTimeMillis() / 1000
-        // If the first forecast hour is more than 4 hours in the past, it's stale
         return (now - firstHourly.startTime) > (4 * 3600)
+    }
+
+    /**
+     * Heuristic for convective danger (Aviation Warning)
+     */
+    fun hasConvectiveDanger(): Boolean {
+        val currentData = current ?: hourly.firstOrNull()?.weather ?: return false
+        val keywords = listOf("thunderstorm", "overdevelopment", "heavy rain", "convective", "shower")
+        val hourlyText = hourly.take(3).any { period -> 
+            keywords.any { period.shortForecast.contains(it, ignoreCase = true) }
+        }
+        // Pilot logic: High humidity + High clouds = Danger of overdevelopment
+        return (currentData.cloudCover > 75.0 && currentData.humidity > 80.0) || hourlyText
+    }
+
+    /**
+     * Heuristic for immediate thunderstorm / lightning danger
+     */
+    fun hasThunderstorm(): Boolean {
+        val keywords = listOf("thunderstorm", "lightning", "squall", "heavy thunderstorm")
+        return hourly.take(6).any { period ->
+            keywords.any { period.shortForecast.contains(it, ignoreCase = true) }
+        }
     }
 }
 
@@ -105,7 +124,19 @@ class OpenMeteoWeatherAPI : WeatherAPI {
 
     companion object {
         // OpenMeteo API configuration
-        private const val BASE_URL = "https://api.open-meteo.com/v1/forecast"
+        @Volatile
+        private var baseUrl = "https://api.open-meteo.com/v1/forecast"
+        
+        @androidx.annotation.VisibleForTesting
+        fun setBaseUrlForTesting(url: String) {
+            baseUrl = url
+        }
+
+        @androidx.annotation.VisibleForTesting
+        fun resetBaseUrl() {
+            baseUrl = "https://api.open-meteo.com/v1/forecast"
+        }
+
         // Updated to include 80m wind, gusts, cloud cover, visibility, and pressure-level temps for Skew-T
         private const val HOURLY_PARAMS = "temperature_2m,relative_humidity_2m,precipitation_probability,pressure_msl,wind_speed_10m,wind_direction_10m,wind_speed_80m,wind_direction_80m,wind_gusts_10m,cloud_cover,visibility,temperature_850hPa,temperature_925hPa"
         private const val DAILY_PARAMS = "temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max,wind_direction_10m_dominant,sunrise,sunset"
@@ -116,7 +147,7 @@ class OpenMeteoWeatherAPI : WeatherAPI {
     override suspend fun isAvailable(): Boolean = withContext(Dispatchers.IO) {
         try {
             val testRequest = Request.Builder()
-                .url("$BASE_URL?latitude=51.5&longitude=-0.1&hourly=temperature_2m&forecast_days=1")
+                .url("$baseUrl?latitude=51.5&longitude=-0.1&hourly=temperature_2m&forecast_days=1")
                 .build()
 
             client.newCall(testRequest).execute().use { response ->
@@ -163,7 +194,7 @@ class OpenMeteoWeatherAPI : WeatherAPI {
         try {
             val lats = capped.joinToString(",") { it.lat.toString() }
             val lons = capped.joinToString(",") { it.lon.toString() }
-            val url = "$BASE_URL?latitude=$lats&longitude=$lons" +
+            val url = "$baseUrl?latitude=$lats&longitude=$lons" +
                       "&hourly=$HOURLY_PARAMS" +
                       "&daily=$DAILY_PARAMS" +
                       "&forecast_days=$FORECAST_DAYS" +
@@ -185,9 +216,21 @@ class OpenMeteoWeatherAPI : WeatherAPI {
                     return@withContext result
                 }
 
-                // Open-Meteo returns a JSON array when multiple locations are requested
-                @Suppress("UNCHECKED_CAST")
-                val jsonArray = mapper.readValue<List<Map<String, Any>>>(body)
+                Log.d("OpenMeteoWeatherAPI", "Received response: $body")
+
+                // Open-Meteo returns a JSON array when multiple locations are requested,
+                // but may return a single object if only one location was requested.
+                val jsonArray = try {
+                    mapper.readValue<List<Map<String, Any>>>(body)
+                } catch (e: Exception) {
+                    try {
+                        listOf(mapper.readValue<Map<String, Any>>(body))
+                    } catch (e2: Exception) {
+                        Log.e("OpenMeteoWeatherAPI", "Failed to parse weather response as Array or Object", e2)
+                        capped.forEach { result[it.id] = null }
+                        return@withContext result
+                    }
+                }
 
                 jsonArray.forEachIndexed { index, jsonData ->
                     val loc = capped.getOrNull(index) ?: return@forEachIndexed
@@ -212,7 +255,7 @@ class OpenMeteoWeatherAPI : WeatherAPI {
 
 
     private fun buildUrl(lat: Double, lng: Double): String {
-        return "$BASE_URL?latitude=$lat&longitude=$lng" +
+        return "$baseUrl?latitude=$lat&longitude=$lng" +
                "&hourly=$HOURLY_PARAMS" +
                "&daily=$DAILY_PARAMS" +
 

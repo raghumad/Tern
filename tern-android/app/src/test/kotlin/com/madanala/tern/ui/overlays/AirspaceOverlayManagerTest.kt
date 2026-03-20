@@ -63,7 +63,7 @@ class AirspaceOverlayManagerTest : BaseTest() {
         // Given
         val center = GeoPoint(47.0, 8.0)
         val zoom = 12.0
-        val radiusKm = 200.0
+        val radiusKm = 100.0
         
         // Mock country cache response
         val airspaceFeature = OverlayFeature(
@@ -84,7 +84,7 @@ class AirspaceOverlayManagerTest : BaseTest() {
         every { airspaceCache.isCached("US") } returns true
         every { airspaceCache.queryNearbyFeatures("US", center, any()) } returns listOf(airspaceFeature)
 
-        coEvery { countryCacheManager.queryMultiCountryArea(any(), any()) } returns listOf(airspaceFeature, pgSpotFeature)
+        coEvery { countryCacheManager.queryMultiCountryArea(any(), any(), any()) } returns listOf(airspaceFeature, pgSpotFeature)
 
         manager.setOverlayCoordinator(overlayCoordinator)
         manager.initialize(mapView)
@@ -102,7 +102,7 @@ class AirspaceOverlayManagerTest : BaseTest() {
         
         // Then
         verify(atLeast = 1) { countryCacheManager.onLocationChanged(center) }
-        coVerify(atLeast = 1) { countryCacheManager.queryMultiCountryArea(center, radiusKm) }
+        coVerify(atLeast = 1) { countryCacheManager.queryMultiCountryArea(center, 100.0, 300) }
         
         // Verify that only airspace feature was processed (filtering check)
         // We verify that createAirspaceOverlaysIncrementally was called with a list containing ONLY the airspace feature

@@ -77,7 +77,7 @@ class PGSpotOverlayManagerTest : BaseTest() {
             overlayType = "pgspot"
         )
         
-        coEvery { countryCacheManager.queryMultiCountryArea(center, any()) } returns listOf(pgSpotFeature)
+        coEvery { countryCacheManager.queryMultiCountryArea(center, any(), any()) } returns listOf(pgSpotFeature)
 
         manager.setOverlayCoordinator(overlayCoordinator)
         manager.initialize(mapView)
@@ -90,7 +90,7 @@ class PGSpotOverlayManagerTest : BaseTest() {
 
         // Then
         // Verify that countryCacheManager was queried
-        coVerify { countryCacheManager.queryMultiCountryArea(center, any()) }
+        coVerify { countryCacheManager.queryMultiCountryArea(center, any(), any()) }
     }
     
 

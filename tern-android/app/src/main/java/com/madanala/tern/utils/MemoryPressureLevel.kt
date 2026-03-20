@@ -127,16 +127,23 @@ enum class MemoryPressureLevel(
          * Get fallback zone allocation for specific overlay type
          */
         fun getFallbackZoneBudgets(overlayType: String): Map<DistanceZone, Int> {
-            return if (overlayType.contains("airspace")) {
-                mapOf(
+            val type = overlayType.lowercase()
+            return when {
+                type.contains("airspace") -> mapOf(
                     DistanceZone.CORE to MAX_VIEWPORT_AIRSPACES_FALLBACK,
                     DistanceZone.NEAR to 30,
                     DistanceZone.MID to 15,
                     DistanceZone.FAR to 5,
                     DistanceZone.EXTREME to 0
                 )
-            } else {
-                mapOf(
+                type.contains("routes") -> mapOf(
+                    DistanceZone.CORE to 10,
+                    DistanceZone.NEAR to 10,
+                    DistanceZone.MID to 10,
+                    DistanceZone.FAR to 5,
+                    DistanceZone.EXTREME to 0
+                )
+                else -> mapOf( // PG Spots
                     DistanceZone.CORE to 25,
                     DistanceZone.NEAR to MAX_PG_SPOTS_FALLBACK,
                     DistanceZone.MID to 0,

@@ -43,15 +43,25 @@ open class MapVisualTest {
         }
         
         // Also set a default test country code to avoid race conditions with initial location updates
-        com.madanala.tern.utils.CountryUtils.setTestCountryCode("us")
+        com.madanala.tern.utils.CountryUtils.setTestCountryCode("TEST")
     }
 
 
     @org.junit.Before
     fun setup() {
         val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
+        
+        // 1. ISOLATION: Set test country code BEFORE anything else to prevent real US data downloads
+        com.madanala.tern.utils.CountryUtils.setTestCountryCode("TEST")
+        
         com.madanala.tern.utils.CacheManager.initialize(context)
-
+        // 2. HYGIENE: Clear all caches immediately to ensure no state leakage from previous runs
+        com.madanala.tern.utils.CacheManager.clearAllCaches()
+        
+        // Defensive: redirect all API calls to invalid local port
+        com.madanala.tern.utils.PGSpotCache.setBaseUrlForTesting("http://127.0.0.1:1/")
+        com.madanala.tern.utils.OpenMeteoWeatherAPI.setBaseUrlForTesting("http://127.0.0.1:1/")
+        
         com.madanala.tern.ui.components.MapViewModel.MAP_MOVE_DEBOUNCE_MS = 0L
         val className = this.javaClass.simpleName
         ReportGenerator.currentTestClass = className
@@ -135,6 +145,7 @@ open class MapVisualTest {
                 // Reset map to baseline location to prevent cross-test state leakage
                 store.dispatch(MapAction.UpdateCenter(org.osmdroid.util.GeoPoint(40.015, -105.27)))
                 store.dispatch(MapAction.UpdateZoom(12.0))
+                store.dispatch(MapAction.SetLocationReady(true))
                 
                 // [OFFLINE-FIRST DESIGN] 
                 // Do NOT invoke CacheManager.clearAllCaches() here. 
