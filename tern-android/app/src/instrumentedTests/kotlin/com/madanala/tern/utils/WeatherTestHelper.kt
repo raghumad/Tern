@@ -73,6 +73,14 @@ object WeatherTestHelper {
                             .setHeader("Content-Type", "application/x-ndgeojson")
                             .setResponseCode(200)
                     }
+                    requestPath.endsWith("_asp.geojson") -> {
+                        // [RFC 005] Mock Airspace - Valid NDGeoJSON
+                        val body = """{"type":"Feature","properties":{"name":"Mock Airspace","class":"D"},"geometry":{"type":"Polygon","coordinates":[[[-105.3,40.1],[-105.2,40.1],[-105.2,40.0],[-105.3,40.0],[-105.3,40.1]]]}}""" + "\n"
+                        MockResponse()
+                            .setBody(body)
+                            .setHeader("Content-Type", "application/x-ndgeojson")
+                            .setResponseCode(200)
+                    }
                     requestPath.endsWith("forecast") || requestPath.contains("forecast?") -> {
                         MockResponse().setBody(weatherJson).setResponseCode(200)
                     }

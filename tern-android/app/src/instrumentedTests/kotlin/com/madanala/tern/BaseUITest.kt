@@ -20,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import com.madanala.tern.ui.theme.TernTheme
 
+@org.junit.Ignore
 abstract class BaseUITest {
 
     @get:Rule

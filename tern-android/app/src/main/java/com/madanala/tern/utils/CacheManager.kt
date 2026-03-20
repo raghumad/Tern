@@ -56,7 +56,8 @@ object CacheManager {
         return mapOf(
             "airspaceCache" to airspaceCache.getCacheStats(),
             "pgSpotCache" to pgSpotCache.getCacheStats(),
-            "routeCache" to routeCache.getCacheStats()
+            "routeCache" to routeCache.getCacheStats(),
+            "weatherCache" to weatherCache.getCacheStats()
         )
     }
 
@@ -68,6 +69,7 @@ object CacheManager {
             airspaceCache.clearCache()
             pgSpotCache.clearCache()
             routeCache.clearCache()
+            weatherCache.clearCache()
             Log.d("CacheManager", "All caches cleared")
         }
     }

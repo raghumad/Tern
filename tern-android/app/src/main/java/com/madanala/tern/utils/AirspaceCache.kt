@@ -86,13 +86,13 @@ class AirspaceCache(context: Context) {
                 return true
             } else {
                 Log.w(TAG, "No valid airspaces found or stream failed for $countryCode")
-                clearCacheForCountry(countryCode)
+                clearCacheForRegion(countryCode)
                 return false
             }
 
         } catch (e: Exception) {
             Log.e(TAG, "Error caching airspace data for $countryCode: ${e.message}", e)
-            clearCacheForCountry(countryCode)
+            clearCacheForRegion(countryCode)
             return false
         } finally {
             downloadInProgress.remove(countryCode)
@@ -107,9 +107,9 @@ class AirspaceCache(context: Context) {
     }
 
     /**
-     * Clear cache for a specific country
+     * Clear cache for a specific region/country
      */
-    private fun clearCacheForCountry(countryCode: String) {
+    fun clearCacheForRegion(countryCode: String) {
         diskCache.clearCacheForRegion(countryCode)
     }
 

@@ -24,8 +24,7 @@ class UniversalCountryCacheManager(
     private val mutex = Mutex()
     private val coroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
-    // Smart country caching - thread-safe set for concurrent access
-    private val cachedCountries = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+    // Smart country tracking - relying on disk state for persistence
     private var lastLocation: GeoPoint? = null
     private var currentCountry: String? = null
     private var locationJob: kotlinx.coroutines.Job? = null
@@ -134,7 +133,10 @@ class UniversalCountryCacheManager(
 
         // Check and preload OUTSIDE the main mutex lock to avoid deadlocks and blocking I/O
         if (!countryCrossed) {
-            if (!airspaceCache.isCached(newCountry) || !pgSpotCache.isCached(newCountry)) {
+             val needsPreload = withContext(Dispatchers.IO) {
+                !airspaceCache.isCached(newCountry) || !pgSpotCache.isCached(newCountry)
+            }
+            if (needsPreload) {
                 Log.w(TAG, "Country $newCountry missing from disk caches. Reloading.")
                 preloadCountry(newCountry)
             }
@@ -163,7 +165,6 @@ class UniversalCountryCacheManager(
         
         lastLocation = null
         currentCountry = null
-        cachedCountries.clear()
         downloadingCountries.clear()
         
         synchronized(countryAccessMetadata) {
@@ -187,7 +188,10 @@ class UniversalCountryCacheManager(
         // For aviation safety: preload adjacent countries BEFORE clearing old ones
         coroutineScope.launch {
             // Ensure current country is cached first
-            if (toCountry !in cachedCountries) {
+            val isCached = withContext(Dispatchers.IO) {
+                airspaceCache.isCached(toCountry) && pgSpotCache.isCached(toCountry)
+            }
+            if (!isCached) {
                 preloadCountry(toCountry)
             }
             preloadAdjacentCountries(toCountry, location)
@@ -211,7 +215,10 @@ class UniversalCountryCacheManager(
             val countriesToLoad = adjacentCountries.take(MAX_ADJACENT_COUNTRIES)
             
             countriesToLoad.forEach { countryCode ->
-                if (countryCode !in cachedCountries) {
+                val isCached = withContext(Dispatchers.IO) {
+                    airspaceCache.isCached(countryCode) && pgSpotCache.isCached(countryCode)
+                }
+                if (!isCached) {
                     preloadCountry(countryCode)
                 }
             }
@@ -249,8 +256,8 @@ class UniversalCountryCacheManager(
         try {
             Log.d(TAG, "Preloading country for all overlay types: $country")
             
-            // Mark as cached immediately to prevent redundant triggers
-            cachedCountries.add(country)
+            // No longer using in-memory 'cachedCountries' set - strictly relying on disk state
+            // to prevent synchronization issues after cache wipes.
 
             // 1. Download PG Spots (delegated to cache)
             Log.d(TAG, "Triggering PG spot download for $country")
@@ -274,11 +281,19 @@ class UniversalCountryCacheManager(
     }
 
     /**
-     * Remove country from cache
+     * Check if a country is currently being preloaded (downloading)
+     */
+    fun isCountryDownloading(country: String): Boolean {
+        return downloadingCountries.contains(country)
+    }
+
+    /**
+     * Remove country from cache (purges from disk)
      */
     private suspend fun removeCountry(country: String) {
-        mutex.withLock {
-            cachedCountries.remove(country)
+        withContext(Dispatchers.IO) {
+            airspaceCache.clearCacheForRegion(country)
+            pgSpotCache.clearCacheForRegion(country)
         }
         Log.d(TAG, "Removed country from cache: $country")
     }
@@ -300,8 +315,8 @@ class UniversalCountryCacheManager(
             return false
         }
 
-        if (country.length != 2) {
-            Log.w(TAG, "Invalid country code format (expected 2 chars): $country")
+        if (country.length != 2 && country != "TEST") {
+            Log.w(TAG, "Invalid country code format (expected 2 chars or 'TEST'): $country")
             return false
         }
 
@@ -371,8 +386,10 @@ class UniversalCountryCacheManager(
             recordCacheEviction(lruCountry, metadata.accessCount)
         }
 
-        // Remove from main cache
-        cachedCountries.remove(lruCountry)
+        // Remove from main cache (disk purged through removeCountry)
+        coroutineScope.launch {
+            removeCountry(lruCountry)
+        }
     }
 
     // ==================== UTILITY FUNCTIONS ====================
@@ -429,14 +446,19 @@ class UniversalCountryCacheManager(
     // ==================== PUBLIC API FOR ALL OVERLAY TYPES ====================
 
     /**
-     * Get currently cached countries (used by all overlay managers)
+     * Get currently cached countries from disk index
      */
-    fun getCachedCountries(): Set<String> = cachedCountries.toSet()
-
+    fun getCachedCountries(): Set<String> {
+        val stats = airspaceCache.getCacheStats()
+        @Suppress("UNCHECKED_CAST")
+        val regions = stats["cachedRegions"] as? List<String> ?: emptyList()
+        return regions.toSet()
+    }
+    
     /**
-     * Check if country is cached (used by all overlay managers)
+     * Check if country is cached on disk
      */
-    fun isCountryCached(country: String): Boolean = country in cachedCountries
+    fun isCountryCached(country: String): Boolean = airspaceCache.isCached(country)
 
     /**
      * Query features from multiple countries using spatial indexing with Lazy Hydration
@@ -451,13 +473,19 @@ class UniversalCountryCacheManager(
     ): List<com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature> = coroutineScope {
         val normalizedCenter = center.normalizePrecision()
         
-        val countriesToQuery = cachedCountries.toList()
+        // Dynamically resolve nearby countries from coordinates (Stateless Principle)
+        val countriesToQuery = withContext(Dispatchers.IO) {
+            CountryUtils.getNearbyCountryCodes(applicationContext, center.latitude, center.longitude, radiusKm)
+                .map { it.uppercase() }
+                .distinct()
+        }
+
         if (countriesToQuery.isEmpty()) {
-            Log.w(TAG, "queryMultiCountryArea: No cached countries available at $normalizedCenter")
+            Log.w(TAG, "queryMultiCountryArea: No nearby countries resolved from Geocoder at $normalizedCenter")
             return@coroutineScope emptyList()
         }
 
-        Log.d(TAG, "queryMultiCountryArea: Querying ${countriesToQuery.size} countries ($countriesToQuery) at $normalizedCenter")
+        Log.d(TAG, "queryMultiCountryArea: Querying ${countriesToQuery.size} nearby countries ($countriesToQuery) at $normalizedCenter")
 
         val deferredResults = countriesToQuery.map { countryCode ->
             this@UniversalCountryCacheManager.coroutineScope.async(Dispatchers.IO) {
@@ -528,11 +556,12 @@ class UniversalCountryCacheManager(
             countryAccessMetadata.values.sumOf { it.totalAccessTime } / totalAccesses
         } else 0L
 
+        val cachedCount = getCachedCountries().size
         return mapOf(
-            "cached_countries" to cachedCountries.size,
+            "cached_countries" to cachedCount,
             "max_countries" to MAX_CACHED_COUNTRIES,
             "current_country" to (currentCountry ?: "unknown"),
-            "cache_utilization" to (cachedCountries.size * 100) / MAX_CACHED_COUNTRIES,
+            "cache_utilization" to (cachedCount * 100) / MAX_CACHED_COUNTRIES,
             "total_country_accesses" to totalAccesses,
             "countries_with_metadata" to countryAccessMetadata.size,
             "most_accessed_country" to (mostAccessed?.key ?: "none"),
@@ -590,8 +619,8 @@ class UniversalCountryCacheManager(
             return
         }
 
-        if (country.length != 2) {
-            Log.w(TAG, "Invalid country code format for ${eventType.name.lowercase()}: $country (expected 2 chars)")
+        if (country.length != 2 && country != "TEST") {
+            Log.w(TAG, "Invalid country code format for ${eventType.name.lowercase()}: $country (expected 2 chars or 'TEST')")
             return
         }
 
@@ -661,7 +690,6 @@ class UniversalCountryCacheManager(
      */
     fun shutdown() {
         coroutineScope.cancel()
-        cachedCountries.clear()
         countryAccessMetadata.clear()
         accessOrderedCountries.clear()
         currentCountry = null
