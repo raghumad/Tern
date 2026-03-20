@@ -51,10 +51,14 @@
 *   **Concept**: Forecasts are not static; they depend on *when* the pilot arrives at a waypoint.
 *   **Logic**: `TrajectoryAnalyzer` calculates the estimated arrival time at each waypoint and fetches the weather forecast for that specific time and location.
 
-### 4.3 Caching
-*   **Storage**: `WeatherCache` uses FlexBuffers.
-*   **Expiration**: Data is valid for 4 hours.
-*   **Offline**: Cached data is automatically served when the network is unavailable.
+### Data Strategy
+*   **Zero-Copy Deserialization**: Use of FlatBuffers (FlexBuffers) for performance. [Skill: Spatial Efficiency](file:///home/raghu/src/Tern/.agents/skills/spatial-efficiency/SKILL.md)
+*   **Spatial Indexing**: Hilbert Curve implementation for O(log N) range queries. [Skill: Spatial Efficiency](file:///home/raghu/src/Tern/.agents/skills/spatial-efficiency/SKILL.md)
+*   **Single Source of Truth**: Strict ownership of domain logic. [Skill: Source of Truth](file:///home/raghu/src/Tern/.agents/skills/source-of-truth/SKILL.md)
+
+### Verification
+*   **BDD Testing**: Behavior-driven scenarios for pilot workflows. [Skill: BDD UI Testing Fidelity](file:///home/raghu/src/Tern/.agents/skills/bdd-ui-testing-fidelity/SKILL.md)
+*   **Definition of Done**: Mandatory safety checks before merge. [Skill: Aviation-Grade DoD](file:///home/raghu/src/Tern/.agents/skills/aviation-grade-dod/SKILL.md)
 
 ## 5. Testing Strategy
 
