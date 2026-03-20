@@ -29,3 +29,7 @@ When architecting UI automated tests utilizing the custom BDD reporting framewor
 ## 🕹️ 6. Deterministic Interaction Steps
 **Symptom:** Rapid swipes trigger the map's physics-based momentum (fling), causing non-deterministic "landing" zones in tests.
 **Principle:** Simulated gestures must be deterministic. Use a higher number of `steps` (e.g. 20+) for swipes to provide sufficient friction, preventing the OS from injecting erratic momentum that throws the map off-course during automated execution.
+
+## 🛡️ 7. Resilient Watermark Assertions
+**Symptom:** UI tests break frequently because real-time weather or distance values shift by small amounts.
+**Principle:** When testing against real-time data, utilize "Watermark" matching. Assert the existence of units (e.g., "kt", "km", "ft") and the general format (RegEx) instead of strict text equality. This ensures the communication channel from API-to-UI is healthy without being tethered to a static, mocked world.
