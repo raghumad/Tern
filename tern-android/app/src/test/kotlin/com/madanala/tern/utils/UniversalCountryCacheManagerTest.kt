@@ -47,6 +47,7 @@ class UniversalCountryCacheManagerTest {
     }
 
     @Test
+    @Suppress("UNCHECKED_CAST")
     fun `queryMultiCountryArea queries caches and aggregates results`() = runBlocking {
         // Given
         val center = GeoPoint(37.7749, -122.4194)
@@ -93,6 +94,7 @@ class UniversalCountryCacheManagerTest {
     }
 
     @Test
+    @Suppress("UNCHECKED_CAST")
     fun `performance stats for nearby queries`() = runBlocking {
         // Given
         val center = GeoPoint(46.8182, 8.2275) // Switzerland
@@ -131,6 +133,7 @@ class UniversalCountryCacheManagerTest {
     }
     
     @Test
+    @Suppress("UNCHECKED_CAST")
     fun `validate cache after download`() = runBlocking {
         // Given
         val countryCode = "FR"
@@ -151,6 +154,7 @@ class UniversalCountryCacheManagerTest {
         assertThat(cachedCountries).contains(countryCode)
     }
     @Test
+    @Suppress("UNCHECKED_CAST")
     fun `preloadCountry adds country to cache immediately before download completes`() = runBlocking {
         // Given
         val countryCode = "US"

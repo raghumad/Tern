@@ -106,7 +106,7 @@ class OverlayCoordinator {
             return if (polygonPool.isNotEmpty()) {
                 polygonPool.removeAt(polygonPool.size - 1).apply {
                     // Reset points for reuse
-                    points.clear()
+                    setPoints(mutableListOf())
                 }
             } else {
                 org.osmdroid.views.overlay.Polygon()

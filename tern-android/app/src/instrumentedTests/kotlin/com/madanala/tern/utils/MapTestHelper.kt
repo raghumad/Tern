@@ -233,6 +233,7 @@ object MapTestHelper {
         uiAutomation.grantRuntimePermission(context.packageName, android.Manifest.permission.ACCESS_COARSE_LOCATION)
     }
 
+    @Suppress("DEPRECATION")
     fun injectMockLocation(composeTestRule: androidx.compose.ui.test.junit4.AndroidComposeTestRule<*, *>, lat: Double, lon: Double) {
         // Set the custom provider factory in MapViewModel
         MapViewModel.locationProviderFactory = { MockLocationProvider(lat, lon) }

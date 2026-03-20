@@ -146,6 +146,7 @@ class AndroidMemoryMonitor(private val context: Context) : ComponentCallbacks2 {
 
     override fun onConfigurationChanged(newConfig: Configuration) {}
 
+    @Suppress("OVERRIDE_DEPRECATION")
     override fun onLowMemory() {
         getComprehensiveMemoryState()
     }

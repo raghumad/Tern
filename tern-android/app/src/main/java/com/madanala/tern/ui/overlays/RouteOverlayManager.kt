@@ -296,7 +296,7 @@ class RouteOverlayManager(
                 val forecast = weatherState.waypointWeathers[waypoint.id]
                 if (forecast != null && forecast.current != null) {
                     val wind = forecast.current.wind
-                    val cacheKey = arrayOf(
+                    val cacheKey = arrayOf<Any>(
                         wind.speed.roundToInt(),
                         wind.direction.roundToInt(),
                         wind.gust.roundToInt(),
@@ -802,7 +802,7 @@ class RouteOverlayManager(
                             var windBitmap: Bitmap? = null
                             if (forecast != null && forecast.current != null) {
                                 val wind = forecast.current.wind
-                                val cacheKey = arrayOf(
+                                val cacheKey = arrayOf<Any>(
                                     wind.speed.roundToInt(),
                                     wind.direction.roundToInt(),
                                     wind.gust.roundToInt(),

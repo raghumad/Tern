@@ -28,6 +28,7 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.ui.graphics.Color
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.Card
 import com.madanala.tern.model.Route
 import com.madanala.tern.model.Waypoint
@@ -283,7 +284,7 @@ fun RouteLibraryContent(store: MapStore) {
                         Spacer(modifier = Modifier.width(12.dp))
                         Text(route.name, style = MaterialTheme.typography.bodyMedium)
                     }
-                    Icon(androidx.compose.material.icons.Icons.Default.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Icon(androidx.compose.material.icons.Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
