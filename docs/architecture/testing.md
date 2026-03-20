@@ -21,15 +21,8 @@ The Tern Android app implements a comprehensive testing framework with condition
     - **Pass 2**: Runs unstable tests (if Pass 1 succeeds).
 - **Benefit**: Ensures a crash in a flaky test doesn't prevent reporting for the rest of the suite.
 
-### Python Scripts (Conditional Execution)
-All Python scripts are executed conditionally based on Gradle properties and gracefully handle missing dependencies:
-
-- `check_coverage_threshold.py`: Coverage verification with quality gates
-- `coverage_dashboard.py`: Interactive HTML dashboard with analytics
-- `coverage_trend_analysis.py`: Historical trend analysis and regression detection
-- `generate_coverage_badge.py`: Shields.io badge generation for CI/CD
-- `run_performance_benchmarks.py`: Aviation safety performance validation
-- `android_test_automation.py`: Zero-step automated testing pipeline
+### Test Automation & CI/CD
+Instrumentation tests are primarily driven by Gradle and the `./device` script (which supports fuzzy matching). advanced Python-based trend analysis and automated SDK management are planned for future CI integration but are not part of the local development suite.
 
 ## Usage
 

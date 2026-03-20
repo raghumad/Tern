@@ -41,8 +41,14 @@ This checklist is designed to validate the user experience of all implemented fe
 - [ ] **Spot Details**: Tapping a PG spot shows details (wind, glide ratio).
 - [ ] **Filter Overlays**: Layer control allows toggling Airspaces/Spots/Routes.
 
+## 🛡️ Aviation-Grade Standards (Skill Alignment)
+- [ ] **Touch Target Size**: All interactive elements (FABs, Waypoints) meet the 48dp-64dp minimum for use with gloves or in turbulence.
+- [ ] **Haptic Feedback**: Critical actions (Route Launch, Waypoint Delete) provide distinct haptic confirmation.
+- [ ] **Status Visibility (HUD)**: Background synchronization (Shield icons) appears during data ingestion.
+- [ ] **Offline Resilience**: App functions without a "No Connection" modal blocking the map.
+- [ ] **Legibility**: High-contrast labels for Airspaces and Spots (visible in direct sunlight).
+
 ## ⚙️ Settings & System
-- [ ] **Theme**: App respects system Dark/Light mode.
-- [ ] **Permissions**: Location permission prompt appears and handles denial gracefully.
-- [ ] **Offline Mode**: App functions (viewing cached data) without internet.
-- [ ] **Performance**: App remains responsive during heavy map manipulation.
+- [ ] **Theme**: App respects system Dark/Light mode and provides high-contrast "Aviation" theme.
+- [ ] **Permissions**: Location permission handle denial gracefully with a clear safety rationale.
+- [ ] **Performance**: BDD reports show < 16ms frame time during heavy panning.

@@ -18,44 +18,19 @@ The performance benchmark suite ensures that critical aviation operations mainta
 
 ## Benchmark Categories
 
-### 1. Redux Dispatch Benchmarks (`ReduxDispatchBenchmark.kt`)
-- Measures state update performance under load
-- Tests batching effectiveness
-- Validates concurrent operation handling
-- **Safety Standard**: DO-178C Level C
-- **Recent Fixes**: Resolved "State Update Storm" false positives by implementing:
-    - **State Batching**: Grouping updates within 100ms windows.
-    - **Burst Smoothing**: Using Exponential Moving Average (alpha=0.1) for rate calculation to ignore micro-bursts.
+### 1. State Update Benchmarks
+- Measures state update performance under load.
+- Validates batching effectiveness (100ms window).
+- Uses **PerformanceDebugger.kt** to detect "State Update Storms" (>3000/sec).
 
-### 2. Memory Usage Benchmarks (`MemoryBenchmark.kt`)
-- Monitors heap usage during data operations
-- Tests memory recovery mechanisms
-- Validates cache memory patterns
-- **Safety Standard**: DO-178C Level B
+### 2. Memory Usage Monitoring
+- Monitors heap usage during data operations.
+- Validates **AdaptiveOverlaySystem** budget compliance.
+- Tests memory recovery via **UniversalOverlayPool**.
 
-### 3. GPS Operation Benchmarks (`GpsOperationBenchmark.kt`)
-- Measures GPS data processing speed
-- Tests coordinate transformation performance
-- Validates aviation coordinate validation
-- **Safety Standard**: DO-178C Level A
-
-### 4. UI Responsiveness Benchmarks (`UiResponsivenessBenchmark.kt`)
-- Tests Compose UI rendering performance
-- Measures state change propagation
-- Validates touch interaction responsiveness
-- **Safety Standard**: DO-178C Level C
-
-### 5. Performance Regression Monitor (`PerformanceRegressionMonitor.kt`)
-- Detects performance degradation over time
-- Validates against established baselines
-- Generates safety compliance reports
-- **Safety Standard**: DO-178C Level B
-
-### 6. Performance Baseline (`PerformanceBaseline.kt`)
-- Establishes reference performance metrics
-- Validates DO-178C Level B compliance
-- Comprehensive safety validation
-- **Safety Standard**: DO-178C Level B
+### 3. GPS & Spatial Performance
+- Measures processing speed for Hilbert indices and coordinate transformations.
+- Validates aviation coordinate validation latency (< 5ms).
 
 ## Running Benchmarks
 
@@ -90,15 +65,10 @@ Benchmarks run locally on development machines only. No automated CI/CD integrat
 python3 scripts/run_performance_benchmarks.py
 ```
 
-## Performance Reports
-
-All benchmark results are saved to `app/build/reports/benchmarks/`:
-
-- `comprehensive_performance_report.json` - Detailed metrics
-- `safety_compliance_report.json` - Compliance validation
-- `performance_trends.json` - Trend analysis
-- `baselines/` - Baseline performance metrics
-- `benchmark_output.txt` - Raw benchmark output
+All benchmark results are reported via **Logcat** when `BuildConfig.DEBUG` is enabled. The `PerformanceDebugger` provides periodic summaries including:
+- Redux updates/sec
+- Active allocations (by type)
+- Estimated bytes in memory-mapped buffers
 
 ## Gradle Tasks
 

@@ -24,7 +24,7 @@ This guide outlines the mandatory development patterns and standards for the Ter
 ### Coordinate & Data Precision
 *   **Coordinate Swap**: Always convert GeoJSON `[Lon, Lat]` to OSMDroid `(Lat, Lon)`.
 *   **Unit Convention**: Miles for User UI, Meters for Internal Engine (OSMDroid).
-*   **Spatial Indexing**: Mandatory use of Hilbert Curve for proximity-based feature loading.
+*   **Spatial Indexing**: Mandatory use of Hilbert Curve for proximity-based feature loading. [Skill: Spatial Efficiency](file:///home/raghu/src/Tern/.agents/skills/spatial-efficiency/SKILL.md)
 
 ## 📱 Hardware Integration
 
