@@ -147,7 +147,7 @@ class PGSpotCache(context: Context) {
                     return validFeatures
                 } else {
                     Log.w(TAG, "No valid PG spots found for $countryCode after validation. Raw features: ${features.size}")
-                    clearCacheForCountry(countryCode)
+                    clearCacheForRegion(countryCode)
                 }
             } else {
                 Log.w(TAG, "PG spots download returned null/empty for $countryCode")
@@ -157,11 +157,11 @@ class PGSpotCache(context: Context) {
 
         } catch (e: kotlinx.coroutines.CancellationException) {
             Log.d(TAG, "PG spots download cancelled for $countryCode")
-            clearCacheForCountry(countryCode)
+            clearCacheForRegion(countryCode)
             throw e
         } catch (e: Exception) {
             Log.e(TAG, "Error caching PG spots data for $countryCode: ${e.message}", e)
-            clearCacheForCountry(countryCode)
+            clearCacheForRegion(countryCode)
             return null
         } finally {
             downloadInProgress.remove(countryCode)
@@ -176,9 +176,9 @@ class PGSpotCache(context: Context) {
     }
 
     /**
-     * Clear cache for a specific country
+     * Clear cache for a specific region/country
      */
-    private fun clearCacheForCountry(countryCode: String) {
+    fun clearCacheForRegion(countryCode: String) {
         diskCache.clearCacheForRegion(countryCode)
     }
 
@@ -215,7 +215,7 @@ class PGSpotCache(context: Context) {
         diskCache.cacheIndex.keys.toList().forEach { countryCode ->
             if (!diskCache.isCached(countryCode)) {
                 Log.w(TAG, "Cleaning up corrupted cache for $countryCode")
-                clearCacheForCountry(countryCode)
+                clearCacheForRegion(countryCode)
             }
         }
     }
@@ -260,7 +260,7 @@ class PGSpotCache(context: Context) {
                 val upperCode = countryCode.uppercase()
                 if (isCached(upperCode)) {
                     Log.i(TAG, "Invalidating PG spot cache for $upperCode due to remote modifications")
-                    clearCacheForCountry(upperCode)
+                    clearCacheForRegion(upperCode)
                     
                     // PROACTIVE: Trigger background download for active regions (those already cached)
                     // We don't wait for it here

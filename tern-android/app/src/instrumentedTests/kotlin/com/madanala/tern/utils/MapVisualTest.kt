@@ -58,10 +58,6 @@ open class MapVisualTest {
         // 2. HYGIENE: Clear all caches immediately to ensure no state leakage from previous runs
         com.madanala.tern.utils.CacheManager.clearAllCaches()
         
-        // Defensive: redirect all API calls to invalid local port
-        com.madanala.tern.utils.PGSpotCache.setBaseUrlForTesting("http://127.0.0.1:1/")
-        com.madanala.tern.utils.OpenMeteoWeatherAPI.setBaseUrlForTesting("http://127.0.0.1:1/")
-        
         com.madanala.tern.ui.components.MapViewModel.MAP_MOVE_DEBOUNCE_MS = 0L
         val className = this.javaClass.simpleName
         ReportGenerator.currentTestClass = className

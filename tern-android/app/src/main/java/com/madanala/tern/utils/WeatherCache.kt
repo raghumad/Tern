@@ -217,6 +217,15 @@ class WeatherCache(private val context: Context) {
         memoryCache.evictAll()
         diskCache.clearAll()
     }
+
+    /**
+     * Get cache statistics
+     */
+    fun getCacheStats(): Map<String, Any> {
+        return diskCache.getStats().mapKeys { 
+            if (it.key == "cacheName") "type" else "weather${it.key.replaceFirstChar { c -> c.uppercase() }}" 
+        }
+    }
     
     private fun createCacheKey(centroid: GeoPoint): String {
         return String.format("%.4f_%.4f", centroid.latitude, centroid.longitude)

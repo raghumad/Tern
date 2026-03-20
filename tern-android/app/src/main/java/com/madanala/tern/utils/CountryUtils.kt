@@ -91,6 +91,12 @@ object CountryUtils {
         longitude: Double,
         radiusKm: Double = 50.0
     ): List<String> {
+        val testCode = testCountryCode
+        if (testCode != null) {
+            Log.d(TAG, "getNearbyCountryCodes: Using test country override: $testCode")
+            return listOf(testCode.lowercase())
+        }
+
         val countryCodes = mutableSetOf<String>()
 
         try {
