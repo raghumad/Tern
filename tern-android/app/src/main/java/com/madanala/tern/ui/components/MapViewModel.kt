@@ -256,7 +256,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
                     if (centerChanged) {
                         mapView.controller.setCenter(center)
                     }
-                    if (zoomChanged && zoom != null) {
+                    if (zoomChanged) {
                         mapView.controller.setZoom(zoom)
                     }
                     

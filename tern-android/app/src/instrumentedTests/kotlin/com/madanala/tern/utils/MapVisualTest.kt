@@ -280,7 +280,9 @@ open class MapVisualTest {
                     val hash = System.identityHashCode(overlay)
                     Log.e("MapVisualTest", "  [$index] Type: $type, Hash: $hash")
                     if (overlay is org.osmdroid.views.overlay.Polygon) {
-                        Log.e("MapVisualTest", "    Polygon Points: ${overlay.points.size}")
+                        @Suppress("DEPRECATION")
+                        val pointsSize = overlay.points.size
+                        Log.e("MapVisualTest", "    Polygon Points: $pointsSize")
                     }
                 }
             }

@@ -8,6 +8,6 @@ import java.lang.annotation.RetentionPolicy
  * These tests should be executed after all stable tests have completed,
  * to prevent crashes or side effects from affecting the main test suite.
  */
-@Retention(RetentionPolicy.RUNTIME)
+@kotlin.annotation.Retention(kotlin.annotation.AnnotationRetention.RUNTIME)
 @Target(AnnotationTarget.FUNCTION, AnnotationTarget.CLASS)
 annotation class Unstable(val reason: String = "")

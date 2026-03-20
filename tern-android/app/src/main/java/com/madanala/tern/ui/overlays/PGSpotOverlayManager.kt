@@ -409,7 +409,7 @@ class PGSpotOverlayManager(
                         val mapView = mapView ?: return@launch
                                     // PERFORMANCE: Create unique key based on wind conditions and hazard visibility (RFC 005)
                         val showHazards = lastZoomCategory.showHazardIndicators
-                        val cacheKey = arrayOf(
+                        val cacheKey = arrayOf<Any>(
                             wind.speed.roundToInt(),
                             wind.direction.roundToInt(),
                             wind.gust.roundToInt(),
@@ -440,9 +440,8 @@ class PGSpotOverlayManager(
                                     showHazards = showHazards
                                 )
                             }
-                            if (bitmap != null) {
-                                windGaugeCache.put(cacheKey, bitmap)
-                            }
+                            // Removed redundant bitmap != null check (always true)
+                            windGaugeCache.put(cacheKey, bitmap!!)
                         }
                         
                         // 🚀 PERFORMANCE: reuse Bitmap instance and reset anchor

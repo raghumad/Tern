@@ -48,6 +48,7 @@ object MapOverlayCacheUtils {
             get() {
                 if (_featureMap == null) {
                     _featureMap = rawData?.let {
+                        @Suppress("DEPRECATION")
                         val root = com.google.flatbuffers.FlexBuffers.getRoot(it)
                         deserializeMap(root.asMap().get("feature").asMap())
                     } ?: emptyMap()
@@ -61,6 +62,7 @@ object MapOverlayCacheUtils {
          */
         fun getStringProperty(key: String): String? {
             return rawData?.let {
+                @Suppress("DEPRECATION")
                 val root = com.google.flatbuffers.FlexBuffers.getRoot(it)
                 root.asMap().get("feature").asMap().get(key).asString()
             } ?: (feature[key] as? String)
@@ -68,6 +70,7 @@ object MapOverlayCacheUtils {
 
         fun getIntProperty(key: String): Int {
              return rawData?.let {
+                @Suppress("DEPRECATION")
                 val root = com.google.flatbuffers.FlexBuffers.getRoot(it)
                 root.asMap().get("feature").asMap().get(key).asInt()
             } ?: (feature[key] as? Int ?: 0)
@@ -75,6 +78,7 @@ object MapOverlayCacheUtils {
 
         fun getDoubleProperty(key: String): Double {
              return rawData?.let {
+                @Suppress("DEPRECATION")
                 val root = com.google.flatbuffers.FlexBuffers.getRoot(it)
                 root.asMap().get("feature").asMap().get(key).asFloat().toDouble()
             } ?: (feature[key] as? Double ?: 0.0)
@@ -516,6 +520,7 @@ object MapOverlayCacheUtils {
             // Advance original buffer
             buffer.position(buffer.position() + length)
             
+            @Suppress("DEPRECATION")
             val root = com.google.flatbuffers.FlexBuffers.getRoot(featureSlice)
             val centroidMap = root.asMap().get("centroid").asMap()
             val latitude = centroidMap.get("latitude").asFloat().toDouble()
@@ -540,6 +545,7 @@ object MapOverlayCacheUtils {
             val featureData = ByteArray(length)
             buffer.get(featureData)
             
+            @Suppress("DEPRECATION")
             val root = com.google.flatbuffers.FlexBuffers.getRoot(java.nio.ByteBuffer.wrap(featureData))
             val map = root.asMap()
             

@@ -74,6 +74,7 @@ class MapOverlayCacheUtilsTest {
         }
     }
     @Test
+    @Suppress("UNCHECKED_CAST")
     fun `test serialization of simple point geometry`() {
         val featureMap = mapOf(
             "type" to "Feature",
@@ -109,6 +110,7 @@ class MapOverlayCacheUtilsTest {
     }
 
     @Test
+    @Suppress("UNCHECKED_CAST")
     fun `test serialization of polygon geometry (nested lists)`() {
         // This tests the fix for Airspaces
         val coordinates = listOf(
@@ -152,6 +154,7 @@ class MapOverlayCacheUtilsTest {
     }
 
     @Test
+    @Suppress("UNCHECKED_CAST")
     fun `test serialization of complex nested properties`() {
         val properties = mapOf(
             "simple" to "value",
