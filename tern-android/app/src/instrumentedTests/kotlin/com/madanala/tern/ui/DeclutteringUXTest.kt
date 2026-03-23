@@ -8,6 +8,9 @@ import com.madanala.tern.utils.MapVisualTest
 import com.madanala.tern.utils.MapTestHelper
 import com.madanala.tern.utils.ReportGenerator
 import com.madanala.tern.redux.MapStore
+import com.madanala.tern.utils.WeatherTestHelper
+import org.junit.Before
+import org.junit.After
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.osmdroid.util.GeoPoint
@@ -19,6 +22,16 @@ import android.util.Log
 @RunWith(AndroidJUnit4::class)
 @LargeTest
 class DeclutteringUXTest : MapVisualTest() {
+
+    @Before
+    fun startMockServer() {
+        WeatherTestHelper.startServer()
+    }
+
+    @After
+    fun stopMockServer() {
+        WeatherTestHelper.stopServer()
+    }
 
     @Test
     fun testAdaptiveDeclutteringDuringWaypointDrag() {
@@ -44,6 +57,20 @@ class DeclutteringUXTest : MapVisualTest() {
                     
                     ReportGenerator.logStep("ACTION", "Adding and selecting waypoint")
                     MapTestHelper.longPressOnGeoPoint(activity, lat, lon)
+
+                    // [STABILITY FIX] Handle "Nearby Launch" Smart Suggestion if it appears
+                    val useClickedLocationText = "Use Clicked Location"
+                    val suggestionExists = try {
+                        composeTestRule.onNodeWithText(useClickedLocationText).assertExists()
+                        true
+                    } catch (e: AssertionError) {
+                        false
+                    }
+
+                    if (suggestionExists) {
+                        ReportGenerator.logStep("ACTION", "Smart Suggestion detected, clicking '$useClickedLocationText'")
+                        composeTestRule.onNodeWithText(useClickedLocationText).performClick()
+                    }
                     
                     composeTestRule.waitUntil(timeoutMillis = 10000) {
                         store.state.value.selectedWaypoint != null
@@ -93,6 +120,21 @@ class DeclutteringUXTest : MapVisualTest() {
                  val store = ViewModelProvider(activity)[MapStore::class.java]
                  
                  MapTestHelper.longPressOnGeoPoint(activity, lat, lon)
+
+                 // [STABILITY FIX] Handle "Nearby Launch" Smart Suggestion if it appears
+                 val useClickedLocationText = "Use Clicked Location"
+                 val suggestionExists = try {
+                     composeTestRule.onNodeWithText(useClickedLocationText).assertExists()
+                     true
+                 } catch (e: AssertionError) {
+                     false
+                 }
+
+                 if (suggestionExists) {
+                     ReportGenerator.logStep("ACTION", "Smart Suggestion detected, clicking '$useClickedLocationText'")
+                     composeTestRule.onNodeWithText(useClickedLocationText).performClick()
+                 }
+
                  composeTestRule.waitUntil(timeoutMillis = 10000) {
                      store.state.value.selectedWaypoint != null
                  }
