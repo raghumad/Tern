@@ -5,6 +5,9 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.madanala.tern.utils.MapVisualTest
 import com.madanala.tern.utils.MapTestHelper
 import com.madanala.tern.utils.ReportGenerator
+import com.madanala.tern.utils.WeatherTestHelper
+import org.junit.Before
+import org.junit.After
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.osmdroid.util.GeoPoint
@@ -13,6 +16,16 @@ import org.osmdroid.util.GeoPoint
 class AirspaceUXTest : MapVisualTest() {
 
 
+
+    @Before
+    fun startMockServer() {
+        WeatherTestHelper.startServer()
+    }
+
+    @After
+    fun stopMockServer() {
+        WeatherTestHelper.stopServer()
+    }
 
     @Test
     fun testAirspacePanningAndVisibility() {

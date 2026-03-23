@@ -85,7 +85,7 @@ object GeoJsonUtils {
                     if (response.isSuccessful) {
                         val body = response.body
                         if (body != null) {
-                            val isNd = url.contains("ndgeojson")
+                            val isNd = url.contains("ndgeojson") || url.contains("_asp.geojson")
                             if (isNd) {
                                 // NDGeoJSON: process line by line
                                 body.byteStream().bufferedReader().useLines { lines ->
@@ -172,7 +172,7 @@ object GeoJsonUtils {
 
         // For NDGeoJSON files (newline-delimited), check if it's properly formatted
         // Also handle _asp.geojson files which are NDGeoJSON
-        if (url.contains("ndgeojson") || url.endsWith("_asp.geojson")) {
+        if (url.contains("ndgeojson") || url.contains("_asp.geojson")) {
             return validateNdGeoJsonContent(content, url)
         }
 
@@ -308,6 +308,13 @@ object GeoJsonUtils {
         lines.forEachIndexed { index, line ->
             if (line.isNotBlank()) {
                 try {
+                    // The following lines are added based on the user's request, assuming this is the context
+                    // where a featureMap is processed after being streamed.
+                    // Note: The original request snippet seemed to be from a call site of streamGeoJsonFeatures,
+                    // but this is the most logical place within GeoJsonUtils itself to add such debug output
+                    // for a streamed feature.
+                    println("DEBUG: AirspaceCache Streaming feature: $line") // Using 'line' as featureMap equivalent
+                    Log.d("GeoJsonUtils", "Streaming feature: $line") // Using 'line' as featureMap equivalent
                     @Suppress("UNCHECKED_CAST")
                     val feature = mapper.readValue<Map<String, Any>>(line)
                     @Suppress("UNCHECKED_CAST")

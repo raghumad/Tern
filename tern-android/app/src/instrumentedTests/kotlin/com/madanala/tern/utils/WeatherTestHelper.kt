@@ -15,21 +15,57 @@ object WeatherTestHelper {
         server = MockWebServer()
         server?.start()
         val url = server?.url("/v1/forecast")?.toString() ?: ""
+        
+        // Aviation-grade default dispatcher: Ensure airspaces and spots are ALWAYS mocked
+        // even if the test doesn't call setDispatcher explicitly.
+        setDefaultDispatcher()
+        
         OpenMeteoWeatherAPI.setBaseUrlForTesting(url)
         PGSpotCache.setBaseUrlForTesting(url)
-        // Ensure AirspaceCache also points to the mock server
         try {
             CacheManager.airspaceCache.setBaseUrlForTesting(url)
-        } catch (e: Exception) {
-            // Log.w("WeatherTestHelper", "Could not set AirspaceCache base URL: ${e.message}")
-        }
+        } catch (e: Exception) {}
         return url
+    }
+
+    private fun setDefaultDispatcher() {
+        // [SOURCE OF TRUTH] Default mock data for all tests
+        val boulderSpots = listOf(
+            mapOf("id" to "pg_boulder_test", "name" to "Boulder Launch", "lat" to 40.015, "lon" to -105.27)
+        )
+        val airspaceBody = """{"type":"Feature","properties":{"name":"Mock Airspace","class":"D"},"geometry":{"type":"Polygon","coordinates":[[[-105.3,40.1],[-105.2,40.1],[-105.2,40.0],[-105.3,40.0],[-105.3,40.1]]]}}""" + "\n"
+
+        server?.dispatcher = object : okhttp3.mockwebserver.Dispatcher() {
+            override fun dispatch(request: okhttp3.mockwebserver.RecordedRequest): MockResponse {
+                val requestPath = request.path ?: ""
+                return when {
+                    requestPath.contains("getCountrySites.php") -> {
+                        val body = boulderSpots.joinToString("\n") { spot ->
+                            """{"type":"Feature","id":"${spot["id"]}","geometry":{"type":"Point","coordinates":[${spot["lon"]},${spot["lat"]}]},"properties":{"id":"${spot["id"]}","name":"${spot["name"]}"}}"""
+                        } + "\n"
+                        MockResponse().setBody(body).setHeader("Content-Type", "application/x-ndgeojson").setResponseCode(200)
+                    }
+                    requestPath.contains("_asp.geojson") -> {
+                        MockResponse().setBody(airspaceBody).setHeader("Content-Type", "application/x-ndgeojson").setResponseCode(200)
+                    }
+                    requestPath.contains("forecast") -> {
+                        // Return a minimal valid weather JSON as default
+                        MockResponse().setBody("""{"latitude":40.0,"longitude":-105.0,"hourly":{"time":[],"temperature_2m":[],"relative_humidity_2m":[],"wind_speed_10m":[],"wind_direction_10m":[]}}""").setResponseCode(200)
+                    }
+                    else -> MockResponse().setResponseCode(404)
+                }
+            }
+        }
     }
 
     fun stopServer() {
         server?.shutdown()
         server = null
         OpenMeteoWeatherAPI.resetBaseUrl()
+        PGSpotCache.resetBaseUrlForTesting()
+        try {
+            CacheManager.airspaceCache.resetBaseUrlForTesting()
+        } catch (e: Exception) {}
     }
 
     fun setDispatcher(speed: Double, direction: Double) {
@@ -55,31 +91,18 @@ object WeatherTestHelper {
                     requestPath.contains("getCountrySites.php") -> {
                         val country = url?.queryParameter("iso") ?: "US"
                         val spots = if (country.equals("FR", ignoreCase = true)) chamonixSpots else boulderSpots
-                        
-                        // [RFC 005] Hardcoded NDGeoJSON to ensure 100% format correctness and multiple lines
                         val body = spots.joinToString("\n") { spot ->
                             val lon = spot["lon"]
                             val lat = spot["lat"]
                             val id = spot["id"]
                             val name = spot["name"]
                             """{"type":"Feature","id":"$id","geometry":{"type":"Point","coordinates":[$lon,$lat]},"properties":{"id":"$id","name":"$name"}}"""
-                        }
-                        
-                        // Always ensure a trailing newline for NDGeoJSON semantics
-                        val finalBody = body + "\n"
-                        
-                        MockResponse()
-                            .setBody(finalBody)
-                            .setHeader("Content-Type", "application/x-ndgeojson")
-                            .setResponseCode(200)
+                        } + "\n"
+                        MockResponse().setBody(body).setHeader("Content-Type", "application/x-ndgeojson").setResponseCode(200)
                     }
-                    requestPath.endsWith("_asp.geojson") -> {
-                        // [RFC 005] Mock Airspace - Valid NDGeoJSON
+                    requestPath.contains("_asp.geojson") -> {
                         val body = """{"type":"Feature","properties":{"name":"Mock Airspace","class":"D"},"geometry":{"type":"Polygon","coordinates":[[[-105.3,40.1],[-105.2,40.1],[-105.2,40.0],[-105.3,40.0],[-105.3,40.1]]]}}""" + "\n"
-                        MockResponse()
-                            .setBody(body)
-                            .setHeader("Content-Type", "application/x-ndgeojson")
-                            .setResponseCode(200)
+                        MockResponse().setBody(body).setHeader("Content-Type", "application/x-ndgeojson").setResponseCode(200)
                     }
                     requestPath.endsWith("forecast") || requestPath.contains("forecast?") -> {
                         MockResponse().setBody(weatherJson).setResponseCode(200)
