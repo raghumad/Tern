@@ -195,7 +195,7 @@ open class MapVisualTest {
     /**
      * Asserts that the map is currently centered at the expected location.
      */
-    fun assertMapLocation(expectedLat: Double, expectedLon: Double, tolerance: Double = 0.5) {
+    fun assertMapLocation(expectedLat: Double, expectedLon: Double, tolerance: Double = 0.01) {
         var actualCenter: GeoPoint? = null
         composeTestRule.runOnUiThread {
             try {
@@ -222,6 +222,49 @@ open class MapVisualTest {
         }
         
         ReportGenerator.logStep("ASSERT", "Map location verified: near ($expectedLat, $expectedLon)", "PASS")
+    }
+
+    /**
+     * Asserts that the map zoom level is within the expected range.
+     */
+    fun assertZoomLevel(expectedZoom: Double, tolerance: Double = 0.5) {
+        var actualZoom = 0.0
+        composeTestRule.runOnUiThread {
+            try {
+                val activity = composeTestRule.activity
+                val rootView = activity.findViewById<android.view.View>(android.R.id.content)
+                val mapView = findMapViewRecursive(rootView)
+                actualZoom = mapView?.zoomLevelDouble ?: 0.0
+            } catch (e: Exception) {
+                Log.e("MapVisualTest", "Error getting zoom level: ${e.message}")
+            }
+        }
+
+        if (Math.abs(actualZoom - expectedZoom) > tolerance) {
+            ReportGenerator.logStep("ASSERT", "Zoom level mismatch: Expected $expectedZoom, Actual $actualZoom", "FAIL")
+            throw AssertionError("Zoom level mismatch. Expected ~$expectedZoom, but was $actualZoom. Tolerance: $tolerance")
+        }
+        
+        ReportGenerator.logStep("ASSERT", "Zoom level verified: $actualZoom", "PASS")
+    }
+
+    /**
+     * Asserts that a route with the given name exists in the Redux store.
+     */
+    fun assertRoutePresence(routeName: String) {
+        var routeExists = false
+        composeTestRule.runOnUiThread {
+            val activity = composeTestRule.activity
+            val store = ViewModelProvider(activity)[MapStore::class.java]
+            routeExists = store.state.value.routes.any { it.name == routeName }
+        }
+
+        if (!routeExists) {
+            ReportGenerator.logStep("ASSERT", "Route '$routeName' not found in store", "FAIL")
+            throw AssertionError("Route '$routeName' not found in store.")
+        }
+        
+        ReportGenerator.logStep("ASSERT", "Route '$routeName' presence verified", "PASS")
     }
 
     /**
