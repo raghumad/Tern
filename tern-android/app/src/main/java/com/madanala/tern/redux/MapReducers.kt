@@ -90,6 +90,9 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
 
     // Map Interaction
     is MapAction.LongPressMap -> handleLongPressMap(state, action)
+
+    // New: Airspace Collision
+    is MapAction.SetAirspaceCollision -> state.copy(hasAirspaceCollision = action.hasCollision)
 }
 
 // Route Planning Constants
@@ -693,6 +696,11 @@ fun weatherReducer(state: MapState, action: WeatherActions): MapState = when (ac
     is WeatherActions.RequestWeatherUpdate -> state // No-op for testing
     is WeatherActions.WeatherDataLoaded -> state // No-op for testing
     is WeatherActions.WeatherError -> state // No-op for testing
+    
+    // New: Storm Risk
+    is WeatherActions.SetStormRisk -> state.copy(
+        weatherState = state.weatherState.copy(hasStormRisk = action.hasRisk)
+    )
 }
 
 /**

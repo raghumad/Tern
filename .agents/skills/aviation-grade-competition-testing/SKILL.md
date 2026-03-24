@@ -82,6 +82,12 @@ Validate the HUD and waypoint list iteratively as the pilot "flies" the task.
 2. **Speed Section Transition**: Verify the HUD detects when the pilot enters/exits the Speed Section.
 3. **Optimized Route**: Ensure the route lines are rendered from cylinder edge to cylinder edge, not just center to center.
 
+### 🚩 Truth Consistency Check
+Never accept hardcoded "Success" states in the UI. 
+- [ ] Is the ETA @ Goal derived from `waypointEtas`?
+- [ ] Is the Distance shown real or a static string (e.g., "149km")?
+- [ ] Are collision warnings triggered by real spatial data?
+
 ## 5. Generic Test Template
 
 Use the provided template in `example/GenericCompetitionTest.template.kt` to bootstrap new competition tests quickly while adhering to these standards.

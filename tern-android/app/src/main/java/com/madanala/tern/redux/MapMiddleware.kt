@@ -7,6 +7,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.osmdroid.util.GeoPoint
+import com.madanala.tern.utils.SpatialSafetyUtils
+import android.util.Log
 
 /**
  * Middleware for handling async side effects in MapStore
@@ -21,6 +23,9 @@ class MapMiddleware(private val context: Context) : Middleware {
         when (action) {
             is MapAction.CheckSmartSuggestion -> {
                 handleCheckSmartSuggestion(action, store)
+            }
+            is MapAction.UpdateUserLocation -> {
+                handleUserLocationUpdate(action, store)
             }
         }
     }
@@ -62,6 +67,35 @@ class MapMiddleware(private val context: Context) : Middleware {
                 e.printStackTrace()
                 // Fallback
                 store.dispatch(MapAction.LongPressMap(action.geoPoint))
+            }
+        }
+    }
+
+    private fun handleUserLocationUpdate(action: MapAction.UpdateUserLocation, store: MapStore) {
+        val point = action.location ?: return
+        
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                // [Aviation-Grade Truth] Determine country code for spatial index lookup
+                val countryCode = CountryUtils.getCountryCodeFromGeoPoint(context, point) ?: "US"
+                
+                // Query nearby airspaces (10 miles radius for safety buffer)
+                val nearbyAirspaces = CacheManager.airspaceCache.queryNearbyFeatures(countryCode, point, 10.0)
+                
+                // Perform truthful point-in-polygon collision check
+                val hasCollision = SpatialSafetyUtils.checkAirspaceCollision(point, nearbyAirspaces)
+                
+                // Dispatch truthful result to state
+                store.dispatch(MapAction.SetAirspaceCollision(hasCollision))
+                
+                // Also check for storm risk at current location
+                val weatherState = store.state.value.weatherState
+                val firstForecast = weatherState.waypointWeathers.values.firstOrNull()
+                val hasStorm = SpatialSafetyUtils.checkStormRisk(point, firstForecast)
+                store.dispatch(WeatherActions.SetStormRisk(hasStorm))
+                
+            } catch (e: Exception) {
+                Log.e("MapMiddleware", "Safety check failed: ${e.message}")
             }
         }
     }

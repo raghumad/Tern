@@ -35,6 +35,11 @@ fun MapVisualTest.givenAppIsLaunchedOnMap(
         com.madanala.tern.utils.MapTestHelper.grantLocationPermissions()
         com.madanala.tern.utils.MapTestHelper.injectMockLocation(composeTestRule, lat, lon)
 
+        // [DETERMINISTIC SYNC] Explicitly move the map to the injected location.
+        // This bypasses the unreliable "auto-center on first fix" which might have 
+        // already fired for the default Boulder location.
+        zoomTo(lat, lon, 12.0)
+
         // Wait for Map
         composeTestRule.onNodeWithTag("map_view").assertExists()
         
@@ -44,7 +49,6 @@ fun MapVisualTest.givenAppIsLaunchedOnMap(
         var locationReady = false
         
         while (System.currentTimeMillis() - startTime < timeout) {
-            com.madanala.tern.utils.MapTestHelper.injectMockLocation(composeTestRule, lat, lon)
             try {
                 val nodes = composeTestRule.onAllNodesWithText("Tern Paragliding").fetchSemanticsNodes()
                 if (nodes.isEmpty()) {
@@ -61,7 +65,10 @@ fun MapVisualTest.givenAppIsLaunchedOnMap(
         
         composeTestRule.onNodeWithContentDescription("Settings").assertIsDisplayed()
         
-        com.madanala.tern.utils.MapTestHelper.waitForMapTiles()
+        // Additional wait for data overlays if a country was specified
+        if (countryCode != null) {
+            com.madanala.tern.utils.MapTestHelper.waitForMapTiles(2000)
+        }
     }
 }
 

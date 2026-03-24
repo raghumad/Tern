@@ -173,6 +173,7 @@ open class MapVisualTest {
      * Helper to zoom the map to a specific location.
      */
     fun zoomTo(lat: Double, lon: Double, zoom: Double = 15.0) {
+        ReportGenerator.logStep("ACTION", "Zooming to ($lat, $lon) @ $zoom")
         composeTestRule.runOnUiThread {
             val activity = composeTestRule.activity
             val store = ViewModelProvider(activity)[MapStore::class.java]
@@ -180,8 +181,40 @@ open class MapVisualTest {
             store.dispatch(MapAction.UpdateZoom(zoom))
         }
         composeTestRule.waitForIdle()
-        // Wait for tiles to at least start loading
-        Thread.sleep(1000)
+        // Wait for tiles to at least start loading and map to settle
+        waitForMapLocation(lat, lon)
+    }
+
+    /**
+     * Polls the MapView until it is centered at the expected location.
+     */
+    fun waitForMapLocation(expectedLat: Double, expectedLon: Double, tolerance: Double = 0.01, timeoutMillis: Long = 5000) {
+        val startTime = System.currentTimeMillis()
+        var lastActual: GeoPoint? = null
+        
+        while (System.currentTimeMillis() - startTime < timeoutMillis) {
+            composeTestRule.runOnUiThread {
+                try {
+                    val activity = composeTestRule.activity
+                    val rootView = activity.findViewById<android.view.View>(android.R.id.content)
+                    val mapView = findMapViewRecursive(rootView)
+                    lastActual = mapView?.mapCenter as? GeoPoint
+                } catch (e: Exception) {}
+            }
+            
+            val actual = lastActual
+            if (actual != null) {
+                val latDiff = Math.abs(actual.latitude - expectedLat)
+                val lonDiff = Math.abs(actual.longitude - expectedLon)
+                if (latDiff <= tolerance && lonDiff <= tolerance) {
+                    Log.d("MapVisualTest", "Map reached location ($expectedLat, $expectedLon) after ${System.currentTimeMillis() - startTime}ms")
+                    return
+                }
+            }
+            Thread.sleep(200)
+        }
+        
+        throw AssertionError("Timed out waiting for map to reach ($expectedLat, $expectedLon). Last seen: $lastActual")
     }
 
     /**
