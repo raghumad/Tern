@@ -77,7 +77,11 @@ class UniversalCountryCacheManager(
         lastLocation = normalizedLocation
 
         coroutineScope.launch {
-            handleLocationChange(normalizedLocation)
+            try {
+                handleLocationChange(normalizedLocation)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error handling location change for $normalizedLocation", e)
+            }
         }
     }
 
@@ -449,10 +453,28 @@ class UniversalCountryCacheManager(
      * Get currently cached countries from disk index
      */
     fun getCachedCountries(): Set<String> {
-        val stats = airspaceCache.getCacheStats()
-        @Suppress("UNCHECKED_CAST")
-        val regions = stats["cachedRegions"] as? List<String> ?: emptyList()
-        return regions.toSet()
+        val result = mutableSetOf<String>()
+        
+        // Aggregate from all internal caches using their specific renamed keys
+        try {
+            val aStats = airspaceCache.getCacheStats()
+            @Suppress("UNCHECKED_CAST")
+            val aRegions = aStats["airspaceCachedRegions"] as? List<String> ?: emptyList()
+            result.addAll(aRegions)
+            
+            val pStats = pgSpotCache.getCacheStats()
+            @Suppress("UNCHECKED_CAST")
+            val pRegions = pStats["pgSpotsCachedRegions"] as? List<String> ?: emptyList()
+            result.addAll(pRegions)
+            
+            if (result.isNotEmpty()) {
+                Log.d(TAG, "getCachedCountries: Found ${result.size} cached regions: $result")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error aggregating cached countries", e)
+        }
+        
+        return result
     }
     
     /**

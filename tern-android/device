@@ -1,15 +1,16 @@
 #!/bin/bash
 # Shorthand for running Tern UI tests
-# Usage: ./device ClassName1 ClassName2 ... or ./device Keyword
+# Usage: ./device ClassName1 ClassName2 ... or ./device Keyword or ./device --all
+
+# 1. Discover all instrumented tests in the source tree
+TEST_FILES=$(find app/src/instrumentedTests/kotlin -name "*Test.kt" 2>/dev/null)
+TOTAL_TEST_FILES=$(echo "$TEST_FILES" | wc -l)
 
 if [ -z "$1" ]; then
-  echo "Usage: ./device ClassName [Keyword...]"
+  echo "Usage: ./device [ClassName | Keyword | --all]"
+  echo "Available instrumented tests: $TOTAL_TEST_FILES"
   exit 1
 fi
-
-# 1. Discover only instrumented tests in the source tree to allow fuzzy matching
-# Build a list of full qualified names from the file paths
-TEST_FILES=$(find app/src/instrumentedTests/kotlin -name "*Test.kt" 2>/dev/null)
 
 CLASSES=""
 
@@ -26,30 +27,42 @@ add_class() {
     fi
 }
 
-for arg in "$@"; do
-    # 2. Try to find fuzzy matches for the argument (case-insensitive)
-    MATCHING_FILES=$(echo "$TEST_FILES" | grep -i "$arg")
-    
-    if [ -n "$MATCHING_FILES" ]; then
-        for file in $MATCHING_FILES; do
-            # Extract package and class name from path
-            # Example: app/src/instrumentedTests/kotlin/com/madanala/tern/ui/PGSpotWeatherTest.kt
-            # Rel path from 'kotlin/': com/madanala/tern/ui/PGSpotWeatherTest.kt
-            REL_PATH=${file#*kotlin/}
-            # Remove extension and replace / with .
-            CLASS_NAME=$(echo ${REL_PATH%.kt} | tr '/' '.')
-            add_class "$CLASS_NAME"
-        done
-    else
-        # 3. Fallback to exact name if no fuzzy matches found
-        # If it doesn't have a dot, default to the most common package
-        if [[ "$arg" != *"."* ]]; then
-            add_class "com.madanala.tern.ui.$arg"
+if [ "$1" == "--all" ]; then
+    echo "🔎 Selecting ALL $TOTAL_TEST_FILES instrumented tests..."
+    for file in $TEST_FILES; do
+        REL_PATH=${file#*kotlin/}
+        CLASS_NAME=$(echo ${REL_PATH%.kt} | tr '/' '.')
+        add_class "$CLASS_NAME"
+    done
+else
+    for arg in "$@"; do
+        # 2. Try to find fuzzy matches for the argument (case-insensitive)
+        MATCHING_FILES=$(echo "$TEST_FILES" | grep -i "$arg")
+        
+        if [ -n "$MATCHING_FILES" ]; then
+            MATCH_COUNT=$(echo "$MATCHING_FILES" | wc -l)
+            echo "✅ Found $MATCH_COUNT match(es) for '$arg'"
+            for file in $MATCHING_FILES; do
+                # Extract package and class name from path
+                REL_PATH=${file#*kotlin/}
+                CLASS_NAME=$(echo ${REL_PATH%.kt} | tr '/' '.')
+                echo "   - $CLASS_NAME"
+                add_class "$CLASS_NAME"
+            done
         else
-            add_class "$arg"
+            # 3. Fallback to exact name if no fuzzy matches found
+            # If it doesn't have a dot, default to the most common package
+            if [[ "$arg" != *"."* ]]; then
+                FALLBACK="com.madanala.tern.ui.$arg"
+                echo "⚠️ No fuzzy match for '$arg', using fallback: $FALLBACK"
+                add_class "$FALLBACK"
+            else
+                echo "🎯 Using exact class: $arg"
+                add_class "$arg"
+            fi
         fi
-    fi
-done
+    done
+fi
 
 if [ -z "$CLASSES" ]; then
     echo "❌ No tests found matching: $@"
@@ -60,5 +73,6 @@ fi
 echo "🧹 Clearing stale BDD reports..."
 rm -rf app/build/reports/bdd-report/*
 
-echo "🚀 Running UI Tests: $CLASSES"
+NUM_CLASSES=$(echo "$CLASSES" | tr ',' '\n' | wc -l)
+echo "🚀 Running $NUM_CLASSES UI Test(s): $CLASSES"
 ./gradlew :app:pixel9proapi35DebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class="$CLASSES"

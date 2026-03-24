@@ -150,13 +150,12 @@ class AirspaceOverlayManager(
         this.countryLoadedListener = listener
         this.countryCacheManager?.onCountryLoadedListeners?.add(listener)
 
-        // PROACTIVE REFRESH: If we already have cached countries, trigger a load immediately
-        // This handles the case where data was downloaded before this manager was attached
-        if (countryCacheManager.getCachedCountries().isNotEmpty()) {
-            coroutineScope.launch {
-                mapView?.mapCenter?.let { center ->
-                    checkAndLoadAirspaceData(center as GeoPoint)
-                }
+        // PROACTIVE REFRESH: Immediately attempt to load data. 
+        // This ensures that if the cache is already warm or a download is nearly finished, 
+        // the UI refreshes without waiting for the next map move.
+        coroutineScope.launch {
+            mapView?.mapCenter?.let { center ->
+                checkAndLoadAirspaceData(center as GeoPoint)
             }
         }
     }
@@ -480,10 +479,6 @@ class AirspaceOverlayManager(
      * Load airspace data for a specific location using universal country management
      * Now uses UniversalCountryCacheManager for intelligent multi-country handling
      */
-    /**
-     * Load airspace data for a specific location using universal country management
-     * Now uses UniversalCountryCacheManager for intelligent multi-country handling
-     */
     private suspend fun loadAirspaceForLocation(context: Context, center: GeoPoint) {
         try {
             // Use universal country cache manager for intelligent country management
@@ -690,6 +685,16 @@ class AirspaceOverlayManager(
 
                     polygonsWithIds.forEach { pair ->
                         val (airspaceId, polygon) = pair
+                        
+                        // [SOURCE OF TRUTH FIX] Explicitly initialize alpha based on current focus mode
+                        // Prevents pooled polygons from appearing dimmed if they were acquired during focus mode
+                        val zoomCategory = getCurrentZoomCategory()
+                        val baseAlpha = if (zoomCategory.minZoom < com.madanala.tern.utils.ZoomCategory.REGIONAL_THRESHOLD) 0x20 else 0x40
+                        val targetAlpha = if (_isFocusMode) (baseAlpha * 0.3f).toInt() else baseAlpha
+                        
+                        polygon.fillPaint.alpha = targetAlpha
+                        polygon.outlinePaint.alpha = Math.min(255, targetAlpha * 2)
+                        
                         currentlyRenderedAirspaces[airspaceId] = polygon
                         insertOverlayAtCorrectDepth(map, polygon)
                     }

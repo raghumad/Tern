@@ -34,6 +34,11 @@ Automated UI tests that verify spatial data or async caching are highly suscepti
 - **Cache Manager Isolation**: High-level managers (e.g., `UniversalCountryCacheManager`) must completely wipe in-memory collections (like `cachedCountries`) in their `reset()` method. Relying solely on `CacheManager.clearAllCaches()` for disk clears is insufficient if RAM state persists.
 - **Geographic Debounce Reset**: Component managers (e.g., `AirspaceOverlayManager`, `PGSpotOverlayManager`) use variables like `lastCheckLocation` or `lastLoadPosition` to throttle queries based on map movement. These *must* be cleared during `reset()`. If a new test starts near where the previous test ended, the system might skip loading data because the distance delta is too small.
 
+### 6. Synchronized Visual Verification (BDD Snapshotting)
+Screenshots captured in BDD steps can be misleading if the Redux state hasn't fully propagated to the UI or if the UI thread is still processing a redraw.
+- **Deterministic Snapshots**: Always call `composeTestRule.waitForIdle()` before `ReportGenerator.captureScreenshot()`.
+- **Propagation Delay**: For complex visual state changes (like focus mode dimming), add a small safety delay (e.g., 500ms) after the log event is detected to ensure the "Invalidate" call has finished repainting the entire map.
+
 ## Diagnostic Checklist
 If an overlay isn't appearing:
 1. **Parser Check**: Did `isNdGeoJson` return the correct value? Check logs for "parsed 0 features".
@@ -41,3 +46,4 @@ If an overlay isn't appearing:
 3. **Registration Check**: Is the manager listening to `onCountryLoaded`?
 4. **Z-Order Check**: Is it being added to index 0 (bottom) or the top layer?
 5. **Test Determinism**: If the failure is only in batch test runs, check if `lastCheckLocation` or `cachedCountries` are persisting from a previous test.
+6. **Visual Sync Check**: If a screenshot shows the "Wrong" state but the test passed, was `waitForIdle()` used?

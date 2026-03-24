@@ -12,8 +12,12 @@ import com.madanala.tern.utils.WeatherForecast
 import com.madanala.tern.utils.WeatherData
 import com.madanala.tern.utils.WindData
 import org.junit.Test
+import org.junit.Before
+import org.junit.After
 import org.osmdroid.util.GeoPoint
 import java.util.*
+import com.madanala.tern.ui.givenAppIsLaunchedOnMap
+import com.madanala.tern.utils.WeatherTestHelper
 
 /**
  * BDD Instrumented Tests - Phase 14: Personal XC Planning UX
@@ -22,6 +26,16 @@ import java.util.*
  * Skills applied: BDD UI Testing Fidelity, Aviation-Grade UX Standards.
  */
 class AviationRoutePlanningTest : MapVisualTest() {
+
+    @Before
+    fun startMockServer() {
+        WeatherTestHelper.startServer()
+    }
+
+    @After
+    fun stopMockServer() {
+        WeatherTestHelper.stopServer()
+    }
 
     /**
      * STORY 1: Mountain Record Attempt
@@ -33,9 +47,8 @@ class AviationRoutePlanningTest : MapVisualTest() {
         scenario("Mountain Record Attempt") {
             story("As a pilot planning a record flight, I want to see automated hotspots.") {
                 given("a pilot starting a new XC task at Lookout Mountain", takeScreenshot = true) {
-                    // [REAL-TIME] No more injectMockLaunchSpot. Center on the REAL spot coordinates.
-                    zoomTo(39.7429, -105.2393, 14.0)
-                    assertMapLocation(39.7429, -105.2393)
+                    // [STABILITY FIX] Use synchronized launch step with mock data pre-indexing
+                    givenAppIsLaunchedOnMap(lat = 39.7429, lon = -105.2393, countryCode = "us")
                 }
                 
                 `when`("I long-press on Lookout Mountain launch") {
