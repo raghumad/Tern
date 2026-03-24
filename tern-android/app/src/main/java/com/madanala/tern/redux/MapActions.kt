@@ -4,6 +4,7 @@ import org.osmdroid.util.GeoPoint
 
 import com.madanala.tern.model.Waypoint
 import com.madanala.tern.model.Route
+import com.madanala.tern.model.TernBoundingBox
 
 /**
  * Redux actions for map functionality
@@ -108,6 +109,12 @@ sealed class MapAction {
         val label: String? = null
     ) : MapAction()
     data class SetAirspaceCollision(val hasCollision: Boolean) : MapAction()
+    data class UpdateBoundingBox(val box: TernBoundingBox?) : MapAction()
+    data class ZoomToRoute(val routeId: String) : MapAction()
+
+    // UI State Actions
+    object ToggleRoutePanelExpanded : MapAction()
+    data class SetRoutePanelExpanded(val expanded: Boolean) : MapAction()
 }
 
 /**

@@ -30,12 +30,14 @@ data class WeatherData(
     val cloudCover: Double, // Percentage 0-100
     val timestamp: Long, // UTC timestamp
     val temp850hPa: Double? = null, // °C at 850hPa pressure level (≈1500m MSL)
-    val temp925hPa: Double? = null  // °C at 925hPa pressure level (≈750m MSL)
+    val temp925hPa: Double? = null, // °C at 925hPa pressure level (≈750m MSL)
+    val cape: Double? = null,        // Convective Available Potential Energy (J/kg)
+    val lightningPotential: Double? = null // Storm potential
 )
 
 data class ForecastPeriod(
-    val startTime: Long, // UTC timestamp
-    val endTime: Long,
+    val startTime: Long, // UTC timestamp (ms)
+    val endTime: Long,   // UTC timestamp (ms)
     val weather: WeatherData,
     val shortForecast: String
 )
@@ -47,31 +49,44 @@ data class WeatherForecast(
 ) {
     fun isStale(): Boolean {
         val firstHourly = hourly.firstOrNull() ?: return true
-        val now = System.currentTimeMillis() / 1000
-        return (now - firstHourly.startTime) > (4 * 3600)
+        val now = System.currentTimeMillis()
+        return (now - firstHourly.startTime) > (4 * 3600 * 1000L) // 4 hours in ms
     }
 
     /**
      * Heuristic for convective danger (Aviation Warning)
+     * RFC 005: Significant risk of overdevelopment/convection
      */
     fun hasConvectiveDanger(): Boolean {
         val currentData = current ?: hourly.firstOrNull()?.weather ?: return false
+        
+        // RFC 005: CAPE > 500 J/kg is convective risk for paragliding
+        val hasHighCape = (currentData.cape ?: 0.0) > 500.0
+        
         val keywords = listOf("thunderstorm", "overdevelopment", "heavy rain", "convective", "shower")
         val hourlyText = hourly.take(3).any { period -> 
             keywords.any { period.shortForecast.contains(it, ignoreCase = true) }
         }
-        // Pilot logic: High humidity + High clouds = Danger of overdevelopment
-        return (currentData.cloudCover > 75.0 && currentData.humidity > 80.0) || hourlyText
+        
+        return hasHighCape || (currentData.cloudCover > 85.0 && currentData.humidity > 85.0) || hourlyText
     }
 
     /**
      * Heuristic for immediate thunderstorm / lightning danger
+     * RFC 005: Immediate tactical threat
      */
     fun hasThunderstorm(): Boolean {
+        val currentData = current ?: hourly.firstOrNull()?.weather ?: return false
+        
+        // RFC 005: Lightning potential > 60%
+        val hasLightning = (currentData.lightningPotential ?: 0.0) > 60.0
+        
         val keywords = listOf("thunderstorm", "lightning", "squall", "heavy thunderstorm")
-        return hourly.take(6).any { period ->
+        val hourlyText = hourly.take(6).any { period ->
             keywords.any { period.shortForecast.contains(it, ignoreCase = true) }
         }
+        
+        return hasLightning || hourlyText
     }
 }
 
@@ -137,8 +152,8 @@ class OpenMeteoWeatherAPI : WeatherAPI {
             baseUrl = "https://api.open-meteo.com/v1/forecast"
         }
 
-        // Updated to include 80m wind, gusts, cloud cover, visibility, and pressure-level temps for Skew-T
-        private const val HOURLY_PARAMS = "temperature_2m,relative_humidity_2m,precipitation_probability,pressure_msl,wind_speed_10m,wind_direction_10m,wind_speed_80m,wind_direction_80m,wind_gusts_10m,cloud_cover,visibility,temperature_850hPa,temperature_925hPa"
+        // Updated to include 80m wind, gusts, cloud cover, visibility, pressure-level temps for Skew-T, and CAPE/Lightning
+        private const val HOURLY_PARAMS = "temperature_2m,relative_humidity_2m,precipitation_probability,pressure_msl,wind_speed_10m,wind_direction_10m,wind_speed_80m,wind_direction_80m,wind_gusts_10m,cloud_cover,visibility,temperature_850hPa,temperature_925hPa,cape,lightning_potential"
         private const val DAILY_PARAMS = "temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max,wind_direction_10m_dominant,sunrise,sunset"
         private const val FORECAST_DAYS = 7
         private const val FORECAST_HOURS = 48 // Two days of hourly data
@@ -310,6 +325,10 @@ class OpenMeteoWeatherAPI : WeatherAPI {
             val temps850 = hourly["temperature_850hPa"] as? List<Number>
             @Suppress("UNCHECKED_CAST")
             val temps925 = hourly["temperature_925hPa"] as? List<Number>
+            @Suppress("UNCHECKED_CAST")
+            val capes = hourly["cape"] as? List<Number>
+            @Suppress("UNCHECKED_CAST")
+            val lightnings = hourly["lightning_potential"] as? List<Number>
 
             if (temperatures.isEmpty()) return null
 
@@ -325,9 +344,11 @@ class OpenMeteoWeatherAPI : WeatherAPI {
                 visibility = visibilities?.firstOrNull()?.toDouble()?.let { it / 1000.0 } ?: 10.0,
                 pressure = pressures.firstOrNull()?.toDouble() ?: 1013.25,
                 cloudCover = cloudCovers.firstOrNull()?.toDouble() ?: 0.0,
-                timestamp = System.currentTimeMillis() / 1000,
+                timestamp = System.currentTimeMillis(),
                 temp850hPa = temps850?.firstOrNull()?.toDouble(),
-                temp925hPa = temps925?.firstOrNull()?.toDouble()
+                temp925hPa = temps925?.firstOrNull()?.toDouble(),
+                cape = capes?.firstOrNull()?.toDouble(),
+                lightningPotential = lightnings?.firstOrNull()?.toDouble()
             )
         } catch (e: Exception) {
             Log.w("OpenMeteoWeatherAPI", "Failed to extract current weather", e)
@@ -364,6 +385,10 @@ class OpenMeteoWeatherAPI : WeatherAPI {
             val temps850 = hourly["temperature_850hPa"] as? List<Number>
             @Suppress("UNCHECKED_CAST")
             val temps925 = hourly["temperature_925hPa"] as? List<Number>
+            @Suppress("UNCHECKED_CAST")
+            val capes = hourly["cape"] as? List<Number>
+            @Suppress("UNCHECKED_CAST")
+            val lightnings = hourly["lightning_potential"] as? List<Number>
 
             val maxPeriods = minOf(times.size, FORECAST_HOURS, temperatures.size)
 
@@ -386,12 +411,14 @@ class OpenMeteoWeatherAPI : WeatherAPI {
                         cloudCover = cloudCovers.getOrNull(i)?.toDouble() ?: 0.0,
                         timestamp = startTime,
                         temp850hPa = temps850?.getOrNull(i)?.toDouble(),
-                        temp925hPa = temps925?.getOrNull(i)?.toDouble()
+                        temp925hPa = temps925?.getOrNull(i)?.toDouble(),
+                        cape = capes?.getOrNull(i)?.toDouble(),
+                        lightningPotential = lightnings?.getOrNull(i)?.toDouble()
                     )
 
                     periods.add(ForecastPeriod(
                         startTime = startTime,
-                        endTime = startTime + 3600, // 1 hour later
+                        endTime = startTime + 3600000L, // 1 hour in ms
                         weather = weather,
                         shortForecast = "Hourly forecast"
                     ))
@@ -455,7 +482,7 @@ class OpenMeteoWeatherAPI : WeatherAPI {
 
                     periods.add(ForecastPeriod(
                         startTime = startTime,
-                        endTime = startTime + 86400, // 24 hours later
+                        endTime = startTime + 86400000L, // 24 hours in ms
                         weather = weather,
                         shortForecast = "Daily forecast"
                     ))
@@ -477,7 +504,7 @@ class OpenMeteoWeatherAPI : WeatherAPI {
                 val dateTime = java.time.LocalDateTime.parse(timeString, formatter)
                 val zoneOffset = java.time.ZoneOffset.UTC
                 val zoned = dateTime.atOffset(zoneOffset)
-                zoned.toEpochSecond()
+                zoned.toInstant().toEpochMilli()
             } catch (e: java.time.format.DateTimeParseException) {
                 // Fallback to ISO_LOCAL_DATE (e.g., 2025-10-02) for daily forecasts
                 val formatter = java.time.format.DateTimeFormatter.ISO_LOCAL_DATE
@@ -485,7 +512,7 @@ class OpenMeteoWeatherAPI : WeatherAPI {
                 val dateTime = date.atStartOfDay()
                 val zoneOffset = java.time.ZoneOffset.UTC
                 val zoned = dateTime.atOffset(zoneOffset)
-                zoned.toEpochSecond()
+                zoned.toInstant().toEpochMilli()
             }
         } catch (e: Exception) {
             Log.w("OpenMeteoWeatherAPI", "Failed to parse time: $timeString", e)

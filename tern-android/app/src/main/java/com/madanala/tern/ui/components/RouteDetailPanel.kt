@@ -37,7 +37,9 @@ import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -49,8 +51,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.madanala.tern.redux.MapAction
 import com.madanala.tern.redux.MapStore
@@ -132,9 +134,9 @@ fun RouteDetailPanel(
                 .fillMaxWidth()
                 .padding(16.dp)
                 .testTag("RouteDetailPanel"),
-            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 12.dp),
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f) // Aviation-Grade: Use theme surface with glass alpha
+                containerColor = Color(0xFF0F172A).copy(alpha = 0.85f) // AeroSlate High-Contrast
             )
         ) {
             Column(
@@ -142,40 +144,147 @@ fun RouteDetailPanel(
                     .fillMaxWidth()
                     .padding(16.dp)
             ) {
-                // Tab System
+                // Determine Aggregated Route Health for SSA Mode
+                val hasStormRisk = remember(route, state.weatherState) {
+                    route?.waypoints?.any { wp -> 
+                        state.weatherState.waypointWeathers[wp.id]?.let { 
+                            it.hasConvectiveDanger() || it.hasThunderstorm() 
+                        } ?: false
+                    } ?: false
+                }
+
+                // SSA/TEA Header: Always visible, answer the "Safe to Fly?" question instantly
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier.fillMaxWidth().testTag(if (state.isRoutePanelExpanded) "TEA_Header" else "SSA_Header"),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    PlanningTabButton("DETAILS", activeTab == PlanningTab.DETAILS) { 
-                        activeTab = PlanningTab.DETAILS 
-                        haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                    if (route != null) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = route.name,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color.White
+                                )
+                                if (hasStormRisk) {
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Surface(
+                                        color = Color(0xFFFFBF00),
+                                        shape = MaterialTheme.shapes.extraSmall
+                                    ) {
+                                        Text(
+                                            "! STORM RISK",
+                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Black,
+                                            color = Color.Black
+                                        )
+                                    }
+                                }
+                            }
+                            Text(
+                                text = "${"%.1f".format(route.totalDistanceKm)} km | ${route.estimatedFlightTimeMinutes} min",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color.White.copy(alpha = 0.7f)
+                            )
+                        }
+                    } else {
+                        Text(
+                            "Route Planner",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color.White,
+                            modifier = Modifier.weight(1f)
+                        )
                     }
-                    PlanningTabButton("SEARCH", activeTab == PlanningTab.SEARCH) { 
-                        activeTab = PlanningTab.SEARCH 
-                        haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (route != null) {
+                            IconButton(onClick = { store.dispatch(MapAction.ToggleRoutePanelExpanded) }) {
+                                Icon(
+                                    imageVector = if (state.isRoutePanelExpanded) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowUp,
+                                    contentDescription = if (state.isRoutePanelExpanded) "Collapse" else "Expand",
+                                    tint = Color.White
+                                )
+                            }
+                        }
+                        IconButton(onClick = onDismiss) {
+                            Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
+                        }
                     }
-                    PlanningTabButton("LIBRARY", activeTab == PlanningTab.LIBRARY) { 
-                        activeTab = PlanningTab.LIBRARY 
-                        haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                }
+                
+                // 🎯 AHV (Atmospheric Hazard Vectorization) Alert Section
+                if (hasStormRisk) {
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp)
+                            .testTag("AHV_BANNER"),
+                        color = Color(0xFFFFBF00).copy(alpha = 0.9f), // Safety Amber
+                        shape = MaterialTheme.shapes.small
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(Icons.Default.Warning, contentDescription = null, tint = Color.Black, modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                "STORM RISK DETECTED ON TRAJECTORY",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = Color.Black,
+                                fontWeight = FontWeight.Black,
+                                letterSpacing = 0.5.sp
+                            )
+                        }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                if (state.isRoutePanelExpanded || route == null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                    Spacer(modifier = Modifier.height(16.dp))
 
-                when (activeTab) {
-                    PlanningTab.DETAILS -> {
-                        if (route != null) {
-                            RouteDetailsContent(route, state, store, onDismiss, onShowQr = { showQrDialog = true })
-                        } else {
-                            Text("No route selected. Tap on map to start planning.", style = MaterialTheme.typography.bodyMedium)
+                    // Tab System
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        PlanningTabButton("DETAILS", activeTab == PlanningTab.DETAILS) { 
+                            activeTab = PlanningTab.DETAILS 
+                            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                        }
+                        PlanningTabButton("SEARCH", activeTab == PlanningTab.SEARCH) { 
+                            activeTab = PlanningTab.SEARCH 
+                            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                        }
+                        PlanningTabButton("LIBRARY", activeTab == PlanningTab.LIBRARY) { 
+                            activeTab = PlanningTab.LIBRARY 
+                            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
                         }
                     }
-                    PlanningTab.SEARCH -> {
-                        RouteSearchContent(store)
-                    }
-                    PlanningTab.LIBRARY -> {
-                        RouteLibraryContent(store)
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    when (activeTab) {
+                        PlanningTab.DETAILS -> {
+                            if (route != null) {
+                                RouteDetailsContent(route, state, store, onDismiss, onShowQr = { showQrDialog = true })
+                            } else {
+                                Text("No route selected. Tap on map to start planning.", style = MaterialTheme.typography.bodyMedium)
+                            }
+                        }
+                        PlanningTab.SEARCH -> {
+                            RouteSearchContent(store)
+                        }
+                        PlanningTab.LIBRARY -> {
+                            RouteLibraryContent(store)
+                        }
                     }
                 }
             }
@@ -301,41 +410,17 @@ fun RouteDetailsContent(
 ) {
     val context = LocalContext.current
     Column {
-        // Header
+        // Sub-Header (Only shown when expanded)
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.Top
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = route.name,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = "${"%.2f".format(route.totalDistanceKm)} km • ${route.estimatedFlightTimeMinutes} min",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = "${route.routeType.name.replace("_", " ")} • ${"%.1f".format(route.faiPoints)} pts",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
+            IconButton(onClick = { RouteIOManager.shareRouteFile(context, route) }) {
+                Icon(androidx.compose.material.icons.Icons.Default.Share, contentDescription = "Share Route")
             }
-            Row {
-                IconButton(onClick = { RouteIOManager.shareRouteFile(context, route) }) {
-                    Icon(androidx.compose.material.icons.Icons.Default.Share, contentDescription = "Share Route")
-                }
-                IconButton(onClick = onShowQr) {
-                    Icon(androidx.compose.material.icons.Icons.Default.QrCode, contentDescription = "Show QR Code")
-                }
-                IconButton(onClick = onDismiss) {
-                    Icon(androidx.compose.material.icons.Icons.Default.Close, contentDescription = "Close")
-                }
+            IconButton(onClick = onShowQr) {
+                Icon(androidx.compose.material.icons.Icons.Default.QrCode, contentDescription = "Show QR Code")
             }
         }
 
@@ -392,61 +477,62 @@ fun RouteDetailsContent(
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (weatherData?.hasConvectiveDanger() == true || weatherData?.hasThunderstorm() == true) {
+                                        Surface(
+                                            color = Color(0xFFFFBF00),
+                                            shape = MaterialTheme.shapes.extraSmall,
+                                            modifier = Modifier.padding(end = 6.dp).testTag("AHV_BADGE")
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Warning,
+                                                contentDescription = "Hazard",
+                                                tint = Color.Black,
+                                                modifier = Modifier.size(14.dp).padding(1.dp)
+                                            )
+                                        }
+                                    }
                                     Text(
                                         text = "${index + 1}. ${waypoint.label ?: "Waypoint"}",
                                         style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.SemiBold,
+                                        fontWeight = FontWeight.Black,
+                                        color = Color.White,
                                         modifier = Modifier.weight(1f)
                                     )
                                     if (formattedEta != null) {
                                         Text(
                                             text = "ETA: $formattedEta",
                                             style = MaterialTheme.typography.labelMedium,
-                                            color = MaterialTheme.colorScheme.primary,
-                                            fontWeight = FontWeight.Bold
+                                            color = Color(0xFF38BDF8), // Sky Blue high-contrast
+                                            fontWeight = FontWeight.ExtraBold
                                         )
                                     }
+                                }
+                                if (weatherData?.hasThunderstorm() == true) {
+                                    Text(
+                                        text = "⚡ THUNDERSTORM RISK DETECTED",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = Color(0xFFFFBF00),
+                                        fontWeight = FontWeight.Black,
+                                        letterSpacing = 0.5.sp
+                                    )
                                 }
                                 Text(
                                     text = buildString {
                                         append("${"%.4f".format(waypoint.lat)}, ${"%.4f".format(waypoint.lon)}")
                                         append(" • r${waypoint.radius?.toInt() ?: 400}m")
                                         if (waypoint.alt != null) append(" • A${waypoint.alt.toInt()}m")
-                                        if (waypoint.openTime != null) append(" • O:${waypoint.openTime}")
-                                        if (waypoint.closeTime != null) append(" • C:${waypoint.closeTime}")
-                                        if (waypoint.type != com.madanala.tern.model.Waypoint.Type.TURNPOINT) {
-                                            val typeName = when (waypoint.type) {
-                                                com.madanala.tern.model.Waypoint.Type.LAUNCH -> "Launch"
-                                                com.madanala.tern.model.Waypoint.Type.TURNPOINT -> "Turnpoint"
-                                                com.madanala.tern.model.Waypoint.Type.SSS -> "Start Speed Section"
-                                                com.madanala.tern.model.Waypoint.Type.ESS -> "End Speed Section"
-                                                com.madanala.tern.model.Waypoint.Type.GOAL -> "Goal"
-                                                com.madanala.tern.model.Waypoint.Type.LANDING -> "Landing"
-                                            }
-                                            append(" • $typeName")
-                                        }
                                     },
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = Color.White.copy(alpha = 0.6f)
                                 )
-                                // Show leg distance if available
-                                if (index > 0 && index - 1 < route.legDistances.size) {
-                                    Text(
-                                        text = "+${"%.2f".format(route.legDistances[index - 1])} km",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.secondary,
-                                        modifier = Modifier.padding(bottom = 2.dp)
-                                    )
-                                }
-
-                                // Show Weather Summary
+                                // Show Weather Summary in TEA Mode
                                 if (weatherData != null && weatherData.current != null) {
                                     val wind = weatherData.current.wind
                                     Text(
-                                        text = "🌬️ ${wind.speed.roundToInt()} kt @ ${wind.direction.roundToInt()}°${if (wind.gust > 0) " (G ${wind.gust.roundToInt()})" else ""}",
+                                        text = "🌬️ ${wind.speed.roundToInt()} kt @ ${wind.direction.roundToInt()}°",
                                         style = MaterialTheme.typography.labelMedium,
-                                        color = MaterialTheme.colorScheme.tertiary,
-                                        fontWeight = FontWeight.Bold
+                                        color = Color(0xFF4ADE80), // Neon Green for tactical clarity
+                                        fontWeight = FontWeight.ExtraBold
                                     )
                                 }
                             }

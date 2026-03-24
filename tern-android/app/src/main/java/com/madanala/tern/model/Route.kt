@@ -55,6 +55,28 @@ data class Route(
     val faiPoints: Double
         get() = calculateFaiPoints()
 
+    /**
+     * The bounding box encompassing all waypoints in this route.
+     * Returns null if route is empty.
+     */
+    val extent: TernBoundingBox?
+        get() {
+            if (waypoints.isEmpty()) return null
+            var minLat = Double.MAX_VALUE
+            var maxLat = -Double.MAX_VALUE
+            var minLon = Double.MAX_VALUE
+            var maxLon = -Double.MAX_VALUE
+
+            waypoints.forEach { wp ->
+                if (wp.lat < minLat) minLat = wp.lat
+                if (wp.lat > maxLat) maxLat = wp.lat
+                if (wp.lon < minLon) minLon = wp.lon
+                if (wp.lon > maxLon) maxLon = wp.lon
+            }
+
+            return TernBoundingBox(minLat, minLon, maxLat, maxLon)
+        }
+
     enum class RouteType { OPEN_DISTANCE, FLAT_TRIANGLE, FAI_TRIANGLE }
 
     /**

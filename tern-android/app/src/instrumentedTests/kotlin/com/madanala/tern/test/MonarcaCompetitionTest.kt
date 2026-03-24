@@ -51,14 +51,37 @@ class MonarcaCompetitionTest : MapVisualTest() {
 
                 given("the pilot is at Peñon Launch ready for Task 1", takeScreenshot = true) {
                     givenAppIsLaunchedOnMap(lat = 19.06167, lon = -100.09033, countryCode = "mx")
-                    zoomTo(19.06167, -100.09033, 12.0)
                     showRouteOnMap(monarcaRoute)
+                    // Zoom back to launch for the "ready" shot (showRoute dispatches SelectRoute which auto-zooms out)
+                    zoomTo(19.06167, -100.09033, 12.0)
                     waitForMapToRender(3000)
 
                     // VERIFIABLE GIVEN: Prove the state is reached
                     assertMapLocation(19.06167, -100.09033, tolerance = 0.01)
                     assertZoomLevel(12.0)
                     assertRoutePresence("Monarca 2026 - Task 1")
+                }
+
+                and("the pilot reviews the entire route for strategic planning") {
+                    // [Instrumentation Truth] Auto-zoom to fit the entire competition route
+                    zoomToRouteEntirely(monarcaRoute)
+                }
+
+                and("the map automatically fits the entire route to the screen", takeScreenshot = true) {
+                    // This step is specifically for UX evaluation of the zoom result
+                    waitForMapToRender(2000)
+                    assertRoutePresence("Monarca 2026 - Task 1")
+                }
+
+                and("the pilot examines the task details screen", takeScreenshot = true) {
+                    // Force expand to TEA mode if it was auto-minimized during strategic zoom
+                    composeTestRule.onNodeWithTag("SSA_Header").performClick()
+                    composeTestRule.waitForIdle()
+
+                    // Ensure the TEA view and Waypoint List are visible
+                    composeTestRule.onNodeWithTag("TEA_Header").assertIsDisplayed()
+                    composeTestRule.onNodeWithTag("WaypointList").assertIsDisplayed()
+                    composeTestRule.onNodeWithText("D01 Peñon", substring = true).assertIsDisplayed()
                 }
 
                 then("the HUD should show the distance to the Speed Section (Ext9)", takeScreenshot = true) {

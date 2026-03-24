@@ -3,6 +3,7 @@ package com.madanala.tern.redux
 import org.osmdroid.util.GeoPoint
 
 import com.madanala.tern.model.Route
+import com.madanala.tern.model.TernBoundingBox
 
 /**
  * Global state for map functionality using Redux pattern
@@ -12,6 +13,8 @@ data class MapState(
     val rotation: Float = 0f,
     val center: GeoPoint? = null,
     val zoom: Double = MapConstants.DEFAULT_ZOOM_LEVEL,
+    val pendingBoundingBox: TernBoundingBox? = null,
+    val isRoutePanelExpanded: Boolean = true, // Strategic Auto-Minimize
 
     // Location state
     val isLocationReady: Boolean = false,

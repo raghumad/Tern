@@ -108,8 +108,8 @@ class OverlayCoordinator {
                     // 🚀 COMPREHENSIVE RESET (Source of Truth fix)
                     // Ensuring pooled objects don't leak state (like dimmed alpha from focus mode)
                     setPoints(mutableListOf())
-                    (fillPaint as? android.graphics.Paint)?.alpha = 255
-                    (outlinePaint as? android.graphics.Paint)?.alpha = 255
+                    getFillPaint()?.setAlpha(255)
+                    getOutlinePaint()?.setAlpha(255)
                     title = null
                     snippet = null
                 }

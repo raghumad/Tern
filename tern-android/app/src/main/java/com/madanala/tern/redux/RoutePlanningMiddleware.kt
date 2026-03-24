@@ -30,18 +30,27 @@ class RoutePlanningMiddleware(
         val state = store.state.value
         when (action) {
             is MapAction.SelectRoute -> {
+                zoomToRoute(state, action.routeId, store)
                 fetchThermalHotspotsForRoute(state, action.routeId)
                 triggerRouteCorridorSync(state, action.routeId, store)
                 store.dispatch(WeatherActions.FetchWeatherForRoute(action.routeId))
             }
+            is MapAction.ZoomToRoute -> {
+                zoomToRoute(state, action.routeId, store)
+            }
             is MapAction.AddRoute -> {
                 fetchThermalHotspotsForRoute(state, action.route.id)
                 triggerRouteCorridorSync(state, action.route.id, store)
+                // [RFC 005] Strategic Auto-Minimize: Collapse panel on new route creation
+                store.dispatch(MapAction.SetRoutePanelExpanded(false))
             }
             is MapAction.AddWaypointToRoute -> {
                 fetchThermalHotspotsForPoint(GeoPoint(action.lat, action.lon))
                 triggerRouteCorridorSync(state, action.routeId, store)
                 store.dispatch(WeatherActions.FetchWeatherForRoute(action.routeId))
+                // [RFC 005] Strategic Auto-Minimize: If adding points, ensure panel is minimized 
+                // to show the evolving trajectory on the map.
+                store.dispatch(MapAction.SetRoutePanelExpanded(false))
             }
             is MapAction.UpdateWaypoint -> {
                 if (action.lat != null && action.lon != null) {
@@ -71,6 +80,18 @@ class RoutePlanningMiddleware(
             } catch (e: Exception) {
                 Log.e("RoutePlanningMiddleware", "Aviation Sync Error (Thermal): ${e.message}")
             }
+        }
+    }
+
+    private fun zoomToRoute(state: MapState, routeId: String, store: MapStore) {
+        val route = state.routes.find { it.id == routeId } ?: return
+        route.extent?.let { extent ->
+            Log.i("RoutePlanningMiddleware", "Auto-zooming to route: ${route.name}")
+            store.dispatch(MapAction.UpdateBoundingBox(extent))
+            
+            // [RFC 005] Strategic Auto-Minimize: If zooming to a route extent, we are likely in "Strategic" mode.
+            // Collapse the panel by default to show the whole route.
+            store.dispatch(MapAction.SetRoutePanelExpanded(false))
         }
     }
 
