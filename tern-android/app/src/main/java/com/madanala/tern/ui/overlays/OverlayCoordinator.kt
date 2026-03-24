@@ -105,8 +105,13 @@ class OverlayCoordinator {
         fun acquirePolygon(mapView: MapView): org.osmdroid.views.overlay.Polygon {
             return if (polygonPool.isNotEmpty()) {
                 polygonPool.removeAt(polygonPool.size - 1).apply {
-                    // Reset points for reuse
+                    // 🚀 COMPREHENSIVE RESET (Source of Truth fix)
+                    // Ensuring pooled objects don't leak state (like dimmed alpha from focus mode)
                     setPoints(mutableListOf())
+                    fillPaint.alpha = 255
+                    outlinePaint.alpha = 255
+                    title = null
+                    snippet = null
                 }
             } else {
                 org.osmdroid.views.overlay.Polygon()

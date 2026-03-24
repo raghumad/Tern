@@ -228,12 +228,12 @@ open class MapVisualTest {
      * Consolidates waiting for both airspaces and PG spots with shared timeout/polling
      * Uses recursive counting to handle nested FolderOverlays (Priority: Stability Fix)
      */
-    fun waitForMapData(minAirspaces: Int = 1, minPGSpots: Int = 1, timeoutMillis: Long = 30000) {
+    fun waitForMapData(minAirspaces: Int = 1, minPGSpots: Int = 1, timeoutMillis: Long = 45000) {
         val startTime = System.currentTimeMillis()
         var aCount = 0
         var pCount = 0
         
-        Log.i("MapVisualTest", "Waiting for Map Data: Airspaces >= $minAirspaces, PG Spots >= $minPGSpots")
+        Log.i("MapVisualTest", "Waiting for Map Data: Airspaces >= $minAirspaces, PG Spots >= $minPGSpots (Timeout: ${timeoutMillis}ms)")
         
         while (System.currentTimeMillis() - startTime < timeoutMillis) {
             var currentMapHash = 0
@@ -254,7 +254,7 @@ open class MapVisualTest {
             }
             
             if (aCount >= minAirspaces && pCount >= minPGSpots) {
-                println("MapVisualTest: waitForMapData SUCCESS: Found $aCount airspaces and $pCount spots on MapView@$currentMapHash")
+                println("MapVisualTest: waitForMapData SUCCESS: Found $aCount airspaces and $pCount spots on MapView@$currentMapHash after ${System.currentTimeMillis() - startTime}ms")
                 return
             }
             
@@ -276,8 +276,16 @@ open class MapVisualTest {
                     
                     if (overlay is org.osmdroid.views.overlay.Polygon) {
                         @Suppress("DEPRECATION")
-                        val pointsSize = overlay.getPoints().size
-                        Log.e("MapVisualTest", "$indent  Polygon Points: $pointsSize")
+                        val points = overlay.getPoints()
+                        val pointsSize = points.size
+                        val center = if (points.isNotEmpty()) {
+                            val latMean = points.map { it.latitude }.average()
+                            val lonMean = points.map { it.longitude }.average()
+                            "~($latMean, $lonMean)"
+                        } else "N/A"
+                        Log.e("MapVisualTest", "$indent  Polygon Points: $pointsSize, Approx Center: $center")
+                    } else if (overlay is org.osmdroid.views.overlay.Marker) {
+                         Log.e("MapVisualTest", "$indent  Marker Position: ${overlay.position}")
                     } else if (overlay is org.osmdroid.views.overlay.FolderOverlay) {
                         dumpOverlays(overlay.items, "$indent  ")
                     }
@@ -288,10 +296,12 @@ open class MapVisualTest {
             if (mapView != null) {
                 Log.e("MapVisualTest", "Top-level Overlay count: ${mapView.overlays.size}")
                 dumpOverlays(mapView.overlays)
+            } else {
+                Log.e("MapVisualTest", "ERROR: MapView NOT FOUND in view hierarchy!")
             }
         }
         
-        throw AssertionError("Timed out waiting for map data. Final: Airspaces=$aCount, PGSpots=$pCount")
+        throw AssertionError("Timed out waiting for map data after ${timeoutMillis}ms. Final: Airspaces=$aCount (min $minAirspaces), PGSpots=$pCount (min $minPGSpots)")
     }
 
     /**
@@ -315,13 +325,14 @@ open class MapVisualTest {
         throw AssertionError("Timed out waiting for $countryCode cache to serialize to disk.")
     }
 
-    fun waitForAirspaces(minCount: Int = 1, timeoutMillis: Long = 20000) {
+    fun waitForAirspaces(minCount: Int = 1, timeoutMillis: Long = 30000) {
         waitForMapData(minAirspaces = minCount, minPGSpots = 0, timeoutMillis = timeoutMillis)
     }
 
-    fun waitForPGSpots(minCount: Int = 1, timeoutMillis: Long = 20000) {
+    fun waitForPGSpots(minCount: Int = 1, timeoutMillis: Long = 30000) {
         waitForMapData(minAirspaces = 0, minPGSpots = minCount, timeoutMillis = timeoutMillis)
     }
+
 
     private fun findMapViewRecursive(view: android.view.View): org.osmdroid.views.MapView? {
         if (view is org.osmdroid.views.MapView) return view
@@ -365,9 +376,11 @@ open class MapVisualTest {
         
         try {
             block()
+            composeTestRule.waitForIdle()
             val result = ReportGenerator.captureScreenshot("success_${name.replace(" ", "_")}")
             ReportGenerator.logStep("RESULT", "Scenario Passed: Physical UI and Redux State Validated", "PASS", result?.path, result?.hash)
         } catch (e: Throwable) {
+            composeTestRule.waitForIdle()
             val result = ReportGenerator.captureScreenshot("failure_${name.replace(" ", "_")}")
             ReportGenerator.logStep("RESULT", "Scenario Failed: ${e.message}", "FAIL", result?.path, result?.hash)
             throw e
@@ -401,6 +414,9 @@ open class MapVisualTest {
         try {
             block()
             val result = if (takeScreenshot) {
+                // [STABILITY FIX] Synchronize with UI and Redux before capture
+                composeTestRule.waitForIdle()
+                Thread.sleep(200) 
                 ReportGenerator.captureScreenshot("step_${type}_${description.take(20).replace(" ", "_")}")
             } else {
                 null

@@ -31,7 +31,8 @@ object WeatherTestHelper {
     private fun setDefaultDispatcher() {
         // [SOURCE OF TRUTH] Default mock data for all tests
         val boulderSpots = listOf(
-            mapOf("id" to "pg_boulder_test", "name" to "Boulder Launch", "lat" to 40.015, "lon" to -105.27)
+            mapOf("id" to "pg_boulder_test", "name" to "Boulder Launch", "lat" to 40.015, "lon" to -105.27),
+            mapOf("id" to "pg_lookout_test", "name" to "Lookout Mountain", "lat" to 39.7429, "lon" to -105.2393)
         )
         val airspaceBody = """{"type":"Feature","properties":{"name":"Mock Airspace","class":"D"},"geometry":{"type":"Polygon","coordinates":[[[-105.3,40.1],[-105.2,40.1],[-105.2,40.0],[-105.3,40.0],[-105.3,40.1]]]}}""" + "\n"
 
@@ -72,7 +73,8 @@ object WeatherTestHelper {
         val weatherJson = generateWeatherJson(speed, direction, speed * 1.3)
         // [RFC 005] Multiple spots for stress testing
         val boulderSpots = listOf(
-            mapOf("id" to "pg_boulder_test", "name" to "Boulder Launch", "lat" to 40.015, "lon" to -105.27)
+            mapOf("id" to "pg_boulder_test", "name" to "Boulder Launch", "lat" to 40.015, "lon" to -105.27),
+            mapOf("id" to "pg_lookout_test", "name" to "Lookout Mountain", "lat" to 39.7429, "lon" to -105.2393)
         )
         
         val chamonixSpots = listOf(

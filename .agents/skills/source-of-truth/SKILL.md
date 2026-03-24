@@ -52,8 +52,14 @@ Before implementing a new class, state property, or constant, ask the following 
 - **Result**: Conflicting resource limits and high GC pressure in high-density regions because the local "truth" (e.g. 50 spots) contradicted the system's actual capacity (e.g. 400 spots).
 - **Solution**: Centralize budget distribution in `OverlayCoordinator.kt`. Managers MUST query the single `AdaptiveOverlaySystem` instance provided by the coordinator and resize their internal caches dynamically via `onOverlayBudgetChanged`.
 
+### Anti-Pattern: Pooled State Leakage
+- **Previous State**: `UniversalOverlayPool.acquirePolygon` reset the geometric points but left `alpha`, `fillPaint`, and `outlinePaint` in their last-used state.
+- **Result**: Polygons that were dimmed in "Focus Mode" were returned to the pool and later reused for new airspaces, which then appeared permanently dimmed.
+- **Solution**: Implement **Comprehensive Sanitization** in the pool. When an object is acquired or released, every single visual property MUST be reset to a documented "Clean Baseline."
+
 ## Diagnostic Checklist
 - [ ] Have I identified the **Owner** of this information?
 - [ ] Is this value **Purely Derived**? (If so, use a `val` getter).
 - [ ] If I change this value in one place, will it "break" the other "Source of Truth"? (If yes, you have two sources of truth—delete one).
 - [ ] Am I "Shadowing" a system-level property? (e.g., storing a local `isGpsOn` instead of querying the system status).
+- [ ] **Pooled Objects**: Does the pool reset EVERY property (not just geometry)? (e.g., alpha, color, listeners, tags).

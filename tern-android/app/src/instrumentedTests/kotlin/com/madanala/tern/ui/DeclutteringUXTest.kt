@@ -145,6 +145,7 @@ class DeclutteringUXTest : MapVisualTest() {
              }
 
              then("Focus mode is active") {
+                 composeTestRule.waitForIdle()
                  ReportGenerator.captureScreenshot("focus_mode_active")
              }
 
@@ -157,6 +158,9 @@ class DeclutteringUXTest : MapVisualTest() {
              }
 
              then("Focus mode is deactivated") {
+                 // [STABILITY FIX] Wait for UI reproduction and Redux propagation
+                 composeTestRule.waitForIdle()
+                 Thread.sleep(500) // Safety for map invalidation to finish
                  ReportGenerator.captureScreenshot("focus_mode_deactivated")
              }
         }

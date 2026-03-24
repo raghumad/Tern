@@ -128,6 +128,8 @@ open class BddTest : BaseUITest() {
         try {
             block()
             val result = if (takeScreenshot) {
+                // [STABILITY FIX] Basic delay for non-Compose BDD tests
+                Thread.sleep(300)
                 ReportGenerator.captureScreenshot("step_${type}_${description.take(20).replace(" ", "_")}")
             } else {
                 null
