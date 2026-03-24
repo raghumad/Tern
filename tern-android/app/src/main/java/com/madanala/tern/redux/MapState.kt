@@ -24,6 +24,7 @@ data class MapState(
 
     // Overlay state - modular overlay management
     val overlayState: OverlayState = OverlayState(),
+    val hasAirspaceCollision: Boolean = false,
 
     // Weather state for PG spots
     val weatherState: WeatherState = WeatherState(),
@@ -128,6 +129,7 @@ data class WeatherState(
     val waypointEtas: Map<String, Long> = emptyMap(),
     val fetchingSpots: Set<String> = emptySet(),
     val errors: Map<String, Throwable> = emptyMap(),
+    val hasStormRisk: Boolean = false,
     val showWeatherGauges: Boolean = true,
     val showWeatherDetails: Boolean = true,
     val showingWeatherDialog: WeatherDialogState? = null,

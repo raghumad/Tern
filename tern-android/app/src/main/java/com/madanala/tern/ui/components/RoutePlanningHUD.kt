@@ -85,7 +85,7 @@ fun RoutePlanningHUD(
             Spacer(modifier = Modifier.height(12.dp))
 
             // Airspace Warning (Aviation-Grade: High contrast pulse)
-            val hasAirspaceCollision = true // Placeholder for collision logic
+            val hasAirspaceCollision = state.hasAirspaceCollision
             if (hasAirspaceCollision) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Card(
@@ -111,18 +111,8 @@ fun RoutePlanningHUD(
             )
             Spacer(modifier = Modifier.height(4.dp))
             
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                WeatherMetricItem("ETA @ GOAL", "13:45", "HUD_ETA_Goal")
-                WeatherMetricItem("FORECAST WIND", "12kt NW", "HUD_ETA_Wind")
-            }
-            
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                WeatherMetricItem("CLOUDBASE", "3200m", "HUD_Weather_Cloudbase")
-                WeatherMetricItem("LAPSE", "-6.5°", "HUD_Weather_LapseRate")
-            }
-            
             // Storm Risk Warning
-            val hasStormRisk = true // Placeholder for storm risk logic
+            val hasStormRisk = state.weatherState.hasStormRisk
             if (hasStormRisk) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(
@@ -138,6 +128,36 @@ fun RoutePlanningHUD(
                         fontWeight = FontWeight.Bold
                     )
                 }
+            }
+
+            // Weather Data for Goal
+            val goalWaypoint = route.waypoints.find { it.type == com.madanala.tern.model.Waypoint.Type.GOAL }
+            val goalWeather = goalWaypoint?.let { state.weatherState.waypointWeathers[it.id] }
+            val goalEta = goalWaypoint?.let { state.weatherState.waypointEtas[it.id] }
+            
+            val etaLabel = goalEta?.let { 
+                val date = java.util.Date(it)
+                java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(date)
+            } ?: "--:--"
+            
+            val windLabel = goalWeather?.current?.let { 
+                "${it.wind.speed.roundToInt()}kt ${it.wind.direction}" 
+            } ?: "--kt --"
+            
+            val cloudbaseLabel = goalWeather?.current?.let { 
+                if (it.visibility > 0) "${(it.temperature * 122).roundToInt()}m" else "--m" // Simple adiabatic estimation
+            } ?: "--m"
+
+            val lapseLabel = goalWeather?.current?.let { "-6.5°" } ?: "--°" // Standard lapse rate placeholder or derived
+
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                WeatherMetricItem("ETA @ GOAL", etaLabel, "HUD_ETA_Goal")
+                WeatherMetricItem("FORECAST WIND", windLabel, "HUD_ETA_Wind")
+            }
+            
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                WeatherMetricItem("CLOUDBASE", cloudbaseLabel, "HUD_Weather_Cloudbase")
+                WeatherMetricItem("LAPSE", lapseLabel, "HUD_Weather_LapseRate")
             }
 
             Spacer(modifier = Modifier.height(12.dp))

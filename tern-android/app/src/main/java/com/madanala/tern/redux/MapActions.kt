@@ -107,6 +107,7 @@ sealed class MapAction {
         val type: Waypoint.Type = Waypoint.Type.TURNPOINT,
         val label: String? = null
     ) : MapAction()
+    data class SetAirspaceCollision(val hasCollision: Boolean) : MapAction()
 }
 
 /**
@@ -159,4 +160,5 @@ sealed class WeatherActions {
     data object RequestWeatherUpdate : WeatherActions()
     data class WeatherDataLoaded(val data: List<Any>) : WeatherActions()
     data class WeatherError(val error: String) : WeatherActions()
+    data class SetStormRisk(val hasRisk: Boolean) : WeatherActions()
 }

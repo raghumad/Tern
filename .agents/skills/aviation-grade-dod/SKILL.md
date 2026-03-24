@@ -46,3 +46,5 @@ This checklist provides the definitive, data-driven criteria for marking a featu
     - [ ] No "Ghost" instances (managers, coroutines, or cache managers) remain after a session is cleared.
 - [ ] **Idempotent Guards**: 
     - [ ] All critical initialization and state-setting actions have idempotent logic to prevent redundant background noise.
+- [ ] **Instrumentation Truth**: 
+    - [ ] All UI metrics in instrumented tests are verified to be derived from the Redux state, not static mocks or placeholders (ref. [Instrumentation Truth](file:///home/raghu/src/Tern/.agents/skills/instrumentation-truth/SKILL.md)).

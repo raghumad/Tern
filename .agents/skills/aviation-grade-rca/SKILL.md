@@ -23,7 +23,8 @@ When a regression or high-risk bug is identified (especially during stabilizatio
 An RCA is **Mandatory** when a bug fits any of these patterns:
 - **Lifecycle Leaks**: Objects surviving beyond their intended scope (e.g., "Ghost" managers).
 - **Concurrency Race Conditions**: Shared state being mutated or cancelled by overlapping async tasks.
-- **Source of Truth Contiguity**: State being "split" between two components with no synchronization loop.
+- [Source of Truth Contiguity](file:///home/raghu/src/Tern/.agents/skills/source-of-truth/SKILL.md): State being "split" between two components with no synchronization loop.
+- [Instrumentation Truth Violation](file:///home/raghu/src/Tern/.agents/skills/instrumentation-truth/SKILL.md): Using hardcoded placeholders or logs in place of real metrics in instrumented tests (Mock Leakage).
 - **Resource Exhaustion**: Memory pressure or GC spikes caused by redundant background queries.
 
 ## 🛠️ From Analysis to Action
