@@ -266,6 +266,22 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
+        reduxBridge.onBoundingBoxChange = { ternBox ->
+            mainHandler.post {
+                val osmdBox = org.osmdroid.util.BoundingBox(
+                    ternBox.maxLat,
+                    ternBox.maxLon,
+                    ternBox.minLat,
+                    ternBox.minLon
+                )
+                // Zoom with 10% padding for better pilot visibility
+                mapView.zoomToBoundingBox(osmdBox, true, (mapView.width * 0.1).toInt())
+                
+                // Update baselines to match the new viewport to prevent immediate re-dispatch
+                lastDispatchedCenter = osmdBox.center.normalizePrecision()
+                lastDispatchedZoom = mapView.zoomLevelDouble
+            }
+        }
     }
 
     /**

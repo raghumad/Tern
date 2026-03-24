@@ -186,6 +186,22 @@ open class MapVisualTest {
     }
 
     /**
+     * Helper to zoom the map to fit the entire route.
+     * Uses the dynamic bounding box mechanism (Instrumentation Truth).
+     */
+    fun zoomToRouteEntirely(route: Route) {
+        ReportGenerator.logStep("ACTION", "Auto-zooming to fit entire route: ${route.name}")
+        composeTestRule.runOnUiThread {
+            val activity = composeTestRule.activity
+            val store = ViewModelProvider(activity)[MapStore::class.java]
+            store.dispatch(MapAction.ZoomToRoute(route.id))
+        }
+        composeTestRule.waitForIdle()
+        // Give it a moment to animate and settle
+        Thread.sleep(2000)
+    }
+
+    /**
      * Polls the MapView until it is centered at the expected location.
      */
     fun waitForMapLocation(expectedLat: Double, expectedLon: Double, tolerance: Double = 0.01, timeoutMillis: Long = 5000) {

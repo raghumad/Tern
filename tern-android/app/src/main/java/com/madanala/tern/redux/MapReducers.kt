@@ -22,7 +22,8 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
     is MapAction.UpdateRotation,
     is MapAction.UpdateCenter,
     is MapAction.UpdateZoom,
-    is MapAction.UpdateMapMovement -> handleMapViewportActions(state, action)
+    is MapAction.UpdateMapMovement,
+    is MapAction.UpdateBoundingBox -> handleMapViewportActions(state, action)
 
     // Overlay Management
     is MapAction.SetOverlayEnabled,
@@ -41,7 +42,9 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
 
     // Configuration & UI
     is MapAction.UpdateMapStyle,
-    is MapAction.SetCompassVisible -> handleConfigurationAndUIActions(state, action)
+    is MapAction.SetCompassVisible,
+    is MapAction.ToggleRoutePanelExpanded,
+    is MapAction.SetRoutePanelExpanded -> handleConfigurationAndUIActions(state, action)
 
     // Settings & Preferences
     is MapAction.SetSettingsOverlayEnabled,
@@ -93,6 +96,9 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
 
     // New: Airspace Collision
     is MapAction.SetAirspaceCollision -> state.copy(hasAirspaceCollision = action.hasCollision)
+    
+    // Zoom to Route (Signalling action for Middleware)
+    is MapAction.ZoomToRoute -> state
 }
 
 // Route Planning Constants
@@ -133,7 +139,8 @@ private fun handleLongPressMap(state: MapState, action: MapAction.LongPressMap):
                 val (updatedRoutes, newWaypointId) = addWaypointToRouteState(state.routes, selectedRoute, action.geoPoint, action.type, action.label)
                 return state.copy(
                     routes = updatedRoutes,
-                    selectedWaypoint = WaypointSelection(selectedRouteId, newWaypointId)
+                    selectedWaypoint = WaypointSelection(selectedRouteId, newWaypointId),
+                    isRoutePanelExpanded = false // Strategic Auto-Minimize
                 )
             }
         }
@@ -144,7 +151,8 @@ private fun handleLongPressMap(state: MapState, action: MapAction.LongPressMap):
         return state.copy(
             routes = state.routes + newRoute,
             selectedRouteId = newRoute.id,
-            selectedWaypoint = WaypointSelection(newRoute.id, newRoute.waypoints.first().id)
+            selectedWaypoint = WaypointSelection(newRoute.id, newRoute.waypoints.first().id),
+            isRoutePanelExpanded = false // Strategic Auto-Minimize
         )
     }
 }
@@ -270,8 +278,10 @@ private fun handleMapViewportActions(state: MapState, action: MapAction): MapSta
     is MapAction.UpdateMapMovement -> state.copy(
         rotation = action.rotation ?: state.rotation,
         center = action.center ?: state.center,
-        zoom = action.zoom ?: state.zoom
+        zoom = action.zoom ?: state.zoom,
+        pendingBoundingBox = null // Clear to prevent continuous fighting
     )
+    is MapAction.UpdateBoundingBox -> state.copy(pendingBoundingBox = action.box)
     else -> state
 }
 
@@ -325,6 +335,8 @@ private fun handleCacheActions(state: MapState, action: MapAction): MapState = w
 private fun handleConfigurationAndUIActions(state: MapState, action: MapAction): MapState = when (action) {
     is MapAction.UpdateMapStyle -> state.copy(mapStyle = action.style)
     is MapAction.SetCompassVisible -> state.copy(compassVisible = action.visible)
+    MapAction.ToggleRoutePanelExpanded -> state.copy(isRoutePanelExpanded = !state.isRoutePanelExpanded)
+    is MapAction.SetRoutePanelExpanded -> state.copy(isRoutePanelExpanded = action.expanded)
     else -> state
 }
 
@@ -541,8 +553,17 @@ private fun handleInteractiveEditingActions(state: MapState, action: MapAction):
  * Handle route selection actions
  */
 private fun handleRouteSelectionActions(state: MapState, action: MapAction): MapState = when (action) {
-    is MapAction.SelectRoute -> state.copy(selectedRouteId = action.routeId)
-    MapAction.DeselectRoute -> state.copy(selectedRouteId = null)
+    is MapAction.SelectRoute -> {
+        // [RFC 005] Strategic Auto-Minimize: If zooming out to strategic level (< 11.0), 
+        // collapse the panel by default to show the whole route.
+        val shouldExpand = state.zoom >= 11.0
+        state.copy(
+            selectedRouteId = action.routeId,
+            selectedWaypoint = if (action.routeId == null) null else state.selectedWaypoint,
+            isRoutePanelExpanded = if (action.routeId != null) shouldExpand else state.isRoutePanelExpanded
+        )
+    }
+    MapAction.DeselectRoute -> state.copy(selectedRouteId = null, selectedWaypoint = null)
     else -> state
 }
 

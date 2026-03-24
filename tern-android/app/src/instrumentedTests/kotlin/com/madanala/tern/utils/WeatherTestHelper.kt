@@ -69,8 +69,8 @@ object WeatherTestHelper {
         } catch (e: Exception) {}
     }
 
-    fun setDispatcher(speed: Double, direction: Double) {
-        val weatherJson = generateWeatherJson(speed, direction, speed * 1.3)
+    fun setDispatcher(speed: Double, direction: Double, cape: Double = 0.0, lightning: Double = 0.0) {
+        val weatherJson = generateWeatherJson(speed, direction, speed * 1.3, cape, lightning)
         // [RFC 005] Multiple spots for stress testing
         val boulderSpots = listOf(
             mapOf("id" to "pg_boulder_test", "name" to "Boulder Launch", "lat" to 40.015, "lon" to -105.27),
@@ -115,18 +115,32 @@ object WeatherTestHelper {
         }
     }
 
-    fun enqueueWeatherResponse(speed: Double, direction: Double, gust: Double = speed * 1.3) {
-        val json = generateWeatherJson(speed, direction, gust)
+    /**
+     * Truth-First weather injection: Set specific hazards for a test scenario.
+     */
+    fun setMockWeatherResponse(
+        latitude: Double? = null,
+        longitude: Double? = null,
+        speed: Double = 10.0,
+        direction: Double = 0.0,
+        cape: Double = 0.0,
+        lightningPotential: Double = 0.0
+    ) {
+        setDispatcher(speed, direction, cape, lightningPotential)
+    }
+
+    fun enqueueWeatherResponse(speed: Double, direction: Double, gust: Double = speed * 1.3, cape: Double = 0.0, lightning: Double = 0.0) {
+        val json = generateWeatherJson(speed, direction, gust, cape, lightning)
         server?.enqueue(MockResponse().setBody(json).setResponseCode(200))
     }
 
-    private fun generateWeatherJson(speed: Double, direction: Double, gust: Double): String {
-        val map = generateWeatherMap(speed, direction, gust)
+    private fun generateWeatherJson(speed: Double, direction: Double, gust: Double, cape: Double = 0.0, lightning: Double = 0.0): String {
+        val map = generateWeatherMap(speed, direction, gust, cape, lightning)
         return com.fasterxml.jackson.module.kotlin.jacksonObjectMapper().writeValueAsString(map)
     }
 
-    private fun generateWeatherMap(speed: Double, direction: Double, gust: Double): Map<String, Any> {
-        val now = java.time.LocalDateTime.now()
+    private fun generateWeatherMap(speed: Double, direction: Double, gust: Double, cape: Double = 0.0, lightning: Double = 0.0): Map<String, Any> {
+        val now = java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC).toLocalDateTime()
         val formatter = java.time.format.DateTimeFormatter.ISO_LOCAL_DATE_TIME
         val times = (0 until 48).map { now.plusHours(it.toLong()).format(formatter) }
         
@@ -144,7 +158,9 @@ object WeatherTestHelper {
                 "wind_gusts_10m" to List(48) { gust },
                 "pressure_msl" to List(48) { 1013.25 },
                 "cloud_cover" to List(48) { 0.0 },
-                "visibility" to List(48) { 10000.0 }
+                "visibility" to List(48) { 10000.0 },
+                "cape" to List(48) { cape },
+                "lightning_potential" to List(48) { lightning }
             ),
             "daily" to mapOf(
                 "time" to (0 until 7).map { now.plusDays(it.toLong()).toLocalDate().toString() },

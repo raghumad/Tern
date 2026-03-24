@@ -146,6 +146,31 @@ class RouteOverlayManager(
         isAntiAlias = true
     }
 
+    private val hazardHaloPaint = Paint().apply {
+        color = Color.argb(180, 255, 191, 0) // Amber (#FFBF00) with 70% opacity
+        style = Paint.Style.STROKE
+        strokeWidth = 10f
+        maskFilter = BlurMaskFilter(12f, BlurMaskFilter.Blur.NORMAL)
+        isAntiAlias = true
+    }
+
+    private val lightningBoltPath = Path().apply {
+        moveTo(0f, -22f)
+        lineTo(-12f, 0f)
+        lineTo(2f, 0f)
+        lineTo(-2f, 22f)
+        lineTo(12f, 0f)
+        lineTo(-2f, 0f)
+        close()
+    }
+
+    private val lightningPaint = Paint().apply {
+        color = Color.YELLOW
+        style = Paint.Style.FILL
+        isAntiAlias = true
+        setShadowLayer(8f, 0f, 0f, Color.BLACK) // Contrast against satellite maps
+    }
+
     override fun getRenderedCount(): Int {
         return currentlyRenderedRoutes.size
     }
@@ -797,8 +822,13 @@ class RouteOverlayManager(
                             val halfW = (radius * 1.5f)
                             val halfH = (radius * 1.5f)
 
-                            // Check for wind gauge bitmap in cache
                             val forecast = weatherState?.waypointWeathers?.get(waypoint.id)
+                            
+                            // 🎯 RFC 005: Hazard Halo (Convective Danger)
+                            if (forecast?.hasConvectiveDanger() == true) {
+                                canvas.drawCircle(screenPoint.x.toFloat(), screenPoint.y.toFloat(), radius * 2.5f, hazardHaloPaint)
+                            }
+
                             var windBitmap: Bitmap? = null
                             if (forecast != null && forecast.current != null) {
                                 val wind = forecast.current.wind
@@ -825,6 +855,17 @@ class RouteOverlayManager(
                                     (screenPoint.x + halfW).toInt(), (screenPoint.y + halfH).toInt()
                                 )
                                 icon.draw(canvas)
+                            }
+
+                            // 🎯 RFC 005: Lightning Bolt (High Lightning Potential) - Flashing effect
+                            if (forecast?.hasThunderstorm() == true) {
+                                // Flashing effect: 500ms on, 500ms off
+                                if ((System.currentTimeMillis() / 500) % 2 == 0L) {
+                                    canvas.save()
+                                    canvas.translate(screenPoint.x.toFloat() + radius, screenPoint.y.toFloat() - radius)
+                                    canvas.drawPath(lightningBoltPath, lightningPaint)
+                                    canvas.restore()
+                                }
                             }
                         } else {
                             // Fallback to basic circle if icon loading failed

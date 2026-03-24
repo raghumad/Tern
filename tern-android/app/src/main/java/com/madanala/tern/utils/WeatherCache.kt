@@ -57,6 +57,15 @@ class WeatherCache(private val context: Context) {
             val pressure = startW.pressure + (endW.pressure - startW.pressure) * ratio
             val cloud = startW.cloudCover + (endW.cloudCover - startW.cloudCover) * ratio
             
+            // Aviation Hazards: Interpolate CAPE and Lightning (strictly linear)
+            val cape = if (startW.cape != null && endW.cape != null) {
+                startW.cape + (endW.cape - startW.cape) * ratio
+            } else startW.cape ?: endW.cape
+            
+            val lightning = if (startW.lightningPotential != null && endW.lightningPotential != null) {
+                startW.lightningPotential + (endW.lightningPotential - startW.lightningPotential) * ratio
+            } else startW.lightningPotential ?: endW.lightningPotential
+            
             return WeatherData(
                 wind = WindData(speed, direction, gust),
                 temperature = temp,
@@ -64,7 +73,11 @@ class WeatherCache(private val context: Context) {
                 visibility = visibility,
                 pressure = pressure,
                 cloudCover = cloud,
-                timestamp = targetTimestamp
+                timestamp = targetTimestamp,
+                temp850hPa = null, 
+                temp925hPa = null,
+                cape = cape,
+                lightningPotential = lightning
             )
         }
     }

@@ -41,6 +41,7 @@ class ReduxMapBridge(private val coroutineScope: CoroutineScope) {
     var onMapStyleChange: ((Int) -> Unit)? = null
     var onLocationPermissionGranted: (() -> Unit)? = null
     var onCameraMove: ((GeoPoint, Double?) -> Unit)? = null
+    var onBoundingBoxChange: ((com.madanala.tern.model.TernBoundingBox) -> Unit)? = null
 
     // Overlay coordinator for forwarding state changes
     private var overlayCoordinator: OverlayCoordinator? = null
@@ -144,6 +145,11 @@ class ReduxMapBridge(private val coroutineScope: CoroutineScope) {
                     newState.center?.let { center ->
                         onCameraMove?.invoke(center, newState.zoom)
                     }
+                }
+
+                // Handle bounding box changes
+                if (oldState.pendingBoundingBox != newState.pendingBoundingBox && newState.pendingBoundingBox != null) {
+                    onBoundingBoxChange?.invoke(newState.pendingBoundingBox)
                 }
 
                 // Handle permission changes
