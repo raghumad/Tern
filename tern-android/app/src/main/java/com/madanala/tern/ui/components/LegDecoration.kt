@@ -24,8 +24,11 @@ import com.madanala.tern.ui.theme.AeroNeonCyan
 fun LegDecoration(
     distanceKm: Double,
     etaMin: Int? = null,
-    scale: Float = 1.0f
+    scale: Float = 1.0f,
+    isVisible: Boolean = true // [RSE] Allow external suppression
 ) {
+    if (!isVisible) return
+
     Row(
         modifier = Modifier
             .clip(RoundedCornerShape((16.dp * scale)))

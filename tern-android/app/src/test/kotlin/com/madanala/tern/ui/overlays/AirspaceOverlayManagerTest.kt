@@ -67,14 +67,14 @@ class AirspaceOverlayManagerTest : BaseTest() {
         
         // Mock country cache response
         val airspaceFeature = OverlayFeature(
-            id = null,
+            internalId = null,
             feature = mapOf("name" to "Airspace1"), 
             centroid = center, 
             hilbertIndex = 123L, 
             overlayType = "airspace"
         )
         val pgSpotFeature = OverlayFeature(
-            id = null,
+            internalId = null,
             feature = mapOf("name" to "Spot1"), 
             centroid = center, 
             hilbertIndex = 456L, 

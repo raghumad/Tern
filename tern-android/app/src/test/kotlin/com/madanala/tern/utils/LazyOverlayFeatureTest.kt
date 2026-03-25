@@ -37,7 +37,7 @@ class LazyOverlayFeatureTest {
         
         // 2. Wrap in LazyOverlayFeature
         val lazyFeature = MapOverlayCacheUtils.OverlayFeature(
-            id = "test-id",
+            internalId = "test-id",
             centroid = centroid,
             hilbertIndex = 123,
             overlayType = "airspace"

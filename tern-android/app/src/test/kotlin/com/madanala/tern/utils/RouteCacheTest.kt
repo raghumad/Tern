@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.madanala.tern.model.Route
 import com.madanala.tern.model.Waypoint
+import com.madanala.tern.model.LocationType
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
@@ -70,7 +71,7 @@ class RouteCacheTest {
             )
         )
         val mockFeature = MapOverlayCacheUtils.OverlayFeature(
-            id = null,
+            internalId = null,
             feature = featureData, 
             centroid = GeoPoint(10.0, 20.0), 
             hilbertIndex = 0L, 
@@ -113,7 +114,7 @@ class RouteCacheTest {
             )
         )
         val mockFeature = MapOverlayCacheUtils.OverlayFeature(
-            id = null,
+            internalId = null,
             feature = featureData, 
             centroid = GeoPoint(10.0, 20.0), 
             hilbertIndex = 0L, 
@@ -159,7 +160,7 @@ class RouteCacheTest {
             )
         )
         val mockFeature = MapOverlayCacheUtils.OverlayFeature(
-            id = null,
+            internalId = null,
             feature = featureData, 
             centroid = GeoPoint(11.0, 21.0), 
             hilbertIndex = 0L, 

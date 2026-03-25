@@ -59,14 +59,14 @@ class UniversalCountryCacheManagerTest {
 
         // Mock cache responses
         val airspaceFeature = OverlayFeature(
-            id = null,
+            internalId = null,
             feature = mapOf("name" to "Airspace1"), 
             centroid = center, 
             hilbertIndex = 123L, 
             overlayType = "airspace"
         )
         val pgSpotFeature = OverlayFeature(
-            id = null,
+            internalId = null,
             feature = mapOf("name" to "Spot1"), 
             centroid = center, 
             hilbertIndex = 456L, 
@@ -108,7 +108,7 @@ class UniversalCountryCacheManagerTest {
         every { airspaceCache.queryNearbyFeatures(countryCode, center, radiusMiles) } answers {
             Thread.sleep(10) // Simulate 10ms query time
             listOf(OverlayFeature(
-                id = null,
+                internalId = null,
                 feature = emptyMap(), 
                 centroid = center, 
                 hilbertIndex = 0L, 

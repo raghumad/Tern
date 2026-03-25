@@ -34,6 +34,68 @@ data class EmergencyCleanupResult(
 )
 
 /**
+ * [RSE] Ranking Tier for spatial features.
+ * Ensures strict information hierarchy to prevent "Priority Jams".
+ */
+enum class RankingTier(val value: Int) {
+    TARGET(1),   // Active goal (Max detail)
+    PATH(2),     // Route waypoints (Details subject to budget)
+    HAZARD(3),   // Storms/Obstacles (Pulsing, minimal labels)
+    CONTEXT(4)   // Background POIs (Pin-pricks)
+}
+
+/**
+ * [RSE] Lightweight rectangle for spatial calculations.
+ * Avoids dependency on android.graphics.RectF in unit tests.
+ */
+data class SpatialRect(val left: Float, val top: Float, val right: Float, val bottom: Float)
+
+/**
+ * [RSE] Spatial Lattice for screen-space density arbitration.
+ * Uses a bit-grid to track occupancy and prevent visual overlaps.
+ */
+class SpatialLattice(val cellWidth: Float, val cellHeight: Float) {
+    private val occupiedCells = mutableSetOf<Pair<Int, Int>>()
+
+    fun reset() {
+        occupiedCells.clear()
+    }
+
+    /**
+     * Check if a rectangle overlaps with any occupied cells.
+     */
+    fun isOccupied(rect: SpatialRect): Boolean {
+        val startX = kotlin.math.floor(rect.left / cellWidth).toInt()
+        val endX = kotlin.math.floor(rect.right / cellWidth).toInt()
+        val startY = kotlin.math.floor(rect.top / cellHeight).toInt()
+        val endY = kotlin.math.floor(rect.bottom / cellHeight).toInt()
+
+        for (x in startX..endX) {
+            for (y in startY..endY) {
+                if (occupiedCells.contains(x to y)) return true
+            }
+        }
+        return false
+    }
+
+    /**
+     * Mark a rectangle as occupied in the lattice.
+     */
+    fun occupy(rect: SpatialRect) {
+        val startX = kotlin.math.floor(rect.left / cellWidth).toInt()
+        val endX = kotlin.math.floor(rect.right / cellWidth).toInt()
+        val startY = kotlin.math.floor(rect.top / cellHeight).toInt()
+        val endY = kotlin.math.floor(rect.bottom / cellHeight).toInt()
+
+        for (x in startX..endX) {
+            for (y in startY..endY) {
+                occupiedCells.add(x to y)
+            }
+        }
+    }
+}
+
+/**
  * Base implementation for overlay managers with common functionality
  */
 abstract class BaseOverlayManager(
