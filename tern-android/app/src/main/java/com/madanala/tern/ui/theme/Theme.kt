@@ -22,12 +22,20 @@ import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 
 // --- Colors (Aero Stealth Palette) ---
-val AeroCharcoal = Color(0xFF121212)    // Deep background
-val AeroSlate = Color(0xFF1E1E1E)       // Surface/Panel background
-val AeroNeonCyan = Color(0xFF00E5FF)    // Primary critical data
-val AeroCyanDark = Color(0xFF00B0FF)    // Supporting cyan
-val AeroOrange = Color(0xFFFF9100)      // Aviation Warning/Caution
-val AeroGlass = Color(0xCC1E1E1E)       // Surface with 80% opacity for glassmorphism
+// Raw hex for use in non-compose code (Paints, XML)
+const val AeroCharcoalHex = 0xFF121212
+const val AeroSlateHex = 0xFF1E1E1E
+const val AeroNeonCyanHex = 0xFF00E5FF
+const val AeroCyanDarkHex = 0xFF00B0FF
+const val AeroOrangeHex = 0xFFFF9100
+const val AeroGlassHex = 0xCC1E1E1E
+
+val AeroCharcoal = Color(AeroCharcoalHex)
+val AeroSlate = Color(AeroSlateHex)
+val AeroNeonCyan = Color(AeroNeonCyanHex)
+val AeroCyanDark = Color(AeroCyanDarkHex)
+val AeroOrange = Color(AeroOrangeHex)
+val AeroGlass = Color(AeroGlassHex)
 val Sleet = Color(0xFFB0BEC5)
 val Mist = Color(0xFFECEFF1)
 

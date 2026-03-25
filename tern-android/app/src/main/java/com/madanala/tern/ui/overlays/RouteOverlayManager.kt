@@ -16,9 +16,12 @@ import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Overlay
 import com.madanala.tern.redux.RouteConstants
+import com.madanala.tern.model.Waypoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
+import com.madanala.tern.utils.ZoomCategory
+import com.madanala.tern.ui.theme.*
 
 /**
  * Overlay manager for route visualization
@@ -89,15 +92,16 @@ class RouteOverlayManager(
     private var currentSelectedRouteId: String? = null
     private var weatherState: com.madanala.tern.redux.WeatherState? = null
     
-    // PERFORMANCE: Cache wind gauge bitmaps to prevent redundant generation
-    private val windGaugeCache = android.util.LruCache<Int, android.graphics.Bitmap>(50)
+    // PERFORMANCE: Cache high-fidelity Composable-to-Bitmap overlays
+    private val waypointBitmapCache = android.util.LruCache<Int, android.graphics.Bitmap>(100)
+    private val legDecorationCache = android.util.LruCache<Int, android.graphics.Bitmap>(50)
 
     // Changed to Map for better tracking and incremental updates
     private val currentlyRenderedRoutes = mutableMapOf<String, RouteOverlay>()
 
     // Paint objects for route rendering
     private val routePaint = Paint().apply {
-        color = Color.parseColor("#00D4FF") // AeroNeonCyan
+        color = AeroNeonCyanHex.toInt()
         strokeWidth = ROUTE_LINE_WIDTH
         style = Paint.Style.STROKE
         strokeCap = Paint.Cap.ROUND
@@ -112,7 +116,7 @@ class RouteOverlayManager(
     }
 
     private val waypointBorderPaint = Paint().apply {
-        color = Color.parseColor("#0F172A") // AeroCharcoal border
+        color = AeroCharcoalHex.toInt()
         style = Paint.Style.STROKE
         strokeWidth = WAYPOINT_BORDER_WIDTH
         isAntiAlias = true
@@ -126,28 +130,28 @@ class RouteOverlayManager(
     }
 
     private val selectionPaint = Paint().apply {
-        color = Color.parseColor("#FF9E00") // AeroOrange
+        color = AeroOrangeHex.toInt()
         style = Paint.Style.STROKE
         strokeWidth = SELECTION_HIGHLIGHT_WIDTH
         isAntiAlias = true
     }
 
     private val dragPaint = Paint().apply {
-        color = Color.argb(180, 0, 212, 255) // AeroNeonCyan with 70% opacity
+        color = (AeroNeonCyanHex and 0x00FFFFFFL or (180L shl 24)).toInt()
         style = Paint.Style.STROKE
         strokeWidth = SELECTION_HIGHLIGHT_WIDTH + 2f // Thicker for "glow" effect
         isAntiAlias = true
     }
 
     private val routeSelectionPaint = Paint().apply {
-        color = Color.parseColor("#FF9E00") // AeroOrange
+        color = AeroOrangeHex.toInt()
         style = Paint.Style.STROKE
         strokeWidth = ROUTE_SELECTION_HIGHLIGHT_WIDTH
         isAntiAlias = true
     }
 
     private val hazardHaloPaint = Paint().apply {
-        color = Color.argb(180, 255, 191, 0) // Amber (#FFBF00) with 70% opacity
+        color = (AeroOrangeHex and 0x00FFFFFFL or (180L shl 24)).toInt()
         style = Paint.Style.STROKE
         strokeWidth = 10f
         maskFilter = BlurMaskFilter(12f, BlurMaskFilter.Blur.NORMAL)
@@ -165,7 +169,7 @@ class RouteOverlayManager(
     }
 
     private val lightningPaint = Paint().apply {
-        color = Color.YELLOW
+        color = AeroOrangeHex.toInt()
         style = Paint.Style.FILL
         isAntiAlias = true
         setShadowLayer(8f, 0f, 0f, Color.BLACK) // Contrast against satellite maps
@@ -284,8 +288,8 @@ class RouteOverlayManager(
                 clearRouteOverlays()
             }
             
-            // Trigger wind gauge generation if weather data updated
-            generateWaypointWindGauges(state)
+            // Trigger pre-rendering of high-fidelity decorations
+            preRenderRouteDecorations(state)
             
         } catch (e: Exception) {
             Log.e(TAG, "Error handling Redux state change in RouteOverlayManager", e)
@@ -303,54 +307,116 @@ class RouteOverlayManager(
         currentSelectedWaypoint = null
         currentSelectedRouteId = null
         weatherState = null
-        windGaugeCache.evictAll()
+        waypointBitmapCache.evictAll()
         clearRouteOverlays()
         currentlyRenderedRoutes.clear()
+        legDecorationCache.evictAll()
         Log.d(TAG, "RouteOverlayManager reset complete")
     }
 
     /**
-     * Generate wind gauge bitmaps for waypoints that have weather data
+     * Pre-render high-fidelity bitmaps for waypoints and legs (RFC 005)
+     * Offloads complex Compose rendering to background bitmaps for high-performance map overlays.
      */
-    private fun generateWaypointWindGauges(state: MapState) {
+    private fun preRenderRouteDecorations(state: MapState) {
         val mapView = mapView ?: return
         val weatherState = state.weatherState
         
-        state.routes.forEach { route ->
-            route.waypoints.forEach { waypoint ->
+        // 🎯 Zoom-Aware Context (RFC 005 SSOT)
+        val zoom = mapView.zoomLevelDouble
+        val category = ZoomCategory.fromZoom(zoom)
+        val iconScale = category.iconScale
+        val baseShowDetails = category.showHazardIndicators
+
+        state.routes.filter { it.isVisible }.forEach { route ->
+            // 🎯 Pre-render Waypoint Markers
+            route.waypoints.forEachIndexed { index, waypoint ->
                 val forecast = weatherState.waypointWeathers[waypoint.id]
-                if (forecast != null && forecast.current != null) {
-                    val wind = forecast.current.wind
-                    val cacheKey = arrayOf<Any>(
-                        wind.speed.roundToInt(),
-                        wind.direction.roundToInt(),
-                        wind.gust.roundToInt(),
-                        forecast.isStale(),
-                        forecast.hasConvectiveDanger(),
-                        forecast.hasThunderstorm()
-                    ).contentHashCode()
+                val isSelected = state.selectedWaypoint?.let { it.routeId == route.id && it.waypointId == waypoint.id } ?: false
+                val isDragging = isSelected && state.selectedWaypoint?.isDragging == true
+                
+                // Priority Check: Always show details for critical waypoints
+                val isCritical = waypoint.type == Waypoint.Type.LAUNCH || 
+                                waypoint.type == Waypoint.Type.GOAL || 
+                                waypoint.type == Waypoint.Type.ESS ||
+                                index == 0 || // Start
+                                index == route.waypoints.size - 1 // End
+                
+                val showDetails = baseShowDetails || isCritical || isSelected
+
+                val waypointKey = arrayOf<Any?>(
+                    waypoint.id,
+                    waypoint.type,
+                    waypoint.label,
+                    isSelected,
+                    isDragging,
+                    forecast?.current?.wind?.speed?.roundToInt(),
+                    forecast?.current?.wind?.direction?.roundToInt(),
+                    forecast?.hasThunderstorm(),
+                    forecast?.hasConvectiveDanger(),
+                    iconScale,
+                    showDetails
+                ).contentHashCode()
+
+                if (waypointBitmapCache.get(waypointKey) == null) {
+                    coroutineScope.launch(Dispatchers.Main) {
+                        try {
+                            // Scale dimensions based on iconScale
+                            val widthDp = (80 * iconScale).toInt().coerceAtLeast(32)
+                            val heightDp = (100 * iconScale).toInt().coerceAtLeast(40)
+                            
+                            val bitmap = com.madanala.tern.utils.ViewToBitmap.createBitmapFromComposableDP(
+                                parentView = mapView,
+                                widthDp = widthDp,
+                                heightDp = heightDp
+                            ) {
+                                com.madanala.tern.ui.components.WaypointMarker(
+                                    waypoint = waypoint,
+                                    forecast = forecast,
+                                    isSelected = isSelected,
+                                    isDragging = isDragging,
+                                    scale = iconScale,
+                                    showDetails = showDetails
+                                )
+                            }
+                            waypointBitmapCache.put(waypointKey, bitmap)
+                            mapView.invalidate()
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Failed to pre-render waypoint marker for ${waypoint.id}", e)
+                        }
+                    }
+                }
+            }
+
+            // 🎯 Pre-render Leg Decorations (Distances/ETAs)
+            if (route.waypoints.size >= 2) {
+                route.waypoints.indices.drop(1).forEach { index ->
+                    val distanceKm = route.legDistances.getOrNull(index - 1) ?: 0.0
+                    val etaMin = weatherState.waypointEtas[route.waypoints[index].id]?.toInt()
                     
-                    if (windGaugeCache.get(cacheKey) == null) {
+                    val legKey = arrayOf<Any?>(distanceKm, etaMin, iconScale).contentHashCode()
+                    
+                    if (legDecorationCache.get(legKey) == null) {
                         coroutineScope.launch(Dispatchers.Main) {
                             try {
+                                val widthDp = (100 * iconScale).toInt().coerceAtLeast(40)
+                                val heightDp = (40 * iconScale).toInt().coerceAtLeast(20)
+                                
                                 val bitmap = com.madanala.tern.utils.ViewToBitmap.createBitmapFromComposableDP(
                                     parentView = mapView,
-                                    widthDp = 64, // Sufficient for 56dp marker
-                                    heightDp = 64
+                                    widthDp = widthDp,
+                                    heightDp = heightDp
                                 ) {
-                                    com.madanala.tern.ui.components.WindGaugeMarker(
-                                        speed = wind.speed,
-                                        direction = wind.direction,
-                                        gust = wind.gust,
-                                        isStale = forecast.isStale(),
-                                        hasConvectiveDanger = forecast.hasConvectiveDanger(),
-                                        hasThunderstorm = forecast.hasThunderstorm()
+                                    com.madanala.tern.ui.components.LegDecoration(
+                                        distanceKm = distanceKm,
+                                        etaMin = etaMin,
+                                        scale = iconScale
                                     )
                                 }
-                                windGaugeCache.put(cacheKey, bitmap)
+                                legDecorationCache.put(legKey, bitmap)
                                 mapView.invalidate()
                             } catch (e: Exception) {
-                                Log.w(TAG, "Failed to generate waypoint wind gauge bitmap", e)
+                                Log.w(TAG, "Failed to pre-render leg decoration for route ${route.id}", e)
                             }
                         }
                     }
@@ -703,44 +769,46 @@ class RouteOverlayManager(
             }
         }
 
-    private val cylinderPaint by lazy {
-        Paint().apply {
-            color = Color.argb(40, 0, 212, 255) // AeroNeonCyan low alpha
-            style = Paint.Style.FILL
-            isAntiAlias = true
+        private val cylinderPaint by lazy {
+            Paint().apply {
+                color = (AeroNeonCyanHex and 0x00FFFFFFL or (40L shl 24)).toInt()
+                style = Paint.Style.FILL
+                isAntiAlias = true
+            }
         }
-    }
 
-    private val cylinderStrokePaint by lazy {
-        Paint().apply {
-            color = Color.argb(150, 0, 212, 255) // AeroNeonCyan medium alpha
-            style = Paint.Style.STROKE
-            strokeWidth = 2f
-            isAntiAlias = true
+        private val cylinderStrokePaint by lazy {
+            Paint().apply {
+                color = (AeroNeonCyanHex and 0x00FFFFFFL or (150L shl 24)).toInt()
+                style = Paint.Style.STROKE
+                strokeWidth = 2f
+                isAntiAlias = true
+            }
         }
-    }
 
-    private val arrowPaint by lazy {
-        Paint().apply {
-            color = Color.parseColor("#00D4FF") // AeroNeonCyan
-            style = Paint.Style.FILL_AND_STROKE
-            strokeWidth = 4f
-            isAntiAlias = true
+        private val arrowPaint by lazy {
+            Paint().apply {
+                color = AeroNeonCyanHex.toInt()
+                style = Paint.Style.FILL_AND_STROKE
+                strokeWidth = 4f
+                isAntiAlias = true
+            }
         }
-    }
 
-    private val mPath = Path()
-    private val mArrowPath = Path()
-
-    // ... existing paints ...
+        private val mPath = Path()
+        private val mArrowPath = Path()
 
         override fun draw(canvas: Canvas, mapView: MapView, shadow: Boolean) {
             try {
                 if (shadow) return
 
                 val projection = mapView.projection
+                val zoom = mapView.zoomLevelDouble
+                val category = ZoomCategory.fromZoom(zoom)
+                val iconScale = category.iconScale
+                val baseShowDetails = category.showHazardIndicators
 
-                // Draw cylinders first (so they are behind the line)
+                // Draw cylinders first
                 route.waypoints.forEach { waypoint ->
                     drawCylinder(canvas, projection, waypoint)
                 }
@@ -757,25 +825,22 @@ class RouteOverlayManager(
                             mPath.moveTo(screenPoint.x.toFloat(), screenPoint.y.toFloat())
                         } else {
                             val prevWaypoint = route.waypoints[index - 1]
-                            val prevPoint = GeoPoint(prevWaypoint.lat, prevWaypoint.lon)
-                            val prevScreenPoint = projection.toPixels(prevPoint, null)
+                            val prevScreenPoint = projection.toPixels(GeoPoint(prevWaypoint.lat, prevWaypoint.lon), null)
                             
                             mPath.lineTo(screenPoint.x.toFloat(), screenPoint.y.toFloat())
 
                             // Draw directional arrow
                             drawDirectionalArrow(canvas, prevScreenPoint.x.toFloat(), prevScreenPoint.y.toFloat(), screenPoint.x.toFloat(), screenPoint.y.toFloat())
 
-                            // Draw leg distance label
-                            val distanceMeters = point.distanceToAsDouble(prevPoint)
-                            if (distanceMeters > 100) { // Only draw if segment is significant
-                                val distanceKm = distanceMeters / 1000.0
-                                val labelText = String.format("%.1f km", distanceKm)
-                                
-                                // Calculate midpoint
+                            // 🎯 RFC 005: Leg Decoration (Distance/ETA)
+                            val distanceKm = route.legDistances.getOrNull(index - 1) ?: 0.0
+                            val etaMin = weatherState?.waypointEtas?.get(waypoint.id)?.toInt()
+                            val legKey = arrayOf<Any?>(distanceKm, etaMin, iconScale).contentHashCode()
+                            
+                            legDecorationCache.get(legKey)?.let { bitmap ->
                                 val midX = (prevScreenPoint.x + screenPoint.x) / 2f
                                 val midY = (prevScreenPoint.y + screenPoint.y) / 2f
-                                
-                                canvas.drawText(labelText, midX, midY - 10f, labelPaint)
+                                canvas.drawBitmap(bitmap, midX - bitmap.width / 2f, midY - bitmap.height / 2f, null)
                             }
                         }
                     }
@@ -788,128 +853,44 @@ class RouteOverlayManager(
                     canvas.drawPath(mPath, routePaint)
                 }
 
-
-                // Draw waypoints
-                route.waypoints.forEach { waypoint ->
+                // 🎯 RFC 005: Waypoint Rendering (Unified Composable)
+                route.waypoints.forEachIndexed { index, waypoint ->
                     try {
                         val point = GeoPoint(waypoint.lat, waypoint.lon)
                         val screenPoint = projection.toPixels(point, null)
 
-                        // 🎯 Premium: Visual Lift Effect
-                        // Check if this specific waypoint is being dragged
-                        val isDragging = currentSelectedWaypoint?.let { 
-                            it.routeId == route.id && it.waypointId == waypoint.id && it.isDragging 
-                        } ?: false
+                        val isSelected = currentSelectedWaypoint?.let { it.routeId == route.id && it.waypointId == waypoint.id } ?: false
+                        val isDragging = isSelected && currentSelectedWaypoint?.isDragging == true
+                        val forecast = weatherState?.waypointWeathers?.get(waypoint.id)
+                        
+                        // Local priority check (matches pre-render)
+                        val isCritical = waypoint.type == Waypoint.Type.LAUNCH || 
+                                        waypoint.type == Waypoint.Type.GOAL || 
+                                        waypoint.type == Waypoint.Type.ESS ||
+                                        index == 0 || index == route.waypoints.size - 1
 
-                        // Use larger radius for single-waypoint routes or if dragging (lift effect)
-                        var radius = if (route.waypoints.size == 1) SINGLE_WAYPOINT_RADIUS else MULTI_WAYPOINT_RADIUS
-                        if (isDragging) {
-                            radius *= 1.2f // 1.2x scale up when "lifted"
-                        }
+                        val showDetails = baseShowDetails || isCritical || isSelected
 
-                        // Draw waypoint shape/icon based on type
-                        val icon = when (waypoint.type) {
-                            com.madanala.tern.model.Waypoint.Type.LAUNCH -> launchIcon
-                            com.madanala.tern.model.Waypoint.Type.LANDING -> landingIcon
-                            com.madanala.tern.model.Waypoint.Type.SSS -> sssIcon
-                            com.madanala.tern.model.Waypoint.Type.ESS -> essIcon
-                            com.madanala.tern.model.Waypoint.Type.GOAL -> goalIcon
-                            else -> turnpointIcon
-                        }
+                        val waypointKey = arrayOf<Any?>(
+                            waypoint.id,
+                            waypoint.type,
+                            waypoint.label,
+                            isSelected,
+                            isDragging,
+                            forecast?.current?.wind?.speed?.roundToInt(),
+                            forecast?.current?.wind?.direction?.roundToInt(),
+                            forecast?.hasThunderstorm(),
+                            forecast?.hasConvectiveDanger(),
+                            iconScale,
+                            showDetails
+                        ).contentHashCode()
 
-                        if (icon != null) {
-                            // Center icon or wind gauge on screen point
-                            val halfW = (radius * 1.5f)
-                            val halfH = (radius * 1.5f)
-
-                            val forecast = weatherState?.waypointWeathers?.get(waypoint.id)
-                            
-                            // 🎯 RFC 005: Hazard Halo (Convective Danger)
-                            if (forecast?.hasConvectiveDanger() == true) {
-                                canvas.drawCircle(screenPoint.x.toFloat(), screenPoint.y.toFloat(), radius * 2.5f, hazardHaloPaint)
-                            }
-
-                            var windBitmap: Bitmap? = null
-                            if (forecast != null && forecast.current != null) {
-                                val wind = forecast.current.wind
-                                val cacheKey = arrayOf<Any>(
-                                    wind.speed.roundToInt(),
-                                    wind.direction.roundToInt(),
-                                    wind.gust.roundToInt(),
-                                    forecast.isStale(),
-                                    forecast.hasConvectiveDanger(),
-                                    forecast.hasThunderstorm()
-                                ).contentHashCode()
-                                windBitmap = windGaugeCache.get(cacheKey)
-                            }
-
-                            if (windBitmap != null) {
-                                val rect = RectF(
-                                    screenPoint.x - halfW, screenPoint.y - halfH,
-                                    screenPoint.x + halfW, screenPoint.y + halfH
-                                )
-                                canvas.drawBitmap(windBitmap, null, rect, null)
-                            } else {
-                                icon.setBounds(
-                                    (screenPoint.x - halfW).toInt(), (screenPoint.y - halfH).toInt(),
-                                    (screenPoint.x + halfW).toInt(), (screenPoint.y + halfH).toInt()
-                                )
-                                icon.draw(canvas)
-                            }
-
-                            // 🎯 RFC 005: Lightning Bolt (High Lightning Potential) - Flashing effect
-                            if (forecast?.hasThunderstorm() == true) {
-                                // Flashing effect: 500ms on, 500ms off
-                                if ((System.currentTimeMillis() / 500) % 2 == 0L) {
-                                    canvas.save()
-                                    canvas.translate(screenPoint.x.toFloat() + radius, screenPoint.y.toFloat() - radius)
-                                    canvas.drawPath(lightningBoltPath, lightningPaint)
-                                    canvas.restore()
-                                }
-                            }
-                        } else {
-                            // Fallback to basic circle if icon loading failed
-                            waypointBorderPaint.color = Color.parseColor("#0F172A")
-                            canvas.drawCircle(screenPoint.x.toFloat(), screenPoint.y.toFloat(), radius, waypointPaint)
-                            canvas.drawCircle(screenPoint.x.toFloat(), screenPoint.y.toFloat(), radius, waypointBorderPaint)
-                        }
-
-                        // Draw selection highlight if this waypoint is selected
-                        currentSelectedWaypoint?.let { selection ->
-                            if (selection.routeId == route.id && selection.waypointId == waypoint.id) {
-                                val paint = if (selection.isDragging) dragPaint else selectionPaint
-                                val highlightRadius = radius + SELECTION_HIGHLIGHT_PADDING
-                                when (waypoint.type) {
-                                    com.madanala.tern.model.Waypoint.Type.LAUNCH -> {
-                                        // Draw triangular highlight for launch
-                                        val trianglePath = Path()
-                                        val triangleSize = highlightRadius
-                                        trianglePath.moveTo(screenPoint.x.toFloat(), screenPoint.y - triangleSize)
-                                        trianglePath.lineTo(screenPoint.x - triangleSize, screenPoint.y + triangleSize)
-                                        trianglePath.lineTo(screenPoint.x + triangleSize, screenPoint.y + triangleSize)
-                                        trianglePath.close()
-                                        canvas.drawPath(trianglePath, paint)
-                                    }
-                                    com.madanala.tern.model.Waypoint.Type.LANDING -> {
-                                        // Draw square highlight for landing
-                                        val halfSize = highlightRadius
-                                        canvas.drawRect(
-                                            screenPoint.x - halfSize, screenPoint.y - halfSize,
-                                            screenPoint.x + halfSize, screenPoint.y + halfSize,
-                                            paint
-                                        )
-                                    }
-                                    else -> {
-                                        // Draw circular highlight for turnpoints
-                                        canvas.drawCircle(screenPoint.x.toFloat(), screenPoint.y.toFloat(), highlightRadius, paint)
-                                    }
-                                }
-                            }
-                        }
-
-                        // Draw label if present
-                        waypoint.label?.let { label ->
-                            canvas.drawText(label, screenPoint.x.toFloat(), screenPoint.y - radius - LABEL_OFFSET_Y, labelPaint)
+                        waypointBitmapCache.get(waypointKey)?.let { bitmap ->
+                            // Center bitmap on screen point
+                            canvas.drawBitmap(bitmap, screenPoint.x - bitmap.width / 2f, screenPoint.y - bitmap.height / 2f, null)
+                        } ?: run {
+                            // Fallback to basic circle if bitmap not yet rendered
+                            canvas.drawCircle(screenPoint.x.toFloat(), screenPoint.y.toFloat(), (MULTI_WAYPOINT_RADIUS * iconScale), waypointPaint)
                         }
                     } catch (e: Exception) {
                         Log.w(TAG, "Error drawing waypoint ${waypoint.id} in route ${route.id}", e)
