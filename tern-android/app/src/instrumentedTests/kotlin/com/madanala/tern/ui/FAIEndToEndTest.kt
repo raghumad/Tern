@@ -1,4 +1,5 @@
 package com.madanala.tern.ui
+import com.madanala.tern.model.LocationType
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.madanala.tern.model.Route
@@ -28,10 +29,10 @@ class FAIEndToEndTest : MapVisualTest() {
 
                 given("I have carefully planned a route with dedicated FAI Turnpoints (Launch, SSA, TP, Goal)") {
                     val waypoints = listOf(
-                        Waypoint(lat = 40.015, lon = -105.270, label = "Takeoff", routeId = routeId, type = Waypoint.Type.LAUNCH),
-                        Waypoint(lat = 40.020, lon = -105.260, label = "Start", routeId = routeId, type = Waypoint.Type.SSS),
-                        Waypoint(lat = 40.030, lon = -105.250, label = "Turnpoint", routeId = routeId, type = Waypoint.Type.TURNPOINT),
-                        Waypoint(lat = 40.040, lon = -105.240, label = "Goal", routeId = routeId, type = Waypoint.Type.GOAL)
+                        Waypoint(lat = 40.015, lon = -105.270, label = "Takeoff", routeId = routeId, type = LocationType.LAUNCH),
+                        Waypoint(lat = 40.020, lon = -105.260, label = "Start", routeId = routeId, type = LocationType.SSS),
+                        Waypoint(lat = 40.030, lon = -105.250, label = "Turnpoint", routeId = routeId, type = LocationType.TURNPOINT),
+                        Waypoint(lat = 40.040, lon = -105.240, label = "Goal", routeId = routeId, type = LocationType.GOAL)
                     )
                     val initialRoute = Route(id = routeId, name = "E2E Task", waypoints = waypoints)
                     

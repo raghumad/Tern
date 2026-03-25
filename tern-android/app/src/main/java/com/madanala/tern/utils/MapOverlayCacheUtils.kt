@@ -31,11 +31,24 @@ object MapOverlayCacheUtils {
      * Generic data class for map overlay feature with centroid
      */
     data class OverlayFeature(
-        val id: String? = null,
+        val internalId: String? = null,
         val centroid: GeoPoint,
         val hilbertIndex: Long,
         val overlayType: String = "generic"
-    ) {
+    ) : com.madanala.tern.model.UnifiedLocation {
+        override val id: String get() = internalId ?: "feat_${hilbertIndex}"
+        override val coordinate: GeoPoint get() = centroid
+        override val name: String? get() = (feature["name"] ?: feature["label"]) as? String
+        override val type: com.madanala.tern.model.LocationType 
+            get() = when (overlayType) {
+                "launch" -> com.madanala.tern.model.LocationType.LAUNCH
+                "landing" -> com.madanala.tern.model.LocationType.LANDING
+                else -> com.madanala.tern.model.LocationType.TURNPOINT
+            }
+        override val source: com.madanala.tern.model.LocationSource 
+            get() = com.madanala.tern.model.LocationSource.PG_SPOT
+        override val altitude: Double? get() = getDoubleProperty("altitude").takeIf { it > 0 }
+        override val metadata: Map<String, Any> get() = feature
         // Internal storage for lazy deserialization
         var rawData: java.nio.ByteBuffer? = null
         private var _featureMap: Map<String, Any>? = null
@@ -86,12 +99,12 @@ object MapOverlayCacheUtils {
 
         // Secondary constructor for legacy/JSON loads
         constructor(
-            id: String? = null,
+            internalId: String? = null,
             feature: Map<String, Any>,
             centroid: GeoPoint,
             hilbertIndex: Long,
             overlayType: String = "generic"
-        ) : this(id, centroid, hilbertIndex, overlayType) {
+        ) : this(internalId, centroid, hilbertIndex, overlayType) {
             this._featureMap = feature
         }
 
@@ -561,7 +574,7 @@ object MapOverlayCacheUtils {
             val centroid = GeoPoint(latitude, longitude)
             
             val feature = OverlayFeature(
-                id = id,
+                internalId = id,
                 centroid = centroid,
                 hilbertIndex = hilbertIndex,
                 overlayType = overlayType

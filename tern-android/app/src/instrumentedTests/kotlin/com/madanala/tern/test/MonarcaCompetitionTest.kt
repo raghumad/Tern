@@ -1,4 +1,5 @@
 package com.madanala.tern.test
+import com.madanala.tern.model.LocationType
 
 import androidx.compose.ui.test.*
 import com.madanala.tern.utils.MapVisualTest
@@ -35,12 +36,12 @@ class MonarcaCompetitionTest : MapVisualTest() {
             story("As a pilot in the Monarca Open, I want to see my speed section goals and ETAs clearly.") {
                 
                 val monarcaWaypoints = listOf(
-                    Waypoint(lat = 19.06167, lon = -100.09033, type = Waypoint.Type.LAUNCH, label = "D01 Peñon", radius = 400.0),
-                    Waypoint(lat = 18.838, lon = -100.43167, type = Waypoint.Type.SSS, label = "SS E09 Ext9", radius = 36000.0),
-                    Waypoint(lat = 18.838, lon = -100.43167, type = Waypoint.Type.TURNPOINT, label = "TP1 E09 Ext9", radius = 16000.0),
-                    Waypoint(lat = 19.30433, lon = -100.204, type = Waypoint.Type.TURNPOINT, label = "TP2 B18", radius = 22000.0),
-                    Waypoint(lat = 18.963, lon = -100.152, type = Waypoint.Type.TURNPOINT, label = "TP3 B90", radius = 5000.0),
-                    Waypoint(lat = 19.04267, lon = -100.1045, type = Waypoint.Type.GOAL, label = "Goal A01", radius = 100.0)
+                    Waypoint(lat = 19.06167, lon = -100.09033, type = LocationType.LAUNCH, label = "D01 Peñon", radius = 400.0),
+                    Waypoint(lat = 18.838, lon = -100.43167, type = LocationType.SSS, label = "SS E09 Ext9", radius = 36000.0),
+                    Waypoint(lat = 18.838, lon = -100.43167, type = LocationType.TURNPOINT, label = "TP1 E09 Ext9", radius = 16000.0),
+                    Waypoint(lat = 19.30433, lon = -100.204, type = LocationType.TURNPOINT, label = "TP2 B18", radius = 22000.0),
+                    Waypoint(lat = 18.963, lon = -100.152, type = LocationType.TURNPOINT, label = "TP3 B90", radius = 5000.0),
+                    Waypoint(lat = 19.04267, lon = -100.1045, type = LocationType.GOAL, label = "Goal A01", radius = 100.0)
                 )
 
                 val monarcaRoute = Route(

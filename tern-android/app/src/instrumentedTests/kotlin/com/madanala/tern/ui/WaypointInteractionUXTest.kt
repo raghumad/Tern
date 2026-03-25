@@ -1,4 +1,5 @@
 package com.madanala.tern.ui
+import com.madanala.tern.model.LocationType
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.lifecycle.ViewModelProvider
@@ -31,8 +32,8 @@ class WaypointInteractionUXTest : MapVisualTest() {
                 val endLon = -105.2800
 
                 // 🎯 Scope variables properly for all blocks
-                val wp1 = Waypoint(lat = startLat, lon = startLon, label = "Start", type = Waypoint.Type.LAUNCH)
-                val wp2 = Waypoint(lat = 40.0180, lon = -105.2750, label = "Turnpoint 1", type = Waypoint.Type.TURNPOINT)
+                val wp1 = Waypoint(lat = startLat, lon = startLon, label = "Start", type = LocationType.LAUNCH)
+                val wp2 = Waypoint(lat = 40.0180, lon = -105.2750, label = "Turnpoint 1", type = LocationType.TURNPOINT)
 
                 given("I am viewing a 2-waypoint route on the map") {
                     // Initialize Map Settings

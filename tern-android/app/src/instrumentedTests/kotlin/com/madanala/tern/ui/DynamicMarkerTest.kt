@@ -191,7 +191,7 @@ class DynamicMarkerTest : com.madanala.tern.utils.MapVisualTest() {
                     val hIndex = com.madanala.tern.utils.MapOverlayCacheUtils.computeHilbertIndex(point, 16)
                     
                     val feature = com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature(
-                        id = pgSpotId,
+                        internalId = pgSpotId,
                         feature = featureMap,
                         centroid = point,
                         hilbertIndex = hIndex,

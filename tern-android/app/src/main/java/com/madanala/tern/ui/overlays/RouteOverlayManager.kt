@@ -1,4 +1,5 @@
 package com.madanala.tern.ui.overlays
+import com.madanala.tern.model.LocationType
 
 import android.graphics.*
 import android.util.Log
@@ -336,9 +337,9 @@ class RouteOverlayManager(
                 val isDragging = isSelected && state.selectedWaypoint?.isDragging == true
                 
                 // Priority Check: Always show details for critical waypoints
-                val isCritical = waypoint.type == Waypoint.Type.LAUNCH || 
-                                waypoint.type == Waypoint.Type.GOAL || 
-                                waypoint.type == Waypoint.Type.ESS ||
+                val isCritical = waypoint.type == com.madanala.tern.model.LocationType.LAUNCH || 
+                                waypoint.type == com.madanala.tern.model.LocationType.GOAL || 
+                                waypoint.type == com.madanala.tern.model.LocationType.ESS ||
                                 index == 0 || // Start
                                 index == route.waypoints.size - 1 // End
                 
@@ -367,16 +368,15 @@ class RouteOverlayManager(
                             
                             val bitmap = com.madanala.tern.utils.ViewToBitmap.createBitmapFromComposableDP(
                                 parentView = mapView,
-                                widthDp = widthDp,
-                                heightDp = heightDp
+                                widthDp = 80, // Buffers for shadows/animations
+                                heightDp = 100
                             ) {
-                                com.madanala.tern.ui.components.WaypointMarker(
-                                    waypoint = waypoint,
+                                com.madanala.tern.ui.components.LocationMarker(
+                                    location = waypoint,
+                                    zoom = zoom,
                                     forecast = forecast,
                                     isSelected = isSelected,
-                                    isDragging = isDragging,
-                                    scale = iconScale,
-                                    showDetails = showDetails
+                                    onClick = {} // Interaction handled by Osmdroid Overlay
                                 )
                             }
                             waypointBitmapCache.put(waypointKey, bitmap)
@@ -864,9 +864,9 @@ class RouteOverlayManager(
                         val forecast = weatherState?.waypointWeathers?.get(waypoint.id)
                         
                         // Local priority check (matches pre-render)
-                        val isCritical = waypoint.type == Waypoint.Type.LAUNCH || 
-                                        waypoint.type == Waypoint.Type.GOAL || 
-                                        waypoint.type == Waypoint.Type.ESS ||
+                        val isCritical = waypoint.type == LocationType.LAUNCH || 
+                                        waypoint.type == LocationType.GOAL || 
+                                        waypoint.type == LocationType.ESS ||
                                         index == 0 || index == route.waypoints.size - 1
 
                         val showDetails = baseShowDetails || isCritical || isSelected

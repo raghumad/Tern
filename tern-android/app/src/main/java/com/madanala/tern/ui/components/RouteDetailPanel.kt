@@ -504,7 +504,7 @@ fun RouteDetailsContent(
                                         text = "${index + 1}. ${waypoint.label ?: "Waypoint"}",
                                         style = MaterialTheme.typography.bodyMedium,
                                         fontWeight = FontWeight.Black,
-                                        color = Color.White,
+                                        color = MaterialTheme.colorScheme.onSurface,
                                         modifier = Modifier.weight(1f)
                                     )
                                     if (formattedEta != null) {
@@ -532,7 +532,7 @@ fun RouteDetailsContent(
                                         if (waypoint.alt != null) append(" • A${waypoint.alt.toInt()}m")
                                     },
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = Color.White.copy(alpha = 0.6f)
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 // Show Weather Summary in TEA Mode
                                 if (weatherData != null && weatherData.current != null) {

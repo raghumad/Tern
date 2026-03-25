@@ -1,4 +1,5 @@
 package com.madanala.tern.test
+import com.madanala.tern.model.LocationType
 
 import androidx.compose.ui.test.*
 import com.madanala.tern.utils.MapVisualTest
@@ -36,12 +37,12 @@ class ChamonixCompetitionTest : MapVisualTest() {
             story("As a pilot in the Chamonix Open, I want to navigate a complex task across the valley with accurate telemetry.") {
                 
                 val chamonixWaypoints = listOf(
-                    Waypoint(lat = 45.937, lon = 6.843, type = Waypoint.Type.LAUNCH, label = "Planpraz Launch", radius = 400.0),
-                    Waypoint(lat = 45.934, lon = 6.837, type = Waypoint.Type.SSS, label = "SSS Brévent", radius = 2000.0),
-                    Waypoint(lat = 45.960, lon = 6.886, type = Waypoint.Type.TURNPOINT, label = "TP1 Flégère", radius = 400.0),
-                    Waypoint(lat = 45.931, lon = 6.917, type = Waypoint.Type.TURNPOINT, label = "TP2 Mer de Glace", radius = 1000.0),
-                    Waypoint(lat = 45.928, lon = 6.872, type = Waypoint.Type.TURNPOINT, label = "ESS Bois du Bouchet", radius = 400.0),
-                    Waypoint(lat = 45.928, lon = 6.869, type = Waypoint.Type.GOAL, label = "Goal Clos du Savoy", radius = 100.0)
+                    Waypoint(lat = 45.937, lon = 6.843, type = LocationType.LAUNCH, label = "Planpraz Launch", radius = 400.0),
+                    Waypoint(lat = 45.934, lon = 6.837, type = LocationType.SSS, label = "SSS Brévent", radius = 2000.0),
+                    Waypoint(lat = 45.960, lon = 6.886, type = LocationType.TURNPOINT, label = "TP1 Flégère", radius = 400.0),
+                    Waypoint(lat = 45.931, lon = 6.917, type = LocationType.TURNPOINT, label = "TP2 Mer de Glace", radius = 1000.0),
+                    Waypoint(lat = 45.928, lon = 6.872, type = LocationType.TURNPOINT, label = "ESS Bois du Bouchet", radius = 400.0),
+                    Waypoint(lat = 45.928, lon = 6.869, type = LocationType.GOAL, label = "Goal Clos du Savoy", radius = 100.0)
                 )
 
                 val chamonixRoute = Route(

@@ -1,4 +1,5 @@
 package com.madanala.tern.utils
+import com.madanala.tern.model.LocationType
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.madanala.tern.model.Route
@@ -24,14 +25,14 @@ class RouteIOManagerTest : MapVisualTest() {
                 val waypoints = listOf(
                     Waypoint(
                         lat = 46.0, lon = 11.0, 
-                        type = Waypoint.Type.LAUNCH, 
+                        type = LocationType.LAUNCH, 
                         label = "Takeoff", 
                         radius = 400.0,
                         routeId = routeId
                     ),
                     Waypoint(
                         lat = 46.1, lon = 11.1, 
-                        type = Waypoint.Type.SSS, 
+                        type = LocationType.SSS, 
                         label = "Start", 
                         radius = 2000.0, 
                         alt = 1000.0, 
@@ -41,21 +42,21 @@ class RouteIOManagerTest : MapVisualTest() {
                     ),
                     Waypoint(
                         lat = 46.2, lon = 11.2, 
-                        type = Waypoint.Type.TURNPOINT, 
+                        type = LocationType.TURNPOINT, 
                         label = "Turnpoint", 
                         radius = 400.0,
                         routeId = routeId
                     ),
                     Waypoint(
                         lat = 46.3, lon = 11.3, 
-                        type = Waypoint.Type.ESS, 
+                        type = LocationType.ESS, 
                         label = "End", 
                         radius = 400.0,
                         routeId = routeId
                     ),
                     Waypoint(
                         lat = 46.4, lon = 11.4, 
-                        type = Waypoint.Type.GOAL, 
+                        type = LocationType.GOAL, 
                         label = "Goal", 
                         radius = 1000.0, 
                         closeTime = "17:00",
@@ -83,14 +84,14 @@ class RouteIOManagerTest : MapVisualTest() {
                 // Check Start Waypoint
                 val startWp = importedRoute!!.waypoints.find { it.label == "Start" }
                 assertNotNull(startWp)
-                assertEquals(Waypoint.Type.SSS, startWp!!.type)
+                assertEquals(LocationType.SSS, startWp!!.type)
                 assertEquals(2000.0, startWp!!.radius!!, 0.1)
                 assertEquals("12:00", startWp!!.openTime) // Now supported in verbose export
 
                 // Check Goal Waypoint
                 val goalWp = importedRoute!!.waypoints.find { it.label == "Goal" }
                 assertNotNull(goalWp)
-                assertEquals(Waypoint.Type.GOAL, goalWp!!.type)
+                assertEquals(LocationType.GOAL, goalWp!!.type)
                 assertEquals(1000.0, goalWp!!.radius!!, 0.1)
                 assertEquals("17:00", goalWp!!.closeTime)
             }
@@ -107,7 +108,7 @@ class RouteIOManagerTest : MapVisualTest() {
             given("I have a route with SSS and Time Gates") {
                 val routeId = UUID.randomUUID().toString()
                 val waypoints = listOf(
-                    Waypoint(lat = 46.1, lon = 11.1, type = Waypoint.Type.SSS, label = "Start", radius = 2000.0, alt = 1000.0, openTime = "12:00")
+                    Waypoint(lat = 46.1, lon = 11.1, type = LocationType.SSS, label = "Start", radius = 2000.0, alt = 1000.0, openTime = "12:00")
                 )
                 route = Route(id = routeId, name = "Comp Task", waypoints = waypoints)
             }
@@ -132,7 +133,7 @@ class RouteIOManagerTest : MapVisualTest() {
             this.then("the imported route should preserve SSS parameters") {
                 assertNotNull(importedRoute)
                 val startWp = importedRoute!!.waypoints.first()
-                assertEquals(Waypoint.Type.SSS, startWp.type)
+                assertEquals(LocationType.SSS, startWp.type)
                 assertEquals(2000.0, startWp.radius!!, 0.1)
                 assertEquals("12:00", startWp.openTime)
             }

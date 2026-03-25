@@ -27,7 +27,7 @@ class RouteTest {
                 Waypoint(
                     lat = 40.0,
                     lon = -74.0,
-                    type = Waypoint.Type.TURNPOINT,
+                    type = LocationType.TURNPOINT,
                     label = "WP1-1"
                 )
             )
@@ -40,8 +40,8 @@ class RouteTest {
     @Test
     fun `route with two waypoints calculates distance and time correctly`() {
         // New York to Los Angeles approximate coordinates
-        val nyc = Waypoint(lat = 40.7128, lon = -74.0060, type = Waypoint.Type.TURNPOINT, label = "NYC")
-        val lax = Waypoint(lat = 33.9416, lon = -118.4085, type = Waypoint.Type.TURNPOINT, label = "LAX")
+        val nyc = Waypoint(lat = 40.7128, lon = -74.0060, type = LocationType.TURNPOINT, label = "NYC")
+        val lax = Waypoint(lat = 33.9416, lon = -118.4085, type = LocationType.TURNPOINT, label = "LAX")
 
         val route = Route.fromWaypoints("Cross Country", listOf(nyc, lax))
 
@@ -54,8 +54,8 @@ class RouteTest {
     @Test
     fun `adding waypoint updates route metrics`() {
         val route = Route(name = "Test Route")
-        val waypoint1 = Waypoint(lat = 0.0, lon = 0.0, type = Waypoint.Type.TURNPOINT, label = "Start")
-        val waypoint2 = Waypoint(lat = 1.0, lon = 1.0, type = Waypoint.Type.TURNPOINT, label = "End")
+        val waypoint1 = Waypoint(lat = 0.0, lon = 0.0, type = LocationType.TURNPOINT, label = "Start")
+        val waypoint2 = Waypoint(lat = 1.0, lon = 1.0, type = LocationType.TURNPOINT, label = "End")
 
         val routeWithOne = route.addWaypoint(waypoint1.lat, waypoint1.lon, waypoint1.type, waypoint1.label)
         assertThat(routeWithOne.totalDistanceKm).isEqualTo(0.0) // Single waypoint
@@ -67,8 +67,8 @@ class RouteTest {
 
     @Test
     fun `removing waypoint updates route metrics`() {
-        val waypoint1 = Waypoint(lat = 0.0, lon = 0.0, type = Waypoint.Type.TURNPOINT, label = "Start")
-        val waypoint2 = Waypoint(lat = 1.0, lon = 1.0, type = Waypoint.Type.TURNPOINT, label = "End")
+        val waypoint1 = Waypoint(lat = 0.0, lon = 0.0, type = LocationType.TURNPOINT, label = "Start")
+        val waypoint2 = Waypoint(lat = 1.0, lon = 1.0, type = LocationType.TURNPOINT, label = "End")
 
         val route = Route.fromWaypoints("Test Route", listOf(waypoint1, waypoint2))
         assertThat(route.totalDistanceKm).isGreaterThan(0.0)
@@ -81,7 +81,7 @@ class RouteTest {
     @Test
     fun `route waypoints maintain correct ownership`() {
         val route = Route(name = "Test Route")
-        val waypoint = Waypoint(lat = 40.0, lon = -74.0, type = Waypoint.Type.TURNPOINT, label = "Test")
+        val waypoint = Waypoint(lat = 40.0, lon = -74.0, type = LocationType.TURNPOINT, label = "Test")
 
         val updatedRoute = route.addWaypoint(waypoint.lat, waypoint.lon, waypoint.type, waypoint.label)
 
@@ -93,8 +93,8 @@ class RouteTest {
 
     @Test
     fun `route fromWaypoints factory creates correct route`() {
-        val waypoint1 = Waypoint(lat = 40.0, lon = -74.0, type = Waypoint.Type.TURNPOINT, label = "Start")
-        val waypoint2 = Waypoint(lat = 41.0, lon = -75.0, type = Waypoint.Type.TURNPOINT, label = "End")
+        val waypoint1 = Waypoint(lat = 40.0, lon = -74.0, type = LocationType.TURNPOINT, label = "Start")
+        val waypoint2 = Waypoint(lat = 41.0, lon = -75.0, type = LocationType.TURNPOINT, label = "End")
 
         val route = Route.fromWaypoints("Factory Test", listOf(waypoint1, waypoint2))
 

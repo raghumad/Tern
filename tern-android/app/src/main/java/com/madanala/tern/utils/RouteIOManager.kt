@@ -16,6 +16,7 @@ import com.google.zxing.RGBLuminanceSource
 import com.google.zxing.common.HybridBinarizer
 import com.madanala.tern.model.Route
 import com.madanala.tern.model.Waypoint
+import com.madanala.tern.model.LocationType
 import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
@@ -159,7 +160,7 @@ object RouteIOManager {
                 val lat = wpJson.getDouble("lat")
                 val lon = wpJson.getDouble("lon")
                 val typeStr = wpJson.optString("t", "TURNPOINT")
-                val type = try { Waypoint.Type.valueOf(typeStr) } catch (e: Exception) { Waypoint.Type.TURNPOINT }
+                val type = try { LocationType.valueOf(typeStr) } catch (e: Exception) { LocationType.TURNPOINT }
                 val label = wpJson.optString("l").ifEmpty { null }
                 val radius = wpJson.optDouble("r", RouteConstants.FAI_DEFAULT_RADIUS_METERS)
                 val alt = if (wpJson.has("a")) wpJson.getDouble("a") else null
@@ -203,10 +204,10 @@ object RouteIOManager {
             val tp = JSONObject()
             // Map Type
             tp.put("type", when(wp.type) {
-                Waypoint.Type.LAUNCH -> "TAKEOFF"
-                Waypoint.Type.SSS -> "SSS"
-                Waypoint.Type.ESS -> "ESS"
-                Waypoint.Type.GOAL -> "GOAL"
+                LocationType.LAUNCH -> "TAKEOFF"
+                LocationType.SSS -> "SSS"
+                LocationType.ESS -> "ESS"
+                LocationType.GOAL -> "GOAL"
                 else -> "TURNPOINT" // Default
             })
             
@@ -223,7 +224,7 @@ object RouteIOManager {
             tp.put("waypoint", wpObj)
             
             // Time Gates (Start)
-        if (wp.type == Waypoint.Type.SSS && wp.openTime != null) {
+        if (wp.type == LocationType.SSS && wp.openTime != null) {
              val sssObj = JSONObject()
              sssObj.put("type", "RACE") // Default to RACE
              sssObj.put("direction", "EXIT") // Default
@@ -239,7 +240,7 @@ object RouteIOManager {
         json.put("turnpoints", turnpoints)
         
         // Goal Deadline
-        val goalWp = route.waypoints.find { it.type == Waypoint.Type.GOAL }
+        val goalWp = route.waypoints.find { it.type == LocationType.GOAL }
         if (goalWp?.closeTime != null) {
             val goalObj = JSONObject()
             goalObj.put("type", "CYLINDER")
@@ -273,11 +274,11 @@ object RouteIOManager {
                 val alt = if (wpObj.has("altSmoothed")) wpObj.getDouble("altSmoothed") else null
                 
                 var type = when(typeStr) {
-                    "TAKEOFF" -> Waypoint.Type.LAUNCH
-                    "SSS" -> Waypoint.Type.SSS
-                    "ESS" -> Waypoint.Type.ESS
-                    "GOAL" -> Waypoint.Type.GOAL
-                    else -> Waypoint.Type.TURNPOINT
+                    "TAKEOFF" -> LocationType.LAUNCH
+                    "SSS" -> LocationType.SSS
+                    "ESS" -> LocationType.ESS
+                    "GOAL" -> LocationType.GOAL
+                    else -> LocationType.TURNPOINT
                 }
                 
                 var openTime: String? = null
@@ -309,7 +310,7 @@ object RouteIOManager {
             if (goalJson != null) {
                 val deadline = goalJson.optString("deadline")
                 if (deadline.isNotEmpty()) {
-                    val goalWp = waypoints.find { it.type == Waypoint.Type.GOAL }
+                    val goalWp = waypoints.find { it.type == LocationType.GOAL }
                     if (goalWp != null) {
                         // Parse HH:mm from HH:mm:ssZ
                         val time = deadline.substring(0, 5)
@@ -356,8 +357,8 @@ object RouteIOManager {
             
             // Type mapping for compressed (numeric)
             // 2=SSS, 3=ESS. Others implicit?
-            if (wp.type == Waypoint.Type.SSS) tp.put("t", 2)
-            if (wp.type == Waypoint.Type.ESS) tp.put("t", 3)
+            if (wp.type == LocationType.SSS) tp.put("t", 2)
+            if (wp.type == LocationType.ESS) tp.put("t", 3)
             
             tArray.put(tp)
         }
@@ -365,7 +366,7 @@ object RouteIOManager {
         json.put("e", 0) // Earth model WGS84
         
         // SSS Time Gates
-        val sssWp = route.waypoints.find { it.type == Waypoint.Type.SSS }
+        val sssWp = route.waypoints.find { it.type == LocationType.SSS }
         if (sssWp?.openTime != null) {
             val sObj = JSONObject()
             val gArray = org.json.JSONArray()
@@ -376,7 +377,7 @@ object RouteIOManager {
         }
         
         // Goal Deadline
-        val goalWp = route.waypoints.find { it.type == Waypoint.Type.GOAL }
+        val goalWp = route.waypoints.find { it.type == LocationType.GOAL }
         if (goalWp?.closeTime != null) {
             val gObj = JSONObject()
             gObj.put("d", "${goalWp.closeTime}:00")
@@ -409,9 +410,9 @@ object RouteIOManager {
                 val radius = if (values.size > 3) values[3].toDouble() else RouteConstants.FAI_DEFAULT_RADIUS_METERS
                 
                 var type = when(typeCode) {
-                    2 -> Waypoint.Type.SSS
-                    3 -> Waypoint.Type.ESS
-                    else -> if (i == 0) Waypoint.Type.LAUNCH else if (i == tArray.length()-1) Waypoint.Type.GOAL else Waypoint.Type.TURNPOINT
+                    2 -> LocationType.SSS
+                    3 -> LocationType.ESS
+                    else -> if (i == 0) LocationType.LAUNCH else if (i == tArray.length()-1) LocationType.GOAL else LocationType.TURNPOINT
                 }
                 // Refine type based on position if not explicit
                 
@@ -424,7 +425,7 @@ object RouteIOManager {
                 val gArray = sObj.optJSONArray("g")
                 if (gArray != null && gArray.length() > 0) {
                     val time = gArray.getString(0).substring(0, 5)
-                    val sssWp = waypoints.find { it.type == Waypoint.Type.SSS }
+                    val sssWp = waypoints.find { it.type == LocationType.SSS }
                     if (sssWp != null) {
                         val index = waypoints.indexOf(sssWp)
                         waypoints[index] = sssWp.copy(openTime = time)
@@ -438,7 +439,7 @@ object RouteIOManager {
                 val deadline = gObj.optString("d")
                 if (deadline.isNotEmpty()) {
                     val time = deadline.substring(0, 5)
-                    val goalWp = waypoints.find { it.type == Waypoint.Type.GOAL }
+                    val goalWp = waypoints.find { it.type == LocationType.GOAL }
                     if (goalWp != null) {
                         val index = waypoints.indexOf(goalWp)
                         waypoints[index] = goalWp.copy(closeTime = time)
@@ -505,8 +506,8 @@ object RouteIOManager {
                 
                 // Style mapping (1=Waypoint, 2=Airfield, 3=Outlanding, 4=Gliding Site, 5=Turnpoint, etc.)
                 val type = when(styleStr) {
-                    "2", "3", "4", "5" -> Waypoint.Type.TURNPOINT // Treat most as turnpoints for now
-                    else -> Waypoint.Type.TURNPOINT
+                    "2", "3", "4", "5" -> LocationType.TURNPOINT // Treat most as turnpoints for now
+                    else -> LocationType.TURNPOINT
                 }
                 
                 if (lat != null && lon != null) {

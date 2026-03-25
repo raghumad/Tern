@@ -392,7 +392,9 @@ class PGSpotOverlayManager(
      * Smooth transition from static icon to weather-aware gauge
      */
     private fun updatePGSpotWithWindGauge(pgSpotId: String, forecast: com.madanala.tern.utils.WeatherForecast) {
-        val marker = currentlyRenderedPGSpots[pgSpotId]?.marker ?: return
+        val pgSpotMarker = currentlyRenderedPGSpots[pgSpotId] ?: return
+        val marker = pgSpotMarker.marker
+        val feature = pgSpotMarker.feature
 
         // Extract current wind conditions for the gauge
         forecast.current?.wind?.let { wind ->
@@ -427,17 +429,15 @@ class PGSpotOverlayManager(
                             
                         bitmap = com.madanala.tern.utils.ViewToBitmap.createBitmapFromComposableDP(
                             parentView = mapView,
-                            widthDp = 64, 
-                            heightDp = 64
+                            widthDp = 80, 
+                            heightDp = 100
                         ) {
-                                com.madanala.tern.ui.components.WindGaugeMarker(
-                                    speed = wind.speed,
-                                    direction = wind.direction,
-                                    gust = wind.gust,
-                                    isStale = forecast.isStale(),
-                                    hasConvectiveDanger = forecast.hasConvectiveDanger(),
-                                    hasThunderstorm = forecast.hasThunderstorm(),
-                                    showHazards = showHazards
+                                com.madanala.tern.ui.components.LocationMarker(
+                                    location = feature, // OverlayFeature now implements UnifiedLocation
+                                    zoom = mapView.zoomLevelDouble,
+                                    forecast = forecast,
+                                    isSelected = false,
+                                    onClick = {}
                                 )
                             }
                             // Removed redundant bitmap != null check (always true)
@@ -814,35 +814,38 @@ class PGSpotOverlayManager(
             setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
             alpha = 1.0f // Ensure reset from pooling
 
-            // PERFORMANCE: Use Zoom-Partitioned cache for the static icon to avoid redundant scaling
+            // PERFORMANCE: Use Zoom-Partitioned cache for the unified marker to avoid redundant scaling
             val currentZoom = map.zoomLevelDouble
-            val category = com.madanala.tern.utils.ZoomCategory.fromZoom(currentZoom)
             
-            // Apply scale and alpha based on ZoomCategory (Aviation-Grade Scaling - RFC 005)
-            alpha = category.iconAlpha
-
-            var cachedIcon = zoomPartitionedCache.get(category)
-            if (cachedIcon == null) {
-                try {
-                    val drawable = ContextCompat.getDrawable(applicationContext, R.mipmap.ic_launcher)
-                    drawable?.let {
-                        val originalBitmap = it.toBitmap()
-                        
-                        // Scale factors based on RFC 005 SSOT
-                        val scaleFactor = category.iconScale
-
-                        val scaledWidth = Math.max(1, (originalBitmap.width * scaleFactor).toInt())
-                        val scaledHeight = Math.max(1, (originalBitmap.height * scaleFactor).toInt())
-                        cachedIcon = originalBitmap.scale(scaledWidth, scaledHeight, true)
+            coroutineScope.launch(Dispatchers.Main) {
+                var cachedIcon = zoomPartitionedCache.get(com.madanala.tern.utils.ZoomCategory.fromZoom(currentZoom))
+                if (cachedIcon == null) {
+                    try {
+                        val category = com.madanala.tern.utils.ZoomCategory.fromZoom(currentZoom)
+                        cachedIcon = com.madanala.tern.utils.ViewToBitmap.createBitmapFromComposableDP(
+                            parentView = map,
+                            widthDp = 80,
+                            heightDp = 100
+                        ) {
+                            com.madanala.tern.ui.components.LocationMarker(
+                                location = feature,
+                                zoom = currentZoom,
+                                forecast = null, // Initial marker usually has no weather yet
+                                isSelected = false,
+                                onClick = {}
+                            )
+                        }
                         zoomPartitionedCache.put(category, cachedIcon)
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to render unified LocationMarker for PG spot", e)
                     }
-                } catch (e: Exception) {
-                    Log.w(TAG, "Failed to load/scale PG spot icon for $category", e)
                 }
-            }
 
-            cachedIcon?.let {
-                icon = BitmapDrawable(applicationContext.resources, it)
+                cachedIcon?.let {
+                    icon = BitmapDrawable(applicationContext.resources, it)
+                    setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+                    map.invalidate()
+                }
             }
         }
     }

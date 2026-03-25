@@ -137,4 +137,93 @@ object VisualValidator {
         }
         return hash.toString(16)
     }
+
+    /**
+     * Searches for a specific color signature within a defined region of the bitmap.
+     * Useful for detecting hazard indicators (Amber/Red) at specific screen locations.
+     */
+    fun findColorSignature(
+        bitmap: Bitmap, 
+        rect: android.graphics.Rect, 
+        targetColor: Int, 
+        tolerance: Int = 15, 
+        minPixels: Int = 5
+    ): Boolean {
+        if (rect.left < 0 || rect.top < 0 || rect.right > bitmap.width || rect.bottom > bitmap.height) {
+            Log.w(TAG, "findColorSignature: Rect $rect is out of bitmap bounds (${bitmap.width}x${bitmap.height})")
+            return false
+        }
+
+        var matchCount = 0
+        val targetA = Color.alpha(targetColor)
+        val targetR = Color.red(targetColor)
+        val targetG = Color.green(targetColor)
+        val targetB = Color.blue(targetColor)
+
+        for (y in rect.top until rect.bottom) {
+            for (x in rect.left until rect.right) {
+                val pixel = bitmap.getPixel(x, y)
+                val diffR = Math.abs(Color.red(pixel) - targetR)
+                val diffG = Math.abs(Color.green(pixel) - targetG)
+                val diffB = Math.abs(Color.blue(pixel) - targetB)
+                
+                if (diffR <= tolerance && diffG <= tolerance && diffB <= tolerance) {
+                    matchCount++
+                    if (matchCount >= minPixels) return true
+                }
+            }
+        }
+        
+        Log.d(TAG, "findColorSignature: Found $matchCount pixels of color ${Integer.toHexString(targetColor)} in $rect (Min: $minPixels)")
+        return false
+    }
+
+    /**
+     * Calculates the pixel delta between two bitmaps within a specific region.
+     * Used to verify micro-animations (Pulse/Flash) by comparing frames.
+     */
+    fun getRegionDelta(
+        bitmap1: Bitmap, 
+        bitmap2: Bitmap, 
+        rect: android.graphics.Rect, 
+        pixelTolerance: Int = 10
+    ): Float {
+        if (bitmap1.width != bitmap2.width || bitmap1.height != bitmap2.height) return 0f
+        
+        val left = Math.max(0, rect.left)
+        val top = Math.max(0, rect.top)
+        val right = Math.min(bitmap1.width, rect.right)
+        val bottom = Math.min(bitmap1.height, rect.bottom)
+        
+        if (left >= right || top >= bottom) return 0f
+        
+        var diffPixels = 0
+        var totalPixels = 0
+
+        for (y in top until bottom) {
+            for (x in left until right) {
+                totalPixels++
+                val p1 = bitmap1.getPixel(x, y)
+                val p2 = bitmap2.getPixel(x, y)
+                
+                val diffR = Math.abs(Color.red(p1) - Color.red(p2))
+                val diffG = Math.abs(Color.green(p1) - Color.green(p2))
+                val diffB = Math.abs(Color.blue(p1) - Color.blue(p2))
+                
+                if (diffR > pixelTolerance || diffG > pixelTolerance || diffB > pixelTolerance) {
+                    diffPixels++
+                }
+            }
+        }
+        
+        val centerX = rect.centerX()
+        val centerY = rect.centerY()
+        val c1 = if (centerX >= 0 && centerX < bitmap1.width && centerY >= 0 && centerY < bitmap1.height) bitmap1.getPixel(centerX, centerY) else 0
+        val c2 = if (centerX >= 0 && centerX < bitmap2.width && centerY >= 0 && centerY < bitmap2.height) bitmap2.getPixel(centerX, centerY) else 0
+        
+        val delta = if (totalPixels > 0) diffPixels.toFloat() / totalPixels else 0f
+        Log.d(TAG, "getRegionDelta: Delta $delta ($diffPixels/$totalPixels) in $rect")
+        Log.d(TAG, "Diagnostic: Center ${Integer.toHexString(c1)} vs ${Integer.toHexString(c2)} | diffR=${Math.abs(Color.red(c1)-Color.red(c2))} G=${Math.abs(Color.green(c1)-Color.green(c2))} B=${Math.abs(Color.blue(c1)-Color.blue(c2))}")
+        return delta
+    }
 }

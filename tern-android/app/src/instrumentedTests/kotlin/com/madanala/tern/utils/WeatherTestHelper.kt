@@ -92,13 +92,16 @@ object WeatherTestHelper {
                 return when {
                     requestPath.contains("getCountrySites.php") -> {
                         val country = url?.queryParameter("iso") ?: "US"
-                        val spots = if (country.equals("FR", ignoreCase = true)) chamonixSpots else boulderSpots
+                        val spots = when {
+                            country.equals("FR", ignoreCase = true) -> chamonixSpots
+                            country.equals("TEST", ignoreCase = true) -> listOf(
+                                mapOf("id" to "audit_wp", "name" to "Convective Peak", "lat" to 45.9237, "lon" to 6.8694),
+                                mapOf("id" to "audit_spot", "name" to "Stormy Launch", "lat" to 45.9237, "lon" to 6.8694)
+                            )
+                            else -> boulderSpots
+                        }
                         val body = spots.joinToString("\n") { spot ->
-                            val lon = spot["lon"]
-                            val lat = spot["lat"]
-                            val id = spot["id"]
-                            val name = spot["name"]
-                            """{"type":"Feature","id":"$id","geometry":{"type":"Point","coordinates":[$lon,$lat]},"properties":{"id":"$id","name":"$name"}}"""
+                            """{"type":"Feature","id":"${spot["id"]}","geometry":{"type":"Point","coordinates":[${spot["lon"]},${spot["lat"]}]},"properties":{"id":"${spot["id"]}","name":"${spot["name"]}"}}"""
                         } + "\n"
                         MockResponse().setBody(body).setHeader("Content-Type", "application/x-ndgeojson").setResponseCode(200)
                     }
@@ -107,7 +110,13 @@ object WeatherTestHelper {
                         MockResponse().setBody(body).setHeader("Content-Type", "application/x-ndgeojson").setResponseCode(200)
                     }
                     requestPath.endsWith("forecast") || requestPath.contains("forecast?") -> {
-                        MockResponse().setBody(weatherJson).setResponseCode(200)
+                        // For the audit, assume ANY forecast request for TEST/Chamonix returns hazards
+                        val finalWeatherJson = if (requestPath.contains("45.923") || requestPath.contains("iso=TEST")) {
+                             generateWeatherJson(10.0, 180.0, 15.0, 2500.0, 0.9) // Stormy
+                        } else {
+                             weatherJson
+                        }
+                        MockResponse().setBody(finalWeatherJson).setResponseCode(200)
                     }
                     else -> MockResponse().setResponseCode(404)
                 }
