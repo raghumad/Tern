@@ -136,7 +136,8 @@ fun RouteDetailPanel(
                 .testTag("RouteDetailPanel"),
             elevation = CardDefaults.cardElevation(defaultElevation = 12.dp),
             colors = CardDefaults.cardColors(
-                containerColor = Color(0xFF0F172A).copy(alpha = 0.85f) // AeroSlate High-Contrast
+                // Using theme tokens for background
+                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)
             )
         ) {
             Column(
@@ -155,7 +156,15 @@ fun RouteDetailPanel(
 
                 // SSA/TEA Header: Always visible, answer the "Safe to Fly?" question instantly
                 Row(
-                    modifier = Modifier.fillMaxWidth().testTag(if (state.isRoutePanelExpanded) "TEA_Header" else "SSA_Header"),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag(if (state.isRoutePanelExpanded) "TEA_Header" else "SSA_Header")
+                        .clickable { 
+                            if (route != null) {
+                                haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                                store.dispatch(MapAction.ToggleRoutePanelExpanded)
+                            }
+                        },
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -171,7 +180,7 @@ fun RouteDetailPanel(
                                 if (hasStormRisk) {
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Surface(
-                                        color = Color(0xFFFFBF00),
+                                        color = MaterialTheme.colorScheme.tertiary,
                                         shape = MaterialTheme.shapes.extraSmall
                                     ) {
                                         Text(
@@ -224,7 +233,7 @@ fun RouteDetailPanel(
                             .fillMaxWidth()
                             .padding(vertical = 8.dp)
                             .testTag("AHV_BANNER"),
-                        color = Color(0xFFFFBF00).copy(alpha = 0.9f), // Safety Amber
+                        color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.9f),
                         shape = MaterialTheme.shapes.small
                     ) {
                         Row(
@@ -237,7 +246,7 @@ fun RouteDetailPanel(
                             Text(
                                 "STORM RISK DETECTED ON TRAJECTORY",
                                 style = MaterialTheme.typography.labelLarge,
-                                color = Color.Black,
+                                color = MaterialTheme.colorScheme.onTertiary,
                                 fontWeight = FontWeight.Black,
                                 letterSpacing = 0.5.sp
                             )
@@ -479,7 +488,7 @@ fun RouteDetailsContent(
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     if (weatherData?.hasConvectiveDanger() == true || weatherData?.hasThunderstorm() == true) {
                                         Surface(
-                                            color = Color(0xFFFFBF00),
+                                            color = MaterialTheme.colorScheme.tertiary,
                                             shape = MaterialTheme.shapes.extraSmall,
                                             modifier = Modifier.padding(end = 6.dp).testTag("AHV_BADGE")
                                         ) {
@@ -502,7 +511,7 @@ fun RouteDetailsContent(
                                         Text(
                                             text = "ETA: $formattedEta",
                                             style = MaterialTheme.typography.labelMedium,
-                                            color = Color(0xFF38BDF8), // Sky Blue high-contrast
+                                            color = MaterialTheme.colorScheme.secondary,
                                             fontWeight = FontWeight.ExtraBold
                                         )
                                     }
@@ -511,7 +520,7 @@ fun RouteDetailsContent(
                                     Text(
                                         text = "⚡ THUNDERSTORM RISK DETECTED",
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = Color(0xFFFFBF00),
+                                        color = MaterialTheme.colorScheme.tertiary,
                                         fontWeight = FontWeight.Black,
                                         letterSpacing = 0.5.sp
                                     )
@@ -531,7 +540,7 @@ fun RouteDetailsContent(
                                     Text(
                                         text = "🌬️ ${wind.speed.roundToInt()} kt @ ${wind.direction.roundToInt()}°",
                                         style = MaterialTheme.typography.labelMedium,
-                                        color = Color(0xFF4ADE80), // Neon Green for tactical clarity
+                                        color = MaterialTheme.colorScheme.primary,
                                         fontWeight = FontWeight.ExtraBold
                                     )
                                 }

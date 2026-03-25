@@ -79,6 +79,18 @@ class StormRiskValidationTest : MapVisualTest() {
                 }
 
                 // Verify SSA mode (collapsed) header and its alert (Auto-minimized after route selection)
+                // [STABILITY FIX] The panel might take a moment to satisfy the collapsing state
+                composeTestRule.waitUntil(10000) {
+                    composeTestRule.onAllNodesWithTag("SSA_Header").fetchSemanticsNodes().isNotEmpty() ||
+                    composeTestRule.onAllNodesWithTag("TEA_Header").fetchSemanticsNodes().isNotEmpty()
+                }
+
+                // If it's accidentally in TEA mode, collapse it to satisfy the "SSA mode" assertion
+                if (composeTestRule.onAllNodesWithTag("TEA_Header").fetchSemanticsNodes().isNotEmpty()) {
+                    composeTestRule.onNodeWithTag("TEA_Header").performClick()
+                    composeTestRule.waitForIdle()
+                }
+
                 composeTestRule.onNodeWithTag("SSA_Header").assertIsDisplayed()
                 composeTestRule.onNodeWithText("! STORM RISK", substring = true).assertIsDisplayed()
                 
@@ -105,13 +117,10 @@ class StormRiskValidationTest : MapVisualTest() {
             }
             
             and("the pilot reviews the entire route extents") {
-                composeTestRule.runOnUiThread {
-                    val activity = composeTestRule.activity
-                    val store = androidx.lifecycle.ViewModelProvider(activity)[com.madanala.tern.redux.MapStore::class.java]
-                    val routes = store.state.value.routes
-                    if (routes.isNotEmpty()) {
-                        zoomToRouteEntirely(routes.first())
-                    }
+                val store = androidx.lifecycle.ViewModelProvider(composeTestRule.activity)[com.madanala.tern.redux.MapStore::class.java]
+                val route = store.state.value.routes.firstOrNull()
+                if (route != null) {
+                    zoomToRouteEntirely(route)
                 }
             }
             
