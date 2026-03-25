@@ -185,8 +185,8 @@ class RouteCacheTest {
         // Note: We are using the class-level mockDiskCache now, so no need to recreate
         
         val waypoints = listOf(
-            Waypoint(id = "wp1", lat = 40.0, lon = -105.0, type = Waypoint.Type.LAUNCH),
-            Waypoint(id = "wp2", lat = 40.1, lon = -105.1, type = Waypoint.Type.GOAL)
+            Waypoint(id = "wp1", lat = 40.0, lon = -105.0, type = LocationType.LAUNCH),
+            Waypoint(id = "wp2", lat = 40.1, lon = -105.1, type = LocationType.GOAL)
         )
         val route = Route(id = "route_ls", name = "LineString Route", waypoints = waypoints)
 
@@ -239,8 +239,8 @@ class RouteCacheTest {
         assertEquals(2, cachedRoute?.waypoints?.size)
         
         assertEquals("wp1", cachedRoute?.waypoints?.get(0)?.id)
-        assertEquals(Waypoint.Type.LAUNCH, cachedRoute?.waypoints?.get(0)?.type)
+        assertEquals(LocationType.LAUNCH, cachedRoute?.waypoints?.get(0)?.type)
         assertEquals("wp2", cachedRoute?.waypoints?.get(1)?.id)
-        assertEquals(Waypoint.Type.GOAL, cachedRoute?.waypoints?.get(1)?.type)
+        assertEquals(LocationType.GOAL, cachedRoute?.waypoints?.get(1)?.type)
     }
 }

@@ -1,4 +1,5 @@
 package com.madanala.tern.utils
+import com.madanala.tern.model.LocationType
 
 import android.content.Context
 import android.util.Log
@@ -188,9 +189,9 @@ class RouteCache(
                         
                         if (id != null && lat != null && lon != null) {
                             val type = try {
-                                Waypoint.Type.valueOf(typeStr ?: "TURNPOINT")
+                                LocationType.valueOf(typeStr ?: "TURNPOINT")
                             } catch (e: Exception) {
-                                Waypoint.Type.TURNPOINT
+                                LocationType.TURNPOINT
                             }
                             
                             Waypoint(
@@ -273,7 +274,7 @@ class RouteCache(
 
         return listOf(
             MapOverlayCacheUtils.OverlayFeature(
-                id = route.id,
+                internalId = route.id,
                 feature = featureData,
                 centroid = centroid,
                 hilbertIndex = hilbertIndex,

@@ -49,7 +49,7 @@ class MapReducersTest {
 
         val newState = mapReducer(
             stateWithRoute, 
-            MapAction.AddWaypointToRoute("route1", 10.0, 20.0, Waypoint.Type.TURNPOINT)
+            MapAction.AddWaypointToRoute("route1", 10.0, 20.0, LocationType.TURNPOINT)
         )
 
         assertThat(newState.routes[0].waypoints).hasSize(1)

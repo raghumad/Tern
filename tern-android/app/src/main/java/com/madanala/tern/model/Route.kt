@@ -8,19 +8,36 @@ import java.util.UUID
  * Waypoint model for paragliding route planning.
  */
 data class Waypoint(
-    val id: String = UUID.randomUUID().toString(),
+    override val id: String = UUID.randomUUID().toString(),
     val lat: Double,
     val lon: Double,
-    val type: Type = Type.TURNPOINT,
+    override val type: LocationType = LocationType.TURNPOINT,
     val label: String? = null,
-    val createdAt: Instant = Instant.now(),
+    val createdAt: Instant = java.time.Instant.now(),
     val routeId: String? = null,
-    val radius: Double? = RouteConstants.FAI_DEFAULT_RADIUS_METERS, // Default FAI cylinder radius in meters
+    val radius: Double? = com.madanala.tern.redux.RouteConstants.FAI_DEFAULT_RADIUS_METERS, // Default FAI cylinder radius in meters
     val alt: Double? = null, // Altitude in meters
     val openTime: String? = null, // HH:mm
     val closeTime: String? = null // HH:mm
-) {
-    enum class Type { LAUNCH, TURNPOINT, SSS, ESS, GOAL, LANDING }
+) : UnifiedLocation {
+    override val coordinate: org.osmdroid.util.GeoPoint
+        get() = org.osmdroid.util.GeoPoint(lat, lon)
+    
+    override val name: String?
+        get() = label
+        
+    override val source: LocationSource
+        get() = LocationSource.WAYPOINT
+        
+    override val altitude: Double?
+        get() = alt
+        
+    override val metadata: Map<String, Any>
+        get() = mapOf(
+            "routeId" to (routeId ?: ""),
+            "createdAt" to createdAt.toString(),
+            "radius" to (radius ?: 0.0)
+        )
 }
 
 /**
@@ -85,10 +102,10 @@ data class Route(
     fun addWaypoint(
         lat: Double, 
         lon: Double, 
-        type: Waypoint.Type = Waypoint.Type.TURNPOINT, 
+        type: LocationType = LocationType.TURNPOINT, 
         label: String? = null, 
         id: String? = null, 
-        radius: Double? = RouteConstants.FAI_DEFAULT_RADIUS_METERS,
+        radius: Double? = com.madanala.tern.redux.RouteConstants.FAI_DEFAULT_RADIUS_METERS,
         alt: Double? = null,
         openTime: String? = null,
         closeTime: String? = null
@@ -128,7 +145,7 @@ data class Route(
         waypointId: String, 
         lat: Double? = null, 
         lon: Double? = null, 
-        type: Waypoint.Type? = null, 
+        type: LocationType? = null, 
         radius: Double? = null,
         alt: Double? = null,
         openTime: String? = null,

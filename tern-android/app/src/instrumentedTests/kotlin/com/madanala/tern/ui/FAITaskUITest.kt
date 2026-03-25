@@ -1,4 +1,5 @@
 package com.madanala.tern.ui
+import com.madanala.tern.model.LocationType
 
 import androidx.compose.ui.test.*
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -136,7 +137,7 @@ class FAITaskUITest : MapVisualTest() {
                     composeTestRule.waitForIdle()
 
                     composeTestRule.onNodeWithText("Start Speed Section").performScrollTo().assertExists()
-                    store.dispatch(MapAction.UpdateWaypointType(routeId, waypointId, Waypoint.Type.SSS))
+                    store.dispatch(MapAction.UpdateWaypointType(routeId, waypointId, LocationType.SSS))
                 }
 
                 and("I confirm the racing role of this waypoint") {
@@ -148,7 +149,7 @@ class FAITaskUITest : MapVisualTest() {
                     composeTestRule.waitUntil(timeoutMillis = 5000) {
                         val r = store.state.value.routes.find { it.id == routeId }
                         val wp = r?.waypoints?.find { it.id == waypointId }
-                        wp?.type == Waypoint.Type.SSS
+                        wp?.type == LocationType.SSS
                     }
 
                     composeTestRule.onNodeWithTag("WaypointList").performScrollToNode(hasText("Start Speed Section", substring = true))
@@ -179,10 +180,10 @@ class FAITaskUITest : MapVisualTest() {
 
                 `when`("I meticulously assemble my mission: Takeoff, Start Gate, Turnpoint, and Goal") {
                     // Add Takeoff
-                    store.dispatch(MapAction.AddWaypointToRoute(routeId, 40.015, -105.270, Waypoint.Type.LAUNCH, "Takeoff"))
+                    store.dispatch(MapAction.AddWaypointToRoute(routeId, 40.015, -105.270, LocationType.LAUNCH, "Takeoff"))
                     
                     // Add Start Gate
-                    store.dispatch(MapAction.AddWaypointToRoute(routeId, 40.020, -105.260, Waypoint.Type.TURNPOINT, "Start Gate"))
+                    store.dispatch(MapAction.AddWaypointToRoute(routeId, 40.020, -105.260, LocationType.TURNPOINT, "Start Gate"))
                     
                     composeTestRule.waitUntil(timeoutMillis = 5000) {
                         val r = store.state.value.routes.find { it.id == routeId }
@@ -190,11 +191,11 @@ class FAITaskUITest : MapVisualTest() {
                     }
                     
                     val startGateId = store.state.value.routes.first { it.id == routeId }.waypoints.last().id
-                    store.dispatch(MapAction.UpdateWaypointType(routeId, startGateId, Waypoint.Type.SSS))
+                    store.dispatch(MapAction.UpdateWaypointType(routeId, startGateId, LocationType.SSS))
                     store.dispatch(MapAction.UpdateWaypointRadius(routeId, startGateId, 2000.0))
                     
                     // Add Turnpoint 1
-                    store.dispatch(MapAction.AddWaypointToRoute(routeId, 40.030, -105.250, Waypoint.Type.TURNPOINT, "Turnpoint 1"))
+                    store.dispatch(MapAction.AddWaypointToRoute(routeId, 40.030, -105.250, LocationType.TURNPOINT, "Turnpoint 1"))
                     
                     composeTestRule.waitUntil(timeoutMillis = 5000) {
                         store.state.value.routes.first { it.id == routeId }.waypoints.size >= 3
@@ -203,13 +204,13 @@ class FAITaskUITest : MapVisualTest() {
                     store.dispatch(MapAction.UpdateWaypointRadius(routeId, tp1Id, 400.0))
                     
                     // Add Goal
-                    store.dispatch(MapAction.AddWaypointToRoute(routeId, 40.040, -105.240, Waypoint.Type.TURNPOINT, "Goal"))
+                    store.dispatch(MapAction.AddWaypointToRoute(routeId, 40.040, -105.240, LocationType.TURNPOINT, "Goal"))
                     
                     composeTestRule.waitUntil(timeoutMillis = 5000) {
                         store.state.value.routes.first { it.id == routeId }.waypoints.size >= 4
                     }
                     val goalId = store.state.value.routes.first { it.id == routeId }.waypoints.last().id
-                    store.dispatch(MapAction.UpdateWaypointType(routeId, goalId, Waypoint.Type.GOAL))
+                    store.dispatch(MapAction.UpdateWaypointType(routeId, goalId, LocationType.GOAL))
                     store.dispatch(MapAction.UpdateWaypointRadius(routeId, goalId, 1000.0))
                 }
 

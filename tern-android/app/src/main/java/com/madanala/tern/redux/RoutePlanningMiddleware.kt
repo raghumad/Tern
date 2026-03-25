@@ -41,6 +41,7 @@ class RoutePlanningMiddleware(
             is MapAction.AddRoute -> {
                 fetchThermalHotspotsForRoute(state, action.route.id)
                 triggerRouteCorridorSync(state, action.route.id, store)
+                store.dispatch(WeatherActions.FetchWeatherForRoute(action.route.id))
                 // [RFC 005] Strategic Auto-Minimize: Collapse panel on new route creation
                 store.dispatch(MapAction.SetRoutePanelExpanded(false))
             }

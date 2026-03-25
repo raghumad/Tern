@@ -4,6 +4,7 @@ import org.osmdroid.util.GeoPoint
 
 import com.madanala.tern.model.Waypoint
 import com.madanala.tern.model.Route
+import com.madanala.tern.model.LocationType
 import com.madanala.tern.model.TernBoundingBox
 
 /**
@@ -76,10 +77,10 @@ sealed class MapAction {
     object ClearAllRoutes : MapAction()
 
     // Waypoint actions (for multi-waypoint routes)
-    data class AddWaypointToRoute(val routeId: String, val lat: Double, val lon: Double, val type: Waypoint.Type = Waypoint.Type.TURNPOINT, val label: String? = null, val id: String? = null) : MapAction()
+    data class AddWaypointToRoute(val routeId: String, val lat: Double, val lon: Double, val type: LocationType = LocationType.TURNPOINT, val label: String? = null, val id: String? = null) : MapAction()
     data class RemoveWaypoint(val routeId: String, val waypointId: String) : MapAction()
-    data class UpdateWaypoint(val routeId: String, val waypointId: String, val lat: Double? = null, val lon: Double? = null, val type: Waypoint.Type? = null, val label: String? = null) : MapAction()
-    data class UpdateWaypointType(val routeId: String, val waypointId: String, val type: Waypoint.Type) : MapAction()
+    data class UpdateWaypoint(val routeId: String, val waypointId: String, val lat: Double? = null, val lon: Double? = null, val type: LocationType? = null, val label: String? = null) : MapAction()
+    data class UpdateWaypointType(val routeId: String, val waypointId: String, val type: LocationType) : MapAction()
     data class UpdateWaypointRadius(val routeId: String, val waypointId: String, val radius: Double) : MapAction()
     data class UpdateWaypointAltitude(val routeId: String, val waypointId: String, val alt: Double?) : MapAction()
     data class UpdateWaypointTimeGates(val routeId: String, val waypointId: String, val openTime: String?, val closeTime: String?) : MapAction()
@@ -105,7 +106,7 @@ sealed class MapAction {
     // Map Interaction actions
     data class LongPressMap(
         val geoPoint: GeoPoint,
-        val type: Waypoint.Type = Waypoint.Type.TURNPOINT,
+        val type: LocationType = LocationType.TURNPOINT,
         val label: String? = null
     ) : MapAction()
     data class SetAirspaceCollision(val hasCollision: Boolean) : MapAction()

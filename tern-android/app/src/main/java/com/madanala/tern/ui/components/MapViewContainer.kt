@@ -1,4 +1,5 @@
 package com.madanala.tern.ui.components
+import com.madanala.tern.model.LocationType
 
 // Phase 1: Core Lifecycle Fixes
 // - Replaced produceState with StateFlow for map rotation
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.offset
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -20,6 +22,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -140,7 +144,7 @@ fun MapViewContainer(
                         // Confirm: Create using PG spot location and type
                         nearbyPGSpot?.let { feature ->
                             val centroid = feature.centroid
-                            val type = if (spotType.equals("landing", ignoreCase = true)) Waypoint.Type.LANDING else Waypoint.Type.LAUNCH
+                            val type = if (spotType.equals("landing", ignoreCase = true)) LocationType.LANDING else LocationType.LAUNCH
                             store.dispatch(MapAction.LongPressMap(centroid, type, spotName))
                         }
                         mapViewModel.clearSmartSuggestionState()
@@ -181,6 +185,51 @@ fun MapViewContainer(
                 .fillMaxSize()
                 .testTag("map_view")
         )
+
+        // 🎯 RFC 005: High-Fidelity Marker Overlay (Animations & Semantics)
+        // Renders markers as real Compose elements on top of the MapView
+        // to support active animations (hazard pulse/flash) and testability.
+        state.routes.filter { it.isVisible }.forEach { route ->
+            route.waypoints.forEach { waypoint ->
+                val forecast = state.weatherState.waypointWeathers[waypoint.id]
+                val isSelected = state.selectedWaypoint?.let { it.routeId == route.id && it.waypointId == waypoint.id } ?: false
+                
+                // Calculate screen position based on projection
+                // [STABILITY FIX] Use remember to avoid excessive projection lookups
+                val screenPoint = remember(waypoint.lat, waypoint.lon, state.center, state.zoom, state.rotation) {
+                    try {
+                        val point = GeoPoint(waypoint.lat, waypoint.lon)
+                        mapView.projection.toPixels(point, null)
+                    } catch (e: Exception) {
+                        null
+                    }
+                }
+
+                screenPoint?.let { p ->
+                    val density = LocalDensity.current
+                    val markerSizePx = with(density) { 56.dp.toPx() }
+                    
+                    Box(
+                        modifier = Modifier.offset {
+                            IntOffset(
+                                x = p.x - (markerSizePx / 2).toInt(),
+                                y = p.y - (markerSizePx / 2).toInt()
+                            )
+                        }
+                    ) {
+                        LocationMarker(
+                            location = waypoint,
+                            zoom = state.zoom,
+                            forecast = forecast,
+                            isSelected = isSelected,
+                            onClick = {
+                                store.dispatch(MapAction.SelectWaypoint(route.id, waypoint.id))
+                            }
+                        )
+                    }
+                }
+            }
+        }
 
         // Show compass based on Redux state
         if (state.compassVisible) {

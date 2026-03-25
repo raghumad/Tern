@@ -1,4 +1,5 @@
 package com.madanala.tern.test
+import com.madanala.tern.model.LocationType
 
 import androidx.compose.ui.test.*
 import com.madanala.tern.utils.MapVisualTest
@@ -128,9 +129,9 @@ class AviationRoutePlanningTest : MapVisualTest() {
                         id = "comp_practice",
                         name = "Airtribune Practice Task",
                         waypoints = listOf(
-                            Waypoint(lat = 39.7429, lon = -105.2393, type = Waypoint.Type.LAUNCH, label = "Lookout"),
-                            Waypoint(lat = 39.8, lon = -105.3, type = Waypoint.Type.TURNPOINT, label = "TP1"),
-                            Waypoint(lat = 39.75, lon = -105.1, type = Waypoint.Type.GOAL, label = "Goal")
+                            Waypoint(lat = 39.7429, lon = -105.2393, type = LocationType.LAUNCH, label = "Lookout"),
+                            Waypoint(lat = 39.8, lon = -105.3, type = LocationType.TURNPOINT, label = "TP1"),
+                            Waypoint(lat = 39.75, lon = -105.1, type = LocationType.GOAL, label = "Goal")
                         )
                     )
                     showRouteOnMap(mockRoute)

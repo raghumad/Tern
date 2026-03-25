@@ -1,4 +1,5 @@
 package com.madanala.tern.ui.components
+import com.madanala.tern.model.LocationType
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -131,7 +132,7 @@ fun RoutePlanningHUD(
             }
 
             // Weather Data for Goal
-            val goalWaypoint = route.waypoints.find { it.type == com.madanala.tern.model.Waypoint.Type.GOAL }
+            val goalWaypoint = route.waypoints.find { it.type == com.madanala.tern.model.LocationType.GOAL }
             val goalWeather = goalWaypoint?.let { state.weatherState.waypointWeathers[it.id] }
             val goalEta = goalWaypoint?.let { state.weatherState.waypointEtas[it.id] }
             

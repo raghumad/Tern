@@ -1,4 +1,5 @@
 package com.madanala.tern.ui
+import com.madanala.tern.model.LocationType
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.lifecycle.ViewModelProvider
@@ -35,7 +36,7 @@ class ComposableScenariosTest : MapVisualTest() {
                     id = "wp_1",
                     lat = 40.015,
                     lon = -105.27,
-                    type = Waypoint.Type.TURNPOINT,
+                    type = LocationType.TURNPOINT,
                     label = "Launch Point"
                 )
                 

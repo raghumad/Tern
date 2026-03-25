@@ -3,6 +3,8 @@ package com.madanala.tern.redux
 
 import android.util.Log
 import org.osmdroid.util.GeoPoint
+import com.madanala.tern.model.LocationType
+import com.madanala.tern.model.Waypoint
 
 // Route management constants imported from Constants.kt
 
@@ -164,7 +166,7 @@ private fun addWaypointToRouteState(
     routes: List<com.madanala.tern.model.Route>,
     targetRoute: com.madanala.tern.model.Route,
     geoPoint: GeoPoint,
-    type: com.madanala.tern.model.Waypoint.Type = com.madanala.tern.model.Waypoint.Type.TURNPOINT,
+    type: LocationType = LocationType.TURNPOINT,
     label: String? = null
 ): Pair<List<com.madanala.tern.model.Route>, String> {
     val waypointNumber = targetRoute.waypoints.size + 1
@@ -192,7 +194,7 @@ private fun addWaypointToRouteState(
 private fun createFirstRoute(
     geoPoint: GeoPoint,
     routeIndex: Int,
-    type: com.madanala.tern.model.Waypoint.Type = com.madanala.tern.model.Waypoint.Type.TURNPOINT,
+    type: LocationType = LocationType.TURNPOINT,
     label: String? = null
 ): com.madanala.tern.model.Route {
     val waypointLabel = label ?: "$WAYPOINT_LABEL_PREFIX$routeIndex$WAYPOINT_LABEL_SEPARATOR$FIRST_ROUTE_INDEX"

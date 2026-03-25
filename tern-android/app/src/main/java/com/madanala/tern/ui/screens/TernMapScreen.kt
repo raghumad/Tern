@@ -1,4 +1,5 @@
 package com.madanala.tern.ui.screens
+import com.madanala.tern.model.LocationType
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -140,7 +141,7 @@ fun TernMapScreen(
             val center = state.center
             if (center != null) {
                 val nearestLaunch = state.routes.flatMap { it.waypoints }
-                    .filter { it.type == com.madanala.tern.model.Waypoint.Type.LAUNCH }
+                    .filter { it.type == com.madanala.tern.model.LocationType.LAUNCH }
                     .minByOrNull { calculateDistance(it.lat, it.lon, center.latitude, center.longitude) }
 
                 if (nearestLaunch != null) {
@@ -167,7 +168,7 @@ fun TernMapScreen(
                                     routeId = routeId,
                                     lat = wp.lat,
                                     lon = wp.lon,
-                                    type = com.madanala.tern.model.Waypoint.Type.LAUNCH,
+                                    type = com.madanala.tern.model.LocationType.LAUNCH,
                                     label = wp.label
                                 ))
                             }

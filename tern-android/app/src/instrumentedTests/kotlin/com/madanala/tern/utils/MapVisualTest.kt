@@ -8,11 +8,13 @@ import com.madanala.tern.redux.MapAction
 import com.madanala.tern.redux.MapStore
 import org.junit.Rule
 import org.osmdroid.util.GeoPoint
+import androidx.compose.ui.graphics.asAndroidBitmap
+import android.Manifest
 import android.util.Log
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.test.rule.GrantPermissionRule
-import android.Manifest
+import androidx.test.platform.app.InstrumentationRegistry
 
 /**
  * Base class for Visual Tests that require the real Map UI.
@@ -81,6 +83,9 @@ open class MapVisualTest {
         // Reset global state to ensure test isolation (0L for immediate updates)
         com.madanala.tern.ui.components.MapViewModel.MAP_MOVE_DEBOUNCE_MS = 0L
 
+        // Start mock server to intercept all weather/spot requests and prevent 404 state resets
+        WeatherTestHelper.startServer()
+
         // Wait for activity to be fully ready and setContent called
         Thread.sleep(2000)
         
@@ -90,6 +95,7 @@ open class MapVisualTest {
 
     @org.junit.After
     fun tearDown() {
+        WeatherTestHelper.stopServer()
         Log.i("MapVisualTest", "=== END ${testNameRule.methodName} ===")
 
         // [HYGIENE FIX] Proactively clear ViewModelStore to trigger onCleared() 
@@ -518,6 +524,88 @@ open class MapVisualTest {
             val result = ReportGenerator.captureScreenshot("failure_${type}_${description.take(20).replace(" ", "_")}")
             ReportGenerator.logStep(type, description, "FAIL", result?.path, result?.hash)
             throw e
+        }
+    }
+
+    /**
+     * Asserts that a specific color signature exists within the bounds of a test tag.
+     * Validates safety-critical visual indicators (e.g. Amber Convective Halos).
+     */
+    fun thenExpectHazardFidelity(tag: String, targetColor: Int, waitMillis: Long = 500) {
+        then("Expect hazard fidelity on $tag (Color + Animation)") {
+            val node = composeTestRule.onNodeWithTag(tag, useUnmergedTree = true)
+            
+            // Get screen coordinates of the node in PIXELS
+            val bounds = node.getUnclippedBoundsInRoot()
+            val density = composeTestRule.density
+            
+            // Get Activity window offset to convert Window coords to Screen coords (for Hardware Screenshot)
+            val activityLocation = IntArray(2)
+            composeTestRule.runOnUiThread {
+                composeTestRule.activity.window.decorView.getLocationOnScreen(activityLocation)
+            }
+            val offsetX = activityLocation[0]
+            val offsetY = activityLocation[1]
+
+            val screenRect = android.graphics.Rect(
+                with(density) { bounds.left.roundToPx() } + offsetX,
+                with(density) { bounds.top.roundToPx() } + offsetY,
+                with(density) { bounds.right.roundToPx() } + offsetX,
+                with(density) { bounds.bottom.roundToPx() } + offsetY
+            ).apply {
+                // Hazards are often slightly outside the reported node bounds (e.g. Halo shadow, Bolt offset)
+                // We expand significantly to ensure we capture the pixels.
+                inset(-16, -16) 
+            }
+            
+            val scanRect = screenRect // Use the same larger rect for both
+
+            val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
+            
+            // Step 1: Verify Color Signature (Occupancy Check)
+            // Initial frame for baseline
+            composeTestRule.mainClock.autoAdvance = false
+            composeTestRule.waitForIdle()
+            
+            val bitmap1 = automation.takeScreenshot()
+            val found = VisualValidator.findColorSignature(bitmap1, scanRect, targetColor)
+            if (!found) {
+                // If not found at T=0, maybe it's the "off" state of a blink. Pulse the clock.
+                composeTestRule.mainClock.advanceTimeBy(400)
+                composeTestRule.waitForIdle()
+                Thread.sleep(150)
+                val bitmapRetry = automation.takeScreenshot()
+                if (!VisualValidator.findColorSignature(bitmapRetry, scanRect, targetColor)) {
+                    throw AssertionError("Algorithmic Validation Failed: Color signature ${Integer.toHexString(targetColor)} not found in $tag at $scanRect")
+                }
+            }
+            Log.i("MapVisualTest", "Verified: Color signature exists for $tag")
+
+            // Step 2: Fidelity Check (Deterministic Animation)
+            // We advance the clock in steps to ensure we catch the transition regardless of starting phase
+            var bestDelta = 0f
+            
+            val advances = listOf(300L, 300L, 300L) // Total 900ms scan
+            for (ms in advances) {
+                composeTestRule.mainClock.advanceTimeBy(ms)
+                composeTestRule.waitForIdle()
+                Thread.sleep(200) // Buffer flush
+                val bitmapN = automation.takeScreenshot()
+                val delta = VisualValidator.getRegionDelta(bitmap1, bitmapN, screenRect, pixelTolerance = 5)
+                bestDelta = Math.max(bestDelta, delta)
+                if (bestDelta > 0.001f) break
+            }
+            
+            Log.i("MapVisualTest", "Deterministic Max Delta for $tag: $bestDelta")
+            
+            if (bestDelta <= 0.001f) {
+                throw AssertionError("Algorithmic Validation Failed: Animation fidelity zero for $tag in scan area $screenRect. Hazards MUST animate for safety.")
+            }
+            
+            // Re-enable for subsequent steps
+            composeTestRule.mainClock.autoAdvance = true
+
+            Log.i("MapVisualTest", "Verified: Animation active for $tag (Delta: $bestDelta)")
         }
     }
 }

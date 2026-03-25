@@ -11,6 +11,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import com.madanala.tern.model.Waypoint
+import com.madanala.tern.model.LocationType
 import com.madanala.tern.redux.MapAction
 import com.madanala.tern.redux.MapStore
 import com.madanala.tern.redux.WaypointSelection
@@ -122,7 +123,7 @@ fun EditWaypointScreen(
                     fontWeight = FontWeight.SemiBold
                 )
 
-                Waypoint.Type.values().forEach { type ->
+                LocationType.values().forEach { type ->
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
@@ -139,12 +140,12 @@ fun EditWaypointScreen(
                         )
                         Text(
                             text = when (type) {
-                                Waypoint.Type.LAUNCH -> "Launch"
-                                Waypoint.Type.TURNPOINT -> "Turnpoint"
-                                Waypoint.Type.SSS -> "Start Speed Section"
-                                Waypoint.Type.ESS -> "End Speed Section"
-                                Waypoint.Type.GOAL -> "Goal"
-                                Waypoint.Type.LANDING -> "Landing"
+                                LocationType.LAUNCH -> "Launch"
+                                LocationType.TURNPOINT -> "Turnpoint"
+                                LocationType.SSS -> "Start Speed Section"
+                                LocationType.ESS -> "End Speed Section"
+                                LocationType.GOAL -> "Goal"
+                                LocationType.LANDING -> "Landing"
                             },
                             style = MaterialTheme.typography.bodyMedium,
                             modifier = Modifier.padding(start = 8.dp)

@@ -157,7 +157,7 @@ class ThermalHotspotService(private val context: Context) {
                 val hilbertIndex = MapOverlayCacheUtils.computeHilbertIndex(centroid, 16)
                 
                 features.add(OverlayFeature(
-                    id = "thermal_${lat}_${lon}",
+                    internalId = "thermal_${lat}_${lon}",
                     feature = mapOf(
                         "type" to "thermal",
                         "probability" to probability,

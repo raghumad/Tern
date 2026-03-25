@@ -1,4 +1,5 @@
 package com.madanala.tern.ui
+import com.madanala.tern.model.LocationType
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -43,9 +44,9 @@ class RoutePersistenceTest : MapVisualTest() {
                     id = routeId,
                     name = "Test Persistence Route",
                     waypoints = listOf(
-                        Waypoint(lat = 40.0, lon = -105.0, type = Waypoint.Type.LAUNCH, label = "Launch"),
-                        Waypoint(lat = 40.1, lon = -105.1, type = Waypoint.Type.TURNPOINT, label = "Turn 1"),
-                        Waypoint(lat = 40.2, lon = -105.2, type = Waypoint.Type.LANDING, label = "Goal")
+                        Waypoint(lat = 40.0, lon = -105.0, type = LocationType.LAUNCH, label = "Launch"),
+                        Waypoint(lat = 40.1, lon = -105.1, type = LocationType.TURNPOINT, label = "Turn 1"),
+                        Waypoint(lat = 40.2, lon = -105.2, type = LocationType.LANDING, label = "Goal")
                     )
                 )
             }
