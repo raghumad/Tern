@@ -92,6 +92,7 @@ class RouteOverlayManager(
     private var currentSelectedWaypoint: WaypointSelection? = null
     private var currentSelectedRouteId: String? = null
     private var weatherState: com.madanala.tern.redux.WeatherState? = null
+    private var currentUserLocation: GeoPoint? = null
     
     // PERFORMANCE: Cache high-fidelity Composable-to-Bitmap overlays
     private val waypointBitmapCache = android.util.LruCache<Int, android.graphics.Bitmap>(100)
@@ -135,6 +136,22 @@ class RouteOverlayManager(
         style = Paint.Style.STROKE
         strokeWidth = SELECTION_HIGHLIGHT_WIDTH
         isAntiAlias = true
+    }
+
+    // [RSE] Shared lattice for density arbitration across all routes in this manager
+    private val spatialLattice = SpatialLattice(cellWidth = 64f, cellHeight = 64f)
+    private var lastLatticeResetTime = 0L
+
+    /**
+     * [RSE] Reset the lattice at the start of each render pass (new frame).
+     * Prevents stale occupancy from triggering false demotions.
+     */
+    private fun resetLatticeForFrame() {
+        val now = System.currentTimeMillis()
+        if (now - lastLatticeResetTime > 50) { 
+            spatialLattice.reset()
+            lastLatticeResetTime = now
+        }
     }
 
     private val dragPaint = Paint().apply {
@@ -236,8 +253,9 @@ class RouteOverlayManager(
 
             val config = state.overlayState.routes
             
-            // Sync weather state for waypoint wind gauges
+            // Sync weather and location state for waypoint prioritization
             this.weatherState = state.weatherState
+            this.currentUserLocation = state.userLocation
 
             if (config.enabled) {
                 // Single source of truth: Only display routes from Redux state
@@ -323,27 +341,28 @@ class RouteOverlayManager(
         val mapView = mapView ?: return
         val weatherState = state.weatherState
         
-        // 🎯 Zoom-Aware Context (RFC 005 SSOT)
+        // 🎯 [RFC 005] Zoom-Aware Context & Priority Identification
         val zoom = mapView.zoomLevelDouble
-        val category = ZoomCategory.fromZoom(zoom)
+        val category = com.madanala.tern.utils.ZoomCategory.fromZoom(zoom)
         val iconScale = category.iconScale
-        val baseShowDetails = category.showHazardIndicators
+        
+        val userLocation = state.userLocation
+        val activeRoute = state.routes.find { it.id == state.selectedRouteId } ?: state.routes.firstOrNull { it.isVisible }
+        val activeWaypointId = activeRoute?.let { findActiveWaypoint(it, userLocation)?.id }
 
         state.routes.filter { it.isVisible }.forEach { route ->
             // 🎯 Pre-render Waypoint Markers
-            route.waypoints.forEachIndexed { index, waypoint ->
+            route.waypoints.forEach { waypoint ->
                 val forecast = weatherState.waypointWeathers[waypoint.id]
                 val isSelected = state.selectedWaypoint?.let { it.routeId == route.id && it.waypointId == waypoint.id } ?: false
                 val isDragging = isSelected && state.selectedWaypoint?.isDragging == true
                 
-                // Priority Check: Always show details for critical waypoints
-                val isCritical = waypoint.type == com.madanala.tern.model.LocationType.LAUNCH || 
-                                waypoint.type == com.madanala.tern.model.LocationType.GOAL || 
-                                waypoint.type == com.madanala.tern.model.LocationType.ESS ||
-                                index == 0 || // Start
-                                index == route.waypoints.size - 1 // End
+                // 🎯 [Safety First] Priority = Active Goal OR Hazard Detection
+                val isPriority = waypoint.id == activeWaypointId || 
+                                forecast?.hasThunderstorm() == true || 
+                                forecast?.hasConvectiveDanger() == true
                 
-                val showDetails = baseShowDetails || isCritical || isSelected
+                val showDetails = isPriority || isSelected
 
                 val waypointKey = arrayOf<Any?>(
                     waypoint.id,
@@ -351,6 +370,7 @@ class RouteOverlayManager(
                     waypoint.label,
                     isSelected,
                     isDragging,
+                    isPriority, // Add to key
                     forecast?.current?.wind?.speed?.roundToInt(),
                     forecast?.current?.wind?.direction?.roundToInt(),
                     forecast?.hasThunderstorm(),
@@ -362,13 +382,9 @@ class RouteOverlayManager(
                 if (waypointBitmapCache.get(waypointKey) == null) {
                     coroutineScope.launch(Dispatchers.Main) {
                         try {
-                            // Scale dimensions based on iconScale
-                            val widthDp = (80 * iconScale).toInt().coerceAtLeast(32)
-                            val heightDp = (100 * iconScale).toInt().coerceAtLeast(40)
-                            
                             val bitmap = com.madanala.tern.utils.ViewToBitmap.createBitmapFromComposableDP(
                                 parentView = mapView,
-                                widthDp = 80, // Buffers for shadows/animations
+                                widthDp = 80,
                                 heightDp = 100
                             ) {
                                 com.madanala.tern.ui.components.LocationMarker(
@@ -376,7 +392,8 @@ class RouteOverlayManager(
                                     zoom = zoom,
                                     forecast = forecast,
                                     isSelected = isSelected,
-                                    onClick = {} // Interaction handled by Osmdroid Overlay
+                                    rankingTier = if (isPriority) RankingTier.TARGET else RankingTier.PATH, // Use compatible tier mapping for pre-render
+                                    onClick = {} 
                                 )
                             }
                             waypointBitmapCache.put(waypointKey, bitmap)
@@ -586,6 +603,10 @@ class RouteOverlayManager(
                 val centroid = getRouteCentroid(route)
                 coordinator.addOverlayToBatch(overlay, route.id, centroid, OverlayType.ROUTES)
             }
+
+            // [RSE] Reset lattice before next render pass if needed
+            // However, draw() happens sequentially for all overlays
+            spatialLattice.reset()
 
             // Process the batch for Hilbert-ordered addition
             coordinator.flushPendingAdditions()
@@ -799,6 +820,9 @@ class RouteOverlayManager(
         private val mArrowPath = Path()
 
         override fun draw(canvas: Canvas, mapView: MapView, shadow: Boolean) {
+            // [RSE] Reset lattice at the start of each frame pass
+            resetLatticeForFrame()
+
             try {
                 if (shadow) return
 
@@ -807,6 +831,7 @@ class RouteOverlayManager(
                 val category = ZoomCategory.fromZoom(zoom)
                 val iconScale = category.iconScale
                 val baseShowDetails = category.showHazardIndicators
+                val density = mapView.context.resources.displayMetrics.density
 
                 // Draw cylinders first
                 route.waypoints.forEach { waypoint ->
@@ -834,13 +859,28 @@ class RouteOverlayManager(
 
                             // 🎯 RFC 005: Leg Decoration (Distance/ETA)
                             val distanceKm = route.legDistances.getOrNull(index - 1) ?: 0.0
-                            val etaMin = weatherState?.waypointEtas?.get(waypoint.id)?.toInt()
-                            val legKey = arrayOf<Any?>(distanceKm, etaMin, iconScale).contentHashCode()
-                            
-                            legDecorationCache.get(legKey)?.let { bitmap ->
-                                val midX = (prevScreenPoint.x + screenPoint.x) / 2f
-                                val midY = (prevScreenPoint.y + screenPoint.y) / 2f
-                                canvas.drawBitmap(bitmap, midX - bitmap.width / 2f, midY - bitmap.height / 2f, null)
+
+                            // [RSE] Suppress leg labels on short segments or if cell is busy
+                            if (distanceKm > 2.0) {
+                                val etaMin = weatherState?.waypointEtas?.get(waypoint.id)?.toInt()
+                                val legKey = arrayOf<Any?>(distanceKm, etaMin, iconScale).contentHashCode()
+                                
+                                legDecorationCache.get(legKey)?.let { bitmap ->
+                                    val midX = (prevScreenPoint.x + screenPoint.x) / 2f
+                                    val midY = (prevScreenPoint.y + screenPoint.y) / 2f
+                                    
+                                    val legRect = SpatialRect(
+                                        (midX - bitmap.width / 2f) / density,
+                                        (midY - bitmap.height / 2f) / density,
+                                        (midX + bitmap.width / 2f) / density,
+                                        (midY + bitmap.height / 2f) / density
+                                    )
+
+                                    if (!spatialLattice.isOccupied(legRect)) {
+                                        canvas.drawBitmap(bitmap, midX - bitmap.width / 2f, midY - bitmap.height / 2f, null)
+                                        spatialLattice.occupy(legRect)
+                                    }
+                                }
                             }
                         }
                     }
@@ -850,8 +890,14 @@ class RouteOverlayManager(
                         canvas.drawPath(mPath, routeSelectionPaint)
                     }
 
+                    // [RSE] Path-First Z-Indexing: Draw the route line BEFORE any markers
                     canvas.drawPath(mPath, routePaint)
                 }
+
+                // 🎯 [RSE] Rank-Based Density Arbitration Pass
+                // First, reset lattice for this route DRAW to prevent self-collision but allow inter-route
+                // Actually, for broad decluttering, don't reset here if we want to avoid overlapping other routes.
+                // spatialLattice.reset() 
 
                 // 🎯 RFC 005: Waypoint Rendering (Unified Composable)
                 route.waypoints.forEachIndexed { index, waypoint ->
@@ -859,30 +905,52 @@ class RouteOverlayManager(
                         val point = GeoPoint(waypoint.lat, waypoint.lon)
                         val screenPoint = projection.toPixels(point, null)
 
-                        val isSelected = currentSelectedWaypoint?.let { it.routeId == route.id && it.waypointId == waypoint.id } ?: false
-                        val isDragging = isSelected && currentSelectedWaypoint?.isDragging == true
+                        // 🎯 [UX FIX] Info-First Priority Logic
+                        val activeWaypointId = route.let { findActiveWaypoint(it, currentUserLocation ?: mapView.mapCenter as? GeoPoint)?.id }
                         val forecast = weatherState?.waypointWeathers?.get(waypoint.id)
                         
-                        // Local priority check (matches pre-render)
-                        val isCritical = waypoint.type == LocationType.LAUNCH || 
-                                        waypoint.type == LocationType.GOAL || 
-                                        waypoint.type == LocationType.ESS ||
-                                        index == 0 || index == route.waypoints.size - 1
+                        // [RSE] Assign Ranking Tiers
+                        val isSelected = currentSelectedWaypoint?.let { it.routeId == route.id && it.waypointId == waypoint.id } ?: false
+                        val hasHazard = forecast?.hasThunderstorm() == true || forecast?.hasConvectiveDanger() == true
+                        val isTarget = waypoint.id == activeWaypointId
+                        
+                        var tier = when {
+                            isTarget -> RankingTier.TARGET
+                            isSelected -> RankingTier.TARGET // Selected is treated as Target for detail
+                            hasHazard -> RankingTier.HAZARD
+                            else -> RankingTier.PATH
+                        }
 
-                        val showDetails = baseShowDetails || isCritical || isSelected
+                        // [RSE] Spatial Arbitration: If Target/Hazard occupies cell, demote others to Context
+                        // Use DP coordinates for lattice to ensure consistent 64dp collision radius
+                        val markerRect = SpatialRect(
+                            (screenPoint.x / density) - 32f, 
+                            (screenPoint.y / density) - 32f,
+                            (screenPoint.x / density) + 32f,
+                            (screenPoint.y / density) + 32f
+                        )
 
+                        if (tier != RankingTier.TARGET && spatialLattice.isOccupied(markerRect)) {
+                            tier = RankingTier.CONTEXT // Demote to Pin-prick
+                        } else {
+                            spatialLattice.occupy(markerRect) // Reserve space
+                        }
+
+                        val isDragging = isSelected && currentSelectedWaypoint?.isDragging == true
+                        
                         val waypointKey = arrayOf<Any?>(
                             waypoint.id,
                             waypoint.type,
                             waypoint.label,
                             isSelected,
                             isDragging,
+                            tier.name, // Use Tier instead of isPriority
                             forecast?.current?.wind?.speed?.roundToInt(),
                             forecast?.current?.wind?.direction?.roundToInt(),
                             forecast?.hasThunderstorm(),
                             forecast?.hasConvectiveDanger(),
                             iconScale,
-                            showDetails
+                            tier != RankingTier.CONTEXT // showDetails if not Context
                         ).contentHashCode()
 
                         waypointBitmapCache.get(waypointKey)?.let { bitmap ->
@@ -934,23 +1002,47 @@ class RouteOverlayManager(
             // Calculate angle
             val angle = kotlin.math.atan2(dy, dx)
             
-            // Arrow dimensions
-            val arrowLength = 30f
-            val arrowWidth = 15f
+            // [RSE] Precision Fix: Remove toLong() truncation which causes massive jumpiness
+            // [RSE] Scale decoration based on segment length to prevent overlap on short legs
+            val arrowScale = (distance / 100f).coerceIn(0.3f, 1.0f)
+            val arrowLength = 30f * arrowScale
+            val arrowWidth = 15f * arrowScale
             
             mArrowPath.reset()
             mArrowPath.moveTo(midX, midY)
             mArrowPath.lineTo(
-                midX - arrowLength * kotlin.math.cos(angle - kotlin.math.PI / 6).toLong().toFloat(),
-                midY - arrowLength * kotlin.math.sin(angle - kotlin.math.PI / 6).toLong().toFloat()
+                midX - arrowLength * kotlin.math.cos(angle - kotlin.math.PI / 6).toFloat(),
+                midY - arrowLength * kotlin.math.sin(angle - kotlin.math.PI / 6).toFloat()
             )
             mArrowPath.moveTo(midX, midY)
             mArrowPath.lineTo(
-                midX - arrowLength * kotlin.math.cos(angle + kotlin.math.PI / 6).toLong().toFloat(),
-                midY - arrowLength * kotlin.math.sin(angle + kotlin.math.PI / 6).toLong().toFloat()
+                midX - arrowLength * kotlin.math.cos(angle + kotlin.math.PI / 6).toFloat(),
+                midY - arrowLength * kotlin.math.sin(angle + kotlin.math.PI / 6).toFloat()
             )
             
             canvas.drawPath(mArrowPath, arrowPaint)
         }
+    }
+
+    /**
+     * Helper to find the next active waypoint in a route based on user location.
+     * Aviation-Grade Task Tracking: Prioritizes the first waypoint the user is NOT yet inside.
+     */
+    private fun findActiveWaypoint(route: com.madanala.tern.model.Route, userLocation: GeoPoint?): com.madanala.tern.model.Waypoint? {
+        if (route.waypoints.isEmpty()) return null
+        if (userLocation == null) return route.waypoints.first()
+        
+        for (waypoint in route.waypoints) {
+            val wpPoint = GeoPoint(waypoint.lat, waypoint.lon)
+            val distanceMeters = userLocation.distanceToAsDouble(wpPoint)
+            val radiusMeters = waypoint.radius ?: 400.0
+            
+            // If user is more than 'radius' away, this is the next target
+            if (distanceMeters > radiusMeters) {
+                return waypoint
+            }
+        }
+        // If all waypoints reached, default to the last one (Goal)
+        return route.waypoints.last()
     }
 }

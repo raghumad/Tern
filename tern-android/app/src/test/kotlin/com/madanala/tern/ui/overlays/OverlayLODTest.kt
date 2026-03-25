@@ -114,4 +114,23 @@ class OverlayLODTest {
         assertEquals(items[1], sorted[0]) // Farthest first (1.0)
         assertEquals(items[0], sorted[1]) // Closest last (0.1)
     }
+
+    @Test
+    fun `test SpatialLattice collision detection`() {
+        val lattice = SpatialLattice(cellWidth = 64f, cellHeight = 64f)
+        val rect1 = SpatialRect(100f, 100f, 140f, 140f)
+        val rect2 = SpatialRect(110f, 110f, 150f, 150f) // Overlaps
+        val rect3 = SpatialRect(300f, 300f, 340f, 340f) // Distinct
+        
+        lattice.occupy(rect1)
+        
+        assertTrue("Rect2 should be occupied (collision)", lattice.isOccupied(rect2))
+        assertFalse("Rect3 should not be occupied", lattice.isOccupied(rect3))
+    }
+
+    @Test
+    fun `test RankingTier hierarchy`() {
+        assertTrue(RankingTier.TARGET.value < RankingTier.PATH.value)
+        assertTrue(RankingTier.PATH.value < RankingTier.CONTEXT.value)
+    }
 }

@@ -86,7 +86,7 @@ class MapOverlayCacheUtilsTest {
         )
         val centroid = GeoPoint(40.01, -105.27)
         val originalFeature = MapOverlayCacheUtils.OverlayFeature(
-            id = null,
+            internalId = null,
             feature = featureMap, 
             centroid = centroid, 
             hilbertIndex = 12345L, 
@@ -132,7 +132,7 @@ class MapOverlayCacheUtilsTest {
         )
         val centroid = GeoPoint(40.015, -105.265)
         val originalFeature = MapOverlayCacheUtils.OverlayFeature(
-            id = null,
+            internalId = null,
             feature = featureMap, 
             centroid = centroid, 
             hilbertIndex = 67890L, 
@@ -175,7 +175,7 @@ class MapOverlayCacheUtilsTest {
         )
         val centroid = GeoPoint(0.0, 0.0)
         val originalFeature = MapOverlayCacheUtils.OverlayFeature(
-            id = null,
+            internalId = null,
             feature = featureMap, 
             centroid = centroid, 
             hilbertIndex = 0L, 

@@ -70,7 +70,7 @@ class PGSpotOverlayManagerTest : BaseTest() {
         
         // Mock country cache response
         val pgSpotFeature = OverlayFeature(
-            id = null,
+            internalId = null,
             feature = mapOf("name" to "Spot1"), 
             centroid = center, 
             hilbertIndex = 456L, 

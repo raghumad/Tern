@@ -28,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.madanala.tern.R
+import com.madanala.tern.ui.overlays.RankingTier
 import com.madanala.tern.model.LocationSource
 import com.madanala.tern.model.LocationType
 import com.madanala.tern.model.UnifiedLocation
@@ -44,17 +45,21 @@ fun LocationMarker(
     zoom: Double,
     forecast: WeatherForecast? = null,
     isSelected: Boolean = false,
+    rankingTier: RankingTier = RankingTier.PATH, // [RSE] Replaces binary isPriority
     onClick: () -> Unit = {}
 ) {
     val haptic = LocalHapticFeedback.current
     val hasConvectiveDanger = forecast?.hasConvectiveDanger() == true
     val hasThunderstorm = forecast?.hasThunderstorm() == true
     
-    // --- 🎯 RFC 005 Adaptive Scaling Logic ---
+    // --- 🎯 RFC 005 Adaptive Scaling Logic (Refined for Info-First & Safety) ---
+    val showHazard = hasConvectiveDanger || hasThunderstorm
     val (scale, showDetails, alpha) = when {
-        zoom >= 11.0 -> Triple(1.0f, true, 1.0f)           // Stage 1: Full Detail
-        zoom >= 7.0 -> Triple(0.6f, false, 1.0f)          // Stage 2: Mid-range Declutter
-        else -> Triple(0.2f, false, 0.4f)                 // Stage 3: Strategic Pin-prick
+        rankingTier == RankingTier.TARGET || isSelected || showHazard -> Triple(1.0f, true, 1.0f) 
+        rankingTier == RankingTier.CONTEXT -> Triple(0.2f, false, 0.5f) // [RSE] Forces Pin-prick mode
+        zoom >= 14.0 -> Triple(1.0f, true, 1.0f)                           
+        zoom >= 10.0 -> Triple(0.6f, false, 0.9f)                          
+        else -> Triple(0.2f, false, 0.5f)                                 
     }
 
     // --- ⚡ Micro-Animations (RFC 005) ---
@@ -145,32 +150,45 @@ fun LocationMarker(
                         .size(44.dp)
                         .clip(CircleShape)
                         .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape),
-                    color = if (isSelected) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceVariant,
-                    tonalElevation = 2.dp
+                    color = if (isSelected) MaterialTheme.colorScheme.surface else (if (rankingTier == RankingTier.CONTEXT) Color.Transparent else MaterialTheme.colorScheme.surfaceVariant),
+                    tonalElevation = if (rankingTier == RankingTier.CONTEXT) 0.dp else 2.dp
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        // Icon selection based on Source + Type
-                        val iconRes = when (location.source) {
-                            LocationSource.PG_SPOT -> R.mipmap.ic_launcher
-                            LocationSource.WAYPOINT -> when (location.type) {
-                                LocationType.LAUNCH -> R.drawable.ic_waypoint_launch
-                                LocationType.LANDING -> R.drawable.ic_waypoint_landing
-                                LocationType.SSS -> R.drawable.ic_waypoint_sss
-                                LocationType.ESS -> R.drawable.ic_waypoint_ess
-                                LocationType.GOAL -> R.drawable.ic_waypoint_goal
-                                else -> R.drawable.ic_waypoint_turnpoint
+                        // [RSE] In Context (Pin-prick) mode, we only show a small colored dot
+                        if (rankingTier == RankingTier.CONTEXT) {
+                            Box(
+                                modifier = Modifier
+                                    .size(12.dp)
+                                    .background(
+                                        if (isSelected) MaterialTheme.colorScheme.primary 
+                                        else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                        CircleShape
+                                    )
+                            )
+                        } else {
+                            // Icon selection based on Source + Type
+                            val iconRes = when (location.source) {
+                                LocationSource.PG_SPOT -> R.mipmap.ic_launcher
+                                LocationSource.WAYPOINT -> when (location.type) {
+                                    LocationType.LAUNCH -> R.drawable.ic_waypoint_launch
+                                    LocationType.LANDING -> R.drawable.ic_waypoint_landing
+                                    LocationType.SSS -> R.drawable.ic_waypoint_sss
+                                    LocationType.ESS -> R.drawable.ic_waypoint_ess
+                                    LocationType.GOAL -> R.drawable.ic_waypoint_goal
+                                    else -> R.drawable.ic_waypoint_turnpoint
+                                }
                             }
+
+                            Icon(
+                                painter = painterResource(id = iconRes),
+                                contentDescription = null,
+                                tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(28.dp)
+                            )
                         }
 
-                        Icon(
-                            painter = painterResource(id = iconRes),
-                            contentDescription = null,
-                            tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.size(28.dp)
-                        )
-
                         // 4. Integrated Wind Gauge (Internal)
-                        if (showDetails) {
+                        if (showDetails && rankingTier != RankingTier.CONTEXT) {
                             forecast?.current?.let { current ->
                                 WindGaugeMarker(
                                     speed = current.wind.speed,
