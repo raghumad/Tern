@@ -129,7 +129,13 @@ coverage.xml
 .hypothesis/
 
 # IDE and Editor Files
-.vscode/
+# Ignore VS Code per-user state, but allow project-shared config to be
+# committed (snippets and settings). Note: must ignore .vscode/* (the
+# contents) rather than .vscode/ (the directory) for the !-overrides
+# to work, since Git won't re-include files under an excluded directory.
+.vscode/*
+!.vscode/settings.json
+!.vscode/*.code-snippets
 .idea/
 *.swp
 *.swo

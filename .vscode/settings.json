@@ -1,0 +1,41 @@
+{
+  "commentAnchors.tags.list": [
+    {
+      "tag": "REVIEW",
+      "iconColor": "#FFA500",
+      "scope": "file",
+      "highlightColor": "#FFA500",
+      "styleMode": "tag"
+    },
+    {
+      "tag": "QUESTION",
+      "iconColor": "#3498DB",
+      "scope": "file",
+      "highlightColor": "#3498DB",
+      "styleMode": "tag"
+    },
+    {
+      "tag": "NIT",
+      "iconColor": "#95A5A6",
+      "scope": "file",
+      "highlightColor": "#95A5A6",
+      "styleMode": "tag"
+    },
+    {
+      "tag": "TODO",
+      "iconColor": "#F1C40F",
+      "scope": "workspace",
+      "highlightColor": "#F1C40F",
+      "styleMode": "tag"
+    },
+    {
+      "tag": "BLOCKED",
+      "iconColor": "#E74C3C",
+      "scope": "workspace",
+      "highlightColor": "#E74C3C",
+      "styleMode": "tag"
+    }
+  ],
+  "commentAnchors.workspace.enabled": true,
+  "commentAnchors.tagHighlights.enabled": true
+}

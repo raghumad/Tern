@@ -1,0 +1,32 @@
+{
+  "Review comment": {
+    "scope": "markdown",
+    "prefix": "review",
+    "body": "<!-- REVIEW: $1 -->",
+    "description": "Substantive feedback / let's discuss"
+  },
+  "Question comment": {
+    "scope": "markdown",
+    "prefix": "question",
+    "body": "<!-- QUESTION: $1 -->",
+    "description": "Question for the author"
+  },
+  "Nit comment": {
+    "scope": "markdown",
+    "prefix": "nit",
+    "body": "<!-- NIT: $1 -->",
+    "description": "Minor / stylistic"
+  },
+  "Todo comment": {
+    "scope": "markdown",
+    "prefix": "todo",
+    "body": "<!-- TODO: $1 -->",
+    "description": "Something to be done later"
+  },
+  "Blocked comment": {
+    "scope": "markdown",
+    "prefix": "blocked",
+    "body": "<!-- BLOCKED: $1 -->",
+    "description": "Can't proceed on this yet"
+  }
+}
