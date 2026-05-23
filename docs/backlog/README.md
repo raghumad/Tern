@@ -45,13 +45,37 @@ understand it without a glossary.
 Every epic should answer: **what unknown does this convert into a known
 for the pilot?** If it can't, it probably doesn't belong.
 
+## Current focus vs. end-goal epics
+
+These two kinds of files live side by side and play different roles:
+
+- **`epic-XX-*.md` — end-goal epics.** Each describes a finished
+  pilot-facing feature: what the pilot can do, see, or feel once the
+  whole thing is built. They're long-lived and stable. They describe
+  *the destination*, not what's happening this week.
+- **`current-focus.md` — what we're actually doing right now.** Always
+  exactly one of these in the backlog. Describes the bare-minimum slice
+  of work currently in flight — often scaffolding that isn't yet
+  pilot-visible. It points to whichever epic it's serving. When the
+  focus area completes, update or replace this file with the next focus.
+
+The split is intentional: end-goal files keep us from forgetting where
+we're headed; the current focus keeps us from drifting into doing the
+whole thing at once.
+
 ## Starting a new epic
 
 Copy `epic-template.md` to `epic-XX-your-feature.md` (increment XX) and
 fill it in.
 
-## Index of current epics
+## Shifting current focus
 
-(Add a one-line entry here for each epic as it's created.)
+When the current focus is done, edit `current-focus.md` in place to
+describe the new focus. Don't create `current-focus-2.md`. The history
+of focus changes lives in git log.
 
-- _none yet_
+## Index
+
+- [Current focus](current-focus.md) — what's actively being built right now.
+- [Epic 01](epic-01-peer-awareness-and-sos.md) — Pilots in the same area
+  see each other and signal for help without cell service. (End goal.)
