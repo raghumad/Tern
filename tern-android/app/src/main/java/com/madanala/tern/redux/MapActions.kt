@@ -12,7 +12,7 @@ import com.madanala.tern.model.TernBoundingBox
  * Redux actions for map functionality
  */
 
-sealed class MapAction {
+sealed class MapAction : TernAction {
 
     // Permission actions
     object RequestLocationPermission : MapAction()
@@ -139,7 +139,7 @@ sealed class OverlayActions {
 /**
  * Weather-specific Redux actions for PG spot weather management
  */
-sealed class WeatherActions {
+sealed class WeatherActions : TernAction {
     // Weather data fetching and caching for PG Spots
     data class FetchWeatherForPGSpot(val pgSpotId: String, val latitude: Double, val longitude: Double) : WeatherActions()
     data class WeatherFetched(val pgSpotId: String, val forecast: com.madanala.tern.utils.WeatherForecast?) : WeatherActions()

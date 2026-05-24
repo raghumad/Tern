@@ -14,12 +14,12 @@ import android.util.Log
  * Middleware for handling async side effects in MapStore
  */
 interface Middleware {
-    suspend fun process(action: Any, store: MapStore)
+    suspend fun process(action: TernAction, store: MapStore)
 }
 
 class MapMiddleware(private val context: Context) : Middleware {
 
-    override suspend fun process(action: Any, store: MapStore) {
+    override suspend fun process(action: TernAction, store: MapStore) {
         when (action) {
             is MapAction.CheckSmartSuggestion -> {
                 handleCheckSmartSuggestion(action, store)

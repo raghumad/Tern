@@ -16,7 +16,7 @@ import java.time.Instant
  * The reducer is total over this sealed type — every variant has an
  * explicit branch and no branch throws.
  */
-sealed interface PeerAction {
+sealed interface PeerAction : com.madanala.tern.redux.TernAction {
 
     /**
      * A peer was heard from. Used to register a peer the moment any

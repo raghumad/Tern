@@ -26,7 +26,7 @@ class RoutePlanningMiddleware(
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.IO + Job())
 ) : Middleware {
 
-    override suspend fun process(action: Any, store: MapStore) {
+    override suspend fun process(action: TernAction, store: MapStore) {
         val state = store.state.value
         when (action) {
             is MapAction.SelectRoute -> {

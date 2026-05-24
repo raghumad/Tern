@@ -10,6 +10,7 @@ import kotlinx.coroutines.sync.withLock
 import org.osmdroid.util.GeoPoint
 import com.madanala.tern.mezulla.redux.PeerAction
 import com.madanala.tern.mezulla.redux.peerReducer
+import android.util.Log
 import java.util.concurrent.ConcurrentLinkedQueue
 
 /**
@@ -23,7 +24,7 @@ class MapStore : ViewModel() {
     val state = _state.asStateFlow()
 
     // State update batching for performance optimization
-    private val actionQueue = ConcurrentLinkedQueue<Any>()
+    private val actionQueue = ConcurrentLinkedQueue<TernAction>()
     private val batchMutex = Mutex()
     private var isProcessingBatch = false
 
@@ -80,7 +81,7 @@ class MapStore : ViewModel() {
             isProcessingBatch = true
 
             try {
-                val actions = mutableListOf<Any>()
+                val actions = mutableListOf<TernAction>()
 
                 // Collect actions up to batch size or timeout
                 var startTime = System.currentTimeMillis()
@@ -119,7 +120,7 @@ class MapStore : ViewModel() {
     /**
      * Process multiple actions as a single state update
      */
-    private suspend fun processBatchedActions(actions: List<Any>) {
+    private suspend fun processBatchedActions(actions: List<TernAction>) {
         if (actions.isEmpty()) return
 
         var currentState = _state.value
@@ -129,14 +130,7 @@ class MapStore : ViewModel() {
             // Process middleware side effects
             middlewares.forEach { it.process(action, this) }
 
-            currentState = when (action) {
-                is MapAction -> mapReducer(currentState, action)
-                is WeatherActions -> weatherReducer(currentState, action)
-                is PeerAction -> currentState.copy(
-                    peerState = peerReducer(currentState.peerState, action)
-                )
-                else -> currentState
-            }
+            currentState = reduceAction(currentState, action)
         }
 
         // Single state update for entire batch
@@ -191,5 +185,28 @@ class MapStore : ViewModel() {
             OverlayType.MEZULLA -> true // Always enabled
         }
         setOverlayEnabled(type, !currentEnabled)
+    }
+}
+
+/**
+ * Apply a single [TernAction] to [MapState] and return the new state.
+ *
+ * Every action family that flows through [MapStore] must have an explicit
+ * branch here. The `else` branch logs a warning and, in debug builds,
+ * throws — so a forgotten handler is caught during development rather
+ * than silently dropping an SOS alert in the field.
+ */
+internal fun reduceAction(state: MapState, action: TernAction): MapState = when (action) {
+    is MapAction -> mapReducer(state, action)
+    is WeatherActions -> weatherReducer(state, action)
+    is PeerAction -> state.copy(
+        peerState = peerReducer(state.peerState, action)
+    )
+    else -> {
+        Log.w("MapStore", "Unhandled action type: ${action::class.simpleName}")
+        if (com.madanala.tern.BuildConfig.DEBUG) {
+            error("Unhandled action type: ${action::class.simpleName}")
+        }
+        state
     }
 }
