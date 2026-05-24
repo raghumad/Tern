@@ -76,7 +76,9 @@ of focus changes lives in git log.
 
 ## Index
 
-- [Current focus](current-focus.md) — what's actively being built right now.
+- [Current focus](current-focus.md) — converge on passing a multi-pilot
+  flight-simulation BDD test (the "buddy-flying" test). Four parallel
+  workstreams; one north-star scenario.
 - [Epic 01](epic-01-peer-awareness-and-sos.md) — Pilots in the same area
   see each other and signal for help without cell service. (End goal.)
 - [Known issues](known-issues.md) — snapshot of regressions parked while

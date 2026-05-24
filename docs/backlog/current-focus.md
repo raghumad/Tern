@@ -1,153 +1,285 @@
-# Current focus: LoRa bring-up (single-board phase)
+# Current focus: pass the buddy-flying BDD test
 
 Working toward: [Epic 01](epic-01-peer-awareness-and-sos.md)
 
-## What this is
+## The convergence test (north star)
 
-The end-goal epic describes the full pilot-facing feature. **This file
-describes what we're actually doing right now** — the bare-minimum
-scaffolding we need before any pilot-visible LoRa work makes sense.
+A multi-pilot, flight-grade BDD scenario that loads real IGC flight logs
+(e.g. a team XC flight from XContest), runs them through a swarm
+simulator with a configurable LoRa propagation model, and validates
+that Tern — as one of those pilots, in the emulator — actually behaves
+correctly. With screenshots and logs at every step.
 
-When this focus area completes, update or replace this file with the
-next focus. Git history is the record of how focus has moved over time.
+In sketch form, the test reads like this:
 
-Only one `current-focus.md` exists at a time.
+```
+given the swarm from xcontest flight tonio24/25.04.2026
+  with pilot "tonio24" as the device under test
+  and pilots "antoine", "guillaume", "luc" as virtual peers
+  and a LoRa propagation model with a 15 km clear-air range
 
-## What we have to work with
+when the simulation runs from launch to landing
 
-- **One LilyGo T3 board** with built-in OLED. No second board yet.
-- **Phone** running Tern on the `mezulla` branch.
-- Anything that genuinely needs two physical boards (e.g. a real radio
-  link test) is deferred to the next focus once a second board arrives,
-  or we use a host-side simulator / phone-side mock peer / board loopback.
-  We don't block this focus on that.
+then the device under test sees all three peers on the map within
+     the first 60 seconds after launch
+ and at no point do all three peers go stale simultaneously while
+     in line of sight
+ and when "luc" flew behind the ridge at 12:34, his marker faded
+     within 30 seconds
+ and when "luc" emerged at 12:39, his marker recovered within 10
+     seconds
+ and if "antoine" had triggered an SOS at 13:11, "tonio24" would
+     have seen it on the map within 5 seconds
+```
 
-## Milestones in this focus
+This test passing is the milestone that proves mezulla actually works
+when pilots actually fly together — not "works in a unit test."
 
-In strict order — Milestone 2 starts after Milestone 1 is done.
+## Why a convergence test, not a checklist
 
-### Milestone 1 — One LilyGo T3 boots cleanly; OLED and serial work
+The previous AI built tests with names like
+`pilot_flies_bir_billing_himalayan_odyssey` that hardcoded waypoints,
+zoomed the map, and asserted UI text appears. The pilot never moved.
+Nothing flew. The framework forced screenshots but the screenshots
+were of static UI, not flying. The convergence test closes that hole
+by making the simulation faithful to real flight — there's nowhere
+for a "passing" test to mean something other than "this works."
 
-Flash the board with a minimal firmware. The OLED renders deterministic
-content; the serial console is usable for debugging and accepts a known
-command.
+See: [[project-tern-test-infrastructure-purpose]].
 
-**Definition of done.** Every item below verified on the actual board,
-with artifacts saved in this folder. *Done is not "tests passed" — it
-is "the pilot has watched this happen with his own eyes, repeatably."*
+## Honest starting state
 
-- Cold-boot the board 5 times in a row from a power cycle. Each boot
-  finishes within a known time budget (record what it actually is), the
-  OLED renders the test frame each time, and no run shows a boot loop
-  or panic on the serial console.
-- The serial console comes up at a known baud (115200 or whichever),
-  prints a parseable boot log, and accepts at least one debug command
-  (e.g. `ping` → `pong`, or `info` → board ID + firmware build hash).
-- The OLED holds a stable, deterministic frame for at least 5 minutes
-  with no artifacts, flicker, or driver crash.
-- Re-flashing from the build pipeline reproduces the same state — i.e.
-  the build is repeatable from a clean checkout.
+- **Exists and worth reusing:** `BddTest` framework with screenshot
+  capture per step; `ScreenshotHelper`, `VisualValidator`,
+  `MapVisualTest`, `TestCacheInjector`, `givenAppIsLaunchedOnMap`.
+- **Doesn't exist:** IGC parsing, flight playback engine, multi-pilot
+  time alignment, propagation model, swarm simulator, peer concept in
+  Tern's redux state, peer markers on the map, SOS alert UI, any
+  Meshtastic integration.
+- **Lying:** the existing competition-named tests claim flight
+  scenarios but only test UI. They are not evidence the app works.
 
-**Tests / evidence.**
+## Workstreams
 
-- A photo or short video of the OLED rendering the test frame.
-- The captured serial boot log saved as `current-focus-notes.md` (or a
-  sibling file in this folder), including timestamps and the cold-boot
-  duration measured across the 5 cycles.
-- A note in that file recording the firmware version / build hash that
-  produced this state.
+Four parallel streams. WS1, WS2, WS3 all gate the convergence test.
+WS4 (real hardware) is parallel — it validates the abstraction
+against real BLE but is not required for the convergence test to
+pass.
 
-### Milestone 2 — Phone ↔ board byte channel works (BLE, always-on)
+### WS1 — Swarm simulator (test infrastructure)
 
-Tern on Android (mezulla branch) maintains a BLE link to the LilyGo
-board. The connection is **always-on**: while the app is running, if
-the board is powered on and in range, the phone is connected to it.
-No "connect" button, no manual reconnect. The pilot never thinks about
-the link unless something is wrong.
+Builds the harness the convergence test runs in.
 
-**Transport: BLE.** USB is not in the picture — the cable is friction
-the pilot won't accept in flight.
+Milestones, in build order:
 
-**Behavior when the board is off / out of range:**
+- **1.1** IGC parser. Reads the FAI IGC text format into a list of
+  timestamped `(lat, lon, altitude)` fixes. Pure logic; unit-tested
+  on real IGC files.
+- **1.2** Multi-pilot time-aligned playback engine. Loads N IGCs,
+  exposes "at time T, what is each pilot's position?" with linear
+  interpolation between fixes.
+- **1.3** LoRa propagation model interface, with at least
+  `DistanceOnlyPropagation(maxRangeMeters)` as the first cut. Hooks
+  for adding `LineOfSightPropagation(demData)` later, without
+  refactoring callers.
+- **1.4** `SwarmSimulator`: combines playback + propagation. For each
+  virtual pilot at each tick, generates a Meshtastic-shaped position
+  packet, asks the propagation model who receives it, delivers to
+  subscribers via an event stream.
+- **1.5** BDD vocabulary extending the existing `BddTest`:
+  `given the swarm from <fixture>`, `with pilot <X> as the device
+  under test`, `with pilots <Y, Z> as virtual peers`, `with a LoRa
+  propagation model <…>`, `when the simulation runs from launch to
+  landing`.
+- **1.6** Real IGC fixtures committed in
+  `app/src/test/resources/igc/` — at least one team flight (the
+  tonio24 + airbuddies bundle, if its licensing allows, otherwise an
+  equivalent).
 
-- The app keeps working normally. No errors, no spinner, no blocking
-  state.
-- A discreet, non-blocking notification surfaces (in-app, plus
-  optionally an Android system notification) — something like "LoRa
-  board off — turn it on to use mesh features." Phrased as a friendly
+**Definition of done (WS1):** A smoke test loads the committed IGC
+bundle and asserts the simulator produces position packets at the
+expected times for each virtual pilot. Verified by reading the test
+log; failure prints a diff between expected and actual packet streams.
+
+### WS2 — `MeshtasticConnection` abstraction (Tern app)
+
+The interface both the simulator and real BLE plug into.
+
+- **2.1** Define `MeshtasticConnection` interface based on Meshtastic
+  protobuf schema. Events out: peer position, peer status / heartbeat,
+  alert (SOS), link state. Commands in: send our position, send
+  alert.
+- **2.2** Implement `SwarmSimulatedConnection : MeshtasticConnection`
+  that subscribes to a `SwarmSimulator` and surfaces its events
+  through the interface.
+- **2.3** Define a redux state slice for known peers
+  (id, last-known-position, last-seen-timestamp) and active alerts.
+- **2.4** Middleware that consumes `MeshtasticConnection` events and
+  dispatches the right redux actions.
+
+**Definition of done (WS2):** A test demonstrates a synthetic peer
+position event flows through `SwarmSimulatedConnection` → middleware
+→ redux state, observable in the store. Plus a test for the SOS
+event path.
+
+### WS3 — Peer rendering and alerts (Tern UI)
+
+The pilot-visible surface that the convergence test screenshots
+against.
+
+- **3.1** New map overlay for peer pilots, extending the existing
+  overlay system. One marker per known peer.
+- **3.2** Marker design: peer name / callsign, "last seen Xs ago"
+  indicator, fades visually as data goes stale, doesn't disappear
+  abruptly.
+- **3.3** SOS alert UI: high-priority surface that shows the sender
+  and their last known position. Dismissable; doesn't auto-clear.
+- **3.4** "No board" / "board off" discreet indicator. No error
+  modal. Not surfaced at all when no board has ever been paired.
+
+**Definition of done (WS3):** A BDD scenario in the swarm framework
+asserts: virtual peer broadcasts a position → marker appears on map
+(screenshot evidence) → marker fades after N seconds of no updates
+(screenshot evidence) → marker recovers when updates resume
+(screenshot evidence).
+
+### WS4 — Real-hardware comms (parallel, doesn't gate convergence)
+
+Validates the `MeshtasticConnection` abstraction works against real
+BLE. Minimal scope: just "can we talk to a real board." Connection
+lifecycle and pairing live in WS5.
+
+- **4.1** Identify exact LilyGo T3 model. Match to the right
+  Meshtastic firmware variant.
+- **4.2** **Automated flash script** committed at
+  `tern-android/scripts/flash-mezulla.sh` (or as a Gradle task).
+  Takes `PORT` and `VARIANT` args, pins a Meshtastic version,
+  downloads the right `.bin` from the GitHub release, runs
+  `esptool.py write_flash`, verifies via `meshtastic --info`.
+  Exits non-zero on any failure. No manual steps after the first
+  invocation.
+- **4.3** `BleConnection : MeshtasticConnection` skeleton — talks
+  to a specific board's GATT (hardcoded MAC for now), surfaces
+  Meshtastic events through the same interface as the simulator.
+  No pairing, no lifecycle smarts — that's WS5.
+- **4.4** Manual verification: board flashed, Tern connects to its
+  MAC, byte channel round-trips. Capture serial log + a short video.
+
+**Definition of done (WS4):** Tern can connect to a real flashed
+LilyGo board and exchange Meshtastic packets, indistinguishable from
+the simulator at the `MeshtasticConnection` interface level.
+Captured as video evidence saved alongside this focus file.
+
+### WS5 — Pairing and connection lifecycle (parallel)
+
+Bridges WS4's raw comms with the pilot-facing "I never think about
+pairing" experience. Split into two phases so we ship Phase 1
+quickly and the polish UX comes later.
+
+#### Phase 1 — Minimum viable pairing (now)
+
+Enough pairing to actually use Tern with a real board in the field
+while everything else gets built. Throwaway UX; replaced by Phase 2.
+
+- **5.1.1** Settings screen: BLE scan for nearby Meshtastic boards,
+  list them, pilot taps one to pair. Mark this UI explicitly as
+  throwaway in code (`@Deprecated("Phase 1 pairing — replace with
+  QR marriage flow in Phase 2")`).
+- **5.1.2** Persist the chosen board's identifier in Tern.
+- **5.1.3** Always-on auto-connect to the persisted board when it
+  appears. No manual reconnect button.
+- **5.1.4** Discreet "board off" notification when paired but
+  absent. Auto-clears when the board comes back. Phrased as a
   reminder, not an error.
-- The phone keeps quietly scanning. The moment the board powers on
-  (even mid-flight), Tern connects to it automatically and the
-  notification clears.
+- **5.1.5** Graceful no-board behavior: when nothing is paired,
+  the app surfaces no warning, no banner — silent.
+- **5.1.6** `SwarmSimulatedConnection` extended to mimic BLE
+  lifecycle events (board appears, board disappears) so all of
+  5.1.3–5.1.5 is testable in the emulator.
+- **5.1.7** BDD scenarios for the lifecycle flows in the emulator
+  + manual real-hardware validation.
 
-**Definition of done.** Every item verified on real hardware with the
-real `mezulla` branch of Tern. Artifacts saved.
+**Definition of done (WS5 Phase 1):** Pairing lifecycle BDD
+scenarios pass in the emulator; the same scenarios produce matching
+behavior with the real board (video evidence). Pilot can pair once
+via settings and then never think about pairing again.
 
-- **Round-trip echo.** Phone sends a known test pattern (e.g. a 16-byte
-  payload with a checksum). Board echoes the exact bytes back. Phone
-  confirms bit-exact match. Repeat 10 times in a row; record the round-
-  trip latency.
-- **Board-to-phone push.** Board sends a "hello" message at a fixed
-  cadence (say once per second). Phone receives them in order, no drops
-  over a 1-minute window, and they show up in `logcat`.
-- **Disconnect resilience.** Pull board power mid-session. The phone
-  surfaces a "board off" state cleanly — no crash, no error modal, no
-  spinner hang. The rest of the app continues to work normally.
-- **Auto-reconnect.** Restore board power. Phone reconnects on its own
-  within a short window (target: under 5 seconds; measure and record
-  what we actually get) with no user action.
-- **Cold start with board off.** Launch the app with the board off.
-  The full app works normally. The discreet "board off" notification
-  appears. Then turn the board on — phone connects automatically and
-  the notification clears.
-- **Cold start with no board ever paired.** Launch the app on a phone
-  that has never seen a board. Full app works as if LoRa support didn't
-  exist. No notification, no warnings — nothing surfaced.
+#### Phase 2 — QR marriage (deferred until Phase 1 ships)
 
-**Tests / evidence.**
+The pilot-facing polish UX. See
+[[project-tern-qr-pairing-model]] for the full design intent.
 
-- Captured `logcat` excerpt showing the 10-echo round-trip with measured
-  latencies.
-- A 60–90 second screen recording (phone) covering: cold start with
-  board off → notification appears → board turned on → auto-connect →
-  notification clears → board power pulled → disconnect surfaces →
-  board powered back on → auto-reconnect.
-- A note in `current-focus-notes.md` recording: round-trip latency
-  stats, time-to-reconnect after the board comes back, anything
-  surprising, any BLE quirks encountered.
+**We work from a local fork of Meshtastic from day one.** The
+upstream-vs-permanent-fork decision is deferred to release time
+(per [[project-tern-hardware-roadmap-and-openness]]) — by then we
+know what we actually changed and whether upstream will take it.
 
-## Out of scope for this focus
+- **5.2.1** Pairing protocol design doc — `tern://` URL format, QR
+  contents, claim-ownership packet on top of Meshtastic, board
+  reset trigger (long-press boot button 5s), security properties.
+- **5.2.2** Set up local Meshtastic build environment: clone,
+  build for the target LilyGo variant, flash from source. Replaces
+  the prebuilt `.bin` path from WS4.2 with our own build pipeline.
+- **5.2.3** Board firmware modifications (on our local Meshtastic
+  checkout): QR generation on ownerless boot, ownership state in
+  flash, claim-ownership packet handler, reset path.
+- **5.2.4** Tern: register `tern://` custom-scheme deep link
+  handler. Chosen over HTTPS App Link because pairing must work
+  offline at remote launch sites (see
+  [[project-tern-offline-first]]).
+- **5.2.5** Pairing flow logic in Tern: receive deep link →
+  connect → send claim-ownership → persist marriage locally.
+- **5.2.6** Replace the Phase 1 settings pair UI with the QR
+  scan flow. Settings now only *shows* the currently-paired board
+  and offers "forget."
+- **5.2.7** BDD scenarios for the QR pairing flow in the emulator
+  + manual real-hardware validation.
 
-- Real two-board LoRa link (need a second board; deferred).
-- Any pilot-visible feature — no position display, no peer markers, no
-  SOS, no pairing UX polish, no OLED status formatting beyond "the
-  display works." Each of those gets its own focus once this foundation
-  is solid.
-- Production-grade firmware. We're building enough to learn from. Cleanup
-  comes later.
+**Definition of done (WS5 Phase 2):** Pilot scans QR on a fresh
+board with phone camera → Tern launches → marriage completes →
+zero further pairing UI for the lifetime of that board.
 
-## Open questions to resolve during this focus
+**Risk guard:** don't cut a public release until Phase 2 lands.
+Phase 1 UI is internal/dev use only.
 
-- **Meshtastic firmware vs roll-your-own** at the board level. Start with
-  Meshtastic to see what we get for free; defer the long-term decision
-  until we know what its constraints actually cost us at the airtime
-  and message-format layer.
-- **Pairing model.** For this focus we can hardcode/auto-discover the
-  dev board (no pairing UX yet). But before this focus closes, we should
-  sketch how a real pilot pairs with their own board the first time —
-  even if implementation slides to a later focus.
-- **BLE scanning while the app is foregrounded vs backgrounded.** Pilots
-  typically have the app in the foreground in flight, so always-scanning
-  when foregrounded is fine. Background behavior can be cheaper. Decide
-  the policy before this closes.
-- **Two-board strategy for the next focus.** Once this is done, the next
-  focus involves two boards. Options to weigh then: buy a second board,
-  build a host-side LoRa simulator, or rely on board loopback for early
-  tests. No need to decide now — just don't forget the decision is
-  coming.
+## Convergence
 
-## When this focus completes
+The buddy-flying BDD test passes when **WS1 + WS2 + WS3** each meet
+their done criteria. **WS4 + WS5 Phase 1** prove the same
+abstraction works against real hardware. **WS5 Phase 2** layers on
+the polish UX. At the point all of those are done, this focus area
+is done and gets replaced.
 
-Update or replace this file. Likely next focus: "broadcast a position
-from one board over LoRa and see it on another (or simulated) peer's
-map in Tern."
+## Order of attack
+
+- **WS1** is the longest pole and has no dependencies — start there.
+- **WS2** can begin in parallel as soon as the
+  `MeshtasticConnection` interface shape is sketched (doesn't need
+  the simulator working yet).
+- **WS3** depends on WS2's redux slice.
+- **WS4** can start any time once WS2's interface is defined.
+- **WS5 Phase 1** depends on WS4 (real BLE) for hardware
+  validation, but the in-emulator BDD scenarios can start as soon
+  as WS2's lifecycle event types exist.
+- **WS5 Phase 2** is deferred until Phase 1 is solid.
+
+## Cleanup that comes along the way
+
+The misleading competition-named tests (`BirBillingCompetitionTest`,
+`ChamonixCompetitionTest`, `MonarcaCompetitionTest`,
+`AviationRoutePlanningTest`) need an honest reckoning. Most of their
+content is UI-only checks dressed up as flight scenarios. As parts
+of WS3 land, decide for each: keep as a renamed honest UI test, fold
+into a swarm scenario, or delete. Don't leave them claiming things
+they don't test.
+
+## Open questions to resolve along the way
+
+- **Exact LilyGo board model** (blocks WS4 start, not WS1–3).
+- **IGC fixture sourcing.** XContest's IGC files: what's the license
+  for committing them? If unclear, get permission or use equivalents
+  the user has rights to.
+- **Peer identity in Meshtastic.** Meshtastic uses node IDs; how do
+  we map those to pilot names / callsigns for display?
+- **SOS in Meshtastic.** Use the alert/emergency channel or define a
+  custom port? Decide before WS2's SOS path is finalized.
