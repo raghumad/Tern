@@ -14,6 +14,9 @@ import kotlinx.coroutines.flow.Flow
  *  - SwarmSimulatedConnection (WS2.2, not yet built) — drives the same
  *    interface from playback of recorded IGC flights, for the convergence
  *    BDD test.
+ *  - [com.madanala.tern.mezulla.connection.tcp.TcpMeshtasticConnection] —
+ *    talks to a Meshtastic node over TCP. Used for the dev-time emulator
+ *    workflow (board on WiFi) and as a real product feature.
  *  - BleConnection (WS4.3, not yet built) — talks to a real board over BLE.
  *
  * Design rationale (SOS path, peer identity surface, lifecycle granularity,
