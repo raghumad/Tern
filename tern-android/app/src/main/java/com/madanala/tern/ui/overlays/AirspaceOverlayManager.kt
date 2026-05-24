@@ -187,12 +187,13 @@ class AirspaceOverlayManager(
     override fun onOverlayDetached() {
         Log.d(TAG, "[$this] Airspace overlay manager detached from MapView@${System.identityHashCode(mapView)}")
 
-        // [LIFECYCLE FIX] Actually remove overlays from map on detach to prevent orphans
-        mapView?.let { map ->
+        // Remove overlays from the coordinator's airspace FolderOverlay on detach
+        val layer = mOverlayCoordinator?.getLayerForType(OverlayType.AIRSPACE)
+        if (layer != null) {
             val polygons = currentlyRenderedAirspaces.values.toList()
-            polygons.forEach { map.overlays.remove(it) }
-            map.invalidate()
-            Log.d(TAG, "[$this] Removed ${polygons.size} orphaned polygons from MapView on detach")
+            polygons.forEach { layer.remove(it) }
+            mapView?.invalidate()
+            Log.d(TAG, "[$this] Removed ${polygons.size} polygons from airspace layer on detach")
         }
 
         // Remove listener to prevent memory leaks
@@ -348,20 +349,14 @@ class AirspaceOverlayManager(
 
         if (invisibleNonCriticalAirspaces.isEmpty()) return 0
 
-        // Remove invisible non-critical airspaces
+        val layer = mOverlayCoordinator?.getLayerForType(OverlayType.AIRSPACE) ?: return 0
         var removedCount = 0
-        // DIRECT BYPASS: Remove invisible non-critical airspaces directly
         invisibleNonCriticalAirspaces.forEach { (airspaceId, polygon) ->
-             // Log.d(TAG, "Directly removing invisible airspace: $airspaceId")
-             mapView!!.overlays.remove(polygon)
+             layer.remove(polygon)
+             currentlyRenderedAirspaces.remove(airspaceId)
              removedCount++
         }
         mapView!!.invalidate()
-
-        // Update tracking
-        invisibleNonCriticalAirspaces.forEach { (airspaceId, _) ->
-            currentlyRenderedAirspaces.remove(airspaceId)
-        }
 
         return removedCount
     }
@@ -400,20 +395,14 @@ class AirspaceOverlayManager(
 
         if (airspacesInZone.isEmpty()) return 0
 
-        // Remove airspaces in this zone
+        val layer = mOverlayCoordinator?.getLayerForType(OverlayType.AIRSPACE) ?: return 0
         var removedCount = 0
-        // DIRECT BYPASS: Remove airspaces in zone directly
         airspacesInZone.forEach { (airspaceId, polygon) ->
-             // Log.d(TAG, "Directly removing zone airspace: $airspaceId")
-             mapView!!.overlays.remove(polygon)
+             layer.remove(polygon)
+             currentlyRenderedAirspaces.remove(airspaceId)
              removedCount++
         }
         mapView!!.invalidate()
-
-        // Update tracking
-        airspacesInZone.forEach { (airspaceId, _) ->
-            currentlyRenderedAirspaces.remove(airspaceId)
-        }
 
         return removedCount
     }
@@ -437,23 +426,13 @@ class AirspaceOverlayManager(
     }
 
     override fun clearOverlays() {
-        mapView?.let { map ->
-            // DIRECT BYPASS: Clear all airspaces directly
+        val layer = mOverlayCoordinator?.getLayerForType(OverlayType.AIRSPACE)
+        if (layer != null) {
             val polygonsToRemove = currentlyRenderedAirspaces.values.toList()
-
-            polygonsToRemove.forEach { polygon ->
-                map.overlays.remove(polygon)
-            }
-            map.invalidate()
-
-            // Clear tracking
-            currentlyRenderedAirspaces.clear()
-            // Log.d(TAG, "Directly cleared all airspace overlays")
-        } ?: run {
-            // No map view available - just clear tracking
-            currentlyRenderedAirspaces.clear()
-            // Log.d(TAG, "Cleared airspace tracking (no map view)")
+            polygonsToRemove.forEach { polygon -> layer.remove(polygon) }
+            mapView?.invalidate()
         }
+        currentlyRenderedAirspaces.clear()
     }
 
 
@@ -633,12 +612,12 @@ class AirspaceOverlayManager(
      * Remove overlays directly from the map and release to pool
      */
     private fun removeOverlaysFromMap(map: MapView, airspaceIdsToRemove: List<String>) {
+            val layer = mOverlayCoordinator?.getLayerForType(OverlayType.AIRSPACE)
             airspaceIdsToRemove.forEach { airspaceId ->
                 val polygon = currentlyRenderedAirspaces[airspaceId]
                 if (polygon != null) {
-                    map.overlays.remove(polygon)
+                    layer?.remove(polygon)
                     currentlyRenderedAirspaces.remove(airspaceId)
-                    // Release to universal pool for reuse
                     mOverlayCoordinator?.releasePolygon(polygon)
                 }
             }
@@ -683,39 +662,26 @@ class AirspaceOverlayManager(
                         return@withContext
                     }
 
+                    val layer = mOverlayCoordinator?.getLayerForType(OverlayType.AIRSPACE)
                     polygonsWithIds.forEach { pair ->
                         val (airspaceId, polygon) = pair
-                        
+
                         // [SOURCE OF TRUTH FIX] Explicitly initialize alpha based on current focus mode
                         // Prevents pooled polygons from appearing dimmed if they were acquired during focus mode
                         val zoomCategory = getCurrentZoomCategory()
                         val baseAlpha = if (zoomCategory.minZoom < com.madanala.tern.utils.ZoomCategory.REGIONAL_THRESHOLD) 0x20 else 0x40
                         val targetAlpha = if (_isFocusMode) (baseAlpha * 0.3f).toInt() else baseAlpha
-                        
+
                         polygon.fillPaint.alpha = targetAlpha
                         polygon.outlinePaint.alpha = Math.min(255, targetAlpha * 2)
-                        
+
                         currentlyRenderedAirspaces[airspaceId] = polygon
-                        insertOverlayAtCorrectDepth(map, polygon)
+                        layer?.add(polygon)
                     }
                     map.invalidate()
                     Log.d(TAG, "[$this] Added ${polygonsWithIds.size} airspaces to MapView@$originalMapHash (pooled)")
                 }
             }
-    }
-
-    /**
-     * Insert overlay at the correct depth (Index 0 = Bottom)
-     * Ensures Airspaces render BELOW Routes and PG Spots
-     */
-    private fun insertOverlayAtCorrectDepth(map: MapView, overlay: org.osmdroid.views.overlay.Overlay) {
-        // Simple Z-Index Strategy: Always add to bottom (index 0)
-        // This ensures Airspaces are covered by Routes/Spots
-        if (map.overlays.isNotEmpty()) {
-             map.overlays.add(0, overlay)
-        } else {
-             map.overlays.add(overlay)
-        }
     }
 
     /**

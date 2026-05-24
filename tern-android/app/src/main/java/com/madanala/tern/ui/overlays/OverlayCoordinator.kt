@@ -37,11 +37,10 @@ class OverlayCoordinator {
     // Store reference for cleanup
     private var mapView: MapView? = null
 
-    // Z-Index Layers
-    // Airspace Layer removed - Airspaces now render directly
-
-    private val pgSpotLayer = FolderOverlay()
+    // Z-Index Layers (bottom → top: routes, airspaces, PG spots, Mezulla peers)
     private val routeLayer = FolderOverlay()
+    private val airspaceLayer = FolderOverlay()
+    private val pgSpotLayer = FolderOverlay()
     private val mezullaLayer = FolderOverlay()
 
     // Universal country cache manager for all overlay types (Priority 0 fix)
@@ -189,22 +188,30 @@ class OverlayCoordinator {
                 reportGlobalOverlayUsage()
             }
         }
-        // 1. Airspaces (Bottom) - Handled directly by AirspaceOverlayManager (No FolderOverlay)
+        // Layer order (bottom → top): routes, airspaces, PG spots, Mezulla peers.
+        // Airspaces above routes so boundary lines aren't hidden by route lines.
+        // PG spots above airspaces so launch-site markers aren't hidden by zones.
+        // Mezulla peers always on top — pilot positions must never be obscured.
 
-        
-        // 2. PG Spots (Middle)
-        pgSpotLayer.name = "PG Spot Layer"
-        if (!mapView.overlays.contains(pgSpotLayer)) {
-            mapView.overlays.add(pgSpotLayer)
-        }
-        
-        // 3. Routes (Middle-top)
+        // 1. Routes (Bottom)
         routeLayer.name = "Route Layer"
         if (!mapView.overlays.contains(routeLayer)) {
             mapView.overlays.add(routeLayer)
         }
 
-        // 4. Mezulla peer markers (Top — peers always above routes/spots)
+        // 2. Airspaces
+        airspaceLayer.name = "Airspace Layer"
+        if (!mapView.overlays.contains(airspaceLayer)) {
+            mapView.overlays.add(airspaceLayer)
+        }
+
+        // 3. PG Spots
+        pgSpotLayer.name = "PG Spot Layer"
+        if (!mapView.overlays.contains(pgSpotLayer)) {
+            mapView.overlays.add(pgSpotLayer)
+        }
+
+        // 4. Mezulla peer markers (Top — peers always above everything)
         mezullaLayer.name = "Mezulla Layer"
         if (!mapView.overlays.contains(mezullaLayer)) {
             mapView.overlays.add(mezullaLayer)
@@ -282,7 +289,6 @@ class OverlayCoordinator {
             when (manager) {
                 is com.madanala.tern.ui.overlays.AirspaceOverlayManager -> {
                     manager.setCountryCacheManager(countryCache)
-                    // Coordinator decoupling: Airspaces manage their own rendering now
                 }
                 is com.madanala.tern.ui.overlays.PGSpotOverlayManager -> {
                     manager.setCountryCacheManager(countryCache)
@@ -628,9 +634,9 @@ class OverlayCoordinator {
         }
     }
 
-    private fun getLayerForType(type: OverlayType): FolderOverlay {
+    fun getLayerForType(type: OverlayType): FolderOverlay {
         return when (type) {
-            OverlayType.AIRSPACE -> throw IllegalStateException("Airspaces do not use FolderOverlay")
+            OverlayType.AIRSPACE -> airspaceLayer
             OverlayType.PG_SPOTS -> pgSpotLayer
             OverlayType.ROUTES -> routeLayer
             OverlayType.MEZULLA -> mezullaLayer
