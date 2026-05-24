@@ -52,10 +52,20 @@ See: [[project-tern-test-infrastructure-purpose]].
 - **Exists and worth reusing:** `BddTest` framework with screenshot
   capture per step; `ScreenshotHelper`, `VisualValidator`,
   `MapVisualTest`, `TestCacheInjector`, `givenAppIsLaunchedOnMap`.
-- **Doesn't exist:** IGC parsing, flight playback engine, multi-pilot
-  time alignment, propagation model, swarm simulator, peer concept in
-  Tern's redux state, peer markers on the map, SOS alert UI, any
-  Meshtastic integration.
+- **Already landed on `mezulla`:** IGC parser (WS1.1),
+  `MeshtasticConnection` interface + stub (WS2.1), automated
+  Meshtastic flash script verified on real hardware (WS4.2).
+- **Real IGC test data is in place:** four real flights from a
+  same-day team XC out of the Aravis (FR), 2026-04-25:
+  `flights/fr/2026-04-25-aravis-team-{tonio24,cbe,cor,lma}.igc`. The
+  first three launched together within 20 seconds from the same site;
+  `lma` launched 22 min later from ~30 km NE. The hand-crafted
+  `fixtures/synthetic-short-flight.igc` stays for parser edge-case
+  tests.
+- **Doesn't exist yet:** multi-pilot playback engine, scenario
+  manifest layer, propagation model, swarm simulator, peer concept in
+  Tern's redux state, peer markers on the map, SOS alert UI, real
+  `BleConnection` / `TcpConnection`, any pairing UX.
 - **Lying:** the existing competition-named tests claim flight
   scenarios but only test UI. They are not evidence the app works.
 
@@ -91,10 +101,13 @@ Milestones, in build order:
   under test`, `with pilots <Y, Z> as virtual peers`, `with a LoRa
   propagation model <…>`, `when the simulation runs from launch to
   landing`.
-- **1.6** Real IGC fixtures committed in
-  `app/src/test/resources/igc/` — at least one team flight (the
-  tonio24 + airbuddies bundle, if its licensing allows, otherwise an
-  equivalent).
+- **1.6** Real IGC fixtures + scenario manifest layout under
+  `app/src/test/resources/igc/`. Real flights are already in place
+  for the 2026-04-25 Aravis team scenario (4 pilots: tonio24, cbe,
+  cor, lma). What's still pending: a scenario manifest format
+  (Kotlin data class for now; can migrate to YAML later) that names
+  pilots, points to their IGCs, and is referenced by BDD scenarios.
+  See `app/src/test/resources/igc/README.md` for the layout.
 
 **Definition of done (WS1):** A smoke test loads the committed IGC
 bundle and asserts the simulator produces position packets at the
@@ -168,7 +181,44 @@ lifecycle and pairing live in WS5.
 **Definition of done (WS4):** Tern can connect to a real flashed
 LilyGo board and exchange Meshtastic packets, indistinguishable from
 the simulator at the `MeshtasticConnection` interface level.
-Captured as video evidence saved alongside this focus file.
+
+**Human test (required for done):** With the real `mezulla` board
+plugged in and Tern installed on the user's physical Android phone,
+the user performs a scripted byte-channel round-trip end-to-end and
+captures evidence (logcat + a short video). Automated tests passing
+in the emulator do **not** close WS4 by themselves — see
+[[project-tern-human-tests]].
+
+### WS4.5 — `TcpMeshtasticConnection` (dev convenience + future feature)
+
+A second concrete implementation of `MeshtasticConnection` that talks
+to a Meshtastic node over TCP, not BLE. Two reasons to exist:
+
+- **Dev workflow today.** The Android emulator can't pass through the
+  host's Bluetooth radio. Running Tern in the emulator and having it
+  talk to a real mezulla on the same laptop requires either a
+  serial-to-TCP bridge on the host (`socat`) or putting mezulla on
+  the local WiFi so the board exposes its TCP API. Either way, the
+  emulator-side code path is TCP, not BLE.
+- **Real product feature.** A pilot who keeps the board on their home
+  WiFi for charging can legitimately use the TCP path. The
+  abstraction earns its keep twice.
+
+Milestones:
+
+- **4.5.1** Pick the dev-time bridging approach: socat-bridge of
+  `/dev/ttyACM0` (no WiFi setup) vs configuring mezulla's WiFi to
+  join the host's network. Pick the one that works first; document.
+- **4.5.2** Implement `TcpMeshtasticConnection` against Meshtastic's
+  TCP framing.
+- **4.5.3** A BDD scenario or smoke test that runs Tern in the
+  emulator, connects to the real mezulla over the chosen TCP path,
+  and observes the board's own node info come through.
+
+**Definition of done (WS4.5):** With Tern running in the emulator
+and the user's real mezulla reachable via the chosen TCP transport,
+Tern observes mezulla's `NodeInfo` and any position packets it
+sends. Captured as a short screen recording.
 
 ### WS5 — Pairing and connection lifecycle (parallel)
 
@@ -200,9 +250,16 @@ while everything else gets built. Throwaway UX; replaced by Phase 2.
   + manual real-hardware validation.
 
 **Definition of done (WS5 Phase 1):** Pairing lifecycle BDD
-scenarios pass in the emulator; the same scenarios produce matching
-behavior with the real board (video evidence). Pilot can pair once
-via settings and then never think about pairing again.
+scenarios pass in the emulator.
+
+**Human test (required for done):** With the user's real Android
+phone running the mezulla build and the real LilyGo board, the user
+performs the pair-once flow, restarts the app, confirms the board
+auto-connects, powers the board off and confirms the "board off"
+notification appears, powers the board on and confirms auto-reconnect
+clears the notification. Captured as a 60–90s screen recording. The
+emulator BDD pass does **not** close Phase 1 by itself — see
+[[project-tern-human-tests]].
 
 #### Phase 2 — QR marriage (deferred until Phase 1 ships)
 
@@ -235,9 +292,17 @@ know what we actually changed and whether upstream will take it.
 - **5.2.7** BDD scenarios for the QR pairing flow in the emulator
   + manual real-hardware validation.
 
-**Definition of done (WS5 Phase 2):** Pilot scans QR on a fresh
-board with phone camera → Tern launches → marriage completes →
-zero further pairing UI for the lifetime of that board.
+**Definition of done (WS5 Phase 2):** QR pairing BDD scenarios pass
+in the emulator.
+
+**Human test (required for done):** The user takes a freshly-reset
+real board, scans the on-OLED QR with the phone's native camera, and
+the marriage completes end-to-end. Repeat the test with a second
+"pilot" (different phone or freshly-reset Tern install) scanning the
+same board to confirm the second marriage replaces the first.
+Captured as a screen recording of each phone plus a photo of the
+board through the flow. The emulator BDD pass does **not** close
+Phase 2 by itself — see [[project-tern-human-tests]].
 
 **Risk guard:** don't cut a public release until Phase 2 lands.
 Phase 1 UI is internal/dev use only.
@@ -247,8 +312,14 @@ Phase 1 UI is internal/dev use only.
 The buddy-flying BDD test passes when **WS1 + WS2 + WS3** each meet
 their done criteria. **WS4 + WS5 Phase 1** prove the same
 abstraction works against real hardware. **WS5 Phase 2** layers on
-the polish UX. At the point all of those are done, this focus area
-is done and gets replaced.
+the polish UX. At the point all of those are done **and the human
+tests in WS4 / WS5 have been performed and captured as evidence**,
+this focus area is done and gets replaced.
+
+The buddy-flying BDD test passing in the emulator is necessary but
+not sufficient. See [[project-tern-human-tests]] — every workstream
+that touches real hardware has a human test step that closes it,
+separate from the automated tests.
 
 ## Order of attack
 

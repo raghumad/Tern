@@ -9,13 +9,18 @@ import java.time.LocalDate
 /**
  * Tests for [IgcParser].
  *
- * The fixture `synthetic_short_flight.igc` is a hand-crafted IGC file
- * checked into `app/src/test/resources/igc/`. It was written for this
- * test rather than sourced from XContest / OnlineContest because the
- * licensing of individual pilot uploads on those sites is unclear:
- * the platforms hold the database rights but each IGC belongs to the
- * pilot who uploaded it. A synthetic fixture sidesteps that and
- * gives us exact ground-truth values to assert against.
+ * The fixture `fixtures/synthetic-short-flight.igc` is a hand-crafted
+ * IGC file checked into `app/src/test/resources/igc/fixtures/`. It
+ * was written for this test rather than sourced from XContest /
+ * OnlineContest because the licensing of individual pilot uploads on
+ * those sites is unclear: the platforms hold the database rights but
+ * each IGC belongs to the pilot who uploaded it. A synthetic fixture
+ * sidesteps that and gives us exact ground-truth values to assert
+ * against.
+ *
+ * Real flight logs (for the swarm-simulator scenarios) live alongside
+ * under `flights/<region>/` and are referenced by the scenario
+ * manifests under `scenarios/`. See `igc/README.md`.
  *
  * The fixture contains 11 B-records:
  *  - 10 well-formed records, one of which is flagged 'V' (invalid).
@@ -26,7 +31,7 @@ class IgcParserTest {
 
     private fun loadFixture(): String =
         requireNotNull(
-            javaClass.getResourceAsStream("/igc/synthetic_short_flight.igc")
+            javaClass.getResourceAsStream("/igc/fixtures/synthetic-short-flight.igc")
         ) { "test fixture not on classpath" }
             .bufferedReader()
             .use { it.readText() }
