@@ -79,3 +79,5 @@ of focus changes lives in git log.
 - [Current focus](current-focus.md) — what's actively being built right now.
 - [Epic 01](epic-01-peer-awareness-and-sos.md) — Pilots in the same area
   see each other and signal for help without cell service. (End goal.)
+- [Known issues](known-issues.md) — snapshot of regressions parked while
+  focus is on LoRa. Not a to-do for now; revisit when focus shifts.
