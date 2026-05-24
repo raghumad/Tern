@@ -321,6 +321,39 @@ not sufficient. See [[project-tern-human-tests]] — every workstream
 that touches real hardware has a human test step that closes it,
 separate from the automated tests.
 
+## Known deviations from real LoRa (deliberate, deferred)
+
+The simulator is a **development-velocity tool first**, fidelity tool
+second (see [[project-tern-simulator-purpose]]). We build the happy
+path assuming the radio layer just works; chaos modeling is deferred.
+
+These deviations are known and intentional in this focus area:
+
+- **No mesh repeats.** Real Meshtastic hops packets through
+  intermediate nodes; `DistanceOnlyPropagation` only models direct
+  point-to-point. Peers that are out of direct range will not appear
+  in the simulator even if they would in real life via a relay.
+- **No collisions / airtime / duty-cycle.** Every broadcast that
+  passes the propagation check is delivered to every in-range pilot.
+  Real LoRa shared-frequency collisions are not modeled.
+- **No smart broadcast.** The simulator broadcasts position on a
+  fixed periodic interval. Real Meshtastic adjusts cadence based on
+  movement.
+- **No real BLE transport.** Events flow directly into
+  `PeerMiddleware`. BLE quirks (drops, GATT timeouts, MTU
+  reassembly, latency spikes) are not exercised.
+- **No GPS receiver noise.** IGC fixes are post-smoothed; real radios
+  broadcast positions with chip-level jitter.
+- **Single DUT per run.** One Tern instance plays one pilot; others
+  are virtual. Symmetric N-pilot interaction would require running
+  the scenario N times with each pilot as DUT.
+
+These will become explicit "chaos monkey" upgrade workstreams later,
+focused on hardening Tern against real-world conditions. They are
+**not** prerequisites for the convergence test being meaningful —
+real-world correctness comes from human tests (see
+[[project-tern-human-tests]]), not from simulator realism.
+
 ## Order of attack
 
 - **WS1** is the longest pole and has no dependencies — start there.
