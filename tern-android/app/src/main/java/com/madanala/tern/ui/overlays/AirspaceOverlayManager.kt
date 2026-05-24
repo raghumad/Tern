@@ -407,23 +407,6 @@ class AirspaceOverlayManager(
         return removedCount
     }
 
-    /**
-     * Preserve safety-critical overlays during emergency cleanup
-     */
-    override fun preserveSafetyCriticalOverlays(): Int {
-        if (currentlyRenderedAirspaces.isEmpty()) return 0
-
-        val mapCenter = mapView?.mapCenter as? GeoPoint ?: return 0
-        val coreZoneThreshold = com.madanala.tern.utils.DistanceZone.CORE.maxKm
-
-        // Find safety-critical airspaces in CORE zone
-        val safetyCriticalAirspaces = currentlyRenderedAirspaces.entries.filter { (_, polygon) ->
-            val distance = getDistanceFromCenter(polygon, mapCenter)
-            distance <= coreZoneThreshold
-        }
-
-        return safetyCriticalAirspaces.size
-    }
 
     override fun clearOverlays() {
         val layer = mOverlayCoordinator?.getLayerForType(OverlayType.AIRSPACE)

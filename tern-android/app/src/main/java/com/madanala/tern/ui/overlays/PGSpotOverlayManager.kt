@@ -1252,24 +1252,6 @@ class PGSpotOverlayManager(
         return removedCount
     }
 
-    /**
-     * Preserve safety-critical PG spot overlays during emergency cleanup
-     * PG spots in CORE zone are considered safety-critical for immediate landing options
-     */
-    override fun preserveSafetyCriticalOverlays(): Int {
-        if (currentlyRenderedPGSpots.isEmpty()) return 0
-
-        val mapCenter = mapView?.mapCenter ?: return 0
-        val coreZoneThreshold = DistanceZone.CORE.maxKm
-
-        // Find safety-critical PG spots in CORE zone (closest landing options)
-        val safetyCriticalSpots = currentlyRenderedPGSpots.entries.filter { (_, pgSpotMarker) ->
-            val distance = calculateDistanceFromUser(pgSpotMarker.center)
-            distance <= coreZoneThreshold
-        }
-
-        return safetyCriticalSpots.size
-    }
 
     override fun clearOverlays() {
         mapView?.let { map ->

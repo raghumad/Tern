@@ -293,45 +293,6 @@ class AdaptiveOverlaySystem(private val context: Context) {
         }
     }
 
-    /**
-     * Get emergency cleanup recommendation
-     */
-    fun getEmergencyCleanupRecommendation(): EmergencyCleanupRecommendation {
-        val memoryState = getCurrentMemoryState()
-        val currentBudget = getOptimalOverlayBudget()
-
-        return when (memoryState.calculatedPressure) {
-            MemoryPressureLevel.CRITICAL_MEMORY -> {
-                EmergencyCleanupRecommendation(
-                    shouldCleanup = true,
-                    targetReduction = 0.6, // Reduce to 40% of current
-                    preserveSafetyCritical = true,
-                    recommendedZonesToClear = listOf(DistanceZone.EXTREME, DistanceZone.FAR, DistanceZone.MID),
-                    reason = "Critical memory pressure - emergency cleanup required"
-                )
-            }
-
-            MemoryPressureLevel.LOW_MEMORY -> {
-                EmergencyCleanupRecommendation(
-                    shouldCleanup = true,
-                    targetReduction = 0.3, // Reduce to 70% of current
-                    preserveSafetyCritical = true,
-                    recommendedZonesToClear = listOf(DistanceZone.EXTREME, DistanceZone.FAR),
-                    reason = "Low memory - moderate cleanup recommended"
-                )
-            }
-
-            else -> {
-                EmergencyCleanupRecommendation(
-                    shouldCleanup = false,
-                    targetReduction = 0.0,
-                    preserveSafetyCritical = true,
-                    recommendedZonesToClear = emptyList(),
-                    reason = "Memory pressure normal - no cleanup needed"
-                )
-            }
-        }
-    }
 
     /**
      * Start continuous memory monitoring with callbacks
@@ -440,17 +401,6 @@ data class OverlayBudget(
                 "zones=${zoneBudgets.size})"
     }
 }
-
-/**
- * Emergency cleanup recommendation for memory pressure situations
- */
-data class EmergencyCleanupRecommendation(
-    val shouldCleanup: Boolean,
-    val targetReduction: Double, // Fraction to reduce (0.3 = reduce to 70%)
-    val preserveSafetyCritical: Boolean,
-    val recommendedZonesToClear: List<DistanceZone>,
-    val reason: String
-)
 
 /**
  * Comprehensive system status for debugging and monitoring

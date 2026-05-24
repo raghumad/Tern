@@ -23,16 +23,6 @@ import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 
-// Emergency cleanup result for memory pressure situations
-data class EmergencyCleanupResult(
-    val success: Boolean,
-    val overlaysRemoved: Int,
-    val zonesCleared: List<com.madanala.tern.utils.DistanceZone>,
-    val invisibleOverlaysRemoved: Int = 0,
-    val safetyCriticalPreserved: Int = 0,
-    val reason: String
-)
-
 /**
  * [RSE] Ranking Tier for spatial features.
  * Ensures strict information hierarchy to prevent "Priority Jams".
@@ -606,110 +596,42 @@ abstract class BaseOverlayManager(
         return adaptiveOverlaySystem?.shouldTriggerEmergencyCleanup() ?: false
     }
 
-    /**
-     * Get emergency cleanup recommendation
-     */
-    fun getEmergencyCleanupRecommendation(): com.madanala.tern.utils.EmergencyCleanupRecommendation? {
-        return adaptiveOverlaySystem?.getEmergencyCleanupRecommendation()
-    }
+    // Goal: when memory is low, shed overlays from least to most important until pressure eases.
+    // Zones to clear are ordered farthest-first (EXTREME, FAR, MID). CORE and NEAR are never shed.
+    // The "no overlays" and "shed everything" cases fall out naturally: the loop just does zero or
+    // all iterations.
+    fun triggerEmergencyCleanup(): Int {
+        val pressure = adaptiveOverlaySystem?.getCurrentMemoryState()?.calculatedPressure
+            ?: return 0
 
-    /**
-     * Trigger emergency cleanup with aviation safety preservation and viewport awareness
-     */
-    fun triggerEmergencyCleanup(): EmergencyCleanupResult {
-        val recommendation = getEmergencyCleanupRecommendation()
-
-        if (recommendation == null || !recommendation.shouldCleanup) {
-            return EmergencyCleanupResult(
-                success = false,
-                overlaysRemoved = 0,
-                zonesCleared = emptyList(),
-                reason = "No cleanup needed"
-            )
+        val zonesToClear = when (pressure) {
+            MemoryPressureLevel.CRITICAL_MEMORY ->
+                listOf(DistanceZone.EXTREME, DistanceZone.FAR, DistanceZone.MID)
+            MemoryPressureLevel.LOW_MEMORY ->
+                listOf(DistanceZone.EXTREME, DistanceZone.FAR)
+            else -> return 0
         }
 
-        Log.w(TAG, "🚨 ENHANCED EMERGENCY CLEANUP: ${recommendation.reason}")
-
-        return try {
-            var totalRemoved = 0
-            val zonesCleared = mutableListOf<com.madanala.tern.utils.DistanceZone>()
-            var invisibleRemoved = 0
-
-            // Phase 1: Remove invisible overlays first (most memory-efficient)
-            invisibleRemoved = removeInvisibleOverlays()
-            totalRemoved += invisibleRemoved
-            if (invisibleRemoved > 0) {
-                // Log.d(TAG, "🚀 Viewport cleanup: Removed $invisibleRemoved invisible overlays (most efficient)")
-            } else {
-                // Log.d(TAG, "Viewport cleanup: No invisible overlays found")
-            }
-
-            // Phase 2: Clear distance zones in reverse priority order (safest first)
-            val zonesToClear = recommendation.recommendedZonesToClear
-            zonesToClear.forEach { zone ->
-                val removedInZone = clearOverlaysInZone(zone)
-                totalRemoved += removedInZone
-                if (removedInZone > 0) {
-                    zonesCleared.add(zone)
-                }
-                // Log.d(TAG, "Zone cleanup: Removed $removedInZone overlays from ${zone.name} zone")
-            }
-
-            // Always preserve safety-critical zones
-            val safetyCriticalPreserved = preserveSafetyCriticalOverlays()
-
-            // Log cleanup efficiency summary
-            val efficiencyImprovement = if (invisibleRemoved > 0) {
-                " (${invisibleRemoved} invisible + ${totalRemoved - invisibleRemoved} distance-based)"
-            } else {
-                " (${totalRemoved} distance-based)"
-            }
-
-            Log.i(TAG, "✅ Enhanced cleanup complete: Removed $totalRemoved overlays$efficiencyImprovement, preserved $safetyCriticalPreserved safety-critical")
-
-            EmergencyCleanupResult(
-                success = true,
-                overlaysRemoved = totalRemoved,
-                zonesCleared = zonesCleared,
-                invisibleOverlaysRemoved = invisibleRemoved,
-                safetyCriticalPreserved = safetyCriticalPreserved,
-                reason = "Enhanced cleanup: ${recommendation.reason}"
-            )
-
-        } catch (e: Exception) {
-            Log.e(TAG, "Error during enhanced emergency cleanup", e)
-            EmergencyCleanupResult(
-                success = false,
-                overlaysRemoved = 0,
-                zonesCleared = emptyList(),
-                reason = "Enhanced cleanup failed: ${e.message}"
-            )
+        var removed = removeInvisibleOverlays()
+        for (zone in zonesToClear) {
+            removed += clearOverlaysInZone(zone)
         }
+
+        if (removed > 0) {
+            Log.w(TAG, "Emergency cleanup: shed $removed overlays (pressure=${pressure.name})")
+        }
+        return removed
     }
 
     /**
-     * Remove overlays that are not visible in the current viewport (most memory-efficient)
+     * Remove overlays not visible in the current viewport. Override in subclasses.
      */
-    protected open fun removeInvisibleOverlays(): Int {
-        // Default implementation - subclasses should override for viewport-specific cleanup
-        return 0
-    }
+    protected open fun removeInvisibleOverlays(): Int = 0
 
     /**
-     * Clear overlays in a specific distance zone
+     * Remove overlays in a specific distance zone. Override in subclasses.
      */
-    protected open fun clearOverlaysInZone(zone: com.madanala.tern.utils.DistanceZone): Int {
-        // Default implementation - subclasses should override for zone-specific cleanup
-        return 0
-    }
-
-    /**
-     * Preserve safety-critical overlays during emergency cleanup
-     */
-    protected open fun preserveSafetyCriticalOverlays(): Int {
-        // Default implementation - subclasses should override for safety-critical preservation
-        return 0
-    }
+    protected open fun clearOverlaysInZone(zone: DistanceZone): Int = 0
 
     /**
      * Called when memory state changes - override in subclasses for custom behavior
