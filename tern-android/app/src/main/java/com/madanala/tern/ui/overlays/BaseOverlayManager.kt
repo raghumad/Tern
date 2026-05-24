@@ -382,6 +382,7 @@ abstract class BaseOverlayManager(
                 OverlayType.AIRSPACE -> state.overlayState.airspaces
                 OverlayType.PG_SPOTS -> state.overlayState.pgSpots
                 OverlayType.ROUTES -> state.overlayState.routes
+                OverlayType.MEZULLA -> OverlayConfig(enabled = true) // Always enabled when board is connected
             }
         }
         // Default config when no Redux store (all enabled for stability)

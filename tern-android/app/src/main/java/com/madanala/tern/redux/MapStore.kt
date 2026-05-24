@@ -8,6 +8,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.osmdroid.util.GeoPoint
+import com.madanala.tern.mezulla.redux.PeerAction
+import com.madanala.tern.mezulla.redux.peerReducer
 import java.util.concurrent.ConcurrentLinkedQueue
 
 /**
@@ -47,11 +49,13 @@ class MapStore : ViewModel() {
 
     fun dispatch(action: WeatherActions) {
         actionQueue.offer(action)
+        if (!isProcessingBatch) {
+            processBatchAsync()
+        }
+    }
 
-        // Record for performance monitoring (debug only) - REMOVED to avoid double counting
-        // recordStateUpdate()
-
-        // Trigger immediate processing if not already processing
+    fun dispatch(action: PeerAction) {
+        actionQueue.offer(action)
         if (!isProcessingBatch) {
             processBatchAsync()
         }
@@ -128,6 +132,9 @@ class MapStore : ViewModel() {
             currentState = when (action) {
                 is MapAction -> mapReducer(currentState, action)
                 is WeatherActions -> weatherReducer(currentState, action)
+                is PeerAction -> currentState.copy(
+                    peerState = peerReducer(currentState.peerState, action)
+                )
                 else -> currentState
             }
         }
@@ -181,6 +188,7 @@ class MapStore : ViewModel() {
             OverlayType.AIRSPACE -> _state.value.overlayState.airspaces.enabled
             OverlayType.PG_SPOTS -> _state.value.overlayState.pgSpots.enabled
             OverlayType.ROUTES -> _state.value.overlayState.routes.enabled
+            OverlayType.MEZULLA -> true // Always enabled
         }
         setOverlayEnabled(type, !currentEnabled)
     }

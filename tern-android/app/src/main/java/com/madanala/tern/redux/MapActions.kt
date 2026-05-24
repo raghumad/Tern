@@ -2,6 +2,7 @@ package com.madanala.tern.redux
 
 import org.osmdroid.util.GeoPoint
 
+import com.madanala.tern.mezulla.redux.PeerAction
 import com.madanala.tern.model.Waypoint
 import com.madanala.tern.model.Route
 import com.madanala.tern.model.LocationType
@@ -116,6 +117,13 @@ sealed class MapAction {
     // UI State Actions
     object ToggleRoutePanelExpanded : MapAction()
     data class SetRoutePanelExpanded(val expanded: Boolean) : MapAction()
+
+    // Mezulla view mode
+    object CycleMezullaViewMode : MapAction()
+    data class SetMezullaViewMode(val mode: MezullaViewMode) : MapAction()
+
+    // SOS dismiss (UI concept, not protocol)
+    data class DismissSosAlert(val senderNodeNumber: Long) : MapAction()
 }
 
 /**

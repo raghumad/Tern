@@ -10,11 +10,10 @@ import java.time.Instant
  * paired Meshtastic board: known peers, active SOS alerts, and the current
  * link state.
  *
- * Lives alongside [com.madanala.tern.redux.MapState], not inside it. The
- * map slice is concerned with the pilot's own viewport, location and
- * routes; this slice is concerned with what the LoRa mesh reports about
- * other pilots. Keeping them separate means the map code carries no LoRa
- * concepts and the LoRa code carries no map concepts.
+ * Hosted as a sub-state inside [com.madanala.tern.redux.MapState.peerState].
+ * This keeps the store topology simple (one MapStore, one state tree) while
+ * preserving the reducer's independence: [peerReducer] is a standalone pure
+ * function with its own unit tests, called as a sub-reducer by MapStore.
  *
  * Graceful degradation: [empty] is the always-safe default. It is what
  * the UI sees before any LoRa event has arrived, before any board has
@@ -66,6 +65,25 @@ data class KnownPeer(
     val lastPosition: PeerPosition.Fix? = null,
     val lastTelemetry: PeerTelemetrySnapshot? = null,
     val lastSeenAt: Instant,
+
+    /**
+     * Derived climb rate in m/s from the two most recent position fixes.
+     * Positive = climbing, negative = sinking. Null when fewer than two
+     * fixes with altitude have arrived.
+     */
+    val climbRateMs: Double? = null,
+
+    /**
+     * Previous altitude (meters) used for climb-rate derivation.
+     * Kept on the peer so the reducer can compute the delta when the
+     * next fix arrives, without maintaining a separate history buffer.
+     */
+    val previousAltitude: Int? = null,
+
+    /**
+     * Timestamp of the previous fix used for climb-rate derivation.
+     */
+    val previousFixAt: Instant? = null,
 )
 
 /**

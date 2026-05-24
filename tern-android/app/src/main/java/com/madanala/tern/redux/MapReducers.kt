@@ -101,6 +101,19 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
     
     // Zoom to Route (Signalling action for Middleware)
     is MapAction.ZoomToRoute -> state
+
+    // Mezulla view mode
+    is MapAction.CycleMezullaViewMode -> state.copy(
+        mezullaViewMode = state.mezullaViewMode.next()
+    )
+    is MapAction.SetMezullaViewMode -> state.copy(
+        mezullaViewMode = action.mode
+    )
+
+    // SOS dismiss
+    is MapAction.DismissSosAlert -> state.copy(
+        dismissedSosAlerts = state.dismissedSosAlerts + action.senderNodeNumber
+    )
 }
 
 // Route Planning Constants
@@ -296,6 +309,7 @@ private fun handleOverlayActions(state: MapState, action: MapAction): MapState =
             OverlayType.AIRSPACE -> state.overlayState.copy(airspaces = state.overlayState.airspaces.copy(enabled = action.enabled))
             OverlayType.PG_SPOTS -> state.overlayState.copy(pgSpots = state.overlayState.pgSpots.copy(enabled = action.enabled))
             OverlayType.ROUTES -> state.overlayState.copy(routes = state.overlayState.routes.copy(enabled = action.enabled))
+            OverlayType.MEZULLA -> state.overlayState // Mezulla has no toggle in OverlayState; always on when peers exist
         }
         state.copy(overlayState = newOverlayState)
     }
@@ -304,6 +318,7 @@ private fun handleOverlayActions(state: MapState, action: MapAction): MapState =
             OverlayType.AIRSPACE -> state.overlayState.copy(airspaces = action.config)
             OverlayType.PG_SPOTS -> state.overlayState.copy(pgSpots = action.config)
             OverlayType.ROUTES -> state.overlayState.copy(routes = action.config)
+            OverlayType.MEZULLA -> state.overlayState // No per-type config for Mezulla
         }
         state.copy(overlayState = newOverlayState)
     }
@@ -733,5 +748,8 @@ fun weatherReducer(state: MapState, action: WeatherActions): MapState = when (ac
 fun combinedMapReducer(state: MapState, action: Any): MapState = when (action) {
     is MapAction -> mapReducer(state, action)
     is WeatherActions -> weatherReducer(state, action)
+    is com.madanala.tern.mezulla.redux.PeerAction -> state.copy(
+        peerState = com.madanala.tern.mezulla.redux.peerReducer(state.peerState, action)
+    )
     else -> state // Unknown actions pass through unchanged
 }

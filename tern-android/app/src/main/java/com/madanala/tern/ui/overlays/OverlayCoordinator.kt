@@ -42,6 +42,7 @@ class OverlayCoordinator {
 
     private val pgSpotLayer = FolderOverlay()
     private val routeLayer = FolderOverlay()
+    private val mezullaLayer = FolderOverlay()
 
     // Universal country cache manager for all overlay types (Priority 0 fix)
     private var countryCacheManager: com.madanala.tern.utils.UniversalCountryCacheManager? = null
@@ -197,10 +198,16 @@ class OverlayCoordinator {
             mapView.overlays.add(pgSpotLayer)
         }
         
-        // 3. Routes (Top)
+        // 3. Routes (Middle-top)
         routeLayer.name = "Route Layer"
         if (!mapView.overlays.contains(routeLayer)) {
             mapView.overlays.add(routeLayer)
+        }
+
+        // 4. Mezulla peer markers (Top — peers always above routes/spots)
+        mezullaLayer.name = "Mezulla Layer"
+        if (!mapView.overlays.contains(mezullaLayer)) {
+            mapView.overlays.add(mezullaLayer)
         }
 
         // Initialize adaptive overlay system for centralized memory management
@@ -624,9 +631,9 @@ class OverlayCoordinator {
     private fun getLayerForType(type: OverlayType): FolderOverlay {
         return when (type) {
             OverlayType.AIRSPACE -> throw IllegalStateException("Airspaces do not use FolderOverlay")
-
             OverlayType.PG_SPOTS -> pgSpotLayer
             OverlayType.ROUTES -> routeLayer
+            OverlayType.MEZULLA -> mezullaLayer
         }
     }
 

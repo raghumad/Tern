@@ -15,7 +15,24 @@ fun peerReducer(state: PeerState, action: PeerAction): PeerState = when (action)
 
     is PeerAction.PeerPositionReceived -> {
         val updatedPeers = state.peers.upsert(action.identity, action.receivedAt) { existing ->
-            existing.copy(lastPosition = action.fix)
+            val newAlt = action.fix.altitudeMeters
+            val prevAlt = existing.lastPosition?.altitudeMeters
+            val prevFixAt = existing.lastSeenAt
+
+            // Derive climb rate from successive fixes when both have altitude.
+            val climbRate = if (newAlt != null && prevAlt != null) {
+                val dtSeconds = java.time.Duration.between(prevFixAt, action.receivedAt).seconds.toDouble()
+                if (dtSeconds > 0.0) (newAlt - prevAlt).toDouble() / dtSeconds else null
+            } else {
+                null
+            }
+
+            existing.copy(
+                lastPosition = action.fix,
+                climbRateMs = climbRate ?: existing.climbRateMs,
+                previousAltitude = prevAlt ?: existing.previousAltitude,
+                previousFixAt = prevFixAt,
+            )
         }
         state.copy(peers = updatedPeers)
     }

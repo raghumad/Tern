@@ -13,15 +13,11 @@ import java.time.Instant
 /**
  * Bridges a [MeshtasticConnection] to a redux dispatcher for [PeerAction].
  *
- * Why a class with an injectable dispatcher and not a "real" redux
- * middleware: the existing [com.madanala.tern.redux.MapMiddleware] is
- * tightly coupled to [com.madanala.tern.redux.MapStore]. The peer slice
- * does not belong inside MapStore (per WS2.3 — "lives alongside, not
- * replacing"), so wiring through MapStore's middleware list would be
- * the wrong seam. Instead, this class takes a `dispatch` lambda and
- * leaves it to the caller to send actions wherever the peer slice
- * ultimately lives. The WS3 task that introduces a `PeerStore` (or
- * folds the slice into the existing store) wires that up.
+ * Takes a `dispatch` lambda rather than depending directly on
+ * [com.madanala.tern.redux.MapStore] so the middleware is testable
+ * without a ViewModel. In production, the caller wires `dispatch` to
+ * `MapStore.dispatch(PeerAction)`, which routes through the sub-reducer
+ * into [com.madanala.tern.redux.MapState.peerState].
  *
  * Threading: [start] launches a single collector coroutine on the
  * supplied [scope]. Cancelling that scope cancels the collector cleanly
