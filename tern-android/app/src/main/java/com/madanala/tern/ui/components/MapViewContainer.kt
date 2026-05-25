@@ -1,10 +1,4 @@
 package com.madanala.tern.ui.components
-import com.madanala.tern.model.LocationType
-
-// Phase 1: Core Lifecycle Fixes
-// - Replaced produceState with StateFlow for map rotation
-// - Added DisposableEffect for compose lifecycle management
-// - Kept launcher-based permission handling (rememberPermissionState from Accompanist had API issues)
 
 import android.util.Log
 import androidx.compose.foundation.layout.Box
@@ -13,136 +7,208 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.offset
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.madanala.tern.redux.MapStore
-import com.madanala.tern.redux.MapAction
-import com.madanala.tern.model.Route
-import com.madanala.tern.model.Waypoint
-import com.madanala.tern.ui.components.Compass
-import com.madanala.tern.ui.components.RoutePlanningHUD
-
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.madanala.tern.model.LocationType
+import com.madanala.tern.redux.MapAction
+import com.madanala.tern.redux.MapConstants
+import com.madanala.tern.redux.MapStore
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import org.maplibre.compose.camera.CameraMoveReason
+import org.maplibre.compose.camera.CameraPosition
+import org.maplibre.compose.camera.rememberCameraState
+import org.maplibre.compose.map.MaplibreMap
+import org.maplibre.compose.style.BaseStyle
+import org.maplibre.spatialk.geojson.Position
 import org.osmdroid.util.GeoPoint
 
-// UI Constants
+private const val TAG = "MapViewContainer"
 private val COMPASS_PADDING = 16.dp
 
-// Route Planning Constants
-// Route Planning Constants
-// private const val DEFAULT_ROUTE_NAME_PREFIX = "Route"
-// private const val WAYPOINT_LABEL_PREFIX = "WP"
-// private const val WAYPOINT_LABEL_SEPARATOR = "-"
-// private const val FIRST_ROUTE_INDEX = 1
+// Default center (roughly center of France — reasonable for a paragliding app
+// that starts without a GPS fix). Once the GPS acquires, Redux pushes the real
+// position and the map snaps to it.
+private const val DEFAULT_LAT = 45.8
+private const val DEFAULT_LON = 6.5
 
 @Composable
 fun MapViewContainer(
     modifier: Modifier = Modifier,
-    store: MapStore = viewModel()
+    store: MapStore = viewModel(),
 ) {
     val context = LocalContext.current
     val state by store.state.collectAsState()
     val hasLocationPermission = handleLocationPermissions(store)
+    val coroutineScope = rememberCoroutineScope()
 
-    // Register Middleware
+    // Register middleware (unchanged from OSMDroid version)
     LaunchedEffect(store) {
         store.addMiddleware(com.madanala.tern.redux.MapMiddleware(context.applicationContext))
         store.addMiddleware(com.madanala.tern.redux.RoutePlanningMiddleware(context.applicationContext))
         store.addMiddleware(com.madanala.tern.redux.WeatherMiddleware())
     }
 
-
-    // Core components
+    // MapViewModel still owns overlay lifecycle — disabled for M1 but kept
+    // so that M2-M5 can migrate one manager at a time.
     val mapViewModel: MapViewModel = viewModel()
 
-    // Smart Waypoint Creation State (Managed by Redux)
-    val smartSuggestionState = state.smartSuggestionState
-    val nearbyPGSpot = smartSuggestionState.nearbyPGSpot
-    val pendingWaypointCreation = smartSuggestionState.pendingWaypointCreation
-    val coroutineScope = rememberCoroutineScope()
-
-    // gestureHandler definition follows...
-    val gestureHandler = remember {
-        MapGestureHandler(
-            context,
-            store,
-            onLongPress = { geoPoint ->
-                // Check if we are adding to an existing route
-                val selectedRouteId = store.state.value.selectedRouteId
-                
-                if (selectedRouteId != null) {
-                    // Route selected -> Add directly (skip smart suggestion)
-                    // Route selected -> Add directly (skip smart suggestion)
-                    store.dispatch(MapAction.LongPressMap(geoPoint))
-                } else {
-                    // No route selected -> New route -> Try Smart Suggestion
-                    mapViewModel.checkForSmartSuggestion(geoPoint)
-                }
-            }
-        )
+    // Connect MapViewModel to the Redux store (needed for smart suggestion)
+    LaunchedEffect(store) {
+        mapViewModel.setMapStore(store)
     }
-    val locationService = ReduxLocationService(store)
 
-    // Setup map view lifecycle
-    setupMapViewLifecycle(mapViewModel.mapView, gestureHandler)
-
-    // Setup Redux integration
-    setupReduxIntegration(store, mapViewModel)
+    // Location service (Redux-driven, no OSMDroid dependency)
+    val locationService = remember(store) { ReduxLocationService(store) }
 
     // Setup location updates
     setupLocationUpdates(state.hasLocationPermission, locationService)
 
-    // Sync location state
-    syncLocationState(state.userLocation, state.isLocationReady)
+    // ──────────────────────────────────────────────────────────────────────
+    // MapLibre camera state — the single source of truth for what the user
+    // sees on screen.  Redux's MapState.center/zoom/rotation are the
+    // *application-level* source of truth; the CameraState is the
+    // *rendering-level* source of truth.  We keep them in sync below.
+    // ──────────────────────────────────────────────────────────────────────
 
-    // Redux migration: Collect rotation from global state
-    val mapRotation = state.rotation
+    val initialCenter = state.center
+    val initialZoom = state.zoom
 
-    // Smart Waypoint Dialog
+    val cameraState = rememberCameraState(
+        firstPosition = CameraPosition(
+            target = Position(
+                longitude = initialCenter?.longitude ?: DEFAULT_LON,
+                latitude = initialCenter?.latitude ?: DEFAULT_LAT,
+            ),
+            zoom = initialZoom,
+        )
+    )
+
+    // ── Redux → MapLibre (programmatic camera moves) ────────────────────
+    // When something external (GPS first fix, route zoom, bounding box)
+    // updates Redux's center/zoom, push that into the MapLibre camera.
+    // We skip updates that came from the user's own gesture (tracked via
+    // CameraMoveReason) to avoid feedback loops.
+    LaunchedEffect(store) {
+        store.state
+            .map { Triple(it.center, it.zoom, it.rotation) }
+            .distinctUntilChanged()
+            .collectLatest { (center, zoom, rotation) ->
+                // Only push Redux changes when the camera isn't being moved
+                // by the user's finger. If it IS a gesture, the MapLibre →
+                // Redux path (below) will update Redux to match.
+                if (cameraState.moveReason != CameraMoveReason.GESTURE) {
+                    center?.let {
+                        cameraState.animateTo(
+                            CameraPosition(
+                                target = Position(
+                                    longitude = it.longitude,
+                                    latitude = it.latitude,
+                                ),
+                                zoom = zoom,
+                                bearing = rotation.toDouble(),
+                            )
+                        )
+                    }
+                }
+            }
+    }
+
+    // Handle pending bounding box (e.g. ZoomToRoute)
+    LaunchedEffect(store) {
+        store.state
+            .map { it.pendingBoundingBox }
+            .distinctUntilChanged()
+            .collectLatest { box ->
+                if (box != null) {
+                    val bbox = org.maplibre.spatialk.geojson.BoundingBox(
+                        Position(box.minLon, box.minLat),
+                        Position(box.maxLon, box.maxLat),
+                    )
+                    cameraState.animateTo(bbox)
+                    // Clear pending so it doesn't re-trigger
+                    store.dispatch(MapAction.UpdateBoundingBox(null))
+                }
+            }
+    }
+
+    // ── MapLibre → Redux (user gestures) ────────────────────────────────
+    // When the user pans/zooms/rotates the map, propagate the new camera
+    // position back to Redux so overlays, location tracking, etc. stay
+    // in sync.
+    LaunchedEffect(cameraState) {
+        snapshotFlow { cameraState.position }
+            .distinctUntilChanged()
+            .collectLatest { pos ->
+                val target = pos.target
+                val lat = target.latitude
+                val lon = target.longitude
+
+                // Debounce is already handled by distinctUntilChanged on
+                // the snapshot flow.  We dispatch a single combined action
+                // so the reducer only fires once per camera frame.
+                store.dispatch(
+                    MapAction.UpdateMapMovement(
+                        rotation = pos.bearing.toFloat(),
+                        center = GeoPoint(lat, lon),
+                        zoom = pos.zoom,
+                    )
+                )
+            }
+    }
+
+    // Smart Waypoint Creation State (driven by Redux)
+    val smartSuggestionState = state.smartSuggestionState
+    val nearbyPGSpot = smartSuggestionState.nearbyPGSpot
+    val pendingWaypointCreation = smartSuggestionState.pendingWaypointCreation
+
+    // Smart Waypoint Dialog (unchanged from OSMDroid version)
     if (nearbyPGSpot != null && pendingWaypointCreation != null) {
-        val spotName = nearbyPGSpot?.feature?.get("properties")?.let { props ->
+        val spotName = nearbyPGSpot.feature?.get("properties")?.let { props ->
             (props as? Map<*, *>)?.get("name") as? String
         } ?: "Unknown Spot"
-        
-        val spotType = nearbyPGSpot?.feature?.get("properties")?.let { props ->
+
+        val spotType = nearbyPGSpot.feature?.get("properties")?.let { props ->
             (props as? Map<*, *>)?.get("siteType") as? String
         } ?: "Launch"
 
         AlertDialog(
             onDismissRequest = {
-                // Dismiss: Create at original clicked location
-                pendingWaypointCreation?.let { geoPoint ->
+                pendingWaypointCreation.let { geoPoint ->
                     store.dispatch(MapAction.LongPressMap(geoPoint))
                 }
                 mapViewModel.clearSmartSuggestionState()
             },
-            title = { Text("Nearby ${spotType.replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.getDefault()) else it.toString() }}") },
+            title = {
+                Text(
+                    "Nearby ${
+                        spotType.replaceFirstChar {
+                            if (it.isLowerCase()) it.titlecase(java.util.Locale.getDefault()) else it.toString()
+                        }
+                    }"
+                )
+            },
             text = { Text("Found nearby paragliding spot: \"$spotName\".\n\nDo you want to use this spot as your waypoint?") },
             confirmButton = {
-                androidx.compose.material3.TextButton(
+                TextButton(
                     onClick = {
-                        // Confirm: Create using PG spot location and type
-                        nearbyPGSpot?.let { feature ->
+                        nearbyPGSpot.let { feature ->
                             val centroid = feature.centroid
                             val type = if (spotType.equals("landing", ignoreCase = true)) LocationType.LANDING else LocationType.LAUNCH
                             store.dispatch(MapAction.LongPressMap(centroid, type, spotName))
@@ -154,10 +220,9 @@ fun MapViewContainer(
                 }
             },
             dismissButton = {
-                androidx.compose.material3.TextButton(
+                TextButton(
                     onClick = {
-                        // Dismiss: Create at original clicked location
-                        pendingWaypointCreation?.let { geoPoint ->
+                        pendingWaypointCreation.let { geoPoint ->
                             store.dispatch(MapAction.LongPressMap(geoPoint))
                         }
                         mapViewModel.clearSmartSuggestionState()
@@ -169,154 +234,64 @@ fun MapViewContainer(
         )
     }
 
+    // ──────────────────────────────────────────────────────────────────────
+    // Layout: MapLibre fills the entire Box.  Compose controls (compass,
+    // route HUD) are siblings that float on top — no AndroidView interop
+    // needed anymore.
+    // ──────────────────────────────────────────────────────────────────────
+
     Box(modifier = modifier.fillMaxSize()) {
-        // Redux-integrated MapView management
-        // MapViewModel connected via Redux store for overlay coordination
-        val mapView = mapViewModel.mapView
-
-        // Map view with gesture handling managed by MapGestureHandler
-        AndroidView(
-            factory = { ctx ->
-                // mapView already created and managed by MapViewModel
-                // Gesture handling is now managed by MapGestureHandler attached in DisposableEffect
-                mapView
-            },
-            modifier = Modifier
+        MaplibreMap(
+            Modifier
                 .fillMaxSize()
-                .testTag("map_view")
-        )
-
-        // 🎯 RFC 005: High-Fidelity Marker Overlay (Animations & Semantics)
-        // Renders markers as real Compose elements on top of the MapView
-        // to support active animations (hazard pulse/flash) and testability.
-        state.routes.filter { it.isVisible }.forEach { route ->
-            route.waypoints.forEach { waypoint ->
-                val forecast = state.weatherState.waypointWeathers[waypoint.id]
-                val isSelected = state.selectedWaypoint?.let { it.routeId == route.id && it.waypointId == waypoint.id } ?: false
-                
-                // Calculate screen position based on projection
-                // [STABILITY FIX] Use remember to avoid excessive projection lookups
-                val screenPoint = remember(waypoint.lat, waypoint.lon, state.center, state.zoom, state.rotation) {
-                    try {
-                        val point = GeoPoint(waypoint.lat, waypoint.lon)
-                        mapView.projection.toPixels(point, null)
-                    } catch (e: Exception) {
-                        null
-                    }
-                }
-
-                screenPoint?.let { p ->
-                    val density = LocalDensity.current
-                    val markerSizePx = with(density) { 56.dp.toPx() }
-                    
-                    Box(
-                        modifier = Modifier.offset {
-                            IntOffset(
-                                x = p.x - (markerSizePx / 2).toInt(),
-                                y = p.y - (markerSizePx / 2).toInt()
-                            )
-                        }
-                    ) {
-                        LocationMarker(
-                            location = waypoint,
-                            zoom = state.zoom,
-                            forecast = forecast,
-                            isSelected = isSelected,
-                            onClick = {
-                                store.dispatch(MapAction.SelectWaypoint(route.id, waypoint.id))
-                            }
-                        )
-                    }
-                }
-            }
+                .testTag("map_view"),
+            BaseStyle.Uri("https://tiles.openfreemap.org/styles/liberty"),
+            cameraState,
+        ) {
+            // M2: airspace layers go here (FillLayer from OverlayPrioritizer candidates)
+            // M3: PG spot layers go here (SymbolLayer)
+            // M4: route layers go here (LineLayer + SymbolLayer for waypoints)
+            // M5: peer layers go here (SymbolLayer for Mezulla markers)
         }
 
-        // Show compass based on Redux state
+        // Compass (reads rotation from Redux state, same as before)
         if (state.compassVisible) {
             Compass(
-                rotation = mapRotation,
+                rotation = state.rotation,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(WindowInsets.statusBars.asPaddingValues())
-                    .padding(COMPASS_PADDING)
+                    .padding(COMPASS_PADDING),
             )
         }
 
-        // Show Route Planning HUD if a route is selected
+        // Route Planning HUD
         if (state.selectedRouteId != null) {
             RoutePlanningHUD(
                 state = state,
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .padding(WindowInsets.statusBars.asPaddingValues())
-                    .padding(16.dp)
+                    .padding(16.dp),
             )
         }
     }
 }
 
-
-// Helper to trigger the check
-private const val SMART_SUGGESTION_RADIUS_MILES = 15.5 // ~25km
-
-// handleWaypointCreationRequest moved to MapViewModel.checkForSmartSuggestion
-
-// Helper functions for composable lifecycle management
+// ── Helper composables ──────────────────────────────────────────────────
 
 @Composable
-private fun setupMapViewLifecycle(
-    mapView: org.osmdroid.views.MapView,
-    gestureHandler: MapGestureHandler
+private fun setupLocationUpdates(
+    hasLocationPermission: Boolean,
+    locationService: ReduxLocationService,
 ) {
-    DisposableEffect(mapView) {
-        // Attach gesture handler for long-press detection
-        gestureHandler.attachToMapView(mapView)
-
-        onDispose {
-            // Cleanup gesture handler
-            gestureHandler.detachFromMapView()
-        }
-    }
-}
-
-@Composable
-private fun setupReduxIntegration(store: MapStore, mapViewModel: MapViewModel) {
-    DisposableEffect(store) {
-        // Connect MapViewModel to Redux store for state integration
-        mapViewModel.setMapStore(store)
-
-        onDispose {
-            // Cleanup handled by MapViewModel lifecycle
-        }
-    }
-}
-
-@Composable
-private fun setupLocationUpdates(hasLocationPermission: Boolean, locationService: ReduxLocationService) {
     LaunchedEffect(hasLocationPermission) {
         if (hasLocationPermission) {
-            // Start Redux-based location service
             locationService.startLocationUpdates()
-            Log.d("MapViewContainer", "Redux location service started")
+            Log.d(TAG, "Redux location service started")
         } else {
-            // Stop location service when permission revoked
             locationService.stopLocationUpdates()
-            Log.d("MapViewContainer", "Redux location service stopped")
+            Log.d(TAG, "Redux location service stopped")
         }
     }
 }
-
-@Composable
-private fun syncLocationState(userLocation: GeoPoint?, isLocationReady: Boolean) {
-    LaunchedEffect(userLocation, isLocationReady) {
-        userLocation?.let { location ->
-            if (isLocationReady) {
-                // Update MapViewModel with Redux location state for overlay management
-                // This maintains compatibility while using Redux as single source of truth
-                Log.d("MapViewContainer", "Syncing Redux location to MapViewModel: $location")
-            }
-        }
-    }
-}
-
-// Legacy createWaypointAtLocation and helpers removed - Migrated to MapReducers (LongPressMap action)
