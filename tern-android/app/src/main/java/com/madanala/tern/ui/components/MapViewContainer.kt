@@ -24,6 +24,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.madanala.tern.model.LocationType
+import com.madanala.tern.overlay.airspace.AirspaceOverlay
 import com.madanala.tern.redux.MapAction
 import com.madanala.tern.redux.MapConstants
 import com.madanala.tern.redux.MapStore
@@ -248,7 +249,8 @@ fun MapViewContainer(
             BaseStyle.Uri("https://tiles.openfreemap.org/styles/liberty"),
             cameraState,
         ) {
-            // M2: airspace layers go here (FillLayer from OverlayPrioritizer candidates)
+            // M2: airspace rendering via FillLayer + LineLayer
+            AirspaceOverlay(store = store, cameraState = cameraState)
             // M3: PG spot layers go here (SymbolLayer)
             // M4: route layers go here (LineLayer + SymbolLayer for waypoints)
             // M5: peer layers go here (SymbolLayer for Mezulla markers)
