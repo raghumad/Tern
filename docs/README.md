@@ -14,6 +14,7 @@ live so a new reader can find their way around.
 | Set up dev, run tests, or measure performance | `guides/` |
 | Read a specific technical decision (RFC) | `rfcs/` |
 | Find the manual UX checklist | `ux/validation-checklist.md` |
+| Reference for designing the custom Mezulla hardware | `hardware/` |
 | Look up an external spec we reference | `references/` |
 | Read the credits and licenses | `legal/` |
 
@@ -31,6 +32,9 @@ live so a new reader can find their way around.
   choice needs an explicit record (e.g. "why we scale icons this way").
 - **ux/** — Cross-cutting UX docs: validation checklists, glanceability
   audits.
+- **hardware/** — Reference material for the open-source custom Mezulla
+  board: design decisions, sourcing notes, antenna / power / sensor
+  trade-offs. Read before writing a BOM, not after.
 - **references/** — External specs and standards we depend on (e.g. FAI
   Sporting Code).
 - **archive/** — Historical docs kept for context but no longer current:
