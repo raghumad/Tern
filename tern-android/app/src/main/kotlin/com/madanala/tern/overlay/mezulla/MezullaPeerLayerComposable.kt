@@ -12,8 +12,11 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import org.maplibre.compose.expressions.dsl.const
 import org.maplibre.compose.expressions.dsl.feature
+import org.maplibre.compose.expressions.dsl.format
+import org.maplibre.compose.expressions.dsl.span
 import org.maplibre.compose.expressions.value.StringValue
 import org.maplibre.compose.expressions.ast.Expression
+import androidx.compose.runtime.key
 import org.maplibre.compose.sources.GeoJsonData
 import org.maplibre.compose.sources.rememberGeoJsonSource
 import org.maplibre.spatialk.geojson.Feature
@@ -29,26 +32,48 @@ fun MezullaPeerLayer(
     now: Instant,
 ) {
     val featureCollection = remember(peers, viewMode, pilotPosition, now) {
-        buildPeerFeatureCollection(peers, viewMode, pilotPosition, now)
+        buildPeerFeatureCollection(peers, viewMode, pilotPosition, now).also { fc ->
+            android.util.Log.d("MezullaPeerLayer", "peers=${peers.size} features=${fc.features.size} viewMode=$viewMode")
+            fc.features.firstOrNull()?.let { f ->
+                val geom = f.geometry
+                android.util.Log.d("MezullaPeerLayer", "first feature: geom=$geom props=${f.properties}")
+            }
+        }
+    }
+
+    // Build GeoJSON string and use GeoJsonData.Literal for the source.
+    // rememberGeoJsonSource with Features() doesn't propagate state changes.
+    val geoJsonString = remember(featureCollection) {
+        if (featureCollection.features.isEmpty()) {
+            """{"type":"FeatureCollection","features":[]}"""
+        } else {
+            val sb = StringBuilder()
+            sb.append("""{"type":"FeatureCollection","features":[""")
+            featureCollection.features.forEachIndexed { i, f ->
+                if (i > 0) sb.append(",")
+                val geom = f.geometry
+                val lon = (geom as? org.maplibre.spatialk.geojson.Point)?.longitude ?: 0.0
+                val lat = (geom as? org.maplibre.spatialk.geojson.Point)?.latitude ?: 0.0
+                val props = f.properties?.toString() ?: "{}"
+                sb.append("""{"type":"Feature","geometry":{"type":"Point","coordinates":[$lon,$lat]},"properties":$props}""")
+            }
+            sb.append("]}")
+            sb.toString()
+        }.also { android.util.Log.d("MezullaPeerLayer", "GeoJSON: ${it.take(200)}") }
     }
 
     val source = rememberGeoJsonSource(
-        data = GeoJsonData.Features(featureCollection),
+        data = GeoJsonData.JsonString(geoJsonString),
     )
 
-    @Suppress("UNCHECKED_CAST")
-    val textExpr = feature.get("displayText") as Expression<StringValue>
-
-    org.maplibre.compose.layers.SymbolLayer(
-        id = "mezulla-peer-layer",
+    // Blue circles as peer position markers
+    org.maplibre.compose.layers.CircleLayer(
+        id = "mezulla-peer-circles",
         source = source,
-        textField = textExpr,
-        textSize = const(14.sp),
-        textColor = const(Color.White),
-        textHaloColor = const(Color(0xCC000000)),
-        textHaloWidth = const(2.dp),
-        textAllowOverlap = const(true),
-        textIgnorePlacement = const(true),
+        color = const(Color(0xFF2196F3)),
+        radius = const(12.dp),
+        strokeColor = const(Color.White),
+        strokeWidth = const(2.dp),
     )
 }
 
