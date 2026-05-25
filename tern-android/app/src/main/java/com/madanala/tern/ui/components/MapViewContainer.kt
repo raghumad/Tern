@@ -260,16 +260,23 @@ fun MapViewContainer(
             // M4: route polyline + waypoint markers
             com.madanala.tern.overlay.route.RouteLayer(routes = state.routes)
 
-            // M5: Mezulla peer markers
-            com.madanala.tern.overlay.mezulla.MezullaPeerLayer(
+            // M5: Mezulla peer circles (MapLibre CircleLayer)
+            com.madanala.tern.overlay.mezulla.MezullaPeerCircles(
                 peers = state.peerState.peers,
-                viewMode = state.mezullaViewMode,
-                pilotPosition = state.userLocation?.let {
-                    com.madanala.tern.overlay.priority.Position(it.latitude, it.longitude)
-                },
                 now = java.time.Instant.now(),
             )
         }
+
+        // M5: Mezulla peer text labels (Compose overlay, positioned via CameraProjection)
+        com.madanala.tern.overlay.mezulla.MezullaPeerLabels(
+            peers = state.peerState.peers,
+            viewMode = state.mezullaViewMode,
+            pilotPosition = state.userLocation?.let {
+                com.madanala.tern.overlay.priority.Position(it.latitude, it.longitude)
+            },
+            now = java.time.Instant.now(),
+            cameraState = cameraState,
+        )
 
         // Compass (reads rotation from Redux state, same as before)
         if (state.compassVisible) {
