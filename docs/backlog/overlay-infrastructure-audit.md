@@ -1,162 +1,133 @@
 # Overlay infrastructure audit
 
-Findings from reading the overlay system, triaged through the safety
-lens. The guiding question: **if this fails during flight, does the
-pilot lose information they need to stay safe?**
+## The architectural principle
 
-## Priority 1 — Safety (affects pilot's ability to see critical info)
+Tern's spatial data (airspaces, PG spots, weather) is already cached
+on disk as FlatBuffers with Hilbert spatial indexing and memory-mapped
+access. It's never lost. It's never slow to query (O(log N),
+microseconds).
 
-### S1. Overlay lifecycle doesn't prevent memory accumulation (root cause of OOM risk)
+Overlays on the map are **rendering objects** (polygons, markers),
+not data. Evicting an overlay doesn't delete anything — it frees heap.
+Re-rendering it is a spatial query + object creation, both cheap.
 
-**What's wrong:** Overlays (airspaces, PG spots, weather markers,
-ViewToBitmap bitmaps) are loaded as the pilot flies but never
-aggressively unloaded when they leave the vicinity. During an 11-hour
-XC flight covering 100+ km, memory grows continuously.
+This means:
 
-**Why it's safety:** If the phone OOMs, the app crashes. The pilot
-loses their flight computer entirely — airspace warnings, peer
-awareness, navigation, everything. A crash mid-flight is the worst
-possible outcome.
+> **Overlays should be a reactive projection of the spatial cache
+> onto the current viewport. Created on demand when the viewport
+> includes them. Discarded when it doesn't. Memory is bounded by
+> viewport size, not by flight distance.**
 
-**Root causes to fix:**
-- No viewport-based eviction: overlays outside the visible map area
-  should be unloaded on every significant map move, not kept "in
-  case the pilot pans back."
-- L1 in-memory cache (LRU) may not have a hard cap. If it doesn't,
-  it grows until the system kills the process.
-- ViewToBitmap-generated marker bitmaps aren't recycled when the
-  marker leaves the viewport. Each bitmap is a chunk of heap.
-- The "adaptive overlay system" zone budgets exist but may not be
-  enforced at load time — only at emergency-cleanup time, which is
-  too late.
+If the codebase follows this principle, there is no memory
+accumulation, no emergency cleanup needed, and no concept of
+"safety-critical overlays that must never be evicted" — because
+nothing is permanently evicted. Everything nearby is always
+re-rendered from the cache on every viewport change.
 
-**Fix:** Enforce bounded caching with hard LRU caps. Evict overlays
-that leave the viewport + a margin. Recycle bitmaps. Enforce zone
-budgets at load time, not just at cleanup time. After 11 hours of
-XC, memory usage should be flat, not growing.
+## What "safety critical" actually means
 
-**Verification:** A soak test that replays a long IGC flight and
-monitors heap growth over time. If heap grows continuously, the fix
-isn't working.
+NOT: "keep this rendering object in memory forever."
+(That causes the OOM problem.)
 
-### S2. Emergency cleanup is a safety net, not the primary defense
+ACTUALLY: **"if the pilot is near this, it must be visible on the
+screen — always, immediately."** Since the cache is always on disk,
+this is guaranteed by querying and rendering on every viewport
+change, not by holding objects in memory.
 
-**What's wrong (was #7):** The emergency cleanup (~300 lines, now
-rewritten to ~25 lines) fires when the system signals low memory.
-It sheds overlays from farthest to nearest.
+## Overlay types and their lifecycles
 
-**Reframing:** The emergency cleanup should almost never fire. If
-it does, it means S1 (the real fix) has a bug. The cleanup should
-log a warning when it triggers — treat it like a crash report,
-not normal operation.
+| Type | Source of truth | Correct lifecycle |
+|------|----------------|------------------|
+| Airspaces | Disk cache (FlatBuffer, mmap) | Render nearby on viewport change; discard when out of view |
+| PG spots | Disk cache (same) | Same |
+| Weather | Disk cache (same) | Same |
+| Peers (Mezulla) | Redux state (from LoRa) | Always in memory — max ~20. No eviction. |
+| Active route | Redux state | One object. Always in memory. |
 
-**Current state:** Rewritten and tested (commit c0b65de). The
-rewrite is correct and simple. But it still fires routinely if S1
-isn't fixed. Fix S1 first; keep S2 as the fallback.
+Peers and the route don't need eviction (tiny, bounded). Spatial
+data doesn't need importance-based eviction because re-rendering
+from disk is microseconds.
 
-**Future improvement (per user insight):** If overlays are
-maintained in importance-sorted order at insertion time, the
-emergency cleanup becomes `removeLast()` in a loop — no zone
-logic needed. The data structure does the work.
+## Safety fixes — status
 
-### S3. Never-evict rules for safety-critical overlay types
+### S1. Make overlay rendering reactive (the real fix)
 
-**What's wrong:** No explicit rule prevents the eviction of
-overlays that are critical for immediate pilot safety:
-- **Nearby airspaces (CORE/NEAR)** — entering controlled airspace
-  is illegal and dangerous. These must NEVER be shed.
-- **Peer markers (Mezulla)** — few in number (max ~20); the whole
-  point of Mezulla. Never shed.
-- **The active route** — pilot's navigation. Never shed.
+**Status: NOT STARTED — highest priority safety item.**
 
-**Why it's safety:** If the emergency cleanup (S2) sheds a nearby
-airspace boundary, the pilot might fly into restricted airspace
-and collide with commercial traffic.
+The current code accumulates overlays as the pilot flies and doesn't
+discard them when they leave the viewport. During an 11-hour XC,
+memory grows until the app OOMs. The fix is architectural:
 
-**Fix:** Tag overlay types with `canEvict: Boolean`. Airspace
-CORE/NEAR, all peer markers, and the active route are
-`canEvict = false`. The cleanup loop skips them.
+- On every significant viewport change (pan, zoom, GPS update):
+  query the Hilbert cache for "what's within viewport + margin?"
+  Render those. Discard anything not in the result set.
+- Enforce zone budgets at load time, not at cleanup time.
+- Recycle ViewToBitmap bitmaps when markers leave the viewport.
+- Bound the L1 in-memory LRU cache with a hard cap.
 
-### S4. Airspace z-ordering bypass — FIXED
+**Verification:** a soak test that replays an 11-hour IGC flight
+(we have the Aravis data — ~11 hours) and monitors heap growth.
+Heap should be flat, not growing.
 
-Airspace polygons were rendered directly on `map.overlays` at
-index 0, bypassing the FolderOverlay system. Fixed in commit
-5696516. Airspaces now render in their own FolderOverlay with
-correct z-ordering: routes (bottom) → airspaces → PG spots →
-Mezulla peers (top).
+### S2. Emergency cleanup as a last-resort safety net
 
-**Note from the fixing agent:** MezullaOverlayManager also adds
-markers directly to `map.overlays` instead of through its
-FolderOverlay. Same class of bug but lower z-ordering consequence
-(peers are the top layer). Should be fixed for consistency.
+**Status: DONE (commit c0b65de, rewritten to 25 lines).**
 
-### S5. Silent action drop in MapStore — FIXED
+Sheds overlays farthest-to-nearest when memory pressure is
+detected. If this ever fires in production, it means S1 has a bug.
+Logs a warning when triggered — treat as a bug report.
 
-Unknown action types were silently swallowed. Fixed in commit
-914e8d3: `TernAction` marker interface introduced; `else` branch
-now logs `Log.w`. Debug-mode `error()` was too aggressive (caused
-test leakage) and was downgraded to log-only in ccbf1d8.
+Future improvement: if overlays are maintained sorted by importance
+at insertion time, cleanup becomes `removeLast()` in a loop.
 
-### S6. PerformanceDebugger on the dispatch hot path
+### S3. Airspace z-ordering — FIXED
 
-**What's wrong (#14 from original audit):** A `try/catch` around
-`PerformanceDebugger.recordStateUpdate()` runs on every batched
-action dispatch. In release builds this is wasted cycles.
+**Status: DONE (commit 5696516).**
 
-**Why it's safety:** Under high load (many peers + weather +
-airspaces updating simultaneously), accumulated overhead causes
-frame drops. Janky rendering makes critical info harder to read
-at a glance during turbulent flight.
+Airspace polygons now render in their own FolderOverlay with correct
+z-ordering: routes → airspaces → PG spots → Mezulla peers (top).
 
-**Fix:** Gate behind `BuildConfig.DEBUG` so release builds pay
-zero cost. One-line change.
+**Follow-up:** MezullaOverlayManager also bypasses FolderOverlay
+(adds markers directly to map.overlays). Same fix needed.
 
-## Priority 2 — Code quality (doesn't directly affect pilot safety)
+### S4. Silent action drop in MapStore — FIXED
 
-### Q1. OverlayType enum config doesn't scale (#1)
-`OverlayState` has per-field config for 3 types but enum has 4.
-Fix: `Map<OverlayType, OverlayConfig>`.
+**Status: DONE (commit 914e8d3 + ccbf1d8).**
 
-### Q2. Inconsistent sealed class vs sealed interface (#3)
-`WeatherActions` is sealed class, `PeerAction` is sealed
-interface. Cosmetic. Standardize on sealed interface.
+`TernAction` marker interface; `else` branch logs `Log.w`.
 
-### Q3. PGSpotOverlayManager is 1300 lines (#6)
-Mixes weather orchestration with marker lifecycle. Fix: split
-into PGSpotOverlayManager + PGSpotWeatherOrchestrator.
+### S5. PerformanceDebugger on dispatch hot path
 
-### Q4. OverlayCoordinator has hardcoded type checks (#8)
-`addOverlayManager` checks concrete types for country-cache
-injection. Fix: `CountryCacheAware` interface.
+**Status: NOT STARTED — one-line fix.**
 
-### Q5. Dead code (#9, #10, #11)
-`OverlayActions` sealed class is never dispatched — delete.
-`RankingTier` and `SpatialLattice` are actually used by
-`RouteOverlayManager` (the #7 agent confirmed they're NOT
-dead code — the original audit was wrong).
+Gate `PerformanceDebugger.recordStateUpdate()` behind
+`BuildConfig.DEBUG`. Release builds pay zero cost.
 
-### Q6. Duplicate comments, stale doc comments (#12, #13)
-Cosmetic cleanup.
+## Code quality items (not safety-affecting)
 
-### Q7. PGSpotOverlayManagerTest regression from S2 rewrite
-`performMapMove ignores 0,0 coordinates` fails with
-`UncaughtExceptionsBeforeTest` after the emergency cleanup
-rewrite. Was passing before. Needs investigation — likely a
-lifecycle interaction in the test's coroutine scope.
+| # | Finding | Fix | Effort |
+|---|---------|-----|--------|
+| Q1 | OverlayState per-field config doesn't scale | `Map<OverlayType, OverlayConfig>` | Small |
+| Q2 | Inconsistent sealed class vs sealed interface | Standardize on sealed interface | Small |
+| Q3 | PGSpotOverlayManager is 1300 lines | Split: marker lifecycle + weather orchestration | Medium |
+| Q4 | OverlayCoordinator hardcoded type checks | `CountryCacheAware` interface | Small |
+| Q5 | OverlayActions sealed class is never dispatched | Delete | Tiny |
+| Q6 | Duplicate/stale comments | Clean up | Tiny |
+| Q7 | PGSpotOverlayManagerTest regression from S2 | Investigate coroutine scope leak | Small |
 
 ## Prioritized action plan
 
-| Priority | Item | Effort | Can parallelize? |
-|----------|------|--------|-----------------|
-| **1** | **S1: Fix overlay lifecycle (prevent OOM)** | Large — touches eviction, caching, bitmap recycling | Yes (independent of Mezulla work) |
-| **2** | **S3: Never-evict rules for safety-critical overlays** | Small — `canEvict` flag + skip in cleanup loop | Yes (after S1 design is clear) |
-| **3** | **S6: Gate PerformanceDebugger behind DEBUG** | Tiny — one-line change | Yes |
-| **4** | **S4 follow-up: Fix MezullaOverlayManager FolderOverlay bypass** | Small | Yes |
-| **5** | **Q7: Fix PGSpotOverlayManagerTest regression** | Small-medium (investigation needed) | Yes |
-| 6 | Q3: Split PGSpotOverlayManager | Medium | Yes |
-| 7 | Q1: OverlayState as Map | Small | Yes |
-| 8 | Q4: CountryCacheAware interface | Small | Yes |
-| 9 | Q2, Q5, Q6: Cosmetic cleanup | Small | Yes |
+| Priority | Item | Why | Effort |
+|----------|------|-----|--------|
+| **1** | **S1: Reactive overlay rendering** | Prevents OOM crash in flight. The root cause. Everything else is a band-aid without this. | Large |
+| **2** | S5: Gate PerformanceDebugger | Frame drops affect glanceability in turbulence | One-line |
+| **3** | S3 follow-up: MezullaOverlayManager FolderOverlay bypass | Consistency with the fix we already made for airspaces | Small |
+| **4** | Q7: PGSpotOverlayManagerTest regression | Our safety fix broke an existing test — should be cleaned up | Small |
+| 5+ | Q1–Q6 | Code quality; fix when convenient | Various |
 
-S1 is the biggest and most important. Everything else is either
-already fixed (S4, S5) or small enough to parallelize.
+## Future considerations
+
+- **Peer positions should be logged during flight recording** for
+  post-flight analysis and incident reconstruction. The logged data
+  also becomes real-world test fixtures for the swarm simulator.
+  See [[project-tern-log-peers-in-flight-recording]].
