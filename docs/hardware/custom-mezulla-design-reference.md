@@ -39,6 +39,9 @@ Cross-cutting ideas that shaped every decision below.
    alternative so the design outlives any single supplier.
 6. **Pilot-replaceable consumables.** Cells swappable in the field
    without tools.
+7. **Traffic awareness is upstream, not custom.** FANET + FLARM + OGN
+   support belongs as a Meshtastic module PR, not custom firmware.
+   Grow the ecosystem, don't fork it.
 
 ---
 
@@ -63,12 +66,15 @@ evaluated, and trade-offs.
 | Audio | MAX98357A + speaker (primary in-flight) | [display-audio-input.md](display-audio-input.md) |
 | Input | Bourns PEC11R crown + backup button | [display-audio-input.md](display-audio-input.md) |
 | Connectors | USB-C, SMA, 18650 sled, no breakouts | [display-audio-input.md](display-audio-input.md) |
+| Traffic awareness | FANET + FLARM + OGN as Meshtastic module PR | [traffic-awareness.md](traffic-awareness.md) |
+| Dual radio | Second SX1276 for dedicated traffic RX (~$3) | [traffic-awareness.md](traffic-awareness.md) |
 
 **Alternative chip sources** for supply resilience:
 
 | Function | Primary | Alternative(s) |
 |---|---|---|
-| LoRa radio | Semtech SX1276 | SX1262, AI-Thinker Ra-02 modules |
+| LoRa radio (mesh) | Semtech SX1276 | SX1262, AI-Thinker Ra-02 modules |
+| LoRa radio (traffic) | Semtech SX1276 | SX1262 |
 | MCU | Espressif ESP32-S3 | Nordic nRF54LM20A (future) |
 | GPS | ublox NEO-M8N / M10S | Quectel L86/L96, Allystar |
 | Barometer | Bosch BMP388 | Infineon DPS310, TDK ICP-10125, TE MS5611 |
