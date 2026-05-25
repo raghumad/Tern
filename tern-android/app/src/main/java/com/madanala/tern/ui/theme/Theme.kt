@@ -104,9 +104,13 @@ fun TernTheme(
         }
     }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = AppTypography,
-        content = content
-    )
+    androidx.compose.runtime.CompositionLocalProvider(
+        LocalTernTextStyles provides TernTextStyles(),
+    ) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = AppTypography,
+            content = content,
+        )
+    }
 }

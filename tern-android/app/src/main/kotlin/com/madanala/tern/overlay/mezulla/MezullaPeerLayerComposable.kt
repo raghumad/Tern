@@ -17,11 +17,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import com.madanala.tern.ui.theme.LocalTernTextStyles
 import androidx.compose.ui.unit.sp
 import com.madanala.tern.mezulla.redux.KnownPeer
 import com.madanala.tern.overlay.priority.Position as TernPosition
@@ -120,6 +120,8 @@ fun MezullaPeerLabels(
             val xPx = with(density) { screenPos.x.toPx().toInt() }
             val yPx = with(density) { screenPos.y.toPx().toInt() }
 
+            val textStyles = LocalTernTextStyles.current
+
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
@@ -134,10 +136,8 @@ fun MezullaPeerLabels(
                 Text(
                     text = displayText,
                     color = stalenessColor.copy(alpha = opacity),
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
+                    style = textStyles.mapLabel,
                     textAlign = TextAlign.Center,
-                    lineHeight = 14.sp,
                 )
             }
         }
