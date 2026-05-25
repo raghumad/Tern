@@ -44,8 +44,8 @@ object MezullaTheme {
     object Circle {
         val fillColor = AeroCyanDark
         val strokeColor = Color.White
-        val radius: Dp = 10.dp
-        val strokeWidth: Dp = 2.dp
+        val radius: Dp = 4.dp
+        val strokeWidth: Dp = 1.5.dp
     }
 
     // -- Text label (on the map, next to circles) --

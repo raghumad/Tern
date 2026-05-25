@@ -2,35 +2,39 @@ package com.madanala.tern.overlay.mezulla
 
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.BaselineShift
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.madanala.tern.ui.theme.LocalTernTextStyles
 import com.madanala.tern.ui.theme.TernTextStyles
 
 /**
- * A single peer marker rendered as a quadrant layout:
+ * Peer marker as a 3×3 grid table. One border, one scale.
+ * Resize the table → everything inside resizes.
  *
- *          ↗ COR                ← TOP: bearing arrow + callsign
- *     5ˢ   󰀂   1915ᵐ          ← LEFT: primary metric, CENTER: icon, RIGHT: secondary
+ *  ┌──────────┬──────────┬──────────┐
+ *  │          │   COR    │          │  top-center: callsign
+ *  ├──────────┼──────────┼──────────┤
+ *  │   5ˢ    │    󰀂    │  1915ᵐ  │  middle: metric | icon | metric
+ *  ├──────────┼──────────┼──────────┤
+ *  │          │          │          │  bottom: available for future use
+ *  └──────────┴──────────┴──────────┘
  *
- * The icon sits at the geographic position. Information fans out.
- * Text sizes follow the instrument hierarchy:
- * - Callsign: large bold (identity)
- * - Metric values: medium bold (the numbers you read)
- * - Unit suffixes: small light (disambiguation, not primary info)
+ * Scale is computed from map zoom level so the label
+ * stays proportional to the map's own text.
  */
 @Composable
 fun PeerMarker(
@@ -42,75 +46,67 @@ fun PeerMarker(
     leftUnit: String,
     rightValue: String,
     rightUnit: String,
-    bearingDegrees: Float? = null,
     leftColor: Color = Color.White,
     rightColor: Color = Color.White,
+    zoomScale: Float = 1f,
     modifier: Modifier = Modifier,
 ) {
     val styles = LocalTernTextStyles.current
+    val borderColor = iconColor.copy(alpha = 0.4f)
 
     Box(
         modifier = modifier
             .testTag("peer_marker_${callsign.lowercase()}")
-            .border(1.dp, iconColor.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
-            .padding(horizontal = 6.dp, vertical = 3.dp),
-        contentAlignment = Alignment.Center,
+            .scale(zoomScale)
+            .border(0.5.dp, borderColor, RoundedCornerShape(4.dp))
+            .padding(horizontal = 4.dp, vertical = 2.dp),
     ) {
-        // CENTER: icon (the anchor at the geographic position)
-        Text(
-            text = icon,
-            color = iconColor.copy(alpha = anim.alpha),
-            style = styles.mapLabel.copy(fontSize = styles.mapLabel.fontSize * 1.3f),
-            modifier = Modifier.graphicsLayer {
-                rotationZ = anim.rotation
-                scaleX = anim.scale
-                scaleY = anim.scale
-            },
-        )
-
-        // TOP: bearing arrow + callsign
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .offset(y = (-18).dp),
-        ) {
-            if (bearingDegrees != null) {
-                Text(
-                    text = MezullaIcons.NAVIGATION,
-                    color = Color.White.copy(alpha = 0.7f),
-                    style = styles.mapArrow,
-                    modifier = Modifier.rotate(bearingDegrees),
-                )
-            }
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            // Row 1 (top): callsign
             Text(
                 text = callsign.uppercase(),
                 color = Color.White,
                 style = styles.mapLabel,
+                textAlign = TextAlign.Center,
             )
+
+            // Row 2 (middle): left metric | icon | right metric
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // Left metric
+                MetricText(
+                    value = leftValue,
+                    unit = leftUnit,
+                    color = leftColor.copy(alpha = anim.alpha),
+                    styles = styles,
+                    modifier = Modifier.widthIn(min = 28.dp),
+                    align = TextAlign.End,
+                )
+
+                // Center icon
+                Text(
+                    text = icon,
+                    color = iconColor.copy(alpha = anim.alpha),
+                    style = styles.mapLabel,
+                    modifier = Modifier
+                        .padding(horizontal = 3.dp)
+                        .graphicsLayer {
+                            rotationZ = anim.rotation
+                            scaleX = anim.scale
+                            scaleY = anim.scale
+                        },
+                )
+
+                // Right metric
+                MetricText(
+                    value = rightValue,
+                    unit = rightUnit,
+                    color = rightColor.copy(alpha = anim.alpha),
+                    styles = styles,
+                    modifier = Modifier.widthIn(min = 28.dp),
+                    align = TextAlign.Start,
+                )
+            }
         }
-
-        // LEFT: primary metric (value + unit)
-        MetricText(
-            value = leftValue,
-            unit = leftUnit,
-            color = leftColor.copy(alpha = anim.alpha),
-            styles = styles,
-            modifier = Modifier
-                .align(Alignment.CenterStart)
-                .offset(x = (-6).dp),
-        )
-
-        // RIGHT: secondary metric (value + unit)
-        MetricText(
-            value = rightValue,
-            unit = rightUnit,
-            color = rightColor.copy(alpha = anim.alpha),
-            styles = styles,
-            modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .offset(x = 6.dp),
-        )
     }
 }
 
@@ -125,11 +121,16 @@ fun MetricText(
     color: Color,
     styles: TernTextStyles,
     modifier: Modifier = Modifier,
+    align: TextAlign = TextAlign.Start,
 ) {
     Row(
         verticalAlignment = Alignment.Bottom,
         modifier = modifier,
     ) {
+        if (align == TextAlign.End) {
+            // Push content to the right
+            Box(Modifier.weight(1f))
+        }
         Text(
             text = value,
             color = color,
@@ -140,82 +141,12 @@ fun MetricText(
                 text = unit,
                 color = color.copy(alpha = 0.6f),
                 style = styles.mapUnit.copy(
-                    baselineShift = BaselineShift(0.1f),
+                    baselineShift = BaselineShift(0.15f),
                 ),
             )
         }
-    }
-}
-
-/**
- * A climb/sink indicator: colored arrow + value + unit.
- * Green ↑2.3 m/s  or  Red ↓1.5 m/s
- */
-@Composable
-fun ClimbMetricText(
-    value: Double,
-    unit: String,
-    styles: TernTextStyles,
-    modifier: Modifier = Modifier,
-) {
-    val isClimbing = value >= 0
-    val arrow = if (isClimbing) MezullaIcons.ARROW_UP else MezullaIcons.ARROW_DOWN
-    val color = if (isClimbing) MezullaTheme.StalenessColors.fresh else Color(0xFFF44336)
-    val displayValue = String.format("%.1f", kotlin.math.abs(value))
-
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = modifier,
-    ) {
-        Text(
-            text = arrow,
-            color = color,
-            style = styles.mapArrow.copy(fontSize = styles.mapMetric.fontSize),
-        )
-        Text(
-            text = displayValue,
-            color = color,
-            style = styles.mapMetric,
-        )
-        Text(
-            text = unit,
-            color = color.copy(alpha = 0.6f),
-            style = styles.mapUnit,
-        )
-    }
-}
-
-/**
- * Altitude relative to the pilot: ▲120m (above) or ▼340m (below).
- */
-@Composable
-fun RelativeAltText(
-    deltaMeters: Int,
-    styles: TernTextStyles,
-    modifier: Modifier = Modifier,
-) {
-    val isAbove = deltaMeters >= 0
-    val arrow = if (isAbove) "▲" else "▼"
-    val color = if (isAbove) MezullaTheme.StalenessColors.fresh else Color(0xFFF44336)
-
-    Row(
-        verticalAlignment = Alignment.Bottom,
-        modifier = modifier,
-    ) {
-        Text(
-            text = arrow,
-            color = color,
-            style = styles.mapMetric,
-        )
-        Text(
-            text = "${kotlin.math.abs(deltaMeters)}",
-            color = color,
-            style = styles.mapMetric,
-        )
-        Text(
-            text = "m",
-            color = color.copy(alpha = 0.6f),
-            style = styles.mapUnit,
-        )
+        if (align == TextAlign.Start) {
+            Box(Modifier.weight(1f))
+        }
     }
 }

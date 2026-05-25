@@ -242,40 +242,19 @@ fun MapViewContainer(
     // ──────────────────────────────────────────────────────────────────────
 
     Box(modifier = modifier.fillMaxSize()) {
-        MaplibreMap(
-            Modifier
+        // Native MapLibre map — uses the native SDK directly because
+        // maplibre-compose's SymbolLayer wrapper is broken in v0.13.0.
+        // Everything on the map is a GeoJSON feature rendered by native layers.
+        com.madanala.tern.overlay.NativeMapView(
+            modifier = Modifier
                 .fillMaxSize()
                 .testTag("map_view"),
-            BaseStyle.Uri("https://tiles.openfreemap.org/styles/liberty"),
-            cameraState,
-        ) {
-            // M2: airspace rendering via FillLayer + LineLayer
-            AirspaceOverlay(store = store, cameraState = cameraState)
-
-            // M3: PG spot SymbolLayer
-            state.pgSpotGeoJson?.let { geoJson ->
-                com.madanala.tern.overlay.pgspot.PgSpotLayer(geoJson)
-            }
-
-            // M4: route polyline + waypoint markers
-            com.madanala.tern.overlay.route.RouteLayer(routes = state.routes)
-
-            // M5: Mezulla peer circles (MapLibre CircleLayer)
-            com.madanala.tern.overlay.mezulla.MezullaPeerCircles(
-                peers = state.peerState.peers,
-                now = state.peerState.lastEventTime,
-            )
-        }
-
-        // M5: Mezulla peer text labels (Compose overlay, positioned via CameraProjection)
-        com.madanala.tern.overlay.mezulla.MezullaPeerLabels(
+            initialLat = initialCenter?.latitude ?: DEFAULT_LAT,
+            initialLon = initialCenter?.longitude ?: DEFAULT_LON,
+            initialZoom = initialZoom,
             peers = state.peerState.peers,
             viewMode = state.mezullaViewMode,
-            pilotPosition = state.userLocation?.let {
-                com.madanala.tern.overlay.priority.Position(it.latitude, it.longitude)
-            },
-            now = state.peerState.lastEventTime,
-            cameraState = cameraState,
+            lastEventTime = state.peerState.lastEventTime,
         )
 
         // Compass (reads rotation from Redux state, same as before)

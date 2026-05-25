@@ -92,6 +92,8 @@ fun MezullaPeerLabels(
 ) {
     val projection = cameraState.projection ?: return
     val density = LocalDensity.current
+    // Scale labels with zoom: 100% baseline, grows when zoomed in
+    val zoomScale = (cameraState.position.zoom / 10.0).toFloat().coerceIn(1.0f, 2.0f)
 
     Box(modifier = Modifier.fillMaxSize()) {
         peers.values.forEach { peer ->
@@ -193,7 +195,15 @@ fun MezullaPeerLabels(
                 rightUnit = rightUnit,
                 leftColor = leftColor,
                 rightColor = rightColor,
-                modifier = Modifier.offset { IntOffset(xPx - 60, yPx - 30) },
+                zoomScale = zoomScale,
+                modifier = Modifier
+                    .offset { IntOffset(xPx, yPx) }
+                    .graphicsLayer {
+                        // Center the marker ON the screen position
+                        // (offset places top-left; shift back by half to center)
+                        translationX = -size.width / 2f
+                        translationY = -size.height / 2f
+                    },
             )
         }
     }

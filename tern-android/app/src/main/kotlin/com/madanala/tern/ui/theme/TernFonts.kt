@@ -58,8 +58,8 @@ data class TernTextStyles(
     val mapLabel: TextStyle = TextStyle(
         fontFamily = TernFontFamily.family,
         fontWeight = FontWeight.Bold,
-        fontSize = 13.sp,
-        lineHeight = 16.sp,
+        fontSize = 14.sp,
+        lineHeight = 17.sp,
         shadow = mapShadow,
     ),
 
@@ -67,8 +67,8 @@ data class TernTextStyles(
     val mapDetail: TextStyle = TextStyle(
         fontFamily = TernFontFamily.family,
         fontWeight = FontWeight.Normal,
-        fontSize = 11.sp,
-        lineHeight = 14.sp,
+        fontSize = 12.sp,
+        lineHeight = 15.sp,
         shadow = mapShadow,
     ),
 
@@ -98,7 +98,7 @@ data class TernTextStyles(
     val mapMetric: TextStyle = TextStyle(
         fontFamily = TernFontFamily.family,
         fontWeight = FontWeight.Bold,
-        fontSize = 12.sp,
+        fontSize = 13.sp,
         shadow = mapShadow,
     ),
 
@@ -106,7 +106,7 @@ data class TernTextStyles(
     val mapUnit: TextStyle = TextStyle(
         fontFamily = TernFontFamily.family,
         fontWeight = FontWeight.Normal,
-        fontSize = 8.sp,
+        fontSize = 9.sp,
         shadow = mapShadow,
     ),
 
