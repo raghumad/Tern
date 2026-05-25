@@ -256,7 +256,9 @@ fun MapViewContainer(
             state.pgSpotGeoJson?.let { geoJson ->
                 com.madanala.tern.overlay.pgspot.PgSpotLayer(geoJson)
             }
-            // M4: route layers go here (LineLayer + SymbolLayer for waypoints)
+
+            // M4: route polyline + waypoint markers
+            com.madanala.tern.overlay.route.RouteLayer(routes = state.routes)
             // M5: peer layers go here (SymbolLayer for Mezulla markers)
         }
 
