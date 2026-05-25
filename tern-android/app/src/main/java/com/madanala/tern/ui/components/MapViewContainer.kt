@@ -251,7 +251,11 @@ fun MapViewContainer(
         ) {
             // M2: airspace rendering via FillLayer + LineLayer
             AirspaceOverlay(store = store, cameraState = cameraState)
-            // M3: PG spot layers go here (SymbolLayer)
+
+            // M3: PG spot SymbolLayer
+            state.pgSpotGeoJson?.let { geoJson ->
+                com.madanala.tern.overlay.pgspot.PgSpotLayer(geoJson)
+            }
             // M4: route layers go here (LineLayer + SymbolLayer for waypoints)
             // M5: peer layers go here (SymbolLayer for Mezulla markers)
         }

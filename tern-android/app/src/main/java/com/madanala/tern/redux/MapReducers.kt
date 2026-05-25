@@ -114,6 +114,9 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
     is MapAction.DismissSosAlert -> state.copy(
         dismissedSosAlerts = state.dismissedSosAlerts + action.senderNodeNumber
     )
+
+    // M3: PG spot GeoJSON for MapLibre rendering
+    is MapAction.UpdatePgSpotGeoJson -> state.copy(pgSpotGeoJson = action.geoJson)
 }
 
 // Route Planning Constants

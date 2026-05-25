@@ -7,6 +7,9 @@ import com.madanala.tern.model.Waypoint
 import com.madanala.tern.model.Route
 import com.madanala.tern.model.LocationType
 import com.madanala.tern.model.TernBoundingBox
+import kotlinx.serialization.json.JsonObject
+import org.maplibre.spatialk.geojson.FeatureCollection
+import org.maplibre.spatialk.geojson.Geometry
 
 /**
  * Redux actions for map functionality
@@ -124,6 +127,9 @@ sealed class MapAction : TernAction {
 
     // SOS dismiss (UI concept, not protocol)
     data class DismissSosAlert(val senderNodeNumber: Long) : MapAction()
+
+    // M3: PG spot GeoJSON for MapLibre rendering
+    data class UpdatePgSpotGeoJson(val geoJson: FeatureCollection<Geometry, JsonObject>?) : MapAction()
 }
 
 /**

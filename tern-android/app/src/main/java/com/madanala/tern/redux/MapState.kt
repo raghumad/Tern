@@ -5,6 +5,9 @@ import org.osmdroid.util.GeoPoint
 import com.madanala.tern.mezulla.redux.PeerState
 import com.madanala.tern.model.Route
 import com.madanala.tern.model.TernBoundingBox
+import kotlinx.serialization.json.JsonObject
+import org.maplibre.spatialk.geojson.FeatureCollection
+import org.maplibre.spatialk.geojson.Geometry
 
 /**
  * Global state for map functionality using Redux pattern
@@ -78,7 +81,13 @@ data class MapState(
     // Separate from PeerState.activeAlerts.acknowledgedAt because
     // "acknowledged" is a protocol concept (I saw it) while "dismissed"
     // is a UI concept (I closed the banner).
-    val dismissedSosAlerts: Set<Long> = emptySet()
+    val dismissedSosAlerts: Set<Long> = emptySet(),
+
+    // M3: PG spot GeoJSON for MapLibre SymbolLayer rendering.
+    // Produced by OverlayPrioritizer -> overlayFeaturesToGeoJson().
+    // null = not yet loaded (layer hidden). Empty collection = loaded
+    // but no spots nearby.
+    val pgSpotGeoJson: FeatureCollection<Geometry, JsonObject>? = null,
 )
 
 /**
