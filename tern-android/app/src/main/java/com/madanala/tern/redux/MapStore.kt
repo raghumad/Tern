@@ -145,21 +145,13 @@ class MapStore : ViewModel() {
      * Record state update for performance monitoring (debug only)
      */
     private fun recordStateUpdate(actionCount: Int = 1, actionTypes: Map<String, Int>? = null) {
-        try {
-            // If we have aggregated types, record them one by one (or update debugger to accept map)
-            // For now, let's just record the most frequent one or iterate?
-            // Better: Update PerformanceDebugger to accept a batch map? 
-            // Or just iterate here since it's debug only.
-            
-            if (actionTypes != null) {
-                 actionTypes.forEach { (type, count) ->
-                     com.madanala.tern.utils.PerformanceDebugger.recordStateUpdate(count, type)
-                 }
-            } else {
-                com.madanala.tern.utils.PerformanceDebugger.recordStateUpdate(actionCount)
+        if (!com.madanala.tern.BuildConfig.DEBUG) return
+        if (actionTypes != null) {
+            actionTypes.forEach { (type, count) ->
+                com.madanala.tern.utils.PerformanceDebugger.recordStateUpdate(count, type)
             }
-        } catch (e: Exception) {
-            // Silently handle - performance monitoring is debug-only
+        } else {
+            com.madanala.tern.utils.PerformanceDebugger.recordStateUpdate(actionCount)
         }
     }
 
