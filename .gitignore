@@ -148,3 +148,4 @@ coverage.xml
 build/
 .gradle/
 local.properties
+.claude/
