@@ -1,6 +1,6 @@
 package com.madanala.tern.overlay.mezulla
 
-import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -25,6 +25,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.madanala.tern.ui.theme.LocalTernTextStyles
 import androidx.compose.ui.unit.sp
 import com.madanala.tern.mezulla.redux.KnownPeer
@@ -93,22 +94,11 @@ fun MezullaPeerLabels(
     val density = LocalDensity.current
 
     Box(modifier = Modifier.fillMaxSize()) {
-        val textStyles = LocalTernTextStyles.current
-
         peers.values.forEach { peer ->
             val fix = peer.lastPosition ?: return@forEach
             val staleness = MezullaPeerTextFormatter.computeStaleness(peer, now)
             val callsign = MezullaPeerTextFormatter.callsign(peer)
-            val detailText = MezullaPeerTextFormatter.detailLine(
-                peer = peer,
-                fix = fix,
-                viewMode = viewMode,
-                staleness = staleness,
-                pilotPosition = pilotPosition,
-                now = now,
-            )
 
-            // Icon glyph + color based on staleness
             val icon = when (staleness) {
                 MezullaPeerTextFormatter.StalenessLevel.LOST -> MezullaIcons.PEER_LOST
                 else -> MezullaIcons.PEER
@@ -119,8 +109,6 @@ fun MezullaPeerLabels(
                 MezullaPeerTextFormatter.StalenessLevel.STALE -> MezullaTheme.StalenessColors.stale
                 MezullaPeerTextFormatter.StalenessLevel.LOST -> MezullaTheme.StalenessColors.lost
             }
-
-            // Animation (SOS buzzes, stale pulses, fresh is static)
             val anim = rememberAnimationForStaleness(staleness)
 
             val screenPos = projection.screenLocationFromPosition(
@@ -129,39 +117,84 @@ fun MezullaPeerLabels(
             val xPx = with(density) { screenPos.x.toPx().toInt() }
             val yPx = with(density) { screenPos.y.toPx().toInt() }
 
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier
-                    .offset { IntOffset(xPx - 40, yPx - 55) }
-                    .testTag("peer_label_$callsign"),
-            ) {
-                // Line 1: colored icon + white callsign
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = icon,
-                        color = iconColor.copy(alpha = anim.alpha),
-                        style = textStyles.mapLabel,
-                        modifier = Modifier.graphicsLayer {
-                            rotationZ = anim.rotation
-                            scaleX = anim.scale
-                            scaleY = anim.scale
-                        },
-                    )
-                    Spacer(Modifier.width(3.dp))
-                    Text(
-                        text = callsign.uppercase(),
-                        color = Color.White,
-                        style = textStyles.mapLabel,
-                    )
+            // Compute quadrant data based on view mode
+            val ageSeconds = java.time.Duration.between(peer.lastSeenAt, now).seconds
+            val altMeters = fix.altitudeMeters
+
+            val leftValue: String
+            val leftUnit: String
+            val rightValue: String
+            val rightUnit: String
+            var leftColor = Color.White
+            var rightColor = Color.White
+
+            when {
+                staleness == MezullaPeerTextFormatter.StalenessLevel.LOST -> {
+                    leftValue = "lost"
+                    leftUnit = ""
+                    rightValue = ""
+                    rightUnit = ""
+                    leftColor = MezullaTheme.StalenessColors.lost
                 }
-                // Line 2: white detail text
-                Text(
-                    text = detailText,
-                    color = Color.White.copy(alpha = anim.alpha),
-                    style = textStyles.mapDetail,
-                    textAlign = TextAlign.Center,
-                )
+                viewMode == MezullaViewMode.SAFETY -> {
+                    leftValue = if (ageSeconds < 60) "${ageSeconds}" else "${ageSeconds / 60}"
+                    leftUnit = if (ageSeconds < 60) "s" else "m"
+                    rightValue = altMeters?.toString() ?: "---"
+                    rightUnit = "m"
+                }
+                viewMode == MezullaViewMode.CLIMB -> {
+                    val climb = peer.climbRateMs ?: 0.0
+                    val climbSign = if (climb >= 0) "↑" else "↓"
+                    leftValue = "$climbSign${String.format("%.1f", kotlin.math.abs(climb))}"
+                    leftUnit = "m/s"
+                    leftColor = if (climb >= 0) MezullaTheme.StalenessColors.fresh else Color(0xFFF44336)
+                    val relAlt = if (pilotPosition != null && altMeters != null) {
+                        altMeters - (pilotPosition.altitudeMeters ?: 0.0).toInt()
+                    } else null
+                    if (relAlt != null) {
+                        val relSign = if (relAlt >= 0) "▲" else "▼"
+                        rightValue = "$relSign${kotlin.math.abs(relAlt)}"
+                        rightUnit = "m"
+                        rightColor = if (relAlt >= 0) MezullaTheme.StalenessColors.fresh else Color(0xFFF44336)
+                    } else {
+                        rightValue = altMeters?.toString() ?: "---"
+                        rightUnit = "m"
+                    }
+                }
+                viewMode == MezullaViewMode.TACTICAL -> {
+                    if (pilotPosition != null) {
+                        val distKm = com.madanala.tern.sim.propagation.DistanceOnlyPropagation.haversineMeters(
+                            pilotPosition.latitudeDeg, pilotPosition.longitudeDeg,
+                            fix.latitudeDeg, fix.longitudeDeg,
+                        ) / 1000.0
+                        leftValue = String.format("%.1f", distKm)
+                        leftUnit = "km"
+                    } else {
+                        leftValue = "---"
+                        leftUnit = ""
+                    }
+                    val speedKmh = fix.groundSpeedMetersPerSecond?.let { it * 3.6 }
+                    rightValue = speedKmh?.let { String.format("%.0f", it) } ?: "---"
+                    rightUnit = "km/h"
+                }
+                else -> {
+                    leftValue = ""; leftUnit = ""; rightValue = ""; rightUnit = ""
+                }
             }
+
+            PeerMarker(
+                callsign = callsign,
+                icon = icon,
+                iconColor = iconColor,
+                anim = anim,
+                leftValue = leftValue,
+                leftUnit = leftUnit,
+                rightValue = rightValue,
+                rightUnit = rightUnit,
+                leftColor = leftColor,
+                rightColor = rightColor,
+                modifier = Modifier.offset { IntOffset(xPx - 60, yPx - 30) },
+            )
         }
     }
 }

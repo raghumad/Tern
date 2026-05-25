@@ -94,6 +94,30 @@ data class TernTextStyles(
         fontSize = 14.sp,
     ),
 
+    /** Metric numbers (altitude value, distance value, climb rate value). */
+    val mapMetric: TextStyle = TextStyle(
+        fontFamily = TernFontFamily.family,
+        fontWeight = FontWeight.Bold,
+        fontSize = 12.sp,
+        shadow = mapShadow,
+    ),
+
+    /** Unit suffixes (m, km, s, m/s, km/h). Smaller, lighter — disambiguation, not primary info. */
+    val mapUnit: TextStyle = TextStyle(
+        fontFamily = TernFontFamily.family,
+        fontWeight = FontWeight.Normal,
+        fontSize = 8.sp,
+        shadow = mapShadow,
+    ),
+
+    /** Directional arrows / bearing indicators. Sized to match the callsign. */
+    val mapArrow: TextStyle = TextStyle(
+        fontFamily = TernFontFamily.family,
+        fontWeight = FontWeight.Bold,
+        fontSize = 14.sp,
+        shadow = mapShadow,
+    ),
+
     /** HUD / instrument readout (large, bold, glanceable at a distance). */
     val hud: TextStyle = TextStyle(
         fontFamily = TernFontFamily.family,
