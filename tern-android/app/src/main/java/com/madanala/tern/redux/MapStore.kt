@@ -204,9 +204,6 @@ internal fun reduceAction(state: MapState, action: TernAction): MapState = when 
     )
     else -> {
         Log.w("MapStore", "Unhandled action type: ${action::class.simpleName}")
-        if (com.madanala.tern.BuildConfig.DEBUG) {
-            error("Unhandled action type: ${action::class.simpleName}")
-        }
         state
     }
 }

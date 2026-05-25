@@ -40,16 +40,14 @@ class MapStoreReduceActionTest {
         assertThat(result.peerState.peers).containsKey(42L)
     }
 
-    // -- Unknown TernAction type throws in debug builds -----------------
+    // -- Unknown TernAction type returns state unchanged (with Log.w) ----
 
     /** Test-only action type that nobody handles. */
     private data class UnhandledTestAction(val payload: String) : TernAction
 
     @Test
-    fun `unknown TernAction throws IllegalStateException in debug build`() {
-        val ex = assertThrows<IllegalStateException> {
-            reduceAction(initialState, UnhandledTestAction("should explode"))
-        }
-        assertThat(ex.message).contains("UnhandledTestAction")
+    fun `unknown TernAction returns state unchanged`() {
+        val result = reduceAction(initialState, UnhandledTestAction("unhandled"))
+        assertThat(result).isEqualTo(initialState)
     }
 }
