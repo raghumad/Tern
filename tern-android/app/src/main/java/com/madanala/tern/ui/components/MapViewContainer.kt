@@ -263,7 +263,7 @@ fun MapViewContainer(
             // M5: Mezulla peer circles (MapLibre CircleLayer)
             com.madanala.tern.overlay.mezulla.MezullaPeerCircles(
                 peers = state.peerState.peers,
-                now = java.time.Instant.now(),
+                now = state.peerState.lastEventTime,
             )
         }
 
@@ -274,7 +274,7 @@ fun MapViewContainer(
             pilotPosition = state.userLocation?.let {
                 com.madanala.tern.overlay.priority.Position(it.latitude, it.longitude)
             },
-            now = java.time.Instant.now(),
+            now = state.peerState.lastEventTime,
             cameraState = cameraState,
         )
 

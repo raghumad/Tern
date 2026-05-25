@@ -10,7 +10,20 @@ import java.time.Instant
  * Threading: pure function, safe to call from any thread. Side effects
  * (subscribing to the mesh, dispatching) live in [PeerMiddleware].
  */
-fun peerReducer(state: PeerState, action: PeerAction): PeerState = when (action) {
+fun peerReducer(state: PeerState, action: PeerAction): PeerState {
+    val eventTime = when (action) {
+        is PeerAction.PeerSeen -> action.seenAt
+        is PeerAction.PeerPositionReceived -> action.receivedAt
+        is PeerAction.PeerTelemetryReceived -> action.receivedAt
+        is PeerAction.PeerAlertReceived -> action.alertedAt
+        is PeerAction.PeerAlertAcknowledged -> action.acknowledgedAt
+        is PeerAction.LinkStateChanged -> state.lastEventTime
+    }
+    val newState = peerReduceAction(state, action)
+    return if (eventTime.isAfter(state.lastEventTime)) newState.copy(lastEventTime = eventTime) else newState
+}
+
+private fun peerReduceAction(state: PeerState, action: PeerAction): PeerState = when (action) {
     is PeerAction.PeerSeen -> state.withPeerSeen(action.identity, action.seenAt)
 
     is PeerAction.PeerPositionReceived -> {

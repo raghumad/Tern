@@ -47,6 +47,14 @@ data class PeerState(
      * the [LinkState] enum doc.
      */
     val linkState: LinkState = LinkState.NEVER_PAIRED,
+
+    /**
+     * Timestamp of the most recent event processed by the reducer.
+     * In simulation mode this is virtual time (from the IGC playback clock).
+     * In production this is wall-clock time from the middleware.
+     * Used by the UI to compute staleness relative to the correct clock.
+     */
+    val lastEventTime: java.time.Instant = java.time.Instant.EPOCH,
 ) {
     companion object {
         /** Always-safe starting state. See class doc. */
