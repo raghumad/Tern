@@ -53,7 +53,7 @@ evaluated, and trade-offs.
 | Cell | 18650 cylindrical (21700 future, never pouch) | [power.md](power.md) |
 | Chemistry | NMC v1, LFP flagged for v2 | [power.md](power.md) |
 | Sourcing | Tier-A cells only (Panasonic, Samsung, LG, CATL, Molicel) | [power.md](power.md) |
-| MCU | ESP32-S3 v1; nRF5340 future path | [mcu.md](mcu.md) |
+| MCU | ESP32-S3 v1; nRF54LM20A future path | [mcu.md](mcu.md) |
 | Radio | SX1276, reuse LilyGo matching network | [radio-and-antenna.md](radio-and-antenna.md) |
 | Antenna | SMA connector; mounting dominates spec | [radio-and-antenna.md](radio-and-antenna.md) |
 | GPS | ublox M8N/M10S + active patch antenna | [sensors.md](sensors.md) |
@@ -69,7 +69,7 @@ evaluated, and trade-offs.
 | Function | Primary | Alternative(s) |
 |---|---|---|
 | LoRa radio | Semtech SX1276 | SX1262, AI-Thinker Ra-02 modules |
-| MCU | Espressif ESP32-S3 | Nordic nRF5340 (future) |
+| MCU | Espressif ESP32-S3 | Nordic nRF54LM20A (future) |
 | GPS | ublox NEO-M8N / M10S | Quectel L86/L96, Allystar |
 | Barometer | Bosch BMP388 | Infineon DPS310, TDK ICP-10125, TE MS5611 |
 | IMU | TDK ICM-42688 | ST LSM6DSO |
