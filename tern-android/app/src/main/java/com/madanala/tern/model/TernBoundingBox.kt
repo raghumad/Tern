@@ -29,4 +29,21 @@ data class TernBoundingBox(
             maxLon = maxLon + lonPadding
         )
     }
+
+    /**
+     * Expand the bounding box by a fixed distance in kilometres.
+     *
+     * Latitude:  1 degree ~ 111.32 km (constant).
+     * Longitude: 1 degree ~ 111.32 * cos(centerLat) km.
+     */
+    fun withPaddingKm(km: Double): TernBoundingBox {
+        val latDelta = km / 111.32
+        val lonDelta = km / (111.32 * Math.cos(Math.toRadians(centerLat)))
+        return TernBoundingBox(
+            minLat = minLat - latDelta,
+            minLon = minLon - lonDelta,
+            maxLat = maxLat + latDelta,
+            maxLon = maxLon + lonDelta
+        )
+    }
 }
