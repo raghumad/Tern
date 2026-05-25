@@ -51,8 +51,20 @@ open class BddTest : BaseUITest() {
     }
 
 
-    fun scenario(name: String, block: () -> Unit) {
+    /**
+     * Run a BDD scenario. When [recordVideo] is true, the device
+     * screen is recorded for the duration of the scenario block.
+     * Videos are saved to `/sdcard/tern-tests/` and can be pulled
+     * with `adb pull /sdcard/tern-tests/` after the run.
+     *
+     * Video recording is opt-in per scenario (default off) because
+     * it slows tests and produces large files.
+     */
+    fun scenario(name: String, recordVideo: Boolean = false, block: () -> Unit) {
         ReportGenerator.logStep("SCENARIO", name)
+        if (recordVideo) {
+            VideoHelper.startRecording(name.replace(" ", "_"))
+        }
         try {
             block()
             // Capture success screenshot at the end of scenario
@@ -62,12 +74,12 @@ open class BddTest : BaseUITest() {
             // Capture failure screenshot
             val result = ReportGenerator.captureScreenshot("failure_${name.replace(" ", "_")}")
             ReportGenerator.logStep("RESULT", "Scenario Failed: ${e.message}", "FAIL", result?.path, result?.hash)
-            
+
             // Print logcat to stdout for debugging
             println("=== LOGCAT DUMP ===")
             println(ReportGenerator.captureLogCat())
             println("===================")
-            
+
             try {
                 kotlinx.coroutines.runBlocking {
                     val report = com.madanala.tern.utils.PerformanceDebugger.getPerformanceReport()
@@ -78,9 +90,12 @@ open class BddTest : BaseUITest() {
             } catch (e: Exception) {
                 println("Failed to get performance report: $e")
             }
-            
+
             throw e
         } finally {
+            if (recordVideo) {
+                VideoHelper.stopRecording()
+            }
             val logCatOutput = ReportGenerator.captureLogCat()
             // Finish scenario but don't generate report yet
             ReportGenerator.finishScenario(name, logCatOutput)

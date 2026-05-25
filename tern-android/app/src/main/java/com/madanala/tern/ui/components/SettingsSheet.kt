@@ -37,12 +37,14 @@ import com.madanala.tern.ui.screens.MAP_VIEW_TERRAIN
 
 
 import androidx.compose.ui.platform.testTag
+import com.madanala.tern.mezulla.demo.AravisDemoReplay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsSheet(
     onDismiss: () -> Unit,
-    store: com.madanala.tern.redux.MapStore = viewModel()
+    store: com.madanala.tern.redux.MapStore = viewModel(),
+    demoReplay: AravisDemoReplay? = null,
 ) {
     val state by store.state.collectAsState()
     val settingsState = state.settingsState
@@ -129,6 +131,35 @@ fun SettingsSheet(
                     }
                 )
                 Spacer(modifier = Modifier.height(16.dp))
+            }
+
+            // Demo replay section (only shown when demoReplay is provided)
+            if (demoReplay != null) {
+                item {
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+                    Text("Demo", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
+                    val isRunning = demoReplay.isRunning
+                    OutlinedButton(
+                        onClick = {
+                            if (isRunning) {
+                                demoReplay.stop()
+                            } else {
+                                demoReplay.start()
+                                onDismiss()
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .testTag("demo_aravis_replay_button"),
+                    ) {
+                        Text(
+                            text = if (isRunning) "Stop Aravis Replay" else "Demo: Aravis Replay",
+                            fontSize = 16.sp,
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
             }
         }
     }

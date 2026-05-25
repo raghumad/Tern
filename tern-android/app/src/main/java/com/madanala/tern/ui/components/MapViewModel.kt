@@ -16,6 +16,7 @@ import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.madanala.tern.R
+import com.madanala.tern.mezulla.ui.MezullaOverlayManager
 import com.madanala.tern.ui.overlays.AirspaceOverlayManager
 import com.madanala.tern.ui.overlays.OverlayCoordinator
 import com.madanala.tern.ui.overlays.PGSpotOverlayManager
@@ -448,6 +449,10 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
 
         val routeManager = RouteOverlayManager(getApplication<Application>().applicationContext, store)
         overlayCoordinator.addOverlayManager(routeManager)
+
+        // Mezulla peer markers (WS3.1) -- always on top, driven by PeerState.
+        val mezullaManager = MezullaOverlayManager(store)
+        overlayCoordinator.addOverlayManager(mezullaManager)
     }
 
     /**

@@ -9,21 +9,29 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.madanala.tern.mezulla.demo.AravisDemoReplay
+import com.madanala.tern.mezulla.ui.MezullaStatusIndicator
+import com.madanala.tern.mezulla.ui.MezullaViewModeButton
+import com.madanala.tern.mezulla.ui.SosAlertBanner
 import com.madanala.tern.redux.MapStore
 import com.madanala.tern.redux.MapAction
 import com.madanala.tern.redux.WeatherActions
@@ -38,6 +46,7 @@ import com.madanala.tern.ui.components.WeatherDetailsDialog
 import com.madanala.tern.ui.components.WelcomeScreen
 import com.madanala.tern.ui.components.RouteDetailPanel
 import com.madanala.tern.ui.screens.RouteListScreen
+import kotlinx.coroutines.launch
 
 // Constants for map styles, moved from MainActivity for broader access
 const val MAP_VIEW_TERRAIN = 1
@@ -57,6 +66,20 @@ fun TernMapScreen(
     val isLocationReady = state.isLocationReady
     val gpsStatus = state.gpsStatus
 
+    // Demo replay state
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
+    val demoReplay = remember {
+        AravisDemoReplay(
+            store = store,
+            onReplayFinished = {
+                coroutineScope.launch {
+                    snackbarHostState.showSnackbar("Aravis replay finished — all pilots landed.")
+                }
+            },
+        )
+    }
+
     // Show edit waypoint screen when waypoint is selected
     LaunchedEffect(state.selectedWaypoint) {
         showEditWaypointScreen = state.selectedWaypoint != null
@@ -65,13 +88,29 @@ fun TernMapScreen(
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = Color.Transparent,
-        contentWindowInsets = WindowInsets(0, 0, 0, 0)
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { innerPadding ->
         Box(modifier = Modifier.fillMaxSize()) {
             MapViewContainer(
                 modifier = Modifier.fillMaxSize(),
                 store = store
             )
+
+            // SOS alert banner -- top of screen, above everything
+            SosAlertBanner(
+                peerState = state.peerState,
+                dismissedSosAlerts = state.dismissedSosAlerts,
+                userLocation = state.userLocation,
+                onDismiss = { nodeNumber ->
+                    store.dispatch(MapAction.DismissSosAlert(nodeNumber))
+                },
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth(),
+            )
+
+            // Right-edge controls: settings, share, route, and Mezulla view mode
             Column(
                 modifier = Modifier
                     .padding(innerPadding)
@@ -82,8 +121,21 @@ fun TernMapScreen(
                 SettingsButton(onClick = { showSettingsSheet = true })
                 ShareButton(onClick = { showShareSheet = true })
                 RouteButton(onClick = { showRouteListScreen = true })
+                MezullaViewModeButton(
+                    viewMode = state.mezullaViewMode,
+                    linkState = state.peerState.linkState,
+                    onCycle = { store.dispatch(MapAction.CycleMezullaViewMode) },
+                )
             }
-            
+
+            // Mezulla status indicator -- bottom of screen
+            MezullaStatusIndicator(
+                peerState = state.peerState,
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(8.dp),
+            )
+
             RouteDetailPanel(
                 modifier = Modifier.align(Alignment.BottomCenter),
                 store = store,
@@ -105,7 +157,8 @@ fun TernMapScreen(
     if (showSettingsSheet) {
         SettingsSheet(
             onDismiss = { showSettingsSheet = false },
-            store = store
+            store = store,
+            demoReplay = demoReplay,
         )
     }
 
