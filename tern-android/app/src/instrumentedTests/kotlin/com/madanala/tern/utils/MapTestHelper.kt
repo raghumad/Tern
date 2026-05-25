@@ -235,10 +235,12 @@ object MapTestHelper {
 
     @Suppress("DEPRECATION")
     fun injectMockLocation(composeTestRule: androidx.compose.ui.test.junit4.AndroidComposeTestRule<*, *>, lat: Double, lon: Double) {
-        // Set the custom provider factory in MapViewModel
-        MapViewModel.locationProviderFactory = { MockLocationProvider(lat, lon) }
-        
-        // Also try to mock system location for completeness (though likely bypassed now)
+        // M8: locationProviderFactory was removed from MapViewModel when
+        // OSMDroid was replaced by MapLibre. Location is handled by
+        // ReduxLocationService. We still inject the system-level mock
+        // location below for the GPS provider.
+
+        // Mock system location for the Android LocationManager
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val locationManager = context.getSystemService(android.content.Context.LOCATION_SERVICE) as android.location.LocationManager
             try {

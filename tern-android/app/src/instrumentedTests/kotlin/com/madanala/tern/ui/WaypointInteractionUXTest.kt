@@ -36,8 +36,8 @@ class WaypointInteractionUXTest : MapVisualTest() {
                 val wp2 = Waypoint(lat = 40.0180, lon = -105.2750, label = "Turnpoint 1", type = LocationType.TURNPOINT)
 
                 given("I am viewing a 2-waypoint route on the map") {
-                    // Initialize Map Settings
-                    MapViewModel.MAP_MOVE_DEBOUNCE_MS = 0L
+                    // M8: MAP_MOVE_DEBOUNCE_MS removed; MapLibre camera uses
+                    // CameraState snapshotFlow with distinctUntilChanged.
                     MapTestHelper.grantLocationPermissions()
                     MapTestHelper.injectMockLocation(composeTestRule, startLat, startLon)
 

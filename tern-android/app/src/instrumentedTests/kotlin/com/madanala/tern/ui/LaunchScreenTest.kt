@@ -29,49 +29,26 @@ class LaunchScreenTest : MapVisualTest() {
                     // Force CountryUtils to return "gb" (United Kingdom) - Smaller dataset (4.6MB vs 23MB for US)
                     // This prevents OOM/Timeouts on Emulator while still using Real URLs
                     
-                    // Disable debounce for testing to prevent race conditions
-                    val originalDebounce = com.madanala.tern.ui.components.MapViewModel.MAP_MOVE_DEBOUNCE_MS
-                    com.madanala.tern.ui.components.MapViewModel.MAP_MOVE_DEBOUNCE_MS = 0L
+                    // M8: MAP_MOVE_DEBOUNCE_MS removed; MapLibre uses
+                    // CameraState snapshotFlow with distinctUntilChanged.
 
-                    try {
-                        // Launch on London, UK
-                        givenAppIsLaunchedOnMap(lat = 51.5, lon = -0.1, countryCode = "gb")
-                        
-                        // Force map center to London to ensure test stability
-                        composeTestRule.runOnUiThread {
-                            val contentViewGroup = composeTestRule.activity.findViewById<android.view.ViewGroup>(android.R.id.content)
-                            var mapView: org.osmdroid.views.MapView? = null
-                            fun findMapView(view: android.view.View) {
-                                if (view is org.osmdroid.views.MapView) {
-                                    mapView = view
-                                    return
-                                }
-                                if (view is android.view.ViewGroup) {
-                                    for (i in 0 until view.childCount) {
-                                        findMapView(view.getChildAt(i))
-                                        if (mapView != null) return
-                                    }
-                                }
-                            }
-                            findMapView(contentViewGroup)
-                            mapView?.controller?.setCenter(org.osmdroid.util.GeoPoint(51.5, -0.1))
-                            mapView?.controller?.setZoom(12.0)
-                        }
+                    // Launch on London, UK
+                    givenAppIsLaunchedOnMap(lat = 51.5, lon = -0.1, countryCode = "gb")
 
-                        `when`("the application initializes and starts its background data syncing") {
-                            ReportGenerator.logStep("ACTION", "Waiting for map initialization")
-                        }
-                        
-                        then("the map should be displayed with all relevant flight overlays rendered and visible") {
-                            com.madanala.tern.utils.ReportGenerator.logStep("VERIFY", "Checking for rendered overlays")
-                            composeTestRule.onNodeWithTag("map_view").assertExists()
-                            
-                            // Use robust waiting logic from MapVisualTest
-                            waitForMapToRender()
-                        }
-                    } finally {
-                        // Restore debounce
-                        com.madanala.tern.ui.components.MapViewModel.MAP_MOVE_DEBOUNCE_MS = originalDebounce
+                    // M8: MapLibre camera is centered via Redux dispatch
+                    // (givenAppIsLaunchedOnMap calls zoomTo internally).
+                    // No OSMDroid MapView lookup needed.
+
+                    `when`("the application initializes and starts its background data syncing") {
+                        ReportGenerator.logStep("ACTION", "Waiting for map initialization")
+                    }
+
+                    then("the map should be displayed with all relevant flight overlays rendered and visible") {
+                        com.madanala.tern.utils.ReportGenerator.logStep("VERIFY", "Checking for rendered overlays")
+                        composeTestRule.onNodeWithTag("map_view").assertExists()
+
+                        // Use robust waiting logic from MapVisualTest
+                        waitForMapToRender()
                     }
                 }
             }

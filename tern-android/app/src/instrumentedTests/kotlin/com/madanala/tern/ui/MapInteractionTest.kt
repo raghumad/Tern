@@ -36,8 +36,8 @@ class MapInteractionTest : MapVisualTest() {
                     // Initialize CacheManager
                     CacheManager.initialize(composeTestRule.activity.applicationContext)
                     
-                    // Disable map move debounce for testing to prevent race conditions
-                    com.madanala.tern.ui.components.MapViewModel.MAP_MOVE_DEBOUNCE_MS = 0L
+                    // M8: MAP_MOVE_DEBOUNCE_MS removed; MapLibre camera uses
+                    // CameraState snapshotFlow with distinctUntilChanged.
 
                     // Permissions & Location handled by MapVisualTest base or Helper
                     MapTestHelper.grantLocationPermissions()

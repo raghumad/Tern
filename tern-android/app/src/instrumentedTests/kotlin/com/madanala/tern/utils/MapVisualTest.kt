@@ -36,15 +36,11 @@ open class MapVisualTest {
     )
 
     init {
-        // Essential: Set the location provider factory BEFORE the Activity starts.
-        // Since createAndroidComposeRule starts the Activity as soon as it's evaluated,
-        // we must set this in the init block of the test class.
-        com.madanala.tern.ui.components.MapViewModel.locationProviderFactory = { 
-            // Default to Boulder, US for tests
-            MockLocationProvider(40.015, -105.27) 
-        }
-        
-        // Also set a default test country code to avoid race conditions with initial location updates
+        // M8: locationProviderFactory was removed from MapViewModel when
+        // OSMDroid was replaced by MapLibre. Location is now handled by
+        // ReduxLocationService in the Compose tree, not by an OSMDroid
+        // IMyLocationProvider. The test still sets a country code to
+        // prevent real data downloads during test runs.
         com.madanala.tern.utils.CountryUtils.setTestCountryCode("TEST")
     }
 
@@ -59,8 +55,10 @@ open class MapVisualTest {
         com.madanala.tern.utils.CacheManager.initialize(context)
         // 2. HYGIENE: Clear all caches immediately to ensure no state leakage from previous runs
         com.madanala.tern.utils.CacheManager.clearAllCaches()
-        
-        com.madanala.tern.ui.components.MapViewModel.MAP_MOVE_DEBOUNCE_MS = 0L
+
+        // M8: MAP_MOVE_DEBOUNCE_MS was removed from MapViewModel when
+        // OSMDroid was replaced by MapLibre. MapLibre camera updates flow
+        // through CameraState snapshotFlow with distinctUntilChanged.
         val className = this.javaClass.simpleName
         ReportGenerator.currentTestClass = className
         ReportGenerator.currentTestName = testNameRule.methodName
@@ -80,8 +78,7 @@ open class MapVisualTest {
         com.madanala.tern.utils.PerformanceDebugger.clearMetrics()
         Log.d("MapVisualTest", "Proactively cleared all caches and performance metrics")
 
-        // Reset global state to ensure test isolation (0L for immediate updates)
-        com.madanala.tern.ui.components.MapViewModel.MAP_MOVE_DEBOUNCE_MS = 0L
+        // M8: MAP_MOVE_DEBOUNCE_MS removed (see note above).
 
         // Start mock server to intercept all weather/spot requests and prevent 404 state resets
         WeatherTestHelper.startServer()
@@ -123,22 +120,10 @@ open class MapVisualTest {
                 val activity = composeTestRule.activity
                 val store = ViewModelProvider(activity)[MapStore::class.java]
 
-                // RESET universal coordinator state via MapViewModel (Priority: Regression Fix)
-                try {
-                    val componentActivity = activity as? androidx.activity.ComponentActivity
-                    if (componentActivity != null) {
-                        val mapViewModel = ViewModelProvider(componentActivity).get(com.madanala.tern.ui.components.MapViewModel::class.java)
-                        val field = mapViewModel.javaClass.getDeclaredField("overlayCoordinator")
-                        field.isAccessible = true
-                        val coordinator = field.get(mapViewModel) as? com.madanala.tern.ui.overlays.OverlayCoordinator
-                        coordinator?.reset()
-                        Log.d("MapVisualTest", "Reset OverlayCoordinator via MapViewModel")
-                    } else {
-                        Log.w("MapVisualTest", "Activity is not a ComponentActivity, could not access ViewModel")
-                    }
-                } catch (e: Exception) {
-                    Log.w("MapVisualTest", "Could not reset coordinator via ViewModel: ${e.message}")
-                }
+                // M8: OverlayCoordinator was removed when OSMDroid overlay
+                // managers were deleted. MapLibre layers are stateless
+                // Compose composables driven by Redux state -- no separate
+                // coordinator lifecycle to reset.
 
                 store.dispatch(MapAction.ClearAllRoutes)
                 store.dispatch(MapAction.DeselectRoute)
@@ -208,22 +193,26 @@ open class MapVisualTest {
     }
 
     /**
-     * Polls the MapView until it is centered at the expected location.
+     * Polls the Redux store until its center is at the expected location.
+     *
+     * M8: Rewritten to use MapStore state instead of OSMDroid MapView.
+     * The MapLibre camera is driven by Redux; dispatching UpdateCenter
+     * immediately updates the store's center, and the CameraState
+     * snapshotFlow propagates it to the native renderer.
      */
     fun waitForMapLocation(expectedLat: Double, expectedLon: Double, tolerance: Double = 0.01, timeoutMillis: Long = 5000) {
         val startTime = System.currentTimeMillis()
         var lastActual: GeoPoint? = null
-        
+
         while (System.currentTimeMillis() - startTime < timeoutMillis) {
             composeTestRule.runOnUiThread {
                 try {
                     val activity = composeTestRule.activity
-                    val rootView = activity.findViewById<android.view.View>(android.R.id.content)
-                    val mapView = findMapViewRecursive(rootView)
-                    lastActual = mapView?.mapCenter as? GeoPoint
+                    val store = ViewModelProvider(activity)[MapStore::class.java]
+                    lastActual = store.state.value.center
                 } catch (e: Exception) {}
             }
-            
+
             val actual = lastActual
             if (actual != null) {
                 val latDiff = Math.abs(actual.latitude - expectedLat)
@@ -235,7 +224,7 @@ open class MapVisualTest {
             }
             Thread.sleep(200)
         }
-        
+
         throw AssertionError("Timed out waiting for map to reach ($expectedLat, $expectedLon). Last seen: $lastActual")
     }
 
@@ -249,20 +238,21 @@ open class MapVisualTest {
 
     /**
      * Asserts that the map is currently centered at the expected location.
+     *
+     * M8: Rewritten to use MapStore state instead of OSMDroid MapView.
      */
     fun assertMapLocation(expectedLat: Double, expectedLon: Double, tolerance: Double = 0.01) {
         var actualCenter: GeoPoint? = null
         composeTestRule.runOnUiThread {
             try {
                 val activity = composeTestRule.activity
-                val rootView = activity.findViewById<android.view.View>(android.R.id.content)
-                val mapView = findMapViewRecursive(rootView)
-                actualCenter = mapView?.mapCenter as? GeoPoint
+                val store = ViewModelProvider(activity)[MapStore::class.java]
+                actualCenter = store.state.value.center
             } catch (e: Exception) {
                 Log.e("MapVisualTest", "Error getting map center: ${e.message}")
             }
         }
-        
+
         val actual = actualCenter
         if (actual == null) {
             throw AssertionError("Could not determine map center")
@@ -270,26 +260,27 @@ open class MapVisualTest {
 
         val latDiff = Math.abs(actual.latitude - expectedLat)
         val lonDiff = Math.abs(actual.longitude - expectedLon)
-        
+
         if (latDiff > tolerance || lonDiff > tolerance) {
             ReportGenerator.logStep("ASSERT", "Map location mismatch: Expected ($expectedLat, $expectedLon), Actual (${actual.latitude}, ${actual.longitude})", "FAIL")
             throw AssertionError("Map location mismatch. Expected (~$expectedLat, ~$expectedLon), but was (${actual.latitude}, ${actual.longitude}). Tolerance: $tolerance")
         }
-        
+
         ReportGenerator.logStep("ASSERT", "Map location verified: near ($expectedLat, $expectedLon)", "PASS")
     }
 
     /**
      * Asserts that the map zoom level is within the expected range.
+     *
+     * M8: Rewritten to use MapStore state instead of OSMDroid MapView.
      */
     fun assertZoomLevel(expectedZoom: Double, tolerance: Double = 0.5) {
         var actualZoom = 0.0
         composeTestRule.runOnUiThread {
             try {
                 val activity = composeTestRule.activity
-                val rootView = activity.findViewById<android.view.View>(android.R.id.content)
-                val mapView = findMapViewRecursive(rootView)
-                actualZoom = mapView?.zoomLevelDouble ?: 0.0
+                val store = ViewModelProvider(activity)[MapStore::class.java]
+                actualZoom = store.state.value.zoom
             } catch (e: Exception) {
                 Log.e("MapVisualTest", "Error getting zoom level: ${e.message}")
             }
@@ -299,7 +290,7 @@ open class MapVisualTest {
             ReportGenerator.logStep("ASSERT", "Zoom level mismatch: Expected $expectedZoom, Actual $actualZoom", "FAIL")
             throw AssertionError("Zoom level mismatch. Expected ~$expectedZoom, but was $actualZoom. Tolerance: $tolerance")
         }
-        
+
         ReportGenerator.logStep("ASSERT", "Zoom level verified: $actualZoom", "PASS")
     }
 
@@ -323,83 +314,49 @@ open class MapVisualTest {
     }
 
     /**
-     * Consolidates waiting for both airspaces and PG spots with shared timeout/polling
-     * Uses recursive counting to handle nested FolderOverlays (Priority: Stability Fix)
+     * Waits for airspace and PG-spot data to arrive in the Redux store.
+     *
+     * M8: Rewritten to poll MapStore state instead of counting OSMDroid
+     * overlay objects. MapLibre layers are driven by GeoJSON sources in
+     * the Redux state; the source-of-truth for "data has loaded" is the
+     * store, not the rendered view hierarchy.
      */
     fun waitForMapData(minAirspaces: Int = 1, minPGSpots: Int = 1, timeoutMillis: Long = 45000) {
         val startTime = System.currentTimeMillis()
-        var aCount = 0
-        var pCount = 0
-        
-        Log.i("MapVisualTest", "Waiting for Map Data: Airspaces >= $minAirspaces, PG Spots >= $minPGSpots (Timeout: ${timeoutMillis}ms)")
-        
+
+        Log.i("MapVisualTest", "Waiting for Map Data (Redux): Airspaces >= $minAirspaces, PG Spots >= $minPGSpots (Timeout: ${timeoutMillis}ms)")
+
         while (System.currentTimeMillis() - startTime < timeoutMillis) {
-            var currentMapHash = 0
+            var hasAirspaces = minAirspaces <= 0
+            var hasPGSpots = minPGSpots <= 0
+
             composeTestRule.runOnUiThread {
                 try {
                     val activity = composeTestRule.activity
-                    val rootView = activity.findViewById<android.view.View>(android.R.id.content)
-                    val mapView = findMapViewRecursive(rootView)
-                    if (mapView != null) {
-                        currentMapHash = System.identityHashCode(mapView)
-                        val counts = countOverlaysRecursively(mapView.overlays)
-                        aCount = counts.first
-                        pCount = counts.second
+                    val store = ViewModelProvider(activity)[MapStore::class.java]
+                    val state = store.state.value
+                    // Airspace data is loaded when the store has country codes
+                    if (minAirspaces > 0 && state.airspaceCountries.isNotEmpty()) {
+                        hasAirspaces = true
+                    }
+                    // PG spots are loaded when the store has pgSpotGeoJson
+                    if (minPGSpots > 0 && state.pgSpotGeoJson != null) {
+                        hasPGSpots = true
                     }
                 } catch (e: Exception) {
-                    Log.e("MapVisualTest", "Error checking overlay counts: ${e.message}")
+                    Log.e("MapVisualTest", "Error checking Redux state: ${e.message}")
                 }
             }
-            
-            if (aCount >= minAirspaces && pCount >= minPGSpots) {
-                println("MapVisualTest: waitForMapData SUCCESS: Found $aCount airspaces and $pCount spots on MapView@$currentMapHash after ${System.currentTimeMillis() - startTime}ms")
+
+            if (hasAirspaces && hasPGSpots) {
+                Log.i("MapVisualTest", "waitForMapData SUCCESS after ${System.currentTimeMillis() - startTime}ms")
                 return
             }
-            
+
             Thread.sleep(1000)
         }
 
-        // On failure, dump EVERYTHING for diagnostics
-        composeTestRule.runOnUiThread {
-            val activity = composeTestRule.activity
-            val rootView = activity.findViewById<android.view.View>(android.R.id.content)
-            val mapView = findMapViewRecursive(rootView)
-            val mapHash = System.identityHashCode(mapView)
-            
-            fun dumpOverlays(list: List<org.osmdroid.views.overlay.Overlay>, indent: String = "  ") {
-                list.forEachIndexed { index, overlay ->
-                    val type = overlay::class.simpleName
-                    val hash = System.identityHashCode(overlay)
-                    Log.e("MapVisualTest", "$indent[$index] Type: $type, Hash: $hash")
-                    
-                    if (overlay is org.osmdroid.views.overlay.Polygon) {
-                        @Suppress("DEPRECATION")
-                        val points = overlay.getPoints()
-                        val pointsSize = points.size
-                        val center = if (points.isNotEmpty()) {
-                            val latMean = points.map { it.latitude }.average()
-                            val lonMean = points.map { it.longitude }.average()
-                            "~($latMean, $lonMean)"
-                        } else "N/A"
-                        Log.e("MapVisualTest", "$indent  Polygon Points: $pointsSize, Approx Center: $center")
-                    } else if (overlay is org.osmdroid.views.overlay.Marker) {
-                         Log.e("MapVisualTest", "$indent  Marker Position: ${overlay.position}")
-                    } else if (overlay is org.osmdroid.views.overlay.FolderOverlay) {
-                        dumpOverlays(overlay.items, "$indent  ")
-                    }
-                }
-            }
-
-            Log.e("MapVisualTest", "DIAGNOSTIC FAILURE DUMP for MapView@$mapHash")
-            if (mapView != null) {
-                Log.e("MapVisualTest", "Top-level Overlay count: ${mapView.overlays.size}")
-                dumpOverlays(mapView.overlays)
-            } else {
-                Log.e("MapVisualTest", "ERROR: MapView NOT FOUND in view hierarchy!")
-            }
-        }
-        
-        throw AssertionError("Timed out waiting for map data after ${timeoutMillis}ms. Final: Airspaces=$aCount (min $minAirspaces), PGSpots=$pCount (min $minPGSpots)")
+        throw AssertionError("Timed out waiting for map data after ${timeoutMillis}ms.")
     }
 
     /**
@@ -432,34 +389,9 @@ open class MapVisualTest {
     }
 
 
-    private fun findMapViewRecursive(view: android.view.View): org.osmdroid.views.MapView? {
-        if (view is org.osmdroid.views.MapView) return view
-        if (view is android.view.ViewGroup) {
-            for (i in 0 until view.childCount) {
-                val result = findMapViewRecursive(view.getChildAt(i))
-                if (result != null) return result
-            }
-        }
-        return null
-    }
-
-    private fun countOverlaysRecursively(overlays: List<org.osmdroid.views.overlay.Overlay>): Pair<Int, Int> {
-        var aCount = 0
-        var pCount = 0
-        
-        fun process(list: List<org.osmdroid.views.overlay.Overlay>) {
-            list.forEach { overlay ->
-                when (overlay) {
-                    is org.osmdroid.views.overlay.Polygon -> aCount++
-                    is org.osmdroid.views.overlay.Marker -> pCount++
-                    is org.osmdroid.views.overlay.FolderOverlay -> process(overlay.items)
-                }
-            }
-        }
-        
-        process(overlays)
-        return Pair(aCount, pCount)
-    }
+    // M8: findMapViewRecursive and countOverlaysRecursively removed.
+    // OSMDroid MapView is no longer in the view hierarchy. All overlay
+    // data is in the Redux store; rendering is MapLibre's concern.
 
     // BDD Helpers (Copied from BddTest to avoid rule conflicts)
     fun scenario(name: String, block: () -> Unit) {

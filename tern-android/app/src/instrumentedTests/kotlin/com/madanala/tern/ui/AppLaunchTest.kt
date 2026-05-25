@@ -10,12 +10,11 @@ import androidx.compose.ui.test.*
 class AppLaunchTest : MapVisualTest() {
 
     init {
-        // OVERRIDE: MapVisualTest globally hardcodes the MapViewModel to boot at Boulder, CO.
-        // We must intercept this reflection immediately before testAppLaunchToMap_PacificOcean natively
-        // constructs so that the zero-state map validates completely empty tiles at (0.0, -160.0).
-        com.madanala.tern.ui.components.MapViewModel.locationProviderFactory = {
-            com.madanala.tern.utils.MockLocationProvider(0.0, -160.0)
-        }
+        // M8: locationProviderFactory was removed from MapViewModel when
+        // OSMDroid was replaced by MapLibre. Location is handled by
+        // ReduxLocationService in the Compose tree. The zero-state
+        // Pacific Ocean test now relies on givenAppIsLaunchedOnMap to
+        // position the map via Redux dispatch.
     }
 
     @Test
