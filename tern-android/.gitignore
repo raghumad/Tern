@@ -99,3 +99,4 @@ htmlcov/
 coverage.xml
 *.cover
 .hypothesis/
+.claude/

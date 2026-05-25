@@ -60,14 +60,6 @@ enum class MemoryPressureLevel(
         const val THRESHOLD_MEDIUM_MB = 100L
         const val THRESHOLD_LOW_MB = 50L
 
-        // Legacy/Fallback limits (Single Source of Truth)
-        private const val MAX_AIRSPACES_FALLBACK = 150
-        private const val MAX_PG_SPOTS_FALLBACK = 50
-        private const val MAX_VIEWPORT_AIRSPACES_FALLBACK = 100
-
-        /**
-         * Get memory pressure level from available memory in MB
-         */
         fun fromAvailableMemory(availableMemoryMB: Long): MemoryPressureLevel {
             return when {
                 availableMemoryMB > THRESHOLD_HIGH_MB -> HIGH_MEMORY
@@ -77,9 +69,6 @@ enum class MemoryPressureLevel(
             }
         }
 
-        /**
-         * Get memory pressure level from Android's low memory flag and available memory
-         */
         fun fromAndroidMemoryInfo(
             isLowMemory: Boolean,
             availableMemoryMB: Long
@@ -89,80 +78,6 @@ enum class MemoryPressureLevel(
                 else -> fromAvailableMemory(availableMemoryMB)
             }
         }
-
-        /**
-         * Get fallback overlay budget when adaptive system is unavailable
-         */
-        fun getFallbackOverlayBudget(
-            overlayType: String,
-            flightPhase: FlightPhase
-        ): OverlayBudget {
-            val totalBudget = if (overlayType.contains("airspace")) {
-                MAX_AIRSPACES_FALLBACK
-            } else {
-                MAX_PG_SPOTS_FALLBACK
-            }
-
-            // Apply flight phase multiplier
-            val multiplier = when (flightPhase) {
-                FlightPhase.LAUNCH -> 1.0
-                FlightPhase.THERMAL -> 1.1
-                FlightPhase.LANDING -> 1.2
-                FlightPhase.GLIDE -> 0.9
-                FlightPhase.CRUISING -> 0.8
-            }
-
-            val adjustedBudget = (totalBudget * multiplier).toInt()
-
-            return OverlayBudget(
-                totalOverlays = adjustedBudget,
-                memoryPressure = LOW_MEMORY, // Conservative fallback
-                flightPhase = flightPhase,
-                zoneBudgets = getFallbackZoneBudgets(overlayType),
-                recommendation = "Using fallback (adaptive system unavailable)"
-            )
-        }
-
-        /**
-         * Get fallback zone allocation for specific overlay type
-         */
-        fun getFallbackZoneBudgets(overlayType: String): Map<DistanceZone, Int> {
-            val type = overlayType.lowercase()
-            return when {
-                type.contains("airspace") -> mapOf(
-                    DistanceZone.CORE to MAX_VIEWPORT_AIRSPACES_FALLBACK,
-                    DistanceZone.NEAR to 30,
-                    DistanceZone.MID to 15,
-                    DistanceZone.FAR to 5,
-                    DistanceZone.EXTREME to 0
-                )
-                type.contains("routes") -> mapOf(
-                    DistanceZone.CORE to 10,
-                    DistanceZone.NEAR to 10,
-                    DistanceZone.MID to 10,
-                    DistanceZone.FAR to 5,
-                    DistanceZone.EXTREME to 0
-                )
-                else -> mapOf( // PG Spots
-                    DistanceZone.CORE to 25,
-                    DistanceZone.NEAR to MAX_PG_SPOTS_FALLBACK,
-                    DistanceZone.MID to 0,
-                    DistanceZone.FAR to 0,
-                    DistanceZone.EXTREME to 0
-                )
-            }
-        }
-
-        /**
-         * Get aviation-safe minimum budgets (absolute floor)
-         */
-        fun getAviationSafetyMinimums(): Map<DistanceZone, Int> = mapOf(
-            DistanceZone.CORE to 20,
-            DistanceZone.NEAR to 10,
-            DistanceZone.MID to 0,
-            DistanceZone.FAR to 0,
-            DistanceZone.EXTREME to 0
-        )
     }
 }
 
