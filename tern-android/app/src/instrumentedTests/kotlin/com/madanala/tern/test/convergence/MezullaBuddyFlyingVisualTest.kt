@@ -106,14 +106,7 @@ class MezullaBuddyFlyingVisualTest : MapVisualTest() {
 
     @Test
     fun tonio24_sees_airbuddies_on_the_map_throughout_the_aravis_xc() {
-        // Video recording wraps the entire test for full visual evidence.
-        VideoHelper.startRecording("mezulla_buddy_flying_aravis_xc")
-
-        try {
-            runScenario()
-        } finally {
-            VideoHelper.stopRecording()
-        }
+        runScenario()
     }
 
     private fun runScenario() {

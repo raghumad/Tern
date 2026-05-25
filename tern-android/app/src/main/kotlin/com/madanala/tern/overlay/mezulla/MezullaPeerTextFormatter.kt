@@ -77,6 +77,23 @@ object MezullaPeerTextFormatter {
             ?: peer.identity.hexId
 
     /**
+     * Just the detail line (no callsign). Used when icon + callsign
+     * are rendered separately from the detail text.
+     */
+    fun detailLine(
+        peer: KnownPeer,
+        fix: PeerPosition.Fix,
+        viewMode: MezullaViewMode,
+        staleness: StalenessLevel,
+        pilotPosition: Position?,
+        now: Instant,
+    ): String {
+        if (staleness == StalenessLevel.LOST) return "lost contact"
+        val warning = if (staleness == StalenessLevel.STALE) " ${MezullaIcons.WARNING}" else ""
+        return formatSecondLine(peer, fix, viewMode, pilotPosition, now) + warning
+    }
+
+    /**
      * The full display text for a peer marker (callsign + second line),
      * formatted for the active view mode and staleness.
      */

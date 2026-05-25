@@ -3,9 +3,12 @@ package com.madanala.tern.overlay.mezulla
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -16,6 +19,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.platform.LocalDensity
@@ -89,10 +93,13 @@ fun MezullaPeerLabels(
     val density = LocalDensity.current
 
     Box(modifier = Modifier.fillMaxSize()) {
+        val textStyles = LocalTernTextStyles.current
+
         peers.values.forEach { peer ->
             val fix = peer.lastPosition ?: return@forEach
             val staleness = MezullaPeerTextFormatter.computeStaleness(peer, now)
-            val displayText = MezullaPeerTextFormatter.displayText(
+            val callsign = MezullaPeerTextFormatter.callsign(peer)
+            val detailText = MezullaPeerTextFormatter.detailLine(
                 peer = peer,
                 fix = fix,
                 viewMode = viewMode,
@@ -100,19 +107,21 @@ fun MezullaPeerLabels(
                 pilotPosition = pilotPosition,
                 now = now,
             )
-            val callsign = MezullaPeerTextFormatter.callsign(peer)
-            val stalenessColor = when (staleness) {
+
+            // Icon glyph + color based on staleness
+            val icon = when (staleness) {
+                MezullaPeerTextFormatter.StalenessLevel.LOST -> MezullaIcons.PEER_LOST
+                else -> MezullaIcons.PEER
+            }
+            val iconColor = when (staleness) {
                 MezullaPeerTextFormatter.StalenessLevel.FRESH -> MezullaTheme.StalenessColors.fresh
                 MezullaPeerTextFormatter.StalenessLevel.AGING -> MezullaTheme.StalenessColors.aging
                 MezullaPeerTextFormatter.StalenessLevel.STALE -> MezullaTheme.StalenessColors.stale
                 MezullaPeerTextFormatter.StalenessLevel.LOST -> MezullaTheme.StalenessColors.lost
             }
-            val opacity = when (staleness) {
-                MezullaPeerTextFormatter.StalenessLevel.FRESH -> MezullaTheme.StalenessOpacity.fresh
-                MezullaPeerTextFormatter.StalenessLevel.AGING -> MezullaTheme.StalenessOpacity.aging
-                MezullaPeerTextFormatter.StalenessLevel.STALE -> MezullaTheme.StalenessOpacity.stale
-                MezullaPeerTextFormatter.StalenessLevel.LOST -> MezullaTheme.StalenessOpacity.lost
-            }
+
+            // Animation (SOS buzzes, stale pulses, fresh is static)
+            val anim = rememberAnimationForStaleness(staleness)
 
             val screenPos = projection.screenLocationFromPosition(
                 Position(fix.longitudeDeg, fix.latitudeDeg)
@@ -120,23 +129,36 @@ fun MezullaPeerLabels(
             val xPx = with(density) { screenPos.x.toPx().toInt() }
             val yPx = with(density) { screenPos.y.toPx().toInt() }
 
-            val textStyles = LocalTernTextStyles.current
-
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
-                    .offset { IntOffset(xPx - 50, yPx - 60) }
-                    .testTag("peer_label_$callsign")
-                    .background(
-                        MezullaTheme.Label.haloColor.copy(alpha = 0.85f),
-                        RoundedCornerShape(4.dp),
-                    )
-                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                    .offset { IntOffset(xPx - 40, yPx - 55) }
+                    .testTag("peer_label_$callsign"),
             ) {
+                // Line 1: colored icon + white callsign
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = icon,
+                        color = iconColor.copy(alpha = anim.alpha),
+                        style = textStyles.mapLabel,
+                        modifier = Modifier.graphicsLayer {
+                            rotationZ = anim.rotation
+                            scaleX = anim.scale
+                            scaleY = anim.scale
+                        },
+                    )
+                    Spacer(Modifier.width(3.dp))
+                    Text(
+                        text = callsign.uppercase(),
+                        color = Color.White,
+                        style = textStyles.mapLabel,
+                    )
+                }
+                // Line 2: white detail text
                 Text(
-                    text = displayText,
-                    color = stalenessColor.copy(alpha = opacity),
-                    style = textStyles.mapLabel,
+                    text = detailText,
+                    color = Color.White.copy(alpha = anim.alpha),
+                    style = textStyles.mapDetail,
                     textAlign = TextAlign.Center,
                 )
             }
