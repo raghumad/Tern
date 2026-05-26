@@ -13,10 +13,13 @@ import androidx.lifecycle.ViewModelProvider
 
 /**
  * High-fidelity algorithmic audit of aviation hazard indicators.
- * Verifies that safety-critical visuals (RFC 005) are active, correctly colored, 
+ * Verifies that safety-critical visuals (RFC 005) are active, correctly colored,
  * and animating as expected using pixel-delta analysis.
  */
 @RunWith(AndroidJUnit4::class)
+@Liar("HazardHalo and HazardBolt Compose test tags do not exist in production code. " +
+      "The hazard indicators are either MapLibre layers or not yet implemented. " +
+      "thenExpectHazardFidelity will fail immediately with node-not-found.")
 class ResourceAuditTest : MapVisualTest() {
 
     private val AMBER_HALO = 0xFFFFBF00.toInt()
