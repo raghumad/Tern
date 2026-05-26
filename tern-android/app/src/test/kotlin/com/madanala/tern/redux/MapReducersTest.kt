@@ -74,11 +74,4 @@ class MapReducersTest {
         assertThat(newState.selectedWaypoint).isNull()
     }
 
-    @Test
-    fun `UpdateUserLocation updates location state`() {
-        val location = org.osmdroid.util.GeoPoint(10.0, 20.0)
-        val newState = mapReducer(initialState, MapAction.UpdateUserLocation(location))
-
-    }
 }
-

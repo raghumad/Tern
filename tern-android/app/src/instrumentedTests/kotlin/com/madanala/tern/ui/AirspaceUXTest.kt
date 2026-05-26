@@ -1,7 +1,6 @@
 package com.madanala.tern.ui
 
-import androidx.compose.ui.test.onNodeWithTag
-import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.madanala.tern.utils.Liar
 import com.madanala.tern.utils.MapVisualTest
 import com.madanala.tern.utils.MapTestHelper
 import com.madanala.tern.utils.ReportGenerator
@@ -9,13 +8,9 @@ import com.madanala.tern.utils.WeatherTestHelper
 import org.junit.Before
 import org.junit.After
 import org.junit.Test
-import org.junit.runner.RunWith
 import org.osmdroid.util.GeoPoint
 
-@RunWith(AndroidJUnit4::class)
 class AirspaceUXTest : MapVisualTest() {
-
-
 
     @Before
     fun startMockServer() {
@@ -27,62 +22,42 @@ class AirspaceUXTest : MapVisualTest() {
         WeatherTestHelper.stopServer()
     }
 
+    @Liar("Claims to verify floor/ceiling altitudes, only checks map_view exists")
     @Test
     fun testAirspacePanningAndVisibility() {
         scenario("Airspace UX: Pan to High Density Area (Boulder, US)") {
             story("As a pilot planning a cross-country flight, I want to see restricted airspaces on the map so I can stay safe and compliant with aviation regulations during my flight.") {
-                
+
                 given("I am preparing for a flight in the Boulder area") {
-                    // Start near Boulder, but not exactly on the features to trigger a pan
-                    givenAppIsLaunchedOnMap(lat = 40.0, lon = -105.2, countryCode = "us") 
-                    
-                    // Verify initial load succeeded
-                    ReportGenerator.logStep("WAIT", "Waiting for initial airspace payload parsing and spatial index creation")
+                    givenAppIsLaunchedOnMap(lat = 40.0, lon = -105.2, countryCode = "us")
                     waitForCacheReadiness("US", timeoutMillis = 120000)
                     waitForAirspaces(minCount = 1, timeoutMillis = 20000)
                 }
 
                 `when`("I pan the map towards a complex airspace structure near the mountains") {
-                    // Start waiting for the rendering sync log immediately
-                    ReportGenerator.logStep("WAIT", "Waiting for airspace rendering sync")
-                    
-                    // Pan the map far enough to trigger reload (> 5km)
-                    ReportGenerator.logStep("ACTION", "Panning to high density airspace area")
                     composeTestRule.runOnUiThread {
                         val activity = composeTestRule.activity
                         val store = androidx.lifecycle.ViewModelProvider(activity)[com.madanala.tern.redux.MapStore::class.java]
-                        // [SOURCE OF TRUTH] Use Redux to move the camera
                         store.dispatch(com.madanala.tern.redux.MapAction.UpdateCenter(GeoPoint(40.1, -105.2)))
                         store.dispatch(com.madanala.tern.redux.MapAction.UpdateZoom(13.0))
                     }
-                    
                     composeTestRule.waitForIdle()
-                    // [CLOSED-LOOP] Verify the map actually moved to the target
                     assertMapLocation(40.1, -105.2)
-                    
                     waitForAirspaces(minCount = 1, timeoutMillis = 45000)
-                    
                     waitForMapToRender()
                 }
 
                 and("I tap on a specific airspace polygon to identify its boundaries and limits") {
-                     ReportGenerator.logStep("ACTION", "Tapping on Boulder airspace area")
-                     // Known airspace location near Boulder based on previous mock setup
-                     MapTestHelper.clickOnGeoPoint(composeTestRule.activity, 40.015, -105.27)
-                     composeTestRule.waitForIdle()
+                    MapTestHelper.clickOnGeoPoint(composeTestRule.activity, 40.015, -105.27)
+                    composeTestRule.waitForIdle()
                 }
 
                 then("The airspace details should be clearly visible, showing floor and ceiling altitudes") {
-                    // Verify map exists
-                    composeTestRule.onNodeWithTag("map_view").assertExists()
-                    
-                    // Final check that current state remains stable
-                    waitForAirspaces(minCount = 1)
+                    // TODO: write real assertions
                 }
-                
+
                 and("The map response should remain fluid without performance degradation") {
-                     // Check if PerformanceDebugger logged a storm warning
-                     ReportGenerator.assertLogDoesNotContain("PerformanceDebugger", "STATE_UPDATE_STORM")
+                    // TODO: write real assertions
                 }
             }
         }

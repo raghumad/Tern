@@ -75,21 +75,9 @@ class ComposableScenariosTest : MapVisualTest() {
         // 2. Run a Create Route Scenario
         scenarioCreateRoute("Morning Flight")
 
-        // 3. Run a dependent scenario that requires the previous ones
-        scenario("Modify Route Details") {
-            given("I have completed the 'Create Route' scenario") {
-                com.madanala.tern.utils.ReportGenerator.logStep("INFO", "Pre-requisite met by previous steps")
-            }
-            
-            `when`("I rename the active route to 'Evening Flight'") {
-                com.madanala.tern.utils.ReportGenerator.logStep("ACTION", "Renaming route internally")
-                // (In a full test, dispatch an EditRoute name action here)
-            }
-            
-            then("the metadata panel reflects the updated string") {
-                com.madanala.tern.utils.ReportGenerator.logStep("VERIFY", "Route renamed")
-            }
-        }
+        // Scenario 3 ("Modify Route Details") deleted — had zero assertions
+        // and no actual rename dispatch. Route renaming is tested in
+        // RouteManagementTest.testCreateRenameDeleteRoute.
     }
     
     @Test
