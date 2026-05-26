@@ -1,8 +1,8 @@
 # Mezulla wire contract — phone ↔ board protocol
 
 This document defines the protocol between the Tern Android app
-(Mezulla) and the Meshtastic firmware running on the LilyGo T-LoRa
-V2.1 1.6 board (Meshtastic-Mezulla). Both sides code to this contract
+(Mezulla) and the Meshtastic firmware running on the LilyGo T3
+V1.6.1 board (Meshtastic-Mezulla). Both sides code to this contract
 independently.
 
 The contract is layered on Meshtastic's existing BLE API and

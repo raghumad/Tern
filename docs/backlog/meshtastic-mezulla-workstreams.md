@@ -1,9 +1,9 @@
 # Meshtastic-Mezulla firmware workstreams
 
 This file covers work on the Meshtastic firmware that runs on the
-LilyGo T-LoRa V2.1 1.6 board (ESP32-PICO-D4 + SX1276 LoRa + SSD1306
-OLED). Meshtastic variant: `tlora-v2-1-1_6`. It is separate from the
-Mezulla (Tern app) backlog
+LilyGo T3 V1.6.1 board (ESP32-PICO-D4 + SX1276 LoRa + SSD1306 OLED,
+Meshtastic variant `tlora-v2-1-1_6`). It is separate from the Mezulla
+(Tern app) backlog
 which owns all phone-side BDD tests and UI work.
 
 The contract between phone and board is defined in
@@ -135,7 +135,7 @@ Test criteria:
 
 ### WS-F2 definition of done
 
-All F2.1–F2.5 test criteria pass on the real LilyGo T-LoRa V2.1 board.
+All F2.1–F2.5 test criteria pass on the real LilyGo T3 V1.6.1 board.
 Serial logs captured as evidence. QR scan verified with a real
 phone camera (human test). The Stage 1 regression gate (F1.3)
 still passes — nothing in WS-F2 breaks stock Meshtastic behavior.
