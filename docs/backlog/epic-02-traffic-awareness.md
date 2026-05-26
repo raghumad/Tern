@@ -78,7 +78,7 @@ radio stack from real hardware work (WS4).
 - Dual radio support. That's v2 Mezulla hardware (custom board with
   a dedicated SX1276 for traffic). v1 (LilyGo T3, single radio)
   uses gap-scanning. If gap-scanning proves unacceptable (story
-  2.8), dual radio gets promoted from future work.
+  2.10), dual radio gets promoted from future work.
 
 ---
 
@@ -207,15 +207,21 @@ The harness measures:
 - Baseline mesh packet delivery rate (no traffic module active).
 - Radio retune latency (time off Meshtastic frequency per cycle).
 - Mesh packet loss rate with the traffic module active.
-- Traffic packet capture rate (what percentage of transmitted
-  FANET/FLARM packets are successfully received).
+
+When fork-track receive stories begin, the harness is extended to
+also measure traffic packet capture rate (what percentage of
+transmitted FANET/FLARM packets are successfully received).
 
 What done looks like:
 - Automated test script runs on the bench, produces a structured
-  report (JSON or CSV) with all four metrics.
+  report (JSON or CSV) with the above metrics.
 - Baseline measurement is captured and committed as the reference.
 - The harness is reusable — every subsequent story runs it to
   measure its own impact.
+
+Bench test results serve as the human test evidence for firmware
+stories (equivalent to Epic 01's human test requirement for
+hardware work).
 
 ### Story 2.7: Broadcast own position on FANET
 
@@ -283,9 +289,9 @@ What done looks like:
   position data.
 - Bench test report shows: mesh packet loss rate with gap-scanning
   active, FANET packet capture rate, time per scan cycle.
-- If mesh loss exceeds the threshold from story 2.5 (or a
-  reasonable default if maintainers didn't specify), document the
-  finding and flag dual radio as the path forward.
+- If mesh loss exceeds an acceptable threshold (compare against
+  story 2.6's baseline), document the finding and flag dual radio
+  as the path forward.
 
 ### Story 2.11: Receive and decode FLARM Legacy packets (fork)
 
@@ -324,10 +330,11 @@ Depends on: 2.10
 Track: Mezulla fork
 
 Decoded traffic from any protocol (2.10, 2.11, 2.12) is surfaced
-as Meshtastic telemetry messages using an allocated port number.
-Any node in the mesh can relay them. A ground node hearing FANET
-traffic injects it into the mesh for airborne nodes out of direct
-range.
+as Meshtastic telemetry messages (reusing the traffic message type
+allocated in story 2.5, or a fork-specific port if upstream
+allocation didn't cover receive). Any node in the mesh can relay
+them. A ground node hearing FANET traffic injects it into the mesh
+for airborne nodes out of direct range.
 
 What done looks like:
 - A ground Meshtastic node receives a FANET packet and relays it
