@@ -731,6 +731,23 @@ $coverageText
                  }
             }
         }
+
+        // Generate the consolidated sidebar dashboard
+        try {
+            val script = file("${project.projectDir}/scripts/test_report.py")
+            if (script.exists()) {
+                val result = exec {
+                    workingDir = project.projectDir
+                    commandLine("python3", "scripts/test_report.py")
+                    isIgnoreExitValue = true
+                }
+                if (result.exitValue == 0) {
+                    println("📊 Dashboard: file://${project.layout.buildDirectory.get()}/reports/tern-test-dashboard.html")
+                }
+            }
+        } catch (e: Exception) {
+            println("⚠️ Dashboard generation skipped: ${e.message}")
+        }
     }
 }
 
