@@ -394,18 +394,30 @@ then what lets us fly with the real board, then polish.
 2. **WS3: opacity pulse for stale/lost peers** — was on the deleted
    NativeMapView. Needs porting to the compose PeerLayer. Visual
    safety signal.
-3. **WS5 Phase 2: register `tern://` deep link** (5.2.4) — pure app
-   work, no firmware needed. Without it, scanning the QR does nothing.
+3. ~~**WS5 Phase 2: register `tern://` deep link** (5.2.4)~~ DONE.
+   Manifest registered, `TernPairLink` parser + `MezullaPairingCodec`
+   wire contract implemented with 21 unit tests. BDD instrumented
+   test for intent delivery still needed. Full QR scan flow requires
+   human test with real board.
+4. **WS5 Phase 2: deep link BDD test** — instrumented test that
+   launches activity with a `tern://p?n=...&t=...` intent and
+   verifies Tern receives and parses it. No board needed.
+5. **Test dashboard video** — wire `FrameCaptureHelper` as fallback
+   when `screenrecord` fails on ATD images. Stitch frames to video
+   with ffmpeg in `generateTestReport`.
 
 ### Next (app ↔ board — needs firmware handoff for testing)
 
-4. **WS5 Phase 2: pairing flow** (5.2.5) — deep link → BLE connect →
-   claim-ownership → persist. Needs real board to test end-to-end.
-5. **WS5 Phase 2: replace Phase 1 UI** (5.2.6) — settings shows
+6. **WS5 Phase 2: pairing flow orchestrator** (5.2.5) — deep link →
+   BLE scan → connect → claim → persist. Wire contract done
+   (`MezullaPairingCodec`). Needs real board for end-to-end.
+   **Human test required:** scan QR on real board with phone camera,
+   verify Tern opens and claims ownership.
+7. **WS5 Phase 2: replace Phase 1 UI** (5.2.6) — settings shows
    paired board + "forget," no BLE scan screen.
-6. **WS4: `BleConnection` skeleton** (4.3) — hardcoded MAC, raw
+8. **WS4: `BleConnection` skeleton** (4.3) — hardcoded MAC, raw
    Meshtastic packets through the existing interface.
-7. **WS4.5: `TcpMeshtasticConnection`** — dev convenience for
+9. **WS4.5: `TcpMeshtasticConnection`** — dev convenience for
    emulator testing against real board on WiFi.
 
 ### Later (polish and hardening)
