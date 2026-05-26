@@ -71,6 +71,7 @@ def parse_instrumented_tests() -> list[TC]:
                 for el in suite.findall("testcase"):
                     cn = el.get("classname","").rsplit(".",1)[-1]
                     nm = el.get("name","?")
+                    if not nm or nm == "null": continue
                     if f"{cn}::{nm}" in seen: continue
                     seen.add(f"{cn}::{nm}")
                     tc = TC(name=nm, classname=cn, category="instrumented")
