@@ -1,28 +1,30 @@
 package com.ternparagliding.utils
 
 import android.util.Log
-import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.services.storage.TestStorage
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import java.io.File
 import java.io.FileInputStream
 
 /**
  * Records the emulator/device screen to MP4 for BDD test evidence.
  *
- * Videos are recorded to a temp path on the device via `screenrecord`,
- * then copied into [TestStorage] when recording stops. TestStorage is
- * the same mechanism the BDD screenshots use — Gradle's managed device
- * infrastructure collects it automatically, so videos end up in
- * `build/outputs/managed_device_android_test_additional_output/` and
- * then in `build/reports/bdd-report/` alongside the screenshots.
+ * Primary path: `screenrecord` via shell. If the device doesn't
+ * support it (AOSP ATD images), falls back to [FrameCaptureHelper]
+ * which takes screenshots at intervals.
  *
- * No manual `adb pull` needed.
+ * All output goes through [TestStorage] so Gradle's managed device
+ * infrastructure collects it automatically.
  */
 object VideoHelper {
 
     private const val TAG = "VideoHelper"
     private const val TEMP_DIR = "/sdcard/tern-tests"
     private const val MAX_DURATION_SECONDS = 180
+    private const val SCREENRECORD_PROBE_MS = 1500L
 
     private var recordingProcess: Process? = null
     private var currentTestName: String? = null
@@ -30,8 +32,13 @@ object VideoHelper {
     private var segmentIndex: Int = 0
     private val testStorage = try { TestStorage() } catch (_: Exception) { null }
 
+    // Fallback
+    private var frameCaptureHelper: FrameCaptureHelper? = null
+    private var fallbackScope: CoroutineScope? = null
+    val isUsingFallback: Boolean get() = frameCaptureHelper != null
+
     fun startRecording(testName: String) {
-        if (recordingProcess != null) {
+        if (recordingProcess != null || frameCaptureHelper != null) {
             Log.w(TAG, "Already recording -- ignoring startRecording($testName)")
             return
         }
@@ -41,9 +48,37 @@ object VideoHelper {
 
         ensureOutputDir()
         startSegment()
+
+        // Probe: does screenrecord actually produce output on this device?
+        if (recordingProcess != null) {
+            try { Thread.sleep(SCREENRECORD_PROBE_MS) } catch (_: InterruptedException) {}
+            val file = currentTempPath?.let { File(it) }
+            if (file == null || !file.exists() || file.length() == 0L) {
+                Log.w(TAG, "screenrecord not producing output — falling back to FrameCaptureHelper")
+                recordingProcess?.destroy()
+                recordingProcess = null
+                activateFallback(testName)
+            }
+        } else {
+            activateFallback(testName)
+        }
     }
 
     fun stopRecording() {
+        // Fallback path
+        val helper = frameCaptureHelper
+        if (helper != null) {
+            val frames = helper.stop()
+            fallbackScope?.cancel()
+            fallbackScope = null
+            frameCaptureHelper = null
+            Log.i(TAG, "Frame capture stopped: $frames frames")
+            currentTestName = null
+            currentTempPath = null
+            return
+        }
+
+        // screenrecord path
         val process = recordingProcess ?: return
         val tempPath = currentTempPath
         val testName = currentTestName
@@ -55,7 +90,6 @@ object VideoHelper {
         }
         recordingProcess = null
 
-        // Copy the finished recording into TestStorage so Gradle collects it
         if (tempPath != null && testName != null) {
             copyToTestStorage(tempPath, testName)
         }
@@ -66,6 +100,7 @@ object VideoHelper {
     }
 
     fun splitRecording() {
+        if (frameCaptureHelper != null) return // no-op for fallback
         val testName = currentTestName ?: return
         stopRecording()
         currentTestName = testName
@@ -74,7 +109,16 @@ object VideoHelper {
     }
 
     val isRecording: Boolean
-        get() = recordingProcess != null
+        get() = recordingProcess != null || frameCaptureHelper != null
+
+    private fun activateFallback(testName: String) {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+        fallbackScope = scope
+        val helper = FrameCaptureHelper(testName, intervalMs = 500L)
+        frameCaptureHelper = helper
+        helper.start(scope)
+        Log.i(TAG, "Fallback: FrameCaptureHelper started for $testName @ 500ms")
+    }
 
     private fun startSegment() {
         val testName = currentTestName ?: return

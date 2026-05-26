@@ -5,7 +5,14 @@ import android.graphics.Canvas
 import android.graphics.Color as AndroidColor
 import android.graphics.Paint
 import android.graphics.Typeface
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.asImageBitmap
 import com.ternparagliding.mezulla.redux.KnownPeer
@@ -37,6 +44,22 @@ fun PeerLayer(
 
     val font = nerdFont ?: Typeface.MONOSPACE
 
+    // Opacity pulse: 0→1→0 over 1200ms (600ms each direction).
+    // The animated value drives per-peer opacity based on staleness:
+    //   FRESH/AGING: solid 1.0 (no pulse)
+    //   STALE:       oscillates 0.45 ↔ 1.0
+    //   LOST:        oscillates 0.25 ↔ 0.7
+    val pulseTransition = rememberInfiniteTransition(label = "peerPulse")
+    val pulsePhase by pulseTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 600, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "pulsePhase",
+    )
+
     // One source + one layer per peer. With 1-5 peers in a buddy
     // group this is negligible overhead, and it sidesteps the
     // maplibre-compose limitation of not supporting iconImage from
@@ -60,14 +83,31 @@ fun PeerLayer(
         val source = rememberGeoJsonSource(data = GeoJsonData.JsonString(peerGeoJson))
         val bmp = remember(spec) { renderMarkerBitmap(spec, font).asImageBitmap() }
 
+        val opacity = opacityForStaleness(spec.staleness, pulsePhase)
+
         org.maplibre.compose.layers.SymbolLayer(
             id = "peer-${spec.imageName}",
             source = source,
             iconImage = image(bmp),
             iconAllowOverlap = const(true),
             iconSize = const(0.75f),
+            iconOpacity = const(opacity),
         )
     }
+}
+
+/**
+ * Map staleness + animation phase to a concrete opacity value.
+ * Phase oscillates 0..1; we lerp within each staleness band.
+ */
+private fun opacityForStaleness(
+    staleness: MezullaPeerTextFormatter.StalenessLevel,
+    phase: Float,
+): Float = when (staleness) {
+    MezullaPeerTextFormatter.StalenessLevel.FRESH -> 1.0f
+    MezullaPeerTextFormatter.StalenessLevel.AGING -> 1.0f
+    MezullaPeerTextFormatter.StalenessLevel.STALE -> 0.45f + phase * (1.0f - 0.45f)
+    MezullaPeerTextFormatter.StalenessLevel.LOST  -> 0.25f + phase * (0.7f - 0.25f)
 }
 
 internal fun renderMarkerBitmap(spec: MarkerSpec, nerdFont: Typeface): Bitmap {

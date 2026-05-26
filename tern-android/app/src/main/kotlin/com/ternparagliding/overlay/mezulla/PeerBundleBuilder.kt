@@ -18,6 +18,7 @@ internal data class MarkerSpec(
     val rightUnit: String,
     val bottomText: String,
     val bottomColor: Int,
+    val staleness: MezullaPeerTextFormatter.StalenessLevel,
 )
 
 internal fun buildPeerBundle(
@@ -103,7 +104,8 @@ internal fun buildPeerBundle(
         }
 
         specs.add(MarkerSpec(imageName, callsign, glyph, glyphColor,
-            leftValue, leftUnit, rightValue, rightUnit, bottomText, bottomColor))
+            leftValue, leftUnit, rightValue, rightUnit, bottomText, bottomColor,
+            staleness))
 
         if (i > 0) sb.append(",")
         sb.append("""{"type":"Feature","geometry":{"type":"Point","coordinates":[${fix.longitudeDeg},${fix.latitudeDeg}]},"properties":{"markerImage":"$imageName","staleness":"${staleness.name}"}}""")
