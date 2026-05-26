@@ -56,6 +56,8 @@ class SettingsScreenTest : MapVisualTest() {
         }
     }
 
+    @com.ternparagliding.utils.Liar("Validates toggle control state but not whether airspaces actually render on the map — " +
+          "no test data injected, no airspace polygons verified in screenshot")
     @Test
     fun testLayerToggles() {
         scenario("testLayerToggles") {
