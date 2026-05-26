@@ -539,8 +539,9 @@ fun RouteDetailsContent(
                                 // Show Weather Summary in TEA Mode
                                 if (weatherData != null && weatherData.current != null) {
                                     val wind = weatherData.current.wind
+                                    val gustStr = if (wind.gust > 0.0) " (G ${wind.gust.roundToInt()})" else ""
                                     Text(
-                                        text = "🌬️ ${wind.speed.roundToInt()} kt @ ${wind.direction.roundToInt()}°",
+                                        text = "🌬️ ${wind.speed.roundToInt()} kt @ ${wind.direction.roundToInt()}°$gustStr",
                                         style = MaterialTheme.typography.labelMedium,
                                         color = MaterialTheme.colorScheme.primary,
                                         fontWeight = FontWeight.ExtraBold
