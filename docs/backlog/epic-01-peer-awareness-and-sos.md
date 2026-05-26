@@ -45,7 +45,7 @@ features. The LilyGo board is an addition, not a requirement.
 ## Stories
 
 ### Story 1.1: Phone discovers and pairs with a LilyGo board
-Status: todo
+Status: in-progress (deep link + wire contract done, orchestrator next)
 
 The phone app can detect a nearby LilyGo board, pair with it, and persist
 the pairing across app restarts. If the board disconnects, the app keeps
@@ -80,15 +80,16 @@ What done looks like:
 - Stale ageing is visible at a glance.
 - More than one peer at a time works.
 
-Current state (2026-05-25): Peer markers render as composite bitmap
-GeoJSON features on native MapLibre SymbolLayer. Layout: callsign pill
-above, colored circle with Nerd Font glyph, metric pills flanking
-(age/altitude/climb/speed depending on view mode), warning pill below
-for stale/lost peers. Staleness drives circle color (green→yellow→orange→
-gray) and opacity pulsing. Three view modes (safety/climb/tactical).
+Current state (2026-05-26): Peer markers render as composite bitmap
+GeoJSON features on the single compose MaplibreMap via `PeerLayer.kt`.
+Layout: callsign pill above, colored circle with Nerd Font glyph,
+metric pills flanking (age/altitude/climb/speed depending on view mode),
+warning pill below for stale/lost peers. Staleness drives circle color
+(green→yellow→orange→gray). Three view modes (safety/climb/tactical).
 BDD convergence test passes with 4-pilot Aravis XC flight simulation.
-Standalone bitmap visual test suite covers staleness states, view modes,
-and edge cases. NOT verified on a real device yet.
+Two-map bug fixed — everything renders on one MapView now.
+Opacity pulsing was on the deleted NativeMapView, needs porting to
+the compose PeerLayer. NOT verified on a real device yet.
 
 ### Story 1.4: One-button SOS, broadcast and receive
 Status: todo

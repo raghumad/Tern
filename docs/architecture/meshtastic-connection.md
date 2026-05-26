@@ -1,7 +1,7 @@
 # MeshtasticConnection — design notes (WS2.1)
 
 This is the rationale behind the
-`com.madanala.tern.mezulla.connection.MeshtasticConnection` interface.
+`com.ternparagliding.mezulla.connection.MeshtasticConnection` interface.
 The KDoc on the interface itself restates the shape and contracts; this
 doc explains *why* the shape is what it is.
 
@@ -17,7 +17,23 @@ the three transports it might be talking to:
 |---|---|---|
 | `StubMeshtasticConnection` | Unit tests; lets the test inject events. | landed (WS2.1) |
 | `SwarmSimulatedConnection` | IGC-driven swarm playback for the convergence BDD test. | landed |
-| `BleConnection` | Real BLE to a flashed LilyGo board. | todo (WS4.3) |
+| `TcpMeshtasticConnection` | TCP to a board on WiFi; also dev-time emulator bridge. | landed (WS4.5) |
+| `BleConnection` | Real BLE to a flashed LilyGo board. | skeleton landed (WS4.3), untested on real hardware |
+
+### Pairing protocol (PRIVATE_APP port 256)
+
+Separate from the `MeshtasticConnection` event stream. The ownership
+protocol rides on Meshtastic's `PRIVATE_APP` port for claim/query
+packets between the Tern app and a Mezulla-firmware board.
+
+| Component | What | Status |
+|---|---|---|
+| `MezullaPairingCodec` | Encode/decode claim + query packets, wrap in ToRadio protobuf | landed |
+| `TernPairLink` | Parse `tern://p?n=<hex>&t=<hex>` deep link from QR scan | landed |
+| `AndroidManifest.xml` | `tern://` scheme + BLE permissions registered | landed |
+| Pairing orchestrator | Deep link → BLE scan → connect → claim → persist | next |
+
+Wire format: `docs/backlog/ws-qr-pairing-app-handoff.md`
 
 Everything above the interface — redux middleware, peer map overlays,
 SOS UI — talks only to `MeshtasticConnection`. Nothing above the
