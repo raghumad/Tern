@@ -27,7 +27,8 @@ class DeclutteringUXTest : MapVisualTest() {
         WeatherTestHelper.stopServer()
     }
 
-    @Liar("Screenshot-only validation with tautological { true } validators")
+    @Liar("Declutter-during-drag requires programmatic drag gestures on MapLibre, " +
+          "which is not yet possible. OSMDroid gestures removed, no replacement exists.")
     @Test
     fun testAdaptiveDeclutteringDuringWaypointDrag() {
         val lat = 40.015
@@ -41,48 +42,28 @@ class DeclutteringUXTest : MapVisualTest() {
                     waitForAirspaces(minCount = 1, timeoutMillis = 60000)
                 }
 
-                `when`("I add a waypoint and pick it up to drag") {
-                    val activity = composeTestRule.activity
-                    val store = ViewModelProvider(activity)[MapStore::class.java]
-                    MapTestHelper.longPressOnGeoPoint(activity, lat, lon)
-
-                    val useClickedLocationText = "Use Clicked Location"
-                    val suggestionExists = try {
-                        composeTestRule.onNodeWithText(useClickedLocationText).assertExists()
-                        true
-                    } catch (e: AssertionError) {
-                        false
+                `when`("I add a waypoint via Redux dispatch") {
+                    composeTestRule.runOnUiThread {
+                        val store = ViewModelProvider(composeTestRule.activity)[MapStore::class.java]
+                        store.dispatch(com.madanala.tern.redux.MapAction.CheckSmartSuggestion(
+                            org.osmdroid.util.GeoPoint(lat, lon)))
                     }
-
-                    if (suggestionExists) {
-                        composeTestRule.onNodeWithText(useClickedLocationText).performClick()
-                    }
-
-                    composeTestRule.waitUntil(timeoutMillis = 10000) {
-                        store.state.value.selectedWaypoint != null
-                    }
-
-                    MapTestHelper.pressAndHoldGeoPoint(activity, lat, lon)
+                    composeTestRule.waitForIdle()
                 }
 
                 then("The non-essential overlays should be dimmed or hidden", takeScreenshot = true) {
-                    // TODO: write real assertions
-                }
-
-                `when`("I release the waypoint") {
-                    // TODO: write real assertions
+                    // TODO: write real assertions -- need drag gesture support on MapLibre
                 }
             }
         }
     }
 
-    @Liar("Screenshot-only validation with tautological { true } validators")
+    @Liar("Declutter-during-drag requires programmatic drag gestures on MapLibre, " +
+          "which is not yet possible. OSMDroid gestures removed, no replacement exists.")
     @Test
     fun testAdaptiveDeclutteringFullScenario() {
         val lat = 40.015
         val lon = -105.27
-
-        var downEvent: android.view.MotionEvent? = null
 
         scenario("Adaptive Airspace Decluttering during Drag (Full)") {
             given("The app is launched on a map with airspaces") {
@@ -90,43 +71,21 @@ class DeclutteringUXTest : MapVisualTest() {
                 waitForAirspaces(minCount = 1, timeoutMillis = 60000)
             }
 
-            `when`("I pick up a waypoint to drag") {
-                val activity = composeTestRule.activity
-                val store = ViewModelProvider(activity)[MapStore::class.java]
-
-                MapTestHelper.longPressOnGeoPoint(activity, lat, lon)
-
-                val useClickedLocationText = "Use Clicked Location"
-                val suggestionExists = try {
-                    composeTestRule.onNodeWithText(useClickedLocationText).assertExists()
-                    true
-                } catch (e: AssertionError) {
-                    false
+            `when`("I add a waypoint via Redux dispatch") {
+                composeTestRule.runOnUiThread {
+                    val store = ViewModelProvider(composeTestRule.activity)[MapStore::class.java]
+                    store.dispatch(com.madanala.tern.redux.MapAction.CheckSmartSuggestion(
+                        org.osmdroid.util.GeoPoint(lat, lon)))
                 }
-
-                if (suggestionExists) {
-                    composeTestRule.onNodeWithText(useClickedLocationText).performClick()
-                }
-
-                composeTestRule.waitUntil(timeoutMillis = 10000) {
-                    store.state.value.selectedWaypoint != null
-                }
-
-                downEvent = MapTestHelper.pressAndHoldGeoPoint(activity, lat, lon)
+                composeTestRule.waitForIdle()
             }
 
-            then("Focus mode is active") {
-                // TODO: write real assertions
+            then("Focus mode is active", takeScreenshot = true) {
+                // TODO: write real assertions -- need drag gesture support on MapLibre
             }
 
-            `when`("I move and release the waypoint") {
-                val activity = composeTestRule.activity
-                MapTestHelper.moveHold(activity, downEvent!!, lat + 0.005, lon + 0.005)
-                MapTestHelper.releaseHold(activity, downEvent!!)
-            }
-
-            then("Focus mode is deactivated") {
-                // TODO: write real assertions
+            then("Focus mode is deactivated", takeScreenshot = true) {
+                // TODO: write real assertions -- need drag gesture support on MapLibre
             }
         }
     }
