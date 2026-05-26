@@ -387,57 +387,51 @@ real-world correctness comes from human tests (see
 Ordered by what unblocks the most progress. Safety items first,
 then what lets us fly with the real board, then polish.
 
-### Now (unblocks mezulla on real hardware)
+### Now (app work — no firmware dependency)
 
-1. **Firmware: board reset (long-press)** — WS5 F2.4. Without this,
-   a bad claim during development bricks the pairing state. Must land
-   before any app-side pairing work.
-2. **WS3 remaining: SOS alert UI (3.3)** — safety-critical. The one
-   feature a pilot needs to work perfectly on day one.
-3. **WS3 remaining: opacity pulse for stale/lost peers** — was on the
-   deleted NativeMapView. Needs porting to the compose PeerLayer.
-   Visual safety signal — pilot must see at a glance which peers are
-   stale.
+1. **WS3: SOS alert UI (3.3)** — safety-critical. The one feature a
+   pilot needs to work perfectly on day one.
+2. **WS3: opacity pulse for stale/lost peers** — was on the deleted
+   NativeMapView. Needs porting to the compose PeerLayer. Visual
+   safety signal.
+3. **WS5 Phase 2: register `tern://` deep link** (5.2.4) — pure app
+   work, no firmware needed. Without it, scanning the QR does nothing.
 
-### Next (app ↔ board talking for real)
+### Next (app ↔ board — needs firmware handoff for testing)
 
-4. **WS5 Phase 2: register `tern://` deep link** (5.2.4) — critical
-   first step. Without it, scanning the QR does nothing.
-5. **WS5 Phase 2: pairing flow** (5.2.5) — deep link → BLE connect →
-   claim-ownership → persist. First real end-to-end proof.
-6. **WS5 Phase 2: replace Phase 1 UI** (5.2.6) — settings shows
+4. **WS5 Phase 2: pairing flow** (5.2.5) — deep link → BLE connect →
+   claim-ownership → persist. Needs real board to test end-to-end.
+5. **WS5 Phase 2: replace Phase 1 UI** (5.2.6) — settings shows
    paired board + "forget," no BLE scan screen.
-7. **WS4: `BleConnection` skeleton** (4.3) — hardcoded MAC, raw
+6. **WS4: `BleConnection` skeleton** (4.3) — hardcoded MAC, raw
    Meshtastic packets through the existing interface.
-8. **WS4.5: `TcpMeshtasticConnection`** — dev convenience for
+7. **WS4.5: `TcpMeshtasticConnection`** — dev convenience for
    emulator testing against real board on WiFi.
 
 ### Later (polish and hardening)
 
-9. **WS3: bearing arrows + relative altitude** — needs pilot
+8. **WS3: bearing arrows + relative altitude** — needs pilot
    position plumbed into PeerLayer.
-10. **WS3: decluttering + zoom scaling** — prevent marker overlap at
-    low zoom.
-11. **Rewrite @Liar tests** — 10 methods with TODO assertions across
-    6 files. The Gherkin describes real pilot behaviors; the
-    assertions need to be built using the "assert downstream" rule.
-12. **OSMDroid GeoPoint migration** — replace `org.osmdroid.util.GeoPoint`
+9. **WS3: decluttering + zoom scaling** — prevent marker overlap at
+   low zoom.
+10. **Rewrite @Liar tests** — 10 methods with TODO assertions across
+    6 files. Build using the "assert downstream" rule.
+11. **OSMDroid GeoPoint migration** — replace `org.osmdroid.util.GeoPoint`
     with `Position` across ~40 production files.
-13. **Delete MapTestHelper** — dead OSMDroid gesture code. Replace
-    with MapLibre-aware gesture helpers when rewriting tests.
-14. **Wire contract doc** — `docs/architecture/mezulla-wire-contract.md`
-    is referenced by the handoff doc but doesn't exist yet.
+12. **Delete MapTestHelper** — dead OSMDroid gesture code.
 
-### Blockers and risks
+### Firmware dependencies (owned by mezulla-meshtastic chat)
 
-- **Board reset not implemented** — blocks all pairing development.
-  A bad claim during testing = reflash to recover.
-- **Claim handler untested end-to-end** — wire format in the handoff
-  doc must match firmware exactly. First app task should be a raw
-  claim packet test, not UI.
-- **Owner ID format unspecified** — handoff doc says "any stable
-  identifier, max 64 chars" but doesn't define the format. Pin this
-  down before implementing (UUID v4 is fine).
+These are handed off via docs like `ws-qr-pairing-app-handoff.md`.
+We don't implement firmware here — we consume their handoffs.
+
+- **Board reset (long-press)** — blocks app-side pairing testing.
+  Without it, a bad claim during development = reflash to recover.
+- **Claim handler end-to-end verification** — wire format in the
+  handoff doc must match firmware exactly. First app task after
+  deep link registration should be a raw claim packet test.
+- **Wire contract doc** — `docs/architecture/mezulla-wire-contract.md`
+  referenced but doesn't exist yet. Firmware chat should produce it.
 
 ## Test infrastructure status (2026-05-26)
 
