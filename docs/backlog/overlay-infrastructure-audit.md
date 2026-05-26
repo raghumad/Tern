@@ -52,22 +52,14 @@ from disk is microseconds.
 
 ### S1. Make overlay rendering reactive (the real fix)
 
-**Status: NOT STARTED — highest priority safety item.**
+**Status: IMPLEMENTED** — `OverlayPrioritizer` (in `overlay/priority/`
+package) scores `OverlayCandidate` objects using distance-decay
+weighting. Used by `AirspaceOverlay` to decide what renders in the
+current viewport. Memory is bounded by viewport size, not flight
+distance.
 
-The current code accumulates overlays as the pilot flies and doesn't
-discard them when they leave the viewport. During an 11-hour XC,
-memory grows until the app OOMs. The fix is architectural:
-
-- On every significant viewport change (pan, zoom, GPS update):
-  query the Hilbert cache for "what's within viewport + margin?"
-  Render those. Discard anything not in the result set.
-- Enforce zone budgets at load time, not at cleanup time.
-- Recycle ViewToBitmap bitmaps when markers leave the viewport.
-- Bound the L1 in-memory LRU cache with a hard cap.
-
-**Verification:** a soak test that replays an 11-hour IGC flight
-(we have the Aravis data — ~11 hours) and monitors heap growth.
-Heap should be flat, not growing.
+Not yet verified via soak test (replaying an 11-hour IGC flight to
+confirm heap stays flat). That remains the acceptance criterion.
 
 ### S2. Emergency cleanup as a last-resort safety net
 
@@ -84,16 +76,12 @@ at insertion time, cleanup becomes `removeLast()` in a loop.
 
 **Status: DONE (commit 5696516).**
 
-Airspace polygons now render in their own FolderOverlay with correct
-z-ordering: routes → airspaces → PG spots → Mezulla peers (top).
+Airspace polygons now render via GeoJSON layers on native MapLibre.
+Z-ordering is controlled by `style.addLayer()` order — peers are
+the topmost layer.
 
-**Follow-up (RESOLVED):** MezullaOverlayManager no longer exists.
-Peer markers now render as composite bitmap GeoJSON features on a
-native MapLibre SymbolLayer (`NativeOverlayLayers.kt`). Z-ordering
-is controlled by `style.addLayer()` order — peers are the topmost
-layer. The old Compose overlay code (MezullaPeerLabels,
-PeerMarkerComposable, MezullaPeerCircles) is dead code pending
-deletion.
+**Follow-up (DONE):** Dead Compose overlay code (MezullaPeerLabels,
+PeerMarkerComposable, MezullaPeerCircles) deleted in commit 59c98e1.
 
 ### S4. Silent action drop in MapStore — FIXED
 
@@ -114,8 +102,8 @@ Gate `PerformanceDebugger.recordStateUpdate()` behind
 |---|---------|-----|--------|
 | Q1 | OverlayState per-field config doesn't scale | `Map<OverlayType, OverlayConfig>` | Small |
 | Q2 | Inconsistent sealed class vs sealed interface | Standardize on sealed interface | Small |
-| Q3 | PGSpotOverlayManager is 1300 lines | Split: marker lifecycle + weather orchestration | Medium |
-| Q4 | OverlayCoordinator hardcoded type checks | `CountryCacheAware` interface | Small |
+| Q3 | ~~PGSpotOverlayManager is 1300 lines~~ — replaced by `PgSpotGeoJson` + `PgSpotLayer` (MapLibre composables) | No longer applicable | N/A |
+| Q4 | ~~OverlayCoordinator hardcoded type checks~~ — OverlayCoordinator removed | No longer applicable | N/A |
 | Q5 | OverlayActions sealed class is never dispatched | Delete | Tiny |
 | Q6 | Duplicate/stale comments | Clean up | Tiny |
 | Q7 | PGSpotOverlayManagerTest regression from S2 | Investigate coroutine scope leak | Small |
@@ -124,11 +112,10 @@ Gate `PerformanceDebugger.recordStateUpdate()` behind
 
 | Priority | Item | Why | Effort |
 |----------|------|-----|--------|
-| **1** | **S1: Reactive overlay rendering** | Prevents OOM crash in flight. The root cause. Everything else is a band-aid without this. | Large |
+| **1** | **S1 soak test verification** | OverlayPrioritizer is implemented but needs an 11-hour IGC replay to confirm heap stays flat | Medium |
 | **2** | S5: Gate PerformanceDebugger | Frame drops affect glanceability in turbulence | One-line |
-| **3** | S3 follow-up: MezullaOverlayManager FolderOverlay bypass | Consistency with the fix we already made for airspaces | Small |
-| **4** | Q7: PGSpotOverlayManagerTest regression | Our safety fix broke an existing test — should be cleaned up | Small |
-| 5+ | Q1–Q6 | Code quality; fix when convenient | Various |
+| **3** | Q7: PGSpotOverlayManagerTest regression | Our safety fix broke an existing test — should be cleaned up | Small |
+| 4+ | Q1–Q2, Q5–Q6 | Code quality; fix when convenient | Various |
 
 ## Future considerations
 

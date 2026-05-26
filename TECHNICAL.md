@@ -1,44 +1,61 @@
-# Technical Specifications & Architecture
+# Technical Overview
 
-This document outlines the technical foundation of the Tern flight deck for developers and contributors.
+## State Management
 
-## Core Architecture
+Redux-inspired unidirectional data flow.
+- **Action Batching**: High-frequency sensor and GPS updates are batched in
+  100ms windows to avoid UI jank.
+- **MapStore**: Specialized store for spatial state.
 
-Tern is built with a focus on **Safety-First** principles, ensuring high reliability and low-latency performance in critical flight environments.
+## Data Layer
 
-### Unidirectional State Management
-The app utilizes a Redux-inspired pattern for state management.
-- **Action Batching**: High-frequency sensor and GPS updates are batched in 100ms windows to prevent UI jank and maintain a consistent 60fps rendering rate.
-- **MapStore**: A specialized store for managing spatial state and overlay budgets.
+Spatial data (airspaces, weather, PG spots) is stored on disk with:
+- **FlexBuffers** — zero-copy binary serialization, no parsing at runtime.
+- **Hilbert Spatial Indexing** — maps 2D coordinates to 1D integers for
+  O(log N) proximity searches.
+- **Two-Level Caching** — LRU memory cache (L1) and persistent
+  SpatialDiskCache (L2) backed by memory-mapped files.
 
-### High-Performance Data Layer
-To handle large-scale spatial data (Airspaces, Weather, PG Spots) without memory overhead:
-- **Zero-Copy Serialization**: Uses **FlatBuffers/FlexBuffers** to eliminate parsing at runtime.
-- **Hilbert Spatial Indexing**: Maps 2D geographical coordinates to 1D integers, enabling O(log N) proximity searches.
-- **Two-Level Caching**: LRU memory cache (L1) and persistent spatial disk cache (L2).
+## Map Rendering (MapLibre)
 
-### Adaptive Overlay System (AOS)
-The AOS manages hundreds of map markers dynamically based on:
-- **Zone Budgeting**: Categories like CORE, NEAR, and FAR limit the number of active renders.
-- **Memory Pressure Awareness**: Triggers emergency cleanup when Android signals low memory.
-- **Flight Phase Logic**: Adjusts rendering priority based on whether the pilot is launching, cruising, or landing.
+The map is a native MapLibre `MapView` wrapped in a `NativeMapView` Composable.
+Data renders as GeoJSON sources with style layers:
 
-## Development & Testing
+- **Peer markers** — `PeerBundleBuilder` produces composite bitmap icons
+  (callsign + altitude + arrow). `NativeOverlayLayers` adds them as a
+  GeoJSON SymbolLayer. Peers are always the topmost layer.
+- **Airspace** — `AirspaceGeoJson` + `AirspaceLayer` render polygons with
+  fill and outline styles.
+- **Routes** — `RouteGeoJson` + `RouteLayer` render the active task as a
+  LineLayer with waypoint symbols.
+- **PG spots** — `PgSpotGeoJson` + `PgSpotLayer` render site markers with
+  scaling via `iconSize` interpolation expressions.
 
-### Aviation-Grade Definition of Done (DoD)
-All features must meet the following criteria:
-1. **Instrumented Stability**: Passing 100% of instrumented tests on target hardware.
-2. **Offline Fidelity**: Verified functionality with zero network connectivity.
-3. **UX Glanceability**: Critical metrics readable within 0.5 seconds in high-glare simulations.
+## Overlay Prioritization
 
-### Build Instructions
+`OverlayPrioritizer` (in `overlay/priority/`) scores `OverlayCandidate`
+objects using distance-decay weighting. Airspace overlays use this to
+decide what renders in the current viewport, keeping memory bounded by
+viewport size rather than flight distance.
+
+## Offline-First
+
+Every runtime feature works without internet. Online connectivity is used
+only for prefetch and cache population (airspaces, weather, PG spots are
+silently downloaded via `UniversalCountryCacheManager`).
+
+## Testing
+
+Emulator tests, screenshots, and BDD scenarios exist as a truthfulness
+mechanism. A feature is not done until its human test passes on real
+hardware in real conditions.
+
+## Building
+
 ```bash
-# Clone the repository
 git clone https://github.com/raghumad/Tern.git
-
-# Build the Android app
 cd tern-android
 ./gradlew assembleDebug
 ```
 
-For more detailed guides, see the [docs/guides](file:///home/raghu/src/Tern/docs/guides) directory.
+See [docs/](./docs/) for detailed architecture and subsystem documentation.
