@@ -34,13 +34,12 @@ class DeepLinkPairingTest : MapVisualTest() {
                 assert(TernPairLink.parse("tern://p?n=ZZZZ&t=abcdef01") == null) { "Should reject non-hex" }
             }
 
-            `when`("the activity receives a tern:// deep link intent") {
+            `when`("a tern:// deep link intent is delivered to the pairing orchestrator") {
                 val intent = Intent(Intent.ACTION_VIEW).apply {
                     data = Uri.parse("tern://p?n=4a312aaa&t=e7f3a1b2c4d5e6f78901a2b3c4d5e6f7")
                 }
-                // Send the deep link to the already-running activity
                 composeTestRule.runOnUiThread {
-                    composeTestRule.activity.onNewIntent(intent)
+                    composeTestRule.activity.pairingOrchestrator.handleIntent(intent)
                 }
                 composeTestRule.waitForIdle()
             }
