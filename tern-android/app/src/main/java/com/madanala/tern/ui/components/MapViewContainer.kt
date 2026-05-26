@@ -75,8 +75,8 @@ fun MapViewContainer(
         mapViewModel.setMapStore(store)
     }
 
-    // Location service (Redux-driven, no OSMDroid dependency)
-    val locationService = remember(store) { ReduxLocationService(store) }
+    // Location service (FusedLocationProvider → Redux)
+    val locationService = remember(store, context) { ReduxLocationService(store, context) }
 
     // Setup location updates
     setupLocationUpdates(state.hasLocationPermission, locationService)
