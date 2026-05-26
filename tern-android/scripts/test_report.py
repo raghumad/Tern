@@ -84,10 +84,13 @@ def parse_instrumented_tests() -> list[TC]:
                 rp = BDD_REPORTS / report_file
                 if rp.is_file():
                     html = rp.read_text(errors="replace")
-                    # Extract just the <body> content
                     body_match = re.search(r"<body>(.*)</body>", html, re.DOTALL)
                     if body_match:
-                        tc.bdd_html = body_match.group(1)
+                        body = body_match.group(1)
+                        # Rewrite relative image paths so they resolve from the dashboard location
+                        rel = BDD_REPORTS.relative_to(OUTPUT_FILE.parent)
+                        body = re.sub(r"src='([^']+\.png)'", lambda m: f"src='{rel}/{m.group(1)}'", body)
+                        tc.bdd_html = body
             cases.append(tc)
 
     # Secondary: JUnit XML for tests not in BDD summaries (smoke tests, @Ignored)
