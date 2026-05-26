@@ -140,6 +140,54 @@ Serial logs captured as evidence. QR scan verified with a real
 phone camera (human test). The Stage 1 regression gate (F1.3)
 still passes — nothing in WS-F2 breaks stock Meshtastic behavior.
 
+## Stage 2.5 — Upstream cleanup for device pairing PR
+
+Before submitting the pairing feature as a Meshtastic PR, the
+fork code needs to be generalized. This is a cleanup pass, not
+new functionality — the protocol and behavior stay the same.
+
+**Items to address:**
+
+1. **Rename Mezulla → generic.** `MezullaOwnershipModule` →
+   `DevicePairingModule`. `mezulla_owner_id` → `pairing_owner_id`.
+   `mezulla_pairing_token` → `pairing_token`. `[MEZULLA]` log tags
+   → `[PAIRING]`. No Tern/Mezulla branding in upstream code.
+
+2. **URL scheme.** Replace `tern://` with a configurable scheme.
+   Default to `meshtastic://pair?n=...&t=...` for upstream.
+   Mezulla overrides to `tern://` via module config. Discuss with
+   Meshtastic maintainers whether they want to own a scheme or
+   prefer a generic format.
+
+3. **Display-conditional QR.** Gate QR rendering on display
+   presence AND resolution. Current code assumes SSD1306 128×64.
+   Needs:
+   - Check `HAS_SCREEN` — skip QR if no display.
+   - Check display dimensions — QR Version 3 at 2px/module needs
+     at least 62×62 usable pixels. Smaller displays (OLED_TINY
+     64×32) can't fit it.
+   - Fallback for no-display or small-display: output the pairing
+     URL to serial on boot, and/or embed pairing info in the BLE
+     advertisement so the phone can discover unpaired devices
+     without scanning a QR.
+
+4. **Module config flag.** Make the feature optional and off by
+   default. Add a `device_pairing_enabled` flag to
+   `ModuleConfig`. Users opt in via the Meshtastic app or CLI.
+
+5. **Bench tests.** Measure impact on boot time and memory with
+   the module enabled vs disabled. The QR library adds ~1 KB to
+   the binary — document this.
+
+6. **RFC/discussion.** Open a Meshtastic GitHub discussion
+   proposing the device pairing module before submitting the PR.
+   Reference the protocol spec from `mezulla-wire-contract.md`
+   (adapted to generic naming).
+
+This stage is not blocking — the fork works for Mezulla as-is.
+Schedule this when the end-to-end pairing flow is validated
+(phone scans QR → claims board → uses it).
+
 ## Stage 3 — Upstream Meshtastic PRs (Epic 02, Phase B upstream track)
 
 Broadcast FANET/FLARM/ADS-L. See `docs/backlog/epic-02-traffic-awareness.md`,
