@@ -33,6 +33,7 @@ import kotlinx.coroutines.delay
 import org.maplibre.android.style.expressions.Expression.get
 import org.maplibre.android.style.expressions.Expression.literal
 import org.maplibre.android.style.expressions.Expression.match
+import org.maplibre.android.style.expressions.Expression.stop
 import org.maplibre.android.style.layers.PropertyFactory.*
 import org.maplibre.android.style.layers.SymbolLayer
 import org.maplibre.android.style.sources.GeoJsonSource
@@ -136,8 +137,8 @@ fun NativeMapView(
                         match(
                             get("staleness"),
                             literal(1.0f),
-                            literal("STALE"), literal(staleAlpha),
-                            literal("LOST"), literal(lostAlpha),
+                            stop("STALE", staleAlpha),
+                            stop("LOST", lostAlpha),
                         )
                     )
                 )
