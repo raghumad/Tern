@@ -7,6 +7,48 @@ from LoRa (mezulla) back to app cleanup, this is the starting list.
 This file is **not** a to-do for now. We are not actively fixing
 these. They are known and parked.
 
+## Snapshot: 2026-05-26 — post-scrub + single-map + package rename
+
+Unit tests: 325 passed, 0 failed. Instrumented: 26 passed, 23 failed,
+3 skipped, 19 @Liar. Package renamed to `com.ternparagliding`.
+
+## Get-well program
+
+Issues that need systematic fixing. Not blocking mezulla work but
+tracked so they don't get forgotten.
+
+### Airspaces and PG spots never render in test screenshots
+
+Every instrumented test screenshot shows an empty map — no airspace
+polygons, no PG spot markers. Root cause: `MapVisualTest.@Before`
+sets `CountryUtils.setTestCountryCode("TEST")` and clears all caches.
+Tests that call `givenAppIsLaunchedOnMap(countryCode = "us")` reset
+the country code but the download + cache + index pipeline takes too
+long, or never triggers, or times out silently.
+
+The test infrastructure needs a reliable way to inject pre-built
+airspace/PGSpot FlexBuffer data into the cache before the test runs
+so the overlay has something to render. `TestCacheInjector` exists
+for this but most tests don't use it.
+
+Tests affected: any test that claims to verify overlay rendering
+(AirspaceUXTest, DeclutteringUXTest, DenseClusterDeclutteringTest,
+SettingsScreenTest.testLayerToggles, ResourceAuditTest, etc.)
+
+### screenrecord doesn't work on ATD managed device images
+
+`VideoHelper` starts `screenrecord` but AOSP ATD emulator images
+lack GPU-backed screen capture. Files are empty/missing. Options:
+use a non-ATD image (heavier), use FrameCaptureHelper (screenshot
+stitching), or accept video-only-on-real-device.
+
+### MapTestHelper gesture methods dead
+
+All 6 gesture methods use OSMDroid MapView projection. Tests that
+used them were rewritten to dispatch via Redux (which is tautological
+but at least doesn't crash). Real gesture testing requires MapLibre
+coordinate projection, which maplibre-compose doesn't expose yet.
+
 ## Snapshot: 2026-05-25 — post-scrub on `fix-tests-and-scrub` branch
 
 Unit tests: 338 passed, 0 failed (after PeerFeatureCollectionTest and
