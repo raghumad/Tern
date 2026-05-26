@@ -77,13 +77,33 @@ The buddy-flying pipeline has two layers:
 ### Permission Handling
 `GrantPermissionRule` in `MapVisualTest` grants location permissions before the Compose hierarchy starts. This avoids activity restarts on API 35 that happen when permissions are granted after `setContent`.
 
+## Test Truthfulness Rules
+
+Two principles that prevent dishonest tests:
+
+**Assert downstream, not upstream.** If the test dispatches to Redux,
+don't assert against Redux — assert against what the pilot actually
+sees. Check the MapLibre camera position, analyze screenshot pixels,
+or query the Compose semantics tree. Checking the store you just wrote
+to is tautological and will pass even when the feature is broken.
+
+**One of everything.** One map, one camera, one state. If you can't add
+a layer to the existing map, that's a bug to fix — not a reason to
+create a second map. Any parallel rendering path that bypasses what
+the pilot sees will produce passing tests and a broken app.
+
 ## Known Issues
 
-- `BaseUITest` has an `@Ignore` that could silently skip `BddTest` subclasses. Needs investigation.
+- **Two-map bug.** `NativeMapView` creates a second MapView for peer
+  markers (because maplibre-compose SymbolLayer was broken in v0.13.0).
+  This second map doesn't sync with Redux — its camera is stuck at
+  initial position. Root cause of many test/screenshot mismatches.
+  Fix: add peer layers to the compose map's underlying MapView, delete
+  the second one.
+- `BaseUITest` has an `@Ignore` that could silently skip `BddTest` subclasses.
 - `MapTestHelper` is dead OSMDroid-era code. Should be deleted.
 
 ## Output Files
 
 - `app/build/reports/tern-test-dashboard.html` — consolidated dashboard
-- `build/reports/test-summary.md` — test summary
 - `/sdcard/tern-tests/` — screen recordings (on device)
