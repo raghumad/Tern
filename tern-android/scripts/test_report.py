@@ -52,10 +52,11 @@ def parse_junit_dir(directory: Path, category: str) -> list[TC]:
                 tc = TC(name=el.get("name","?"), classname=el.get("classname",""),
                         time_s=float(el.get("time","0") or "0"), category=category,
                         sys_out=sout, sys_err=serr)
-                fail_el = el.find("failure") or el.find("error")
+                fail_el = el.find("failure")
+                if fail_el is None: fail_el = el.find("error")
                 if fail_el is not None:
-                    tc.status = "fail" if el.find("failure") is not None else "error"
-                    tc.failure_msg = fail_el.get("message", "")
+                    tc.status = "fail" if fail_el.tag == "failure" else "error"
+                    tc.failure_msg = fail_el.get("message") or (fail_el.text or "").split("\n")[0]
                 elif el.find("skipped") is not None:
                     tc.status = "skip"
                 cases.append(tc)
