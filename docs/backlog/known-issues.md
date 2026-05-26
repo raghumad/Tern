@@ -7,6 +7,21 @@ from LoRa (mezulla) back to app cleanup, this is the starting list.
 This file is **not** a to-do for now. We are not actively fixing
 these. They are known and parked.
 
+## Snapshot: 2026-05-25 — post-scrub on `fix-tests-and-scrub` branch
+
+Unit tests: 338 passed, 0 failed (after PeerFeatureCollectionTest and
+PeerReducerTest fixes). Instrumented tests not run in this snapshot
+(no emulator).
+
+5 instrumented tests tagged `@Untruthful` — they pass but their
+assertions don't match their BDD step names. See test infrastructure
+section in current-focus.md for details.
+
+New consolidated dashboard: `python3 scripts/test_report.py` from the
+`tern-android/` directory.
+
+---
+
 ## Snapshot: 2026-05-23 — fresh-machine clean build
 
 Build target: `./gradlew testAll` on `mezulla` (4 commits ahead of

@@ -371,22 +371,56 @@ real-world correctness comes from human tests (see
   Three view modes (safety/climb/tactical), staleness colors, opacity
   pulsing for degraded peers. Remaining: SOS alert UI (3.3), bearing
   arrows and relative altitude (need pilot position plumbed in),
-  decluttering + zoom scaling, dead Compose overlay code cleanup.
+  decluttering + zoom scaling.
 - **WS4** can start any time once WS2's interface is defined.
 - **WS5 Phase 1** depends on WS4 (real BLE) for hardware
   validation, but the in-emulator BDD scenarios can start as soon
   as WS2's lifecycle event types exist.
 - **WS5 Phase 2** is deferred until Phase 1 is solid.
 
-## Cleanup that comes along the way
+## Test infrastructure status (2026-05-25)
 
-The misleading competition-named tests (`BirBillingCompetitionTest`,
-`ChamonixCompetitionTest`, `MonarcaCompetitionTest`,
-`AviationRoutePlanningTest`) need an honest reckoning. Most of their
-content is UI-only checks dressed up as flight scenarios. As parts
-of WS3 land, decide for each: keep as a renamed honest UI test, fold
-into a swarm scenario, or delete. Don't leave them claiming things
-they don't test.
+Audit and scrub completed. Key changes:
+
+- **Dead Compose overlay code deleted** (commit 59c98e1). The old
+  `MezullaPeerLayerComposable`, `PeerMarkerComposable`, and
+  `MezullaAnimations` are gone. All peer rendering flows through
+  `NativeOverlayLayers.kt` → `PeerBundleBuilder.kt`.
+- **`buildPeerBundle` extracted** to `PeerBundleBuilder.kt` with
+  `internal` visibility so `PeerFeatureCollectionTest` can test it.
+- **Screen recording is now always-on** for every instrumented test
+  (BddTest and MapVisualTest). Videos go to `/sdcard/tern-tests/`.
+- **OSMDroid test cleanup**: dead `clearOsmDroidPrefs()` removed from
+  BddTest. Production code still uses `org.osmdroid.util.GeoPoint` as
+  the coordinate type in Redux state — that's a separate migration
+  (see known issues below).
+- **5 tests tagged `@Untruthful`**: `PeerMarkerBitmapTest`,
+  `BirBillingCompetitionTest`, `MonarcaCompetitionTest`,
+  `ChamonixCompetitionTest`, `AviationRoutePlanningTest`. These have
+  assertions disconnected from what their BDD step names claim.
+  They still run but their pass/fail carries no weight until rewritten.
+- **Consolidated test dashboard**: `scripts/test_report.py` generates
+  a single HTML report aggregating unit and instrumented test results,
+  screenshots, and embedded screen recordings.
+- **PeerReducerTest fixed**: two tests expected full-state equality but
+  `lastEventTime` correctly advances on every event.
+
+## Known issues (deferred)
+
+- **OSMDroid GeoPoint in production code.** `org.osmdroid.util.GeoPoint`
+  is the coordinate type in Redux state, models, middleware (~40 files).
+  Should migrate to the existing `overlay.priority.Position` class or a
+  new `LatLng` type. Non-urgent — it compiles and runs fine.
+- **MapTestHelper is dead OSMDroid code.** Still referenced by ~15
+  instrumented tests. Those tests dispatch Redux actions directly
+  instead of simulating gestures. Clean up when rewriting the
+  `@Untruthful` tests.
+- **BaseUITest has `@Ignore`.** Could silently skip BddTest subclasses.
+  Only one test (`RouteDetailPanelWeatherTest`) extends BddTest.
+- **3 tests already `@Ignore`d for MapLibre migration**: 
+  `UnifiedLocationTest`, `MapInteractionPerformanceTest`,
+  `AirspaceIntersectionTest`. These need rewriting for MapLibre or
+  deletion.
 
 ## Open questions to resolve along the way
 
