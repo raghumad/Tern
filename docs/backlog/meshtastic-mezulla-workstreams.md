@@ -3,12 +3,27 @@
 This file covers work on the Meshtastic firmware that runs on the
 LilyGo T3 V1.6.1 board (ESP32-PICO-D4 + SX1276 LoRa + SSD1306 OLED,
 Meshtastic variant `tlora-v2-1-1_6`). It is separate from the Mezulla
-(Tern app) backlog
-which owns all phone-side BDD tests and UI work.
+(Tern app) backlog which owns all phone-side BDD tests and UI work.
 
 The contract between phone and board is defined in
 `docs/architecture/mezulla-wire-contract.md`. Both sides code to
 that contract independently.
+
+## Source and git model
+
+Firmware repo: https://github.com/raghumad/mezulla-firmware
+(forked from `meshtastic/firmware`)
+
+- `develop` — tracks upstream Meshtastic
+- `mezulla-firmware` — our work, rebased on `develop`
+
+Local remotes (`~/src/meshtastic-firmware`):
+- `origin` → `raghumad/mezulla-firmware` (push here)
+- `upstream` → `meshtastic/firmware` (pull updates)
+
+Each commit is either upstream-worthy or Mezulla-specific, never
+mixed. To submit an upstream PR: cherry-pick upstream-worthy
+commits onto a branch off `develop`.
 
 ## Stage 1 — Stock Meshtastic (no firmware work)
 
@@ -71,74 +86,82 @@ Test criteria:
 Implements the board side of the QR marriage protocol defined in
 `docs/architecture/mezulla-wire-contract.md`, Stage 2 extensions.
 
-**F2.1: Ownership state in flash**
+**F2.1: Ownership state in flash** — DONE (2026-05-26)
 
-Add a flash storage slot for the board's owner identity. On boot,
-read the slot. If empty, the board is ownerless. If populated, the
-board is married.
-
-Test criteria:
-- On a freshly-flashed board, ownership slot reads empty.
-- After writing a test owner, reboot, slot persists.
-- Serial log confirms ownership state on each boot.
-
-**F2.2: QR code generation on OLED**
-
-When the board boots ownerless, generate a QR code encoding
-`tern://pair?node=<hex_node_id>&token=<random_16_byte_hex>` and
-display it on the OLED. The QR must be scannable by a phone camera
-at arm's length.
+Two fields added to `DeviceState` protobuf: `mezulla_owner_id`
+(max 64 chars) and `mezulla_pairing_token` (max 33 chars). Persist
+via `saveToDisk(SEGMENT_DEVICESTATE)`. Empty `owner_id` = unclaimed.
 
 Test criteria:
-- QR appears on OLED within 3 seconds of boot.
-- QR encodes the correct URL (verified by scanning with a phone).
-- Token is different on each boot/reset cycle.
-- QR is readable at 30cm in daylight (human test).
+- On a freshly-flashed board, ownership slot reads empty. ✓
+- After writing a test owner, reboot, slot persists. ✓
+- Serial log confirms ownership state on each boot. ✓
 
-**F2.3: Claim-ownership packet handler**
+**F2.2: QR code generation on OLED** — DONE (2026-05-26)
 
-Listen for incoming `PRIVATE_APP` (port 256) packets. Parse the
-Mezulla claim-ownership protobuf. If the token matches the
-displayed QR token, store the sender as owner and clear the QR.
-If token mismatch, send NAK.
+QR Version 3 (29×29 modules) at 2px/module = 58×58 pixels, encoding
+`tern://p?n=<node_hex_id>&t=<32_char_token>`. Full-screen takeover
+when unclaimed — no frame rotation, no indicator dots. Uses
+`ricmoo/QRCode` library. "Scan to pair" label at bottom.
 
 Test criteria:
+- QR appears on OLED within 3 seconds of boot. ✓
+- QR encodes the correct URL (verified by scanning with a phone). ✓
+- Token is different on each boot/reset cycle. ✓
+- QR is readable at 30cm in daylight (human test). ✓
+
+**F2.3: Claim-ownership packet handler** — DONE (2026-05-26)
+
+Listens on `PRIVATE_APP` (port 256), command byte `0x01`. Verifies
+pairing token matches the QR, stores owner_id, clears QR on success.
+
+Test criteria (untested end-to-end — needs app-side claim packet):
 - Valid claim: ownership stored, QR clears, ACK sent.
-  Serial log: `"ownership claimed by <owner_id>"`.
+  Serial log: `"[MEZULLA] claim: accepted, owner=<owner_id>"`.
 - Invalid token: ownership not stored, QR persists, NAK sent.
-  Serial log: `"claim rejected: token mismatch"`.
-- Claim while already owned: rejected (board must be reset first).
+  Serial log: `"[MEZULLA] claim: rejected, reason=token_mismatch"`.
+- Claim while already owned: rejected with status `0x02`.
 
-**F2.4: Board reset (long-press boot button)**
+**F2.4: Ownership release** — DONE (2026-05-26)
 
-Long-press the boot button for 5 seconds to clear ownership from
-flash, generate a new pairing token, and redisplay the QR.
+Phone-initiated release via `PRIVATE_APP` command byte `0x03`.
+The owner's phone sends its `owner_id`; firmware verifies it
+matches the stored owner before clearing. Board reboots into QR
+mode on success. Non-owner requests rejected with status `0x03`.
 
-Test criteria:
-- After reset, ownership slot reads empty.
-- New QR appears with a different token than before.
-- Serial log: `"ownership reset, new pairing token generated"`.
-- Previous owner's phone gracefully shows "board unpaired"
-  (this is a Mezulla BDD test, not a firmware test).
+Physical button reset deferred to v2 Mezulla hardware — the
+LilyGo T3 V1.6.1 has no user-programmable button (only RST which
+hard-reboots the ESP32). See `project_mezulla_v1_hardware_limits`.
 
-**F2.5: Ownership query response**
+Test criteria (untested end-to-end — needs app-side release):
+- Owner sends release: ownership cleared, board shows QR.
+  Serial log: `"[MEZULLA] reset: ownership cleared"`.
+- Non-owner sends release: rejected with status `0x03`.
+  Serial log: `"[MEZULLA] release: rejected, reason=not_owner"`.
 
-When the board receives an ownership query packet on `PRIVATE_APP`,
-respond with the current owner identity (or empty if unclaimed).
-This lets the phone detect Mezulla firmware vs stock Meshtastic.
+**F2.5: Ownership query response** — DONE (2026-05-26)
 
-Test criteria:
+Command byte `0x02` on `PRIVATE_APP`. Returns status + owner_id
+(empty if unclaimed). Lets the phone detect Mezulla firmware vs
+stock Meshtastic (stock silently ignores the packet).
+
+Test criteria (untested end-to-end — needs app-side query):
 - Unclaimed board responds with empty owner.
 - Claimed board responds with the stored owner_id.
-- Stock Meshtastic board silently ignores the query (verified
-  by testing against an unmodified board).
+- Stock Meshtastic board gives no response within 2 seconds.
 
 ### WS-F2 definition of done
 
-All F2.1–F2.5 test criteria pass on the real LilyGo T3 V1.6.1 board.
-Serial logs captured as evidence. QR scan verified with a real
-phone camera (human test). The Stage 1 regression gate (F1.3)
-still passes — nothing in WS-F2 breaks stock Meshtastic behavior.
+All F2.1–F2.5 are implemented and flashed to the real board.
+QR scan verified with a real phone camera. Firmware branch
+`mezulla-firmware` pushed to `raghumad/mezulla-firmware`.
+
+**Remaining for full "done":**
+- End-to-end test of claim/release/query requires the Tern app
+  to implement the `tern://` deep link handler and send packets
+  on port 256. Handoff doc delivered: `ws-qr-pairing-app-handoff.md`.
+- F1.3 regression gate: Tern app BDD tests against source-built
+  firmware (app agent's responsibility).
 
 ## Stage 2.5 — Upstream cleanup for device pairing PR
 
