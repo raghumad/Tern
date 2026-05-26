@@ -1,5 +1,6 @@
 package com.madanala.tern.ui
 
+import androidx.compose.ui.test.*
 import androidx.lifecycle.ViewModelProvider
 import com.madanala.tern.utils.Liar
 import com.madanala.tern.utils.MapVisualTest

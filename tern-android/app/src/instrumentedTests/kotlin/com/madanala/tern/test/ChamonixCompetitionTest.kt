@@ -1,5 +1,6 @@
 package com.madanala.tern.test
 
+import androidx.compose.ui.test.*
 import com.madanala.tern.model.LocationType
 import com.madanala.tern.utils.Liar
 import com.madanala.tern.utils.MapVisualTest

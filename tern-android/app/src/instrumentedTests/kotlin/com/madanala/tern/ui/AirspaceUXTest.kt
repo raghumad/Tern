@@ -1,5 +1,6 @@
 package com.madanala.tern.ui
 
+import androidx.compose.ui.test.*
 import com.madanala.tern.utils.Liar
 import com.madanala.tern.utils.MapVisualTest
 import com.madanala.tern.utils.MapTestHelper
