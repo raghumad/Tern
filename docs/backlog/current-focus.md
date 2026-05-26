@@ -387,50 +387,55 @@ real-world correctness comes from human tests (see
 Ordered by what unblocks the most progress. Safety items first,
 then what lets us fly with the real board, then polish.
 
-### Now (app work — no firmware dependency)
+### Now
 
-1. **WS3: SOS alert UI (3.3)** — safety-critical. The one feature a
-   pilot needs to work perfectly on day one.
-2. **WS3: opacity pulse for stale/lost peers** — was on the deleted
+1. **WS5 Phase 2: pairing flow orchestrator** (5.2.5) — deep link →
+   BLE scan → connect → claim → persist. Wire contract and deep link
+   parser done. This is the next domino — unblocks human test and
+   real board usage.
+   **Human test required:** scan QR on real board with phone camera,
+   verify Tern opens and claims ownership. Test script at
+   `human-tests/deep-link-pairing/README.md`.
+2. **WS3: SOS alert UI (3.3)** — safety-critical. Needs board
+   connected to test end-to-end. Pairing unblocks this.
+3. **WS3: opacity pulse for stale/lost peers** — was on the deleted
    NativeMapView. Needs porting to the compose PeerLayer. Visual
    safety signal.
-3. ~~**WS5 Phase 2: register `tern://` deep link** (5.2.4)~~ DONE.
-   Manifest registered, `TernPairLink` parser + `MezullaPairingCodec`
-   wire contract implemented with 21 unit tests. BDD instrumented
-   test for intent delivery still needed. Full QR scan flow requires
-   human test with real board.
-4. **WS5 Phase 2: deep link BDD test** — instrumented test that
-   launches activity with a `tern://p?n=...&t=...` intent and
-   verifies Tern receives and parses it. No board needed.
+4. **Deep link BDD test** — instrumented test that launches activity
+   with a `tern://p?n=...&t=...` intent and verifies Tern receives
+   and parses it. No board needed.
+
+### fix-tests-and-scrub (parallel, stays open until all tests are honest)
+
 5. **Test dashboard video** — wire `FrameCaptureHelper` as fallback
-   when `screenrecord` fails on ATD images. Stitch frames to video
-   with ffmpeg in `generateTestReport`.
+   when `screenrecord` fails on ATD images. Stitch frames with ffmpeg
+   in `generateTestReport`.
+6. **Inject test data for airspace/PGSpot rendering** — tests show
+   empty maps because no data is cached. Wire `TestCacheInjector`
+   into the tests that claim to verify overlay rendering. See
+   get-well program in `known-issues.md`.
+7. **Rewrite @Liar tests** — 19 methods with TODO assertions across
+   test files. Build using the "assert downstream" rule. Go through
+   each one, check Gherkin against production code, fix or delete.
+8. **OSMDroid GeoPoint migration** — replace `org.osmdroid.util.GeoPoint`
+   with `Position` across ~40 production files.
+9. **Delete MapTestHelper** — dead OSMDroid gesture code.
 
-### Next (app ↔ board — needs firmware handoff for testing)
+### Next (app ↔ board)
 
-6. **WS5 Phase 2: pairing flow orchestrator** (5.2.5) — deep link →
-   BLE scan → connect → claim → persist. Wire contract done
-   (`MezullaPairingCodec`). Needs real board for end-to-end.
-   **Human test required:** scan QR on real board with phone camera,
-   verify Tern opens and claims ownership.
-7. **WS5 Phase 2: replace Phase 1 UI** (5.2.6) — settings shows
-   paired board + "forget," no BLE scan screen.
-8. **WS4: `BleConnection` skeleton** (4.3) — hardcoded MAC, raw
-   Meshtastic packets through the existing interface.
-9. **WS4.5: `TcpMeshtasticConnection`** — dev convenience for
-   emulator testing against real board on WiFi.
+10. **WS5 Phase 2: replace Phase 1 UI** (5.2.6) — settings shows
+    paired board + "forget," no BLE scan screen.
+11. **WS4: `BleConnection` skeleton** (4.3) — hardcoded MAC, raw
+    Meshtastic packets through the existing interface.
+12. **WS4.5: `TcpMeshtasticConnection`** — dev convenience for
+    emulator testing against real board on WiFi.
 
-### Later (polish and hardening)
+### Later (polish)
 
-8. **WS3: bearing arrows + relative altitude** — needs pilot
-   position plumbed into PeerLayer.
-9. **WS3: decluttering + zoom scaling** — prevent marker overlap at
-   low zoom.
-10. **Rewrite @Liar tests** — 10 methods with TODO assertions across
-    6 files. Build using the "assert downstream" rule.
-11. **OSMDroid GeoPoint migration** — replace `org.osmdroid.util.GeoPoint`
-    with `Position` across ~40 production files.
-12. **Delete MapTestHelper** — dead OSMDroid gesture code.
+13. **WS3: bearing arrows + relative altitude** — needs pilot
+    position plumbed into PeerLayer.
+14. **WS3: decluttering + zoom scaling** — prevent marker overlap at
+    low zoom.
 
 ### Firmware dependencies (owned by mezulla-meshtastic chat)
 
