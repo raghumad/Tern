@@ -732,6 +732,17 @@ $coverageText
             }
         }
 
+        // Pull screen recordings from device before dashboard generation
+        try {
+            val videoDir = file("${project.layout.buildDirectory.get()}/reports/bdd-report")
+            exec {
+                commandLine("adb", "pull", "/sdcard/tern-tests/.", videoDir.absolutePath)
+                isIgnoreExitValue = true
+            }
+            val vids = videoDir.listFiles()?.count { it.extension == "mp4" } ?: 0
+            if (vids > 0) println("🎬 Pulled $vids screen recordings from device")
+        } catch (_: Exception) {}
+
         // Generate the consolidated sidebar dashboard
         try {
             val script = file("${project.projectDir}/scripts/test_report.py")

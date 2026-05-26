@@ -25,6 +25,7 @@ class TC:
     time_s: float = 0.0; category: str = "unit"
     liar: bool = False; liar_reason: str = ""
     report_file: str = ""; scenario_name: str = ""
+    video_file: str = ""
 
 def _e(t: str) -> str:
     return t.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;").replace("'","&#39;")
@@ -99,6 +100,51 @@ def tag_liars(cases: list[TC]) -> None:
         r = lk.get(short)
         if r: tc.liar, tc.liar_reason = True, r
 
+# -- Video attachment --
+def attach_videos(cases: list[TC]) -> None:
+    if not BDD_REPORTS.is_dir(): return
+    vids = {p.stem.lower(): p.name for p in BDD_REPORTS.glob("*.mp4")}
+    for tc in cases:
+        if tc.category != "instrumented": continue
+        # VideoHelper names files as method_name.mp4 (spaces replaced with _)
+        key = tc.name.replace(" ", "_").lower()
+        if key in vids:
+            tc.video_file = vids[key]
+            continue
+        # Try class_method pattern
+        short = tc.classname.rsplit(".", 1)[-1]
+        for k, v in vids.items():
+            if tc.name.lower() in k or short.lower() in k:
+                tc.video_file = v
+                break
+
+# -- Wrapper page generation --
+def generate_wrappers(cases: list[TC], rel: str) -> None:
+    for tc in cases:
+        if not tc.report_file and not tc.video_file: continue
+        wrapper_name = f"view_{tc.classname.rsplit('.', 1)[-1]}_{tc.name}.html"
+        wrapper_path = OUTPUT_FILE.parent / wrapper_name
+        video_html = ""
+        if tc.video_file:
+            video_html = (f'<div style="padding:16px;background:#1e293b;border-bottom:1px solid #334155">'
+                         f'<video controls style="width:100%;max-height:400px;border-radius:8px;border:1px solid #334155" '
+                         f'src="{rel}/{_e(tc.video_file)}"></video></div>')
+        report_html = ""
+        if tc.report_file:
+            report_html = f'<iframe src="{rel}/{tc.report_file}" style="flex:1;border:none;width:100%"></iframe>'
+        else:
+            report_html = '<div style="padding:32px;color:#64748b">No BDD report for this test.</div>'
+        html = f"""<!DOCTYPE html>
+<html><head><meta charset="UTF-8"/><style>
+*{{margin:0;padding:0;box-sizing:border-box}}
+body{{background:#0f172a;display:flex;flex-direction:column;height:100vh}}
+</style></head><body>
+{video_html}
+{report_html}
+</body></html>"""
+        wrapper_path.write_text(html)
+        tc._wrapper = wrapper_name
+
 # -- HTML generation --
 def generate_html(unit: list[TC], instr: list[TC]) -> str:
     all_c = unit + instr
@@ -115,13 +161,14 @@ def generate_html(unit: list[TC], instr: list[TC]) -> str:
     def sidebar_item(tc: TC, idx: int) -> str:
         c = "#a855f7" if tc.liar else colors.get(tc.status, "#94a3b8")
         dot = f'<span style="color:{c};margin-right:6px">●</span>'
+        vid = '<span style="color:#38bdf8;margin-left:auto;font-size:.7rem">▶</span>' if tc.video_file else ''
         label = _e(tc.scenario_name or tc.name)
         short = _e(tc.classname.rsplit(".",1)[-1])
-        if tc.report_file:
-            href = f"{rel}/{tc.report_file}"
+        href = getattr(tc, '_wrapper', '') or (f"{rel}/{tc.report_file}" if tc.report_file else '')
+        if href:
             return (f'<a class="nav-item" href="{href}" target="report" '
                     f'onclick="document.querySelectorAll(\'.nav-item\').forEach(e=>e.classList.remove(\'active\'));this.classList.add(\'active\')">'
-                    f'{dot}<span class="nav-label">{label}</span>'
+                    f'{dot}<span class="nav-label">{label}</span>{vid}'
                     f'<span class="nav-class">{short}</span></a>')
         else:
             return (f'<div class="nav-item disabled">'
@@ -206,15 +253,20 @@ def main() -> None:
     if not unit and not instr:
         print("No test results found.")
         sys.exit(0)
-    tag_liars(unit + instr)
-    html = generate_html(unit, instr)
+    all_cases = unit + instr
+    tag_liars(all_cases)
+    attach_videos(all_cases)
     OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
+    rel = BDD_REPORTS.relative_to(OUTPUT_FILE.parent) if BDD_REPORTS.is_dir() else "bdd-report"
+    generate_wrappers(instr, str(rel))
+    html = generate_html(unit, instr)
     OUTPUT_FILE.write_text(html, encoding="utf-8")
-    total = len(unit) + len(instr)
-    failed = sum(1 for c in unit + instr if c.status == "fail")
-    liars = sum(1 for c in unit + instr if c.liar)
+    total = len(all_cases)
+    failed = sum(1 for c in all_cases if c.status == "fail")
+    liars = sum(1 for c in all_cases if c.liar)
+    vids = sum(1 for c in all_cases if c.video_file)
     print(f"Dashboard: {OUTPUT_FILE}")
-    print(f"  {total} tests | {total-failed} passed | {failed} failed | {liars} liar")
+    print(f"  {total} tests | {total-failed} passed | {failed} failed | {liars} liar | {vids} with video")
 
 if __name__ == "__main__":
     main()
