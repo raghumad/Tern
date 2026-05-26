@@ -127,9 +127,26 @@ Key constants:
 - Port: `PRIVATE_APP` = 256 (Meshtastic `PortNum`)
 - Claim command: `0x01`
 - Query command: `0x02`
+- Release command: `0x03`
 - Status OK: `0x00`
 - Status token mismatch: `0x01`
 - Status already claimed: `0x02`
+- Status not owner: `0x03`
+
+### Release (unpair) command
+
+When the pilot taps "Forget board" in settings, send:
+```
+Payload: [0x03][owner_id bytes]
+```
+The firmware verifies the owner_id matches the stored owner.
+On success (status 0x00), ownership is cleared and the board
+reboots into QR mode. On failure (status 0x03 = not owner),
+the request is rejected.
+
+Note: physical button reset is deferred to v2 Mezulla hardware.
+The LilyGo T3 V1.6.1 only has an RST button (hard reboot), no
+user-programmable button.
 
 ## BDD scenarios for the app side
 
@@ -180,7 +197,8 @@ scenario: settings screen shows paired board
 | Ownership in flash | Done | Persists across reboots |
 | Claim handler | Done, untested end-to-end | Needs app-side claim packet to verify |
 | Ownership query | Done, untested end-to-end | Needs app-side query to verify |
-| Board reset (long-press) | Not yet implemented | F2.4 still pending on firmware side |
+| Release (phone-initiated) | Done, untested end-to-end | Command 0x03 on port 256, owner must authenticate |
+| Physical button reset | Deferred to v2 | LilyGo T3 V1.6.1 has no user button (only RST = hard reboot) |
 
 ## What blocks this
 
