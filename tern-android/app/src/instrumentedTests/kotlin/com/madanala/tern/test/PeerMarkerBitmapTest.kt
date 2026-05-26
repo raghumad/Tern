@@ -35,8 +35,10 @@ class PeerMarkerBitmapTest {
         val markers = listOf(
             spec("COR", MezullaIcons.PEER, 0xFF4CAF50.toInt(), "0", "s", "1970", "m"),
             spec("CBE", MezullaIcons.PEER, 0xFFFFD600.toInt(), "45", "s", "2130", "m"),
-            spec("LMA", MezullaIcons.PEER, 0xFFFF9100.toInt(), "3", "m", "1450", "m"),
-            spec("TXK", MezullaIcons.PEER_LOST, 0xFF9E9E9E.toInt(), "lost", "", "", ""),
+            spec("LMA", MezullaIcons.PEER, 0xFFFF9100.toInt(), "3", "m", "1450", "m",
+                "⚠ STALE", 0xFFFF9100.toInt()),
+            spec("TXK", MezullaIcons.PEER_LOST, 0xFF9E9E9E.toInt(), "lost", "", "", "",
+                "⚠ LOST", 0xFF9E9E9E.toInt()),
             spec("SOS", MezullaIcons.SOS, 0xFFF44336.toInt(), "SOS", "", "890", "m"),
         )
         renderGrid("staleness_states", markers)
@@ -129,10 +131,13 @@ class PeerMarkerBitmapTest {
         val leftUnit: String,
         val rightValue: String,
         val rightUnit: String,
+        val bottomText: String = "",
+        val bottomColor: Int = 0,
     )
 
-    private fun spec(cs: String, g: String, gc: Int, lv: String, lu: String, rv: String, ru: String) =
-        Spec(cs, g, gc, lv, lu, rv, ru)
+    private fun spec(cs: String, g: String, gc: Int, lv: String, lu: String, rv: String, ru: String,
+                     bt: String = "", bc: Int = 0) =
+        Spec(cs, g, gc, lv, lu, rv, ru, bt, bc)
 
     private val S = 2.5f
 
@@ -154,7 +159,7 @@ class PeerMarkerBitmapTest {
         }
         val glyphPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.WHITE
-            textSize = 20f * S
+            textSize = 15f * S
             typeface = nerdFont
         }
         val circlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -171,7 +176,7 @@ class PeerMarkerBitmapTest {
             style = Paint.Style.FILL
         }
 
-        val circleR = 20f * S
+        val circleR = 14f * S
         val gap = 4f * S
         val pH = 6f * S
         val pV = 3f * S
@@ -191,9 +196,18 @@ class PeerMarkerBitmapTest {
         val valH = valuePaint.descent() - valuePaint.ascent()
         val pillH = valH + pV * 2
 
+        // Bottom row
+        val btmPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = s.bottomColor
+            textSize = 10f * S
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            textAlign = Paint.Align.CENTER
+        }
+        val btmW = if (s.bottomText.isNotEmpty()) btmPaint.measureText(s.bottomText) + pH * 2 else 0f
+
         val leftExtent = circleR + (if (leftPW > 0) gap + leftPW else 0f)
         val rightExtent = circleR + (if (rightPW > 0) gap + rightPW else 0f)
-        val halfW = maxOf(leftExtent, rightExtent, csPillW / 2f) + gap
+        val halfW = maxOf(leftExtent, rightExtent, csPillW / 2f, btmW / 2f) + gap
         val w = halfW * 2
         val h = csPillH + gap + circleR * 2 + gap + csPillH
 
@@ -237,6 +251,13 @@ class PeerMarkerBitmapTest {
             val ty = cy - (valuePaint.descent() + valuePaint.ascent()) / 2f
             c.drawText(s.rightValue, pl + pH, ty, valuePaint)
             c.drawText(s.rightUnit, pl + pH + rightVW, ty, unitPaint)
+        }
+
+        // Bottom pill
+        if (s.bottomText.isNotEmpty()) {
+            val btmTop = cy + circleR + gap
+            c.drawRoundRect(cx - btmW / 2f, btmTop, cx + btmW / 2f, btmTop + csPillH, pR, pR, pillPaint)
+            c.drawText(s.bottomText, cx, btmTop + pV - btmPaint.ascent(), btmPaint)
         }
 
         return bmp

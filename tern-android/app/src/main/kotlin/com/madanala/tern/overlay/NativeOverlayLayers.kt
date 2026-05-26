@@ -29,7 +29,10 @@ import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapLibreMapOptions
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
+import kotlinx.coroutines.delay
 import org.maplibre.android.style.expressions.Expression.get
+import org.maplibre.android.style.expressions.Expression.literal
+import org.maplibre.android.style.expressions.Expression.match
 import org.maplibre.android.style.layers.PropertyFactory.*
 import org.maplibre.android.style.layers.SymbolLayer
 import org.maplibre.android.style.sources.GeoJsonSource
@@ -116,6 +119,31 @@ fun NativeMapView(
         source.setGeoJson(bundle.geoJson)
         Log.d(TAG, "Peer markers updated: ${bundle.specs.size} peers")
     }
+
+    // Opacity pulse for stale/lost peers
+    LaunchedEffect(mapStyle) {
+        val style = mapStyle ?: return@LaunchedEffect
+        var on = false
+        while (true) {
+            delay(600)
+            on = !on
+            val layer = style.getLayerAs<SymbolLayer>(PEER_LAYER) ?: continue
+            val staleAlpha = if (on) 0.45f else 1.0f
+            val lostAlpha = if (on) 0.25f else 0.7f
+            try {
+                layer.setProperties(
+                    iconOpacity(
+                        match(
+                            get("staleness"),
+                            literal(1.0f),
+                            literal("STALE"), literal(staleAlpha),
+                            literal("LOST"), literal(lostAlpha),
+                        )
+                    )
+                )
+            } catch (_: Exception) {}
+        }
+    }
 }
 
 // -- Data --
@@ -131,6 +159,8 @@ private data class MarkerSpec(
     val leftUnit: String,
     val rightValue: String,
     val rightUnit: String,
+    val bottomText: String,
+    val bottomColor: Int,
 )
 
 // -- GeoJSON + spec builder --
@@ -205,11 +235,23 @@ private fun buildPeerBundle(
             }
         }
 
+        val bottomText: String
+        val bottomColor: Int
+        when (staleness) {
+            MezullaPeerTextFormatter.StalenessLevel.STALE -> {
+                bottomText = "⚠ STALE"; bottomColor = 0xFFFF9100.toInt()
+            }
+            MezullaPeerTextFormatter.StalenessLevel.LOST -> {
+                bottomText = "⚠ LOST"; bottomColor = 0xFF9E9E9E.toInt()
+            }
+            else -> { bottomText = ""; bottomColor = 0 }
+        }
+
         specs.add(MarkerSpec(imageName, callsign, glyph, glyphColor,
-            leftValue, leftUnit, rightValue, rightUnit))
+            leftValue, leftUnit, rightValue, rightUnit, bottomText, bottomColor))
 
         if (i > 0) sb.append(",")
-        sb.append("""{"type":"Feature","geometry":{"type":"Point","coordinates":[${fix.longitudeDeg},${fix.latitudeDeg}]},"properties":{"markerImage":"$imageName"}}""")
+        sb.append("""{"type":"Feature","geometry":{"type":"Point","coordinates":[${fix.longitudeDeg},${fix.latitudeDeg}]},"properties":{"markerImage":"$imageName","staleness":"${staleness.name}"}}""")
     }
 
     sb.append("]}")
@@ -253,7 +295,7 @@ private fun renderMarkerBitmap(spec: MarkerSpec, nerdFont: Typeface): Bitmap {
     }
     val glyphPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = AndroidColor.WHITE
-        textSize = 20f * S
+        textSize = 15f * S
         typeface = nerdFont
     }
     val circlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -270,7 +312,7 @@ private fun renderMarkerBitmap(spec: MarkerSpec, nerdFont: Typeface): Bitmap {
         style = Paint.Style.FILL
     }
 
-    val circleR = 20f * S
+    val circleR = 14f * S
     val gap = 4f * S
     val pH = 6f * S
     val pV = 3f * S
@@ -291,10 +333,19 @@ private fun renderMarkerBitmap(spec: MarkerSpec, nerdFont: Typeface): Bitmap {
     val valH = valuePaint.descent() - valuePaint.ascent()
     val pillH = valH + pV * 2
 
+    // Bottom row
+    val btmPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = spec.bottomColor
+        textSize = 10f * S
+        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        textAlign = Paint.Align.CENTER
+    }
+    val btmW = if (spec.bottomText.isNotEmpty()) btmPaint.measureText(spec.bottomText) + pH * 2 else 0f
+
     // Symmetric: circle at bitmap center
     val leftExtent = circleR + (if (leftPW > 0) gap + leftPW else 0f)
     val rightExtent = circleR + (if (rightPW > 0) gap + rightPW else 0f)
-    val halfW = maxOf(leftExtent, rightExtent, csPillW / 2f) + gap
+    val halfW = maxOf(leftExtent, rightExtent, csPillW / 2f, btmW / 2f) + gap
     val w = halfW * 2
     val h = csPillH + gap + circleR * 2 + gap + csPillH
 
@@ -340,6 +391,13 @@ private fun renderMarkerBitmap(spec: MarkerSpec, nerdFont: Typeface): Bitmap {
         val ty = cy - (valuePaint.descent() + valuePaint.ascent()) / 2f
         c.drawText(spec.rightValue, pl + pH, ty, valuePaint)
         c.drawText(spec.rightUnit, pl + pH + rightVW, ty, unitPaint)
+    }
+
+    // Bottom pill (warning for degraded peers)
+    if (spec.bottomText.isNotEmpty()) {
+        val btmTop = cy + circleR + gap
+        c.drawRoundRect(cx - btmW / 2f, btmTop, cx + btmW / 2f, btmTop + csPillH, pR, pR, pillPaint)
+        c.drawText(spec.bottomText, cx, btmTop + pV - btmPaint.ascent(), btmPaint)
     }
 
     return bmp
