@@ -20,6 +20,7 @@ import org.osmdroid.util.GeoPoint
  * Verifies high-fidelity route planning and HUD metrics in the Indian Himalayas.
  * Validated against Aviation-Grade UX and Instrumentation Truth skills.
  */
+@com.madanala.tern.utils.Untruthful("Assertions check UI element existence, not metric values — step names disconnected from assertions")
 class BirBillingCompetitionTest : MapVisualTest() {
 
     @Before

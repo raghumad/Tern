@@ -183,7 +183,11 @@ class PeerReducerTest {
             PeerAction.PeerAlertAcknowledged(guillaume.nodeNumber, t1),
         )
 
-        assertThat(acked).isEqualTo(state)
+        // lastEventTime advances (the reducer saw an event at t1) but
+        // peers and alerts are untouched.
+        assertThat(acked.peers).isEqualTo(state.peers)
+        assertThat(acked.activeAlerts).isEqualTo(state.activeAlerts)
+        assertThat(acked.linkState).isEqualTo(state.linkState)
     }
 
     @Test
@@ -195,11 +199,11 @@ class PeerReducerTest {
         state = peerReducer(state, PeerAction.PeerAlertAcknowledged(antoine.nodeNumber, t1))
         val firstAckedAt = state.activeAlerts.single().acknowledgedAt
 
-        // Second acknowledge with no fresh alert in between: nothing changes.
+        // Second acknowledge with no fresh alert in between: alert stays unchanged.
         val again = peerReducer(state, PeerAction.PeerAlertAcknowledged(antoine.nodeNumber, t2))
 
-        assertThat(again).isEqualTo(state)
         assertThat(again.activeAlerts.single().acknowledgedAt).isEqualTo(firstAckedAt)
+        assertThat(again.peers).isEqualTo(state.peers)
     }
 
     @Test

@@ -72,7 +72,9 @@ open class MapVisualTest {
         }
         
         Log.i("MapVisualTest", "=== START ${testNameRule.methodName} ===")
-        
+
+        VideoHelper.startRecording(testNameRule.methodName.replace(" ", "_"))
+
         // 2. Proactively clear disk caches and performance metrics
         com.madanala.tern.utils.CacheManager.clearAllCaches()
         com.madanala.tern.utils.PerformanceDebugger.clearMetrics()
@@ -92,6 +94,7 @@ open class MapVisualTest {
 
     @org.junit.After
     fun tearDown() {
+        VideoHelper.stopRecording()
         WeatherTestHelper.stopServer()
         Log.i("MapVisualTest", "=== END ${testNameRule.methodName} ===")
 

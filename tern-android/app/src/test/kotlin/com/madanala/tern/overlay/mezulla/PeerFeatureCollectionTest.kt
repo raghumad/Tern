@@ -4,17 +4,10 @@ import com.google.common.truth.Truth.assertThat
 import com.madanala.tern.mezulla.connection.PeerIdentity
 import com.madanala.tern.mezulla.connection.PeerPosition
 import com.madanala.tern.mezulla.redux.KnownPeer
-import com.madanala.tern.overlay.priority.Position
 import com.madanala.tern.redux.MezullaViewMode
-import kotlinx.serialization.json.jsonPrimitive
 import org.junit.jupiter.api.Test
-import org.maplibre.spatialk.geojson.Feature
 import java.time.Instant
 
-/**
- * Tests for [buildPeerFeatureCollection] — the bridge between Redux
- * peer state and the GeoJSON that MapLibre renders.
- */
 class PeerFeatureCollectionTest {
 
     private val now = Instant.parse("2026-04-25T12:05:00Z")
@@ -42,132 +35,112 @@ class PeerFeatureCollectionTest {
     )
 
     @Test
-    fun `feature collection contains one feature per peer with position`() {
+    fun `bundle contains one spec per peer with position`() {
         val peers = mapOf(
             makePeer(1L, "CBE"),
             makePeer(2L, "JLR"),
             makePeer(3L, "NO_POS", position = null),
         )
 
-        val fc = buildPeerFeatureCollection(peers, MezullaViewMode.SAFETY, null, now)
+        val bundle = buildPeerBundle(peers, MezullaViewMode.SAFETY, now)
 
-        assertThat(fc.features).hasSize(2)
+        assertThat(bundle.specs).hasSize(2)
     }
 
     @Test
-    fun `empty peer map produces empty feature collection`() {
-        val fc = buildPeerFeatureCollection(emptyMap(), MezullaViewMode.SAFETY, null, now)
-        assertThat(fc.features).isEmpty()
+    fun `empty peer map produces empty bundle`() {
+        val bundle = buildPeerBundle(emptyMap(), MezullaViewMode.SAFETY, now)
+        assertThat(bundle.specs).isEmpty()
+        assertThat(bundle.geoJson).contains("\"features\":[]")
     }
 
     @Test
-    fun `safety mode display text contains callsign altitude and age`() {
+    fun `safety mode shows callsign altitude and age`() {
         val peers = mapOf(makePeer(1L, "CBE", lastSeenSecondsAgo = 5))
-        val fc = buildPeerFeatureCollection(peers, MezullaViewMode.SAFETY, null, now)
-        val displayText = fc.features.single().displayText()
+        val bundle = buildPeerBundle(peers, MezullaViewMode.SAFETY, now)
+        val spec = bundle.specs.single()
 
-        assertThat(displayText).contains("CBE")
-        assertThat(displayText).contains("3120m")
-        assertThat(displayText).contains("5s ago")
+        assertThat(spec.callsign).isEqualTo("CBE")
+        assertThat(spec.rightValue).isEqualTo("3120")
+        assertThat(spec.rightUnit).isEqualTo("m")
+        assertThat(spec.leftValue).isEqualTo("5")
+        assertThat(spec.leftUnit).isEqualTo("s")
     }
 
     @Test
-    fun `climb mode display text contains climb rate`() {
+    fun `climb mode shows climb rate`() {
         val peers = mapOf(makePeer(1L, "CBE", climbRateMs = 2.5))
-        val fc = buildPeerFeatureCollection(peers, MezullaViewMode.CLIMB, null, now)
-        val displayText = fc.features.single().displayText()
+        val bundle = buildPeerBundle(peers, MezullaViewMode.CLIMB, now)
+        val spec = bundle.specs.single()
 
-        assertThat(displayText).contains("CBE")
-        assertThat(displayText).contains("+2.5 m/s")
-        assertThat(displayText).contains("3120m")
+        assertThat(spec.callsign).isEqualTo("CBE")
+        assertThat(spec.leftValue).isEqualTo("+2.5")
+        assertThat(spec.leftUnit).isEqualTo("m/s")
+        assertThat(spec.rightValue).isEqualTo("3120")
     }
 
     @Test
-    fun `tactical mode with pilot position shows distance and bearing`() {
-        val pilot = Position(45.9, 6.1)
+    fun `tactical mode shows speed`() {
         val peers = mapOf(makePeer(1L, "CBE"))
-        val fc = buildPeerFeatureCollection(peers, MezullaViewMode.TACTICAL, pilot, now)
-        val displayText = fc.features.single().displayText()
+        val bundle = buildPeerBundle(peers, MezullaViewMode.TACTICAL, now)
+        val spec = bundle.specs.single()
 
-        assertThat(displayText).contains("CBE")
-        assertThat(displayText).contains("km")
-        assertThat(displayText).contains("km/h")
+        assertThat(spec.callsign).isEqualTo("CBE")
+        assertThat(spec.leftValue).isEqualTo("36")
+        assertThat(spec.leftUnit).isEqualTo("km/h")
     }
 
     @Test
-    fun `staleness property set correctly for fresh peer`() {
+    fun `staleness FRESH for recent peer`() {
         val peers = mapOf(makePeer(1L, "CBE", lastSeenSecondsAgo = 10))
-        val fc = buildPeerFeatureCollection(peers, MezullaViewMode.SAFETY, null, now)
+        val bundle = buildPeerBundle(peers, MezullaViewMode.SAFETY, now)
 
-        assertThat(fc.features.single().staleness()).isEqualTo("FRESH")
+        assertThat(bundle.geoJson).contains("\"staleness\":\"FRESH\"")
+        assertThat(bundle.specs.single().glyphColor).isEqualTo(0xFF4CAF50.toInt())
     }
 
     @Test
-    fun `staleness property set correctly for aging peer`() {
+    fun `staleness AGING for 60s old peer`() {
         val peers = mapOf(makePeer(1L, "CBE", lastSeenSecondsAgo = 60))
-        val fc = buildPeerFeatureCollection(peers, MezullaViewMode.SAFETY, null, now)
+        val bundle = buildPeerBundle(peers, MezullaViewMode.SAFETY, now)
 
-        assertThat(fc.features.single().staleness()).isEqualTo("AGING")
+        assertThat(bundle.geoJson).contains("\"staleness\":\"AGING\"")
+        assertThat(bundle.specs.single().glyphColor).isEqualTo(0xFFFFD600.toInt())
     }
 
     @Test
-    fun `staleness property set correctly for stale peer`() {
+    fun `staleness STALE for 200s old peer`() {
         val peers = mapOf(makePeer(1L, "CBE", lastSeenSecondsAgo = 200))
-        val fc = buildPeerFeatureCollection(peers, MezullaViewMode.SAFETY, null, now)
+        val bundle = buildPeerBundle(peers, MezullaViewMode.SAFETY, now)
 
-        assertThat(fc.features.single().staleness()).isEqualTo("STALE")
+        assertThat(bundle.geoJson).contains("\"staleness\":\"STALE\"")
+        assertThat(bundle.specs.single().bottomText).isEqualTo("⚠ STALE")
     }
 
     @Test
-    fun `staleness property set correctly for lost peer`() {
+    fun `staleness LOST for 600s old peer`() {
         val peers = mapOf(makePeer(1L, "CBE", lastSeenSecondsAgo = 600))
-        val fc = buildPeerFeatureCollection(peers, MezullaViewMode.SAFETY, null, now)
+        val bundle = buildPeerBundle(peers, MezullaViewMode.SAFETY, now)
 
-        assertThat(fc.features.single().staleness()).isEqualTo("LOST")
+        assertThat(bundle.geoJson).contains("\"staleness\":\"LOST\"")
+        assertThat(bundle.specs.single().bottomText).isEqualTo("⚠ LOST")
     }
 
     @Test
-    fun `lost peer display text says lost contact`() {
+    fun `lost peer shows lost in left pill`() {
         val peers = mapOf(makePeer(1L, "CBE", lastSeenSecondsAgo = 600))
-        val fc = buildPeerFeatureCollection(peers, MezullaViewMode.SAFETY, null, now)
-        val displayText = fc.features.single().displayText()
+        val bundle = buildPeerBundle(peers, MezullaViewMode.SAFETY, now)
+        val spec = bundle.specs.single()
 
-        assertThat(displayText).contains("CBE")
-        assertThat(displayText).contains("lost contact")
+        assertThat(spec.leftValue).isEqualTo("lost")
+        assertThat(spec.rightValue).isEmpty()
     }
 
     @Test
-    fun `stale peer display text has warning indicator`() {
-        val peers = mapOf(makePeer(1L, "CBE", lastSeenSecondsAgo = 200))
-        val fc = buildPeerFeatureCollection(peers, MezullaViewMode.SAFETY, null, now)
-        val displayText = fc.features.single().displayText()
-
-        assertThat(displayText).endsWith("⚠")
-    }
-
-    @Test
-    fun `feature point coordinates match peer position`() {
+    fun `geojson coordinates match peer position`() {
         val peers = mapOf(makePeer(1L, "CBE"))
-        val fc = buildPeerFeatureCollection(peers, MezullaViewMode.SAFETY, null, now)
-        val point = fc.features.single().geometry!!
+        val bundle = buildPeerBundle(peers, MezullaViewMode.SAFETY, now)
 
-        assertThat(point.latitude).isWithin(0.0001).of(fix.latitudeDeg)
-        assertThat(point.longitude).isWithin(0.0001).of(fix.longitudeDeg)
-    }
-
-    // ── Helpers ──────────────────────────────────────────────────────
-
-    @Suppress("UNCHECKED_CAST")
-    private fun Feature<*, *>.displayText(): String {
-        val props = (this as Feature<*, kotlinx.serialization.json.JsonObject>).properties
-            ?: return ""
-        return (props["displayText"] as? kotlinx.serialization.json.JsonPrimitive)?.content ?: ""
-    }
-
-    @Suppress("UNCHECKED_CAST")
-    private fun Feature<*, *>.staleness(): String {
-        val props = (this as Feature<*, kotlinx.serialization.json.JsonObject>).properties
-            ?: return ""
-        return (props["staleness"] as? kotlinx.serialization.json.JsonPrimitive)?.content ?: ""
+        assertThat(bundle.geoJson).contains("\"coordinates\":[6.1245,45.9099]")
     }
 }

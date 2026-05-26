@@ -34,22 +34,6 @@ open class BddTest : BaseUITest() {
         }
     }
 
-    @org.junit.Before
-    fun clearOsmDroidPrefs() {
-        try {
-            val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
-            val prefs = context.getSharedPreferences("org.osmdroid", android.content.Context.MODE_PRIVATE)
-            prefs.edit().clear().commit()
-            
-            // Also clear default shared preferences which Configuration.load uses by default
-            androidx.preference.PreferenceManager.getDefaultSharedPreferences(context).edit().clear().commit()
-            
-            org.osmdroid.config.Configuration.getInstance().load(context, androidx.preference.PreferenceManager.getDefaultSharedPreferences(context))
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
-
 
     /**
      * Run a BDD scenario. When [recordVideo] is true, the device
@@ -60,7 +44,7 @@ open class BddTest : BaseUITest() {
      * Video recording is opt-in per scenario (default off) because
      * it slows tests and produces large files.
      */
-    fun scenario(name: String, recordVideo: Boolean = false, block: () -> Unit) {
+    fun scenario(name: String, recordVideo: Boolean = true, block: () -> Unit) {
         ReportGenerator.logStep("SCENARIO", name)
         if (recordVideo) {
             VideoHelper.startRecording(name.replace(" ", "_"))

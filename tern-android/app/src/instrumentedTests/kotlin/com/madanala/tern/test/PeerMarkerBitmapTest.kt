@@ -20,6 +20,7 @@ import java.io.File
  * Outputs PNGs to the test device's external storage where AGP copies
  * them to build/outputs/ for review.
  */
+@com.madanala.tern.utils.Untruthful("Zero assertions — renders bitmaps to PNG but never validates production rendering code")
 class PeerMarkerBitmapTest {
 
     private lateinit var nerdFont: Typeface

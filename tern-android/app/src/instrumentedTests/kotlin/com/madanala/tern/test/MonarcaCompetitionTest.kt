@@ -18,6 +18,7 @@ import org.junit.After
  * This test uses real competition data from the Monarca Paragliding Open 2026
  * (Valle de Bravo, Mexico) to create a truthful narrative for the README.
  */
+@com.madanala.tern.utils.Untruthful("Written for README screenshots — ETA validated by checking for colon character, not actual values")
 class MonarcaCompetitionTest : MapVisualTest() {
 
     @Before

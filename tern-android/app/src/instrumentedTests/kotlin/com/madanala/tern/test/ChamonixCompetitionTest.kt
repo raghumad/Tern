@@ -20,6 +20,7 @@ import org.osmdroid.util.GeoPoint
  * Verifies high-fidelity route planning and HUD metrics in a complex Alpine environment.
  * Validated against Aviation-Grade UX and Instrumentation Truth skills.
  */
+@com.madanala.tern.utils.Untruthful("'Truthful metrics' step checks for 'km' substring, not actual distance values")
 class ChamonixCompetitionTest : MapVisualTest() {
 
     @Before

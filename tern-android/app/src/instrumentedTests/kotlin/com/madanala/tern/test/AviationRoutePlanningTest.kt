@@ -26,6 +26,7 @@ import com.madanala.tern.utils.WeatherTestHelper
  * Framed as Pilot Stories to ensure Aviation-Grade UX Fidelity.
  * Skills applied: BDD UI Testing Fidelity, Aviation-Grade UX Standards.
  */
+@com.madanala.tern.utils.Untruthful("3 of 4 stories have step names disconnected from assertions — thermal hotspot step asserts sync status")
 class AviationRoutePlanningTest : MapVisualTest() {
 
     @Before
