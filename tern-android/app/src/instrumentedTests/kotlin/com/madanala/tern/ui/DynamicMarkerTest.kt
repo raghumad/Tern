@@ -13,6 +13,7 @@ import com.madanala.tern.utils.WindData
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
+import com.madanala.tern.utils.Liar
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -173,6 +174,9 @@ class DynamicMarkerTest : com.madanala.tern.utils.MapVisualTest() {
         }
     }
 
+    @Liar("Asserts Redux weather state (upstream), not the wind gauge rendering on the MapLibre map (downstream). " +
+          "Wind gauge markers are MapLibre SymbolLayer bitmaps -- GPU-drawn, not Compose nodes -- " +
+          "so the only truthful assertion is screenshot evidence reviewed by a human.")
     @Test
     fun testPGSpotMarkerSwitchesToWindGauge() {
         scenario("PG Spot Marker Transforms from Static Pin to Live Wind Gauge After REAL Weather Load") {
@@ -180,16 +184,16 @@ class DynamicMarkerTest : com.madanala.tern.utils.MapVisualTest() {
                 val pgSpotId = "pg_boulder_test"
                 val lat = 40.015
                 val lon = -105.27
-                
+
                 given("a PG spot is cached and a Mock Weather Server is running") {
                     // Set test country early - this will trigger a TEST download which we redirect
                     com.madanala.tern.utils.CountryUtils.setTestCountryCode("TEST")
-                    
+
                     val context = composeTestRule.activity
                     val point = org.osmdroid.util.GeoPoint(lat, lon)
                     val featureMap = mapOf("id" to pgSpotId, "name" to "Boulder Launch")
                     val hIndex = com.madanala.tern.utils.MapOverlayCacheUtils.computeHilbertIndex(point, 16)
-                    
+
                     val feature = com.madanala.tern.utils.MapOverlayCacheUtils.OverlayFeature(
                         internalId = pgSpotId,
                         feature = featureMap,
@@ -197,17 +201,17 @@ class DynamicMarkerTest : com.madanala.tern.utils.MapVisualTest() {
                         hilbertIndex = hIndex,
                         overlayType = "pgspot"
                     )
-                    
+
                     val mockUrl = com.madanala.tern.utils.WeatherTestHelper.startServer()
                     // Redirect PG spot downloads to mock server
                     com.madanala.tern.utils.PGSpotCache.setBaseUrlForTesting(mockUrl)
                     com.madanala.tern.utils.WeatherTestHelper.setDispatcher(speed = 18.0, direction = 270.0)
-                    
+
                     // Pre-inject the cache to ensure the spot 9876 doesnt leak from real US data
                     com.madanala.tern.utils.TestCacheInjector.injectPGSpots(
-                        context, 
-                        com.madanala.tern.utils.CacheManager.pgSpotCache, 
-                        "TEST", 
+                        context,
+                        com.madanala.tern.utils.CacheManager.pgSpotCache,
+                        "TEST",
                         listOf(feature)
                     )
                 }
@@ -219,13 +223,9 @@ class DynamicMarkerTest : com.madanala.tern.utils.MapVisualTest() {
                     Thread.sleep(3000)
                 }
 
-                this.then("the marker should be rendered as a wind gauge with 18kt value", takeScreenshot = true) {
-                    val store = androidx.lifecycle.ViewModelProvider(composeTestRule.activity)[com.madanala.tern.redux.MapStore::class.java]
-                    val weather = store.state.value.weatherState.spotWeathers[pgSpotId]
-                    assertNotNull("Weather data should be fetched from Mock Server for $pgSpotId", weather)
-                    assertEquals(18.0, weather?.current?.wind?.speed ?: 0.0, 0.1)
-                    
-                    // Cleanup server, country and cache settings
+                this.then("screenshot evidence: the marker should be rendered as a wind gauge", takeScreenshot = true) {
+                    // Wind gauge is a MapLibre SymbolLayer bitmap -- cannot be asserted via Compose.
+                    // Screenshot is the evidence. Cleanup below.
                     com.madanala.tern.utils.WeatherTestHelper.stopServer()
                     com.madanala.tern.utils.PGSpotCache.resetBaseUrlForTesting()
                     com.madanala.tern.utils.CountryUtils.setTestCountryCode(null)
