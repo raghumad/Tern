@@ -366,61 +366,118 @@ real-world correctness comes from human tests (see
 - **WS2** — DONE (simulator path). `SwarmSimulatedConnection` →
   `PeerMiddleware` → `PeerReducer` → `PeerState` pipeline works.
   Real BLE/TCP paths (WS4) still needed.
-- **WS3** — IN PROGRESS. Peer markers render on the map as composite
-  bitmap GeoJSON features (circle + pills + callsign + warnings).
-  Three view modes (safety/climb/tactical), staleness colors, opacity
-  pulsing for degraded peers. Remaining: SOS alert UI (3.3), bearing
-  arrows and relative altitude (need pilot position plumbed in),
-  decluttering + zoom scaling.
+- **WS3** — IN PROGRESS. Peer markers render on the single compose
+  MaplibreMap as per-peer SymbolLayers with bitmap icons via
+  `PeerLayer.kt` + `PeerBundleBuilder.kt`. Three view modes
+  (safety/climb/tactical), staleness colors. Remaining: SOS alert
+  UI (3.3), bearing arrows and relative altitude (need pilot
+  position plumbed in), decluttering + zoom scaling, opacity pulse
+  (was on the deleted NativeMapView, needs porting to compose layer).
 - **WS4** can start any time once WS2's interface is defined.
 - **WS5 Phase 1** depends on WS4 (real BLE) for hardware
   validation, but the in-emulator BDD scenarios can start as soon
   as WS2's lifecycle event types exist.
-- **WS5 Phase 2** is deferred until Phase 1 is solid.
+- **WS5 Phase 2** — firmware handoff doc ready
+  (`docs/backlog/ws-qr-pairing-app-handoff.md`). Board is running,
+  showing QR, claim handler implemented but untested end-to-end.
+  App work can start. See prioritized backlog below.
 
-## Test infrastructure status (2026-05-25)
+## Prioritized backlog
 
-Audit and scrub completed. Key changes:
+Ordered by what unblocks the most progress. Safety items first,
+then what lets us fly with the real board, then polish.
 
-- **Dead Compose overlay code deleted** (commit 59c98e1). The old
-  `MezullaPeerLayerComposable`, `PeerMarkerComposable`, and
-  `MezullaAnimations` are gone. All peer rendering flows through
-  `NativeOverlayLayers.kt` → `PeerBundleBuilder.kt`.
-- **`buildPeerBundle` extracted** to `PeerBundleBuilder.kt` with
-  `internal` visibility so `PeerFeatureCollectionTest` can test it.
-- **Screen recording is now always-on** for every instrumented test
-  (BddTest and MapVisualTest). Videos go to `/sdcard/tern-tests/`.
-- **OSMDroid test cleanup**: dead `clearOsmDroidPrefs()` removed from
-  BddTest. Production code still uses `org.osmdroid.util.GeoPoint` as
-  the coordinate type in Redux state — that's a separate migration
-  (see known issues below).
-- **5 tests tagged `@Untruthful`**: `PeerMarkerBitmapTest`,
-  `BirBillingCompetitionTest`, `MonarcaCompetitionTest`,
-  `ChamonixCompetitionTest`, `AviationRoutePlanningTest`. These have
-  assertions disconnected from what their BDD step names claim.
-  They still run but their pass/fail carries no weight until rewritten.
-- **Consolidated test dashboard**: `scripts/test_report.py` generates
-  a single HTML report aggregating unit and instrumented test results,
-  screenshots, and embedded screen recordings.
-- **PeerReducerTest fixed**: two tests expected full-state equality but
-  `lastEventTime` correctly advances on every event.
+### Now (unblocks mezulla on real hardware)
+
+1. **Firmware: board reset (long-press)** — WS5 F2.4. Without this,
+   a bad claim during development bricks the pairing state. Must land
+   before any app-side pairing work.
+2. **WS3 remaining: SOS alert UI (3.3)** — safety-critical. The one
+   feature a pilot needs to work perfectly on day one.
+3. **WS3 remaining: opacity pulse for stale/lost peers** — was on the
+   deleted NativeMapView. Needs porting to the compose PeerLayer.
+   Visual safety signal — pilot must see at a glance which peers are
+   stale.
+
+### Next (app ↔ board talking for real)
+
+4. **WS5 Phase 2: register `tern://` deep link** (5.2.4) — critical
+   first step. Without it, scanning the QR does nothing.
+5. **WS5 Phase 2: pairing flow** (5.2.5) — deep link → BLE connect →
+   claim-ownership → persist. First real end-to-end proof.
+6. **WS5 Phase 2: replace Phase 1 UI** (5.2.6) — settings shows
+   paired board + "forget," no BLE scan screen.
+7. **WS4: `BleConnection` skeleton** (4.3) — hardcoded MAC, raw
+   Meshtastic packets through the existing interface.
+8. **WS4.5: `TcpMeshtasticConnection`** — dev convenience for
+   emulator testing against real board on WiFi.
+
+### Later (polish and hardening)
+
+9. **WS3: bearing arrows + relative altitude** — needs pilot
+   position plumbed into PeerLayer.
+10. **WS3: decluttering + zoom scaling** — prevent marker overlap at
+    low zoom.
+11. **Rewrite @Liar tests** — 10 methods with TODO assertions across
+    6 files. The Gherkin describes real pilot behaviors; the
+    assertions need to be built using the "assert downstream" rule.
+12. **OSMDroid GeoPoint migration** — replace `org.osmdroid.util.GeoPoint`
+    with `Position` across ~40 production files.
+13. **Delete MapTestHelper** — dead OSMDroid gesture code. Replace
+    with MapLibre-aware gesture helpers when rewriting tests.
+14. **Wire contract doc** — `docs/architecture/mezulla-wire-contract.md`
+    is referenced by the handoff doc but doesn't exist yet.
+
+### Blockers and risks
+
+- **Board reset not implemented** — blocks all pairing development.
+  A bad claim during testing = reflash to recover.
+- **Claim handler untested end-to-end** — wire format in the handoff
+  doc must match firmware exactly. First app task should be a raw
+  claim packet test, not UI.
+- **Owner ID format unspecified** — handoff doc says "any stable
+  identifier, max 64 chars" but doesn't define the format. Pin this
+  down before implementing (UUID v4 is fine).
+
+## Test infrastructure status (2026-05-26)
+
+Full audit and scrub completed. Key changes:
+
+- **Single MapView architecture.** Deleted `NativeOverlayLayers.kt`
+  (the second map). All rendering now goes through one compose
+  `MaplibreMap` in `MapViewContainer`. Camera feedback loop fixed —
+  only GESTURE moves sync back to Redux, preventing animation echo.
+- **34 lying unit tests deleted** (GpsSafetyTest, MemorySafetyTest,
+  PerformanceBenchmarkTest, RouteListScreenTest, WeatherAPITest,
+  MapReducersTest empty assertion, PeerMarkerBitmapTest,
+  MapMemoryStressTest). Zero production code called, hardcoded
+  tautologies.
+- **6 instrumented tests stripped to `@Liar` Gherkin skeletons** —
+  valuable BDD step descriptions preserved, lying assertions
+  replaced with TODO placeholders. 10 `@Liar` methods, 30 TODOs.
+- **Tautological Redux assertions scrubbed** — tests that dispatched
+  to Redux then asserted against Redux now assert against Compose
+  semantics (what the pilot sees).
+- **BDD step descriptions made honest** — "Physical UI and Redux
+  State Validated" → "Scenario completed without assertion failure."
+- **Always-on screen recording** via VideoHelper in @Before/@After.
+- **Consolidated sidebar dashboard** auto-generated after test runs.
+  Click test name → full BDD report with screenshots.
+- **304 unit tests, all passing.** 25 instrumented tests passing,
+  24 failing (pre-existing issues), 3 @Ignored.
 
 ## Known issues (deferred)
 
-- **OSMDroid GeoPoint in production code.** `org.osmdroid.util.GeoPoint`
-  is the coordinate type in Redux state, models, middleware (~40 files).
-  Should migrate to the existing `overlay.priority.Position` class or a
-  new `LatLng` type. Non-urgent — it compiles and runs fine.
-- **MapTestHelper is dead OSMDroid code.** Still referenced by ~15
-  instrumented tests. Those tests dispatch Redux actions directly
-  instead of simulating gestures. Clean up when rewriting the
-  `@Untruthful` tests.
+- **OSMDroid GeoPoint in production code.** See backlog item 12.
+- **MapTestHelper is dead OSMDroid code.** See backlog item 13.
 - **BaseUITest has `@Ignore`.** Could silently skip BddTest subclasses.
   Only one test (`RouteDetailPanelWeatherTest`) extends BddTest.
-- **3 tests already `@Ignore`d for MapLibre migration**: 
+- **3 tests `@Ignore`d for MapLibre migration**: 
   `UnifiedLocationTest`, `MapInteractionPerformanceTest`,
-  `AirspaceIntersectionTest`. These need rewriting for MapLibre or
-  deletion.
+  `AirspaceIntersectionTest`. Delete or rewrite.
+- **Opacity pulse not ported.** Was on the deleted NativeMapView
+  via a LaunchedEffect toggling SymbolLayer iconOpacity. Needs
+  porting to the compose PeerLayer. See backlog item 3.
 
 ## Open questions to resolve along the way
 
