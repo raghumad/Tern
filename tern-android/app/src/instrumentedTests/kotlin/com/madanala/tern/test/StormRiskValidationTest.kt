@@ -49,7 +49,12 @@ class StormRiskValidationTest : MapVisualTest() {
             }
             
             `when`("the pilot adds a route passing through the hazard zone") {
-                MapTestHelper.longPressOnGeoPoint(composeTestRule.activity, launchPoint.latitude, launchPoint.longitude)
+                // Dispatch via Redux (MapTestHelper.longPressOnGeoPoint uses
+                // OSMDroid MapView projection which no longer exists)
+                composeTestRule.runOnUiThread {
+                    val store = androidx.lifecycle.ViewModelProvider(composeTestRule.activity)[com.madanala.tern.redux.MapStore::class.java]
+                    store.dispatch(com.madanala.tern.redux.MapAction.CheckSmartSuggestion(launchPoint))
+                }
                 waitForMapToRender(1000)
                 // Deselect waypoint to hide edit screen and show RouteDetailPanel
                 composeTestRule.runOnUiThread {
@@ -57,8 +62,11 @@ class StormRiskValidationTest : MapVisualTest() {
                     store.dispatch(com.madanala.tern.redux.MapAction.DeselectWaypoint)
                 }
                 waitForMapToRender(500)
-                
-                MapTestHelper.longPressOnGeoPoint(composeTestRule.activity, hazardPoint.latitude, hazardPoint.longitude)
+
+                composeTestRule.runOnUiThread {
+                    val store = androidx.lifecycle.ViewModelProvider(composeTestRule.activity)[com.madanala.tern.redux.MapStore::class.java]
+                    store.dispatch(com.madanala.tern.redux.MapAction.LongPressMap(hazardPoint))
+                }
                 waitForMapToRender(1000)
                 // Deselect waypoint to hide edit screen and show RouteDetailPanel
                 composeTestRule.runOnUiThread {
