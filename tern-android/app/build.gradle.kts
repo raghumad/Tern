@@ -735,10 +735,8 @@ $coverageText
         // Pull screen recordings from device before dashboard generation
         try {
             val videoDir = file("${project.layout.buildDirectory.get()}/reports/bdd-report")
-            exec {
-                commandLine("adb", "pull", "/sdcard/tern-tests/.", videoDir.absolutePath)
-                isIgnoreExitValue = true
-            }
+            ProcessBuilder("adb", "pull", "/sdcard/tern-tests/.", videoDir.absolutePath)
+                .redirectErrorStream(true).start().waitFor()
             val vids = videoDir.listFiles()?.count { it.extension == "mp4" } ?: 0
             if (vids > 0) println("🎬 Pulled $vids screen recordings from device")
         } catch (_: Exception) {}
@@ -747,12 +745,12 @@ $coverageText
         try {
             val script = file("${project.projectDir}/scripts/test_report.py")
             if (script.exists()) {
-                val result = exec {
-                    workingDir = project.projectDir
-                    commandLine("python3", "scripts/test_report.py")
-                    isIgnoreExitValue = true
-                }
-                if (result.exitValue == 0) {
+                val dashProc = ProcessBuilder("python3", script.absolutePath)
+                    .directory(project.projectDir)
+                    .redirectErrorStream(true).start()
+                dashProc.inputStream.bufferedReader().readText()
+                dashProc.waitFor()
+                if (dashProc.exitValue() == 0) {
                     println("📊 Dashboard: file://${project.layout.buildDirectory.get()}/reports/tern-test-dashboard.html")
                 }
             }
