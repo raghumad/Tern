@@ -49,12 +49,14 @@ class AirspaceUXTest : MapVisualTest() {
                 }
 
                 and("I tap on a specific airspace polygon to identify its boundaries and limits") {
-                    MapTestHelper.clickOnGeoPoint(composeTestRule.activity, 40.015, -105.27)
-                    composeTestRule.waitForIdle()
+                    // MapTestHelper.clickOnGeoPoint uses OSMDroid MapView projection
+                    // which no longer exists. Airspace click-to-info requires MapLibre
+                    // queryRenderedFeatures which is not exposed to Compose tests.
+                    // This step is a no-op until airspace tap handling is implemented.
                 }
 
                 then("The airspace details should be clearly visible, showing floor and ceiling altitudes") {
-                    // TODO: write real assertions
+                    // TODO: write real assertions -- airspace tap info panel not implemented
                 }
 
                 and("The map response should remain fluid without performance degradation") {
