@@ -175,8 +175,14 @@ open class MapVisualTest {
             store.dispatch(MapAction.UpdateZoom(zoom))
         }
         composeTestRule.waitForIdle()
-        // Wait for tiles to at least start loading and map to settle
-        waitForMapLocation(lat, lon)
+        // Let the MapLibre camera animation settle before polling Redux.
+        // The Redux→MapLibre→Redux round-trip takes time: dispatch writes
+        // Redux, LaunchedEffect picks it up, cameraState.animateTo runs,
+        // then the camera→Redux feedback updates the store with the final
+        // position. Without this delay the feedback loop can overwrite
+        // the dispatched center with the old camera position.
+        Thread.sleep(2000)
+        waitForMapLocation(lat, lon, timeoutMillis = 10000)
     }
 
     /**
