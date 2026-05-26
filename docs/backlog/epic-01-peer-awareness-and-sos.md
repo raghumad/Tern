@@ -69,7 +69,7 @@ What done looks like:
 - The board doesn't crash or drain battery unreasonably when the phone is briefly idle.
 
 ### Story 1.3: Other pilots' positions appear on my map
-Status: todo
+Status: in-progress (emulator-verified, pending human test)
 
 When another Tern pilot in LoRa range is broadcasting, their position
 appears on my map. Each peer shows a "last seen Xs ago" indicator. Stale
@@ -79,6 +79,16 @@ What done looks like:
 - Peer markers render correctly on a real device with at least 2 boards on air.
 - Stale ageing is visible at a glance.
 - More than one peer at a time works.
+
+Current state (2026-05-25): Peer markers render as composite bitmap
+GeoJSON features on native MapLibre SymbolLayer. Layout: callsign pill
+above, colored circle with Nerd Font glyph, metric pills flanking
+(age/altitude/climb/speed depending on view mode), warning pill below
+for stale/lost peers. Staleness drives circle color (green→yellow→orange→
+gray) and opacity pulsing. Three view modes (safety/climb/tactical).
+BDD convergence test passes with 4-pilot Aravis XC flight simulation.
+Standalone bitmap visual test suite covers staleness states, view modes,
+and edge cases. NOT verified on a real device yet.
 
 ### Story 1.4: One-button SOS, broadcast and receive
 Status: todo
@@ -131,13 +141,12 @@ What done looks like:
 
 ## Open questions
 
-- **Meshtastic or custom protocol?** Meshtastic gives a working stack for
-  free but brings its own message format and airtime assumptions. Custom
-  is more work but tailor-fit. Decide once we know whether Meshtastic
-  covers position + SOS + status with acceptable airtime.
-- **Phone ↔ board transport.** BLE is the default, but USB-OTG or
-  serial-over-USB may have UX/power advantages. Pick after a prototype on
-  the actual LilyGo T3.
+- ~~**Meshtastic or custom protocol?**~~ DECIDED: Meshtastic for now
+  (off-the-shelf LilyGo T3 V1.6.1). Custom board and protocol later
+  once the feature proves itself. Local Meshtastic fork if needed for
+  QR pairing.
+- ~~**Phone ↔ board transport.**~~ DECIDED: BLE for production, TCP
+  for emulator dev workflow (emulator can't pass through Bluetooth).
 - **Beacon cadence vs. board battery life.** What rate balances peer
   freshness against a 2–5 hour flight on the board's battery?
 - **Realistic LoRa range in paragliding.** Open air, high altitude,
