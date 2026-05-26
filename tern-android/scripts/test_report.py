@@ -4,7 +4,7 @@
 Run from the tern-android directory:  python3 scripts/test_report.py
 
 Reads JUnit XML from unit and instrumented test outputs, scans for
-screenshots / videos / per-test HTML reports, detects @Untruthful
+screenshots / videos / per-test HTML reports, detects @Liar
 annotations, and writes a single self-contained HTML file to
   app/build/reports/tern-test-dashboard.html
 """
@@ -61,8 +61,8 @@ def parse_junit_dir(directory: Path, category: str) -> list[TC]:
                 cases.append(tc)
     return cases
 
-# -- @Untruthful detection from Kotlin sources --------------------------------
-_UNTRUTH_RE = re.compile(r'@(?:com\.madanala\.tern\.utils\.)?Untruthful\s*\(\s*"([^"]*)"', re.M)
+# -- @Liar detection from Kotlin sources --------------------------------
+_UNTRUTH_RE = re.compile(r'@(?:com\.madanala\.tern\.utils\.)?Liar\s*\(\s*"([^"]*)"', re.M)
 
 def _scan_untruthful() -> dict[str, str]:
     result: dict[str, str] = {}
@@ -122,7 +122,7 @@ def _dur(s: float) -> str:
 
 def _row(tc: TC) -> str:
     color = "#a855f7" if tc.untruthful else S.get(tc.status, "#94a3b8")
-    badge = "UNTRUTHFUL" if tc.untruthful else tc.status.upper()
+    badge = "LIAR" if tc.untruthful else tc.status.upper()
     rid = f"r{hash(tc.classname+tc.name)&0xFFFFFFFF:08x}"
     h = (f'<tr class="test-row" onclick="tog(\'{rid}\')" style="cursor:pointer">'
          f'<td style="padding:10px 16px;border-bottom:1px solid #1e293b">'
@@ -135,7 +135,7 @@ def _row(tc: TC) -> str:
     d: list[str] = []
     if tc.untruthful and tc.untruthful_reason:
         d.append(f'<div style="margin-bottom:12px;padding:10px;background:#581c87;border-radius:6px;border-left:4px solid #a855f7;font-size:.85rem">'
-                 f'<strong style="color:#d8b4fe">Untruthful:</strong> {_e(tc.untruthful_reason)}</div>')
+                 f'<strong style="color:#d8b4fe">Liar:</strong> {_e(tc.untruthful_reason)}</div>')
     if tc.failure_msg:
         d.append(f'<div style="margin-bottom:12px;padding:10px;background:#450a0a;border-radius:6px;border-left:4px solid #ef4444;font-size:.85rem">'
                  f'<strong style="color:#fca5a5">Failure:</strong><pre style="margin:4px 0 0;white-space:pre-wrap;color:#fca5a5;background:transparent;border:none;padding:0">{_e(tc.failure_msg)}</pre></div>')
@@ -177,7 +177,7 @@ def generate_html(cases: list[TC]) -> str:
     cards = "".join(
         f'<div style="text-align:center"><div style="font-size:2rem;font-weight:700;color:{c}">{n}</div>'
         f'<div style="font-size:.75rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em">{l}</div></div>'
-        for l, n, c in [("Total",total,"#38bdf8"),("Passed",passed,"#22c55e"),("Failed",failed,"#ef4444"),("Skipped",skipped,"#f59e0b"),("Untruthful",untrue,"#a855f7")])
+        for l, n, c in [("Total",total,"#38bdf8"),("Passed",passed,"#22c55e"),("Failed",failed,"#ef4444"),("Skipped",skipped,"#f59e0b"),("Liar",untrue,"#a855f7")])
 
     rows: list[str] = []
     for cat in ("Unit Tests", "Instrumented Tests"):
