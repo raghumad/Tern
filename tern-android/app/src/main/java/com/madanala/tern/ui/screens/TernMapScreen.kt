@@ -66,6 +66,13 @@ fun TernMapScreen(
     val isLocationReady = state.isLocationReady
     val gpsStatus = state.gpsStatus
 
+    // Dismiss welcome screen after timeout — GPS may never fix indoors
+    var welcomeTimedOut by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(5_000)
+        welcomeTimedOut = true
+    }
+
     // Demo replay state
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
@@ -144,7 +151,7 @@ fun TernMapScreen(
             )
 
             AnimatedVisibility(
-                visible = !isLocationReady,
+                visible = !isLocationReady && !welcomeTimedOut,
                 enter = fadeIn(),
                 exit = fadeOut()
             ) {
