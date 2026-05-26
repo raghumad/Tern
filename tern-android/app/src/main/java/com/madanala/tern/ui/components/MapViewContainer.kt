@@ -242,20 +242,29 @@ fun MapViewContainer(
     // ──────────────────────────────────────────────────────────────────────
 
     Box(modifier = modifier.fillMaxSize()) {
-        // Native MapLibre map — uses the native SDK directly because
-        // maplibre-compose's SymbolLayer wrapper is broken in v0.13.0.
-        // Everything on the map is a GeoJSON feature rendered by native layers.
-        com.madanala.tern.overlay.NativeMapView(
-            modifier = Modifier
+        MaplibreMap(
+            Modifier
                 .fillMaxSize()
                 .testTag("map_view"),
-            initialLat = initialCenter?.latitude ?: DEFAULT_LAT,
-            initialLon = initialCenter?.longitude ?: DEFAULT_LON,
-            initialZoom = initialZoom,
-            peers = state.peerState.peers,
-            viewMode = state.mezullaViewMode,
-            lastEventTime = state.peerState.lastEventTime,
-        )
+            BaseStyle.Uri("https://tiles.openfreemap.org/styles/liberty"),
+            cameraState,
+        ) {
+            // Route overlay
+            val visibleRoutes = state.routes.filter { it.isVisible }
+            if (visibleRoutes.isNotEmpty()) {
+                com.madanala.tern.overlay.route.RouteLayer(visibleRoutes)
+            }
+
+            // Airspace overlay
+            AirspaceOverlay(store = store, cameraState = cameraState)
+
+            // Peer markers (mezulla)
+            com.madanala.tern.overlay.mezulla.PeerLayer(
+                peers = state.peerState.peers,
+                viewMode = state.mezullaViewMode,
+                lastEventTime = state.peerState.lastEventTime,
+            )
+        }
 
         // Compass (reads rotation from Redux state, same as before)
         if (state.compassVisible) {
