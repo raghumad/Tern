@@ -12,11 +12,11 @@ plugins {
 apply(plugin = "jacoco")
 
 android {
-    namespace = "com.madanala.tern"
+    namespace = "com.ternparagliding"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.madanala.tern"
+        applicationId = "com.ternparagliding"
         minSdk = 24
         targetSdk = 36
         versionCode = 1
@@ -280,7 +280,7 @@ tasks.register<JacocoCoverageVerification>("jacocoTestCoverageVerification") {
         // Safety-critical components have higher thresholds
         rule {
             element = "PACKAGE"
-            includes = listOf("com.madanala.tern.model.*", "com.madanala.tern.redux.*")
+            includes = listOf("com.ternparagliding.model.*", "com.ternparagliding.redux.*")
             limit {
                 minimum = "0.0".toBigDecimal() // 0% for safety-critical packages (temporarily relaxed)
                 counter = "INSTRUCTION"
@@ -937,7 +937,7 @@ tasks.register("runBenchmarkBuild") {
     doLast {
         println("✅ Benchmark APK built successfully!")
         println("📱 Install on device: adb install app/build/outputs/apk/benchmark/app-benchmark.apk")
-        println("🏃 Run benchmarks: adb shell am instrument -w com.madanala.tern.benchmark/androidx.benchmark.junit4.AndroidBenchmarkRunner")
+        println("🏃 Run benchmarks: adb shell am instrument -w com.ternparagliding.benchmark/androidx.benchmark.junit4.AndroidBenchmarkRunner")
     }
 }
 
@@ -972,7 +972,7 @@ tasks.register("device") {
     val testClass = project.findProperty("test") as? String ?: project.findProperty("t") as? String
     if (testClass != null) {
         val fullClasses = testClass.split(",").joinToString(",") { 
-            if (it.contains(".")) it else "com.madanala.tern.ui.$it"
+            if (it.contains(".")) it else "com.ternparagliding.ui.$it"
         }
         // Set the project property that AGP's test task automatically picks up
         project.extensions.extraProperties.set("android.testInstrumentationRunnerArguments.class", fullClasses)
