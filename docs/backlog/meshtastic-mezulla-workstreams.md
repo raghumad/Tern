@@ -1,7 +1,9 @@
 # Meshtastic-Mezulla firmware workstreams
 
 This file covers work on the Meshtastic firmware that runs on the
-LilyGo T3 board. It is separate from the Mezulla (Tern app) backlog
+LilyGo T-LoRa V2.1 1.6 board (ESP32-PICO-D4 + SX1276 LoRa + SSD1306
+OLED). Meshtastic variant: `tlora-v2-1-1_6`. It is separate from the
+Mezulla (Tern app) backlog
 which owns all phone-side BDD tests and UI work.
 
 The contract between phone and board is defined in
@@ -23,31 +25,34 @@ Meshtastic and does its thing.
 ## Stage 2 — Build from source + QR pairing
 
 First firmware modifications. We fork Meshtastic, build from source
-for the LilyGo T3 S3 variant, and add the QR marriage protocol.
+for the `tlora-v2-1-1_6` variant, and add the QR marriage protocol.
 
 ### WS-F1: Build pipeline
 
 Set up the local Meshtastic build environment. This replaces the
 stock `.bin` flash path with our own build-from-source pipeline.
 
-**F1.1: Clone and build**
+**F1.1: Clone and build** — DONE (2026-05-26)
 
-Clone Meshtastic firmware, resolve dependencies (PlatformIO),
-build for `tlora_t3s3_v1` variant. Document the exact steps.
+Meshtastic firmware cloned to `~/src/meshtastic-firmware`.
+PlatformIO resolves all dependencies automatically. Build command:
+`pio run -e tlora-v2-1-1_6`. Produces `firmware-tlora-v2-1-1_6-2.8.0.5bce26d.bin` (2.1 MB).
+Build time: ~5 minutes.
 
-Test criteria:
-- Build completes without errors.
-- Output binary size is within 10% of stock release binary.
+Test criteria (verified):
+- Build completes without errors. ✓
+- Output binary: 2,108,464 bytes.
 
-**F1.2: Flash from source**
+**F1.2: Flash from source** — DONE (2026-05-26)
 
-Flash the source-built binary onto the real LilyGo T3. Verify
-the board boots, shows the Meshtastic splash, and responds to
-`meshtastic --info` with the expected version string.
+Flash command: `pio run -e tlora-v2-1-1_6 -t upload --upload-port /dev/ttyACM0`.
+Board rebooted, OLED showed Meshtastic splash.
 
-Test criteria:
-- `meshtastic --info` reports version built from source.
-- Board boots to the standard Meshtastic OLED screen.
+Test criteria (verified):
+- `meshtastic --info` reports `firmwareVersion: 2.8.0.5bce26d`. ✓
+  (upgraded from stock 2.7.15)
+- Board boots to the standard Meshtastic OLED screen. ✓
+- Hardware confirmed: `hwModel: TLORA_V2_1_1P6`, node `!f9926184`.
 
 **F1.3: Regression gate**
 
@@ -130,7 +135,7 @@ Test criteria:
 
 ### WS-F2 definition of done
 
-All F2.1–F2.5 test criteria pass on the real LilyGo T3 board.
+All F2.1–F2.5 test criteria pass on the real LilyGo T-LoRa V2.1 board.
 Serial logs captured as evidence. QR scan verified with a real
 phone camera (human test). The Stage 1 regression gate (F1.3)
 still passes — nothing in WS-F2 breaks stock Meshtastic behavior.

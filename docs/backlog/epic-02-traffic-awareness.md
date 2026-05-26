@@ -76,7 +76,7 @@ radio stack from real hardware work (WS4).
   Simple CPA (dot product on position + velocity vectors) is
   sufficient and honest.
 - Dual radio support. That's v2 Mezulla hardware (custom board with
-  a dedicated SX1276 for traffic). v1 (LilyGo T3, single radio)
+  a dedicated SX1276 for traffic). v1 (LilyGo T-LoRa V2.1, single radio)
   uses gap-scanning. If gap-scanning proves unacceptable (story
   2.10), dual radio gets promoted from future work.
 
