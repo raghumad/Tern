@@ -53,7 +53,7 @@ open class BddTest : BaseUITest() {
             block()
             // Capture success screenshot at the end of scenario
             val result = ReportGenerator.captureScreenshot("success_${name.replace(" ", "_")}")
-            ReportGenerator.logStep("RESULT", "Scenario Passed: Physical UI and Redux State Validated", "PASS", result?.path, result?.hash)
+            ReportGenerator.logStep("RESULT", "Scenario completed without assertion failure", "PASS", result?.path, result?.hash)
         } catch (e: Throwable) {
             // Capture failure screenshot
             val result = ReportGenerator.captureScreenshot("failure_${name.replace(" ", "_")}")

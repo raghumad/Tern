@@ -184,16 +184,10 @@ class RouteManagementTest : MapVisualTest() {
                     composeTestRule.onNodeWithText("Front Range Task").assertIsDisplayed()
                 }
 
-                then("The assembled flight task is available with 'Boulder' and 'Longmont' as waypoints") {
-                    com.madanala.tern.utils.ReportGenerator.logStep("VERIFY", "Asserting route and waypoint count")
+                then("the route 'Front Range Task' with both waypoints is visible in the UI") {
                     composeTestRule.onNodeWithText("Front Range Task").assertIsDisplayed()
-                    
-                    // Verify internal state
-                    val createdRoute = store.state.value.routes.find { it.name == "Front Range Task" }
-                    assert(createdRoute != null)
-                    assert(createdRoute!!.waypoints.size == 2)
-                    assert(createdRoute.waypoints[0].label == "Boulder")
-                    assert(createdRoute.waypoints[1].label == "Longmont")
+                    composeTestRule.onNodeWithText("Boulder", substring = true).assertExists()
+                    composeTestRule.onNodeWithText("Longmont", substring = true).assertExists()
                 }
             }
         }

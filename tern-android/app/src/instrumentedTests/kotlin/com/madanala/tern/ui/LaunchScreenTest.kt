@@ -43,11 +43,8 @@ class LaunchScreenTest : MapVisualTest() {
                         ReportGenerator.logStep("ACTION", "Waiting for map initialization")
                     }
 
-                    then("the map should be displayed with all relevant flight overlays rendered and visible") {
-                        com.madanala.tern.utils.ReportGenerator.logStep("VERIFY", "Checking for rendered overlays")
+                    then("the map view is present and renders without crashing") {
                         composeTestRule.onNodeWithTag("map_view").assertExists()
-
-                        // Use robust waiting logic from MapVisualTest
                         waitForMapToRender()
                     }
                 }

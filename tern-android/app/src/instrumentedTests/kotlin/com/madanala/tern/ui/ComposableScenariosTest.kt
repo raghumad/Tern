@@ -1,6 +1,7 @@
 package com.madanala.tern.ui
 import com.madanala.tern.model.LocationType
 
+import androidx.compose.ui.test.*
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.lifecycle.ViewModelProvider
 import com.madanala.tern.utils.MapVisualTest
@@ -53,12 +54,8 @@ class ComposableScenariosTest : MapVisualTest() {
                 // Yield to Compose UI thread
                 composeTestRule.waitForIdle()
             }
-            then("the route '$routeName' is visible on the map geometry") {
-                com.madanala.tern.utils.ReportGenerator.logStep("VERIFY", "Route $routeName exists in MapStore")
-                
-                val activity = composeTestRule.activity
-                val store = ViewModelProvider(activity)[MapStore::class.java]
-                assert(store.state.value.routes.any { it.name == routeName }) { "Route was not injected." }
+            then("the route '$routeName' appears in the route detail panel") {
+                composeTestRule.onNodeWithText(routeName, substring = true).assertIsDisplayed()
             }
         }
     }
@@ -99,12 +96,8 @@ class ComposableScenariosTest : MapVisualTest() {
                 composeTestRule.waitForIdle()
             }
             
-            then("the map geometry is cleared and the route is permanently removed from the view") {
-                com.madanala.tern.utils.ReportGenerator.logStep("VERIFY", "Route deleted from MapStore")
-                
-                val activity = composeTestRule.activity
-                val store = ViewModelProvider(activity)[MapStore::class.java]
-                assert(store.state.value.routes.none { it.id == "route_1_Route To Delete" }) { "Route was not deleted." }
+            then("the route is no longer visible in the UI") {
+                composeTestRule.onNodeWithText("Route To Delete").assertDoesNotExist()
             }
         }
     }

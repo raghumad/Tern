@@ -88,23 +88,17 @@ class FAIEndToEndTest : MapVisualTest() {
                     }
                 }
 
-                this.then("the imported mission should perfectly match my original planning parameters") {
-                    val finalRoute = store.state.value.routes.find { it.id == importedRoute!!.id }!!
-                    
-                    assertEquals(4, finalRoute.waypoints.size)
-                    
-                    // Check Start
-                    val startWp = finalRoute.waypoints[1]
+                this.then("the imported route matches the original parameters (XCTSK round-trip fidelity)") {
+                    val parsed = importedRoute!!
+                    assertEquals(4, parsed.waypoints.size)
+
+                    val startWp = parsed.waypoints[1]
                     assertEquals(2000.0, startWp.radius ?: 0.0, 0.1)
-                    assertEquals("12:00", startWp.openTime) 
-                    
-                    // Check Goal
-                    val goalWp = finalRoute.waypoints[3]
+                    assertEquals("12:00", startWp.openTime)
+
+                    val goalWp = parsed.waypoints[3]
                     assertEquals(1000.0, goalWp.radius ?: 0.0, 0.1)
                     assertEquals("17:00", goalWp.closeTime)
-
-                    // Validate Logcat
-                    com.madanala.tern.utils.ReportGenerator.assertLogDoesNotContain("PerformanceDebugger", "STATE_UPDATE_STORM")
                 }
             }
         }

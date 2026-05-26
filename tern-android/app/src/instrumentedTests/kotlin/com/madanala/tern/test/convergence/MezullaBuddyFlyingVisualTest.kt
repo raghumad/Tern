@@ -452,22 +452,9 @@ class MezullaBuddyFlyingVisualTest : MapVisualTest() {
             }
 
             and("the Mezulla status indicator shows the off state") {
-                // MezullaStatusIndicator renders when linkState is DOWN or UP.
-                // After the simulation ends, linkState is DOWN, so it should
-                // render the "off" variant. The testTag is "mezulla_status_indicator".
-                try {
-                    composeTestRule.onNodeWithTag("mezulla_status_indicator")
-                        .assertIsDisplayed()
-                    Log.i(TAG, "Checkpoint 6: mezulla_status_indicator is displayed")
-                } catch (e: AssertionError) {
-                    // If the status indicator is not displayed, log honestly.
-                    // MezullaMapControls may not be wired into the running
-                    // activity's composition in this test harness configuration.
-                    Log.w(TAG, "Checkpoint 6: mezulla_status_indicator not found in " +
-                        "Compose tree. This may mean MezullaMapControls is not wired " +
-                        "into the running activity's composition. Screenshot will " +
-                        "show what actually rendered.")
-                }
+                composeTestRule.onNodeWithTag("mezulla_status_indicator")
+                    .assertIsDisplayed()
+                Log.i(TAG, "Checkpoint 6: mezulla_status_indicator is displayed")
             }
 
             and("screenshot captures all-landed final state on MapLibre", takeScreenshot = true) {
