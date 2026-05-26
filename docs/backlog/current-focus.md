@@ -389,12 +389,17 @@ then what lets us fly with the real board, then polish.
 
 ### Now
 
-1. **WS5 Phase 2: pairing flow orchestrator** (5.2.5) — deep link →
+1. **WS5 Phase 2: in-app QR scanner** — CameraX + ML Kit barcode
+   scanning inside Tern. Pilot taps "Scan board" in settings, camera
+   opens inline, scans the Mezulla QR, pairing starts. Custom
+   `tern://` scheme doesn't work with most phone cameras (they only
+   open http/https URLs). The `tern://` deep link stays for dev/adb
+   testing. Camera permission already in manifest.
+2. **WS5 Phase 2: pairing flow orchestrator** (5.2.5) — QR scan →
    BLE scan → connect → claim → persist. Wire contract and deep link
-   parser done. This is the next domino — unblocks human test and
-   real board usage.
-   **Human test required:** scan QR on real board with phone camera,
-   verify Tern opens and claims ownership. Test script at
+   parser done. Orchestrator skeleton wired into activity.
+   **Human test required:** scan QR on real board from inside Tern,
+   verify pairing completes. Test script at
    `human-tests/deep-link-pairing/README.md`.
 2. **WS3: SOS alert UI (3.3)** — safety-critical. Needs board
    connected to test end-to-end. Pairing unblocks this.
