@@ -149,28 +149,28 @@ fun MapViewContainer(
             }
     }
 
-    // ── MapLibre → Redux (user gestures) ────────────────────────────────
-    // When the user pans/zooms/rotates the map, propagate the new camera
-    // position back to Redux so overlays, location tracking, etc. stay
-    // in sync.
+    // ── MapLibre → Redux (user gestures only) ─────────────────────────
+    // When the user pans/zooms/rotates the map with their finger,
+    // propagate the new camera position back to Redux. We ONLY do this
+    // for GESTURE moves — not PROGRAMMATIC. Without this guard, a
+    // programmatic animateTo() triggers camera position snapshots
+    // mid-animation that overwrite the Redux target with intermediate
+    // positions, creating a feedback loop that prevents the camera
+    // from ever reaching its destination.
     LaunchedEffect(cameraState) {
-        snapshotFlow { cameraState.position }
+        snapshotFlow { cameraState.position to cameraState.moveReason }
             .distinctUntilChanged()
-            .collectLatest { pos ->
-                val target = pos.target
-                val lat = target.latitude
-                val lon = target.longitude
-
-                // Debounce is already handled by distinctUntilChanged on
-                // the snapshot flow.  We dispatch a single combined action
-                // so the reducer only fires once per camera frame.
-                store.dispatch(
-                    MapAction.UpdateMapMovement(
-                        rotation = pos.bearing.toFloat(),
-                        center = GeoPoint(lat, lon),
-                        zoom = pos.zoom,
+            .collectLatest { (pos, reason) ->
+                if (reason == CameraMoveReason.GESTURE) {
+                    val target = pos.target
+                    store.dispatch(
+                        MapAction.UpdateMapMovement(
+                            rotation = pos.bearing.toFloat(),
+                            center = GeoPoint(target.latitude, target.longitude),
+                            zoom = pos.zoom,
+                        )
                     )
-                )
+                }
             }
     }
 
