@@ -62,10 +62,15 @@ See: [[project-tern-test-infrastructure-purpose]].
   `lma` launched 22 min later from ~30 km NE. The hand-crafted
   `fixtures/synthetic-short-flight.igc` stays for parser edge-case
   tests.
-- **Doesn't exist yet:** multi-pilot playback engine, scenario
-  manifest layer, propagation model, swarm simulator, peer concept in
-  Tern's redux state, peer markers on the map, SOS alert UI, real
-  `BleConnection` / `TcpConnection`, any pairing UX.
+- **Landed on `mezulla` (2026-05-25):** multi-pilot playback engine
+  (WS1.2–1.6), `SwarmSimulatedConnection` (WS2.2), PeerState redux
+  slice (WS2.3), PeerMiddleware (WS2.4), native MapLibre peer markers
+  as composite bitmap GeoJSON features (WS3.1–3.2). The convergence
+  test passes end-to-end: IGC → SwarmPlayback → propagation →
+  PeerReducer → GeoJSON → Canvas bitmap → MapLibre SymbolLayer →
+  screenshot evidence at 6 checkpoints.
+- **Doesn't exist yet:** SOS alert UI (WS3.3), real `BleConnection` /
+  `TcpConnection` (WS4.3, WS4.5), any pairing UX (WS5).
 - **Lying:** the existing competition-named tests claim flight
   scenarios but only test UI. They are not evidence the app works.
 
@@ -356,11 +361,17 @@ real-world correctness comes from human tests (see
 
 ## Order of attack
 
-- **WS1** is the longest pole and has no dependencies — start there.
-- **WS2** can begin in parallel as soon as the
-  `MeshtasticConnection` interface shape is sketched (doesn't need
-  the simulator working yet).
-- **WS3** depends on WS2's redux slice.
+- **WS1** — DONE. Swarm simulator passes smoke tests and drives the
+  convergence test.
+- **WS2** — DONE (simulator path). `SwarmSimulatedConnection` →
+  `PeerMiddleware` → `PeerReducer` → `PeerState` pipeline works.
+  Real BLE/TCP paths (WS4) still needed.
+- **WS3** — IN PROGRESS. Peer markers render on the map as composite
+  bitmap GeoJSON features (circle + pills + callsign + warnings).
+  Three view modes (safety/climb/tactical), staleness colors, opacity
+  pulsing for degraded peers. Remaining: SOS alert UI (3.3), bearing
+  arrows and relative altitude (need pilot position plumbed in),
+  decluttering + zoom scaling, dead Compose overlay code cleanup.
 - **WS4** can start any time once WS2's interface is defined.
 - **WS5 Phase 1** depends on WS4 (real BLE) for hardware
   validation, but the in-emulator BDD scenarios can start as soon
@@ -379,11 +390,12 @@ they don't test.
 
 ## Open questions to resolve along the way
 
-- **Exact LilyGo board model** (blocks WS4 start, not WS1–3).
+- ~~**Exact LilyGo board model**~~ RESOLVED: LilyGo T3 V1.6.1.
+  Flash script committed.
 - **IGC fixture sourcing.** XContest's IGC files: what's the license
   for committing them? If unclear, get permission or use equivalents
   the user has rights to.
-- **Peer identity in Meshtastic.** Meshtastic uses node IDs; how do
-  we map those to pilot names / callsigns for display?
+- ~~**Peer identity in Meshtastic.**~~ RESOLVED: Callsign falls back
+  from longName → shortName → hexId (see `MezullaPeerTextFormatter.callsign()`).
 - **SOS in Meshtastic.** Use the alert/emergency channel or define a
   custom port? Decide before WS2's SOS path is finalized.

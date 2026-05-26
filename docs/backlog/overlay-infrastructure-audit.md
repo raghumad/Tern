@@ -87,8 +87,13 @@ at insertion time, cleanup becomes `removeLast()` in a loop.
 Airspace polygons now render in their own FolderOverlay with correct
 z-ordering: routes → airspaces → PG spots → Mezulla peers (top).
 
-**Follow-up:** MezullaOverlayManager also bypasses FolderOverlay
-(adds markers directly to map.overlays). Same fix needed.
+**Follow-up (RESOLVED):** MezullaOverlayManager no longer exists.
+Peer markers now render as composite bitmap GeoJSON features on a
+native MapLibre SymbolLayer (`NativeOverlayLayers.kt`). Z-ordering
+is controlled by `style.addLayer()` order — peers are the topmost
+layer. The old Compose overlay code (MezullaPeerLabels,
+PeerMarkerComposable, MezullaPeerCircles) is dead code pending
+deletion.
 
 ### S4. Silent action drop in MapStore — FIXED
 

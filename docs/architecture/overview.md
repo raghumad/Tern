@@ -22,12 +22,21 @@
 ### 2.2 UI Layer
 *   **Framework**: Jetpack Compose (100% Kotlin).
 *   **Navigation**: Compose Navigation.
-*   **Map Rendering**: OSMDroid with custom Overlays (`RouteOverlayManager`).
-    *   **Dynamic Markers**: Uses `Compose` -> `Bitmap` generation for live data visualization (e.g., Wind Gauges) on the map.
-
-#### 2.2.1 ViewToBitmap Utility
-*   **Purpose**: Renders Composables into Bitmaps for use as Map Markers.
-*   **Technical Detail**: Attaches a `ComposeView` to a parent `ViewGroup` (usually `MapView`) to inherit the Window's `LifecycleOwner`, `ViewModelStoreOwner`, and `SavedStateRegistryOwner`. This ensures Composables have a valid environment to run animations and state logic before being drawn to a Canvas.
+*   **Map Rendering**: MapLibre GL Native (`AndroidView(MapView)`) with
+    vector tiles from OpenFreeMap. Local font rendering via
+    `localIdeographFontFamilyEnabled(true)` — no glyph server needed
+    (offline-first). OSMDroid was removed (8,400 lines deleted).
+    *   **Dynamic Markers**: Peer markers are composite bitmaps rendered
+        at runtime via Android `Canvas` (circle + pills + text + Nerd
+        Font glyphs), registered in the MapLibre style as images, and
+        displayed by a native `SymbolLayer` reading from a GeoJSON
+        source. Each peer's visual is a single bitmap; MapLibre handles
+        positioning, scaling, decluttering, and z-ordering natively.
+    *   **GeoJSON-as-truth**: All map overlays (peers, airspaces, PG
+        spots, routes) converge toward being GeoJSON features rendered
+        by native MapLibre layers. This eliminates dual rendering
+        systems (Compose + map) and makes collision detection, zoom
+        scaling, and layer ordering free via MapLibre's built-in engine.
 
 ## 3. Data & Caching Strategy
 
