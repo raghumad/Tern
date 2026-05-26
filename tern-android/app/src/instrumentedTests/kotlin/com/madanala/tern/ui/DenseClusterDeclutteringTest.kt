@@ -5,6 +5,7 @@ import com.madanala.tern.model.LocationType
 import com.madanala.tern.model.Route
 import com.madanala.tern.model.Waypoint
 import com.madanala.tern.redux.MapAction
+import com.madanala.tern.utils.Liar
 import com.madanala.tern.utils.MapVisualTest
 import com.madanala.tern.utils.ReportGenerator
 import org.junit.Test
@@ -21,6 +22,9 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class DenseClusterDeclutteringTest : MapVisualTest() {
 
+    @Liar("Waypoint labels are MapLibre SymbolLayer text (GPU-drawn), not Compose nodes. " +
+          "onNodeWithText('WP-BETA').assertDoesNotExist() matches the RouteDetailPanel list, " +
+          "which always shows all waypoints. Map-level label decluttering cannot be tested via Compose semantics.")
     @Test
     fun testManualSelectionDecluttering() {
         val baseLat = 40.015
@@ -54,6 +58,9 @@ class DenseClusterDeclutteringTest : MapVisualTest() {
         }
     }
 
+    @Liar("Same issue: waypoint labels are MapLibre SymbolLayer text, not Compose nodes. " +
+          "assertDoesNotExist() for 'CLUMP' matches RouteDetailPanel, not the map. " +
+          "Leg label suppression ('0.1 km') is also a MapLibre rendering concern.")
     @Test
     fun testZoomToRouteAutomaticDecluttering() {
         val baseLat = 40.015
