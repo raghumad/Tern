@@ -193,12 +193,30 @@ scenario: settings screen shows paired board
 
 | Item | Status | Evidence |
 |---|---|---|
-| QR on OLED | Done | Visible on real board, scannable |
+| QR on OLED | Done | Visible on real board, scannable (nayuki qrcodegen) |
 | Ownership in flash | Done | Persists across reboots |
 | Claim handler | Done, untested end-to-end | Needs app-side claim packet to verify |
 | Ownership query | Done, untested end-to-end | Needs app-side query to verify |
 | Release (phone-initiated) | Done, untested end-to-end | Command 0x03 on port 256, owner must authenticate |
+| NO_PIN when unclaimed | Done | Firmware sets NO_PIN while QR is showing; QR token is the auth |
 | Physical button reset | Deferred to v2 | LilyGo T3 V1.6.1 has no user button (only RST = hard reboot) |
+
+### BLE pairing behavior
+
+When the board is unclaimed, the firmware sets `bluetooth.mode =
+NO_PIN`. The app can connect and write to ToRadio immediately
+after service discovery — no bonding/PIN exchange needed. The QR
+pairing token provides the authentication.
+
+With FIXED_PIN mode, Android GATT silently drops writes that
+happen before BLE bonding completes. The `onWrite` callback on
+the board never fires. This was the root cause of the claim packet
+not reaching the firmware — confirmed by adding a log line to
+NimbleBluetooth.cpp onWrite.
+
+The deep link URL is written to `docs/handoffs/mezulla-deeplink.txt`
+after each firmware flash. The app can read it from there for
+automated testing without scanning the QR.
 
 ## What blocks this
 

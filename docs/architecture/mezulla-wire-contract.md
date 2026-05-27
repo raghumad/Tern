@@ -211,15 +211,23 @@ On success, board clears ownership and reboots into QR mode.
 
 ### BLE configuration notes
 
-- `bluetooth.mode` should be `NO_PIN` (mode 2) for pairing
-  development. The QR pairing token is the authentication
-  mechanism, not BLE PIN.
-- `power.wait_bluetooth_secs` is overridden by firmware: set to
-  0 (advertise forever) when unclaimed, restored to default (60s)
-  after claiming.
-- Meshtastic allows only ONE BLE client at a time. If the official
-  Meshtastic app is connected, Tern cannot connect. The Meshtastic
-  app must be force-stopped or uninstalled on the pilot's phone.
+- **NO_PIN when unclaimed.** The firmware sets `bluetooth.mode =
+  NO_PIN` while the board is unclaimed and showing the QR. The QR
+  token (random, per-boot) IS the authentication — a BLE PIN on
+  top is redundant. With FIXED_PIN mode, Android GATT silently
+  drops writes that happen before BLE bonding completes, so the
+  claim packet never reaches the firmware's onWrite callback.
+  After claiming, the board reboots and picks up the user's saved
+  BLE mode from config.
+- **BLE advertising timeout.** Stock Meshtastic default is 60
+  seconds (`power.wait_bluetooth_secs`). The firmware does NOT
+  currently override this. If pairing takes longer than 60 seconds
+  from boot, the board stops advertising. This is a known
+  limitation to address separately.
+- **Single BLE client.** Meshtastic allows only ONE BLE connection
+  at a time. If the official Meshtastic app is connected, Tern
+  cannot connect. The Meshtastic app must be force-stopped or
+  uninstalled on the pilot's phone.
 
 ## Epic 02 extensions (future, not yet designed)
 
