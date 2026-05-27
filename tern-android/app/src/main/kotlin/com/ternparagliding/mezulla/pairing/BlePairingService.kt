@@ -90,21 +90,34 @@ class BlePairingService(private val context: Context) {
             return ClaimResult.ConnectionFailed(e.message ?: "Unknown error")
         }
 
-        // Step 3: Send claim packet
-        Log.i(TAG, "Sending claim packet...")
-        try {
-            // Log discovered services and characteristics for debugging
-            for (svc in gatt.services) {
-                Log.d(TAG, "Service: ${svc.uuid}")
-                for (ch in svc.characteristics) {
-                    Log.d(TAG, "  Char: ${ch.uuid} props=${ch.properties}")
+        // Step 3: Read board's long name from FromRadio (NodeInfo)
+        val meshService = gatt.getService(MESHTASTIC_SERVICE_UUID)
+        val fromRadio = meshService?.characteristics?.firstOrNull { ch ->
+            (ch.properties and android.bluetooth.BluetoothGattCharacteristic.PROPERTY_READ) != 0
+        }
+        var boardLongName: String? = null
+        if (fromRadio != null) {
+            // Drain FromRadio — the board queues NodeInfo on first connect
+            for (i in 0 until 20) {
+                val readOk = gatt.readCharacteristic(fromRadio)
+                if (!readOk) break
+                Thread.sleep(100)
+                val bytes = fromRadio.value ?: break
+                if (bytes.isEmpty()) break
+                val event = com.ternparagliding.mezulla.connection.ble.MeshPacketCodec.decodeFromRadio(bytes)
+                if (event is com.ternparagliding.mezulla.connection.MeshEvent.PeerIdentityKnown) {
+                    boardLongName = event.peer.longName
+                    Log.i(TAG, "Board long name: $boardLongName")
+                    if (boardLongName != null) break
                 }
             }
+        }
+        val resolvedName = boardLongName ?: deviceName
 
+        // Step 4: Send claim packet
+        Log.i(TAG, "Sending claim packet...")
+        try {
             val payload = MezullaPairingCodec.encodeClaimPacket(pairingToken, ownerId)
-            // Discover ToRadio by property — the writable characteristic
-            // under the Meshtastic service. No hardcoded UUID needed.
-            val meshService = gatt.getService(MESHTASTIC_SERVICE_UUID)
             val toRadio = meshService?.characteristics?.firstOrNull { ch ->
                 (ch.properties and android.bluetooth.BluetoothGattCharacteristic.PROPERTY_WRITE) != 0
             }
@@ -141,7 +154,7 @@ class BlePairingService(private val context: Context) {
             gatt.close()
 
             Log.i(TAG, "Claim sent successfully")
-            return ClaimResult.Success(device.address, deviceName)
+            return ClaimResult.Success(device.address, resolvedName)
 
         } catch (e: Exception) {
             Log.e(TAG, "Claim failed", e)
