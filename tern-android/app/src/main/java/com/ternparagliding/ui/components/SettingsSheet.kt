@@ -77,7 +77,10 @@ fun SettingsSheet(
                             )
                         }
                         OutlinedButton(
-                            onClick = { pairingOrchestrator.forgetBoard() },
+                            onClick = {
+                                pairingOrchestrator.forgetBoard()
+                                onDismiss()
+                            },
                             modifier = Modifier.fillMaxWidth().height(48.dp).testTag("btn_forget_board"),
                         ) {
                             Icon(Icons.Filled.LinkOff, contentDescription = null, modifier = Modifier.size(20.dp))
