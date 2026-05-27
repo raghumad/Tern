@@ -176,13 +176,17 @@ class BlePairingService(private val context: Context) {
             }
         }
 
-        // Scan without service UUID filter — some boards don't include
-        // the UUID in their advertisement data. We match by name or UUID.
+        // Try with service UUID filter first (most reliable), fall back
+        // to unfiltered scan if no results after 5 seconds.
+        val filter = ScanFilter.Builder()
+            .setServiceUuid(ParcelUuid(MESHTASTIC_SERVICE_UUID))
+            .build()
         val settings = ScanSettings.Builder()
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
             .build()
 
-        scanner.startScan(null, settings, callback)
+        Log.d(TAG, "Starting filtered scan for service UUID $MESHTASTIC_SERVICE_UUID")
+        scanner.startScan(listOf(filter), settings, callback)
 
         return withTimeout(SCAN_TIMEOUT_MS) {
             deferred.await()

@@ -92,8 +92,12 @@ class BlePairingTest : MapVisualTest() {
             }
 
             and("Settings shows the paired board") {
+                // Wait for activity to settle after BLE operations
+                Thread.sleep(2000)
+                composeTestRule.waitForIdle()
                 composeTestRule.onNodeWithContentDescription("Settings").performClick()
                 composeTestRule.waitForIdle()
+                Thread.sleep(1000)
                 composeTestRule.onNodeWithText("Mezulla").assertIsDisplayed()
                 composeTestRule.onNodeWithTag("btn_forget_board").assertExists()
             }

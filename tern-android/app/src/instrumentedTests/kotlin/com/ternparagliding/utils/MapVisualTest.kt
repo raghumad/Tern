@@ -112,9 +112,13 @@ open class MapVisualTest {
         
         // Final cache clear
         com.ternparagliding.utils.CacheManager.clearAllCaches()
-        
-        val className = this.javaClass.simpleName
-        ReportGenerator.generateFinalReport(className, testNameRule.methodName)
+
+        try {
+            val className = this.javaClass.simpleName
+            ReportGenerator.generateFinalReport(className, testNameRule.methodName)
+        } catch (e: Exception) {
+            Log.w("MapVisualTest", "Report generation failed (TestStorage not available on connected device): ${e.message}")
+        }
     }
 
     private fun clearState() {
