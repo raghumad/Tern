@@ -62,6 +62,7 @@ fun SettingsSheet(
             if (pairingOrchestrator != null) {
                 item {
                     val pairedNodeId = pairingOrchestrator.getPairedNodeId()
+                    val pairedName = pairingOrchestrator.getPairedDeviceName()
                     Text("Mezulla", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
                     if (pairedNodeId != null) {
                         Row(
@@ -70,7 +71,7 @@ fun SettingsSheet(
                         ) {
                             Icon(Icons.Filled.BluetoothSearching, contentDescription = null, tint = Color(0xFF4CAF50))
                             Text(
-                                "Board: $pairedNodeId",
+                                pairedName ?: pairedNodeId,
                                 modifier = Modifier.weight(1f).padding(start = 12.dp),
                                 fontSize = 14.sp,
                             )

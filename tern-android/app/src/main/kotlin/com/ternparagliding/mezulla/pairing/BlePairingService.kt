@@ -75,7 +75,8 @@ class BlePairingService(private val context: Context) {
             return ClaimResult.BoardNotFound
         }
 
-        Log.i(TAG, "Found device: ${device.name ?: device.address}")
+        val deviceName = device.name ?: device.address
+        Log.i(TAG, "Found device: $deviceName")
 
         // Step 2: Connect GATT
         Log.i(TAG, "Connecting to ${device.address}...")
@@ -140,7 +141,7 @@ class BlePairingService(private val context: Context) {
             gatt.close()
 
             Log.i(TAG, "Claim sent successfully")
-            return ClaimResult.Success(device.address)
+            return ClaimResult.Success(device.address, deviceName)
 
         } catch (e: Exception) {
             Log.e(TAG, "Claim failed", e)
@@ -232,7 +233,7 @@ class BlePairingService(private val context: Context) {
 }
 
 sealed interface ClaimResult {
-    data class Success(val deviceAddress: String) : ClaimResult
+    data class Success(val deviceAddress: String, val deviceName: String) : ClaimResult
     data object BoardNotFound : ClaimResult
     data object BluetoothUnavailable : ClaimResult
     data object BluetoothDisabled : ClaimResult

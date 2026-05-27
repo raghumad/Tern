@@ -17,6 +17,7 @@ class PairingOrchestrator(private val context: Context) {
         private const val TAG = "PairingOrchestrator"
         private const val PREFS_NAME = "tern_pairing"
         private const val KEY_PAIRED_NODE_ID = "paired_node_id"
+        private const val KEY_PAIRED_DEVICE_NAME = "paired_device_name"
         private const val KEY_OWNER_ID = "owner_id"
     }
 
@@ -54,9 +55,9 @@ class PairingOrchestrator(private val context: Context) {
 
         when (result) {
             is ClaimResult.Success -> {
-                persistPairing(link.nodeIdHex)
+                persistPairing(link.nodeIdHex, result.deviceName)
                 _state.value = PairingState.Success(link.nodeIdHex)
-                Log.i(TAG, "Pairing successful: node=${link.nodeIdHex} device=${result.deviceAddress}")
+                Log.i(TAG, "Pairing successful: node=${link.nodeIdHex} name=${result.deviceName} device=${result.deviceAddress}")
             }
             is ClaimResult.BoardNotFound -> {
                 _state.value = PairingState.Failed("Board not found. Make sure it's powered on and nearby.")
@@ -91,10 +92,18 @@ class PairingOrchestrator(private val context: Context) {
         return prefs.getString(KEY_PAIRED_NODE_ID, null)
     }
 
-    fun persistPairing(nodeIdHex: String) {
+    fun persistPairing(nodeIdHex: String, deviceName: String? = null) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().putString(KEY_PAIRED_NODE_ID, nodeIdHex).apply()
-        Log.i(TAG, "Pairing persisted: node=$nodeIdHex")
+        prefs.edit()
+            .putString(KEY_PAIRED_NODE_ID, nodeIdHex)
+            .putString(KEY_PAIRED_DEVICE_NAME, deviceName)
+            .apply()
+        Log.i(TAG, "Pairing persisted: node=$nodeIdHex name=$deviceName")
+    }
+
+    fun getPairedDeviceName(): String? {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getString(KEY_PAIRED_DEVICE_NAME, null)
     }
 
     fun forgetBoard() {
