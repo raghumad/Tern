@@ -99,49 +99,127 @@ with stock Meshtastic ports.
 **Board side (firmware):**
 
 On boot, if no owner is stored in flash:
-1. Generate a pairing token (random 16 bytes, hex-encoded).
-2. Encode `tern://pair?node=<hex_node_id>&token=<pairing_token>`
-   as a QR code.
-3. Display QR on the OLED.
-4. Accept BLE connections from any phone.
+1. Generate a pairing token (4 random bytes, 8 hex chars).
+2. Encode `tern://p?n=<hex_node_id>&t=<8_char_token>` as a QR
+   code (Version 2, ECC_LOW, nayuki/qrcodegen library).
+3. Display QR on the OLED (full-screen, no frame rotation).
+4. Disable BLE advertising timeout (advertise indefinitely).
 
 On receiving a claim-ownership packet (see below):
 1. Verify the token matches the one displayed on the QR.
 2. Store the claiming phone's identity in flash as the owner.
-3. Clear the QR from the OLED.
-4. From now on, only accept connections from the stored owner
-   (or from any phone if no owner is set).
+3. Clear the QR from the OLED, resume normal Meshtastic screens.
+4. Restore BLE advertising timeout to default (60 seconds).
 
-On long-press of boot button (5 seconds):
-1. Clear owner from flash.
-2. Generate new pairing token.
-3. Display new QR on the OLED.
+On receiving a release-ownership packet:
+1. Verify the sender is the current owner.
+2. Clear owner from flash.
+3. Generate new pairing token and redisplay QR.
 
-### Claim-ownership packet
+Physical button reset is deferred to v2 hardware (LilyGo T3
+V1.6.1 has no user button, only RST = hard reboot).
+
+### MeshPacket addressing (critical for all Mezulla commands)
+
+All Mezulla commands are sent as standard Meshtastic `ToRadio`
+protobufs wrapping a `MeshPacket`. The addressing fields MUST be
+set correctly or the packet will be routed to the mesh instead of
+being handled locally by the firmware module.
+
+| MeshPacket field | Value | Why |
+|---|---|---|
+| `to` | Board's node number (uint32 from QR `n` param, e.g. `0x4a312aaa`) | Packet must be addressed to this board, not broadcast |
+| `from` | 0 (firmware overwrites) | Don't set — firmware handles it |
+| `id` | 0 (firmware auto-assigns) | Don't set — firmware handles it |
+| `decoded.portnum` | `PRIVATE_APP` (256) | Routes to MezullaOwnershipModule |
+| `decoded.payload` | Command-specific bytes (see below) | Raw bytes, not protobuf-within-protobuf |
+| `decoded.want_response` | `true` | Triggers `allocReply()` so the board sends a response back to the phone |
+| `channel` | 0 | Default channel |
+
+The `to` field is the hex node ID from the QR URL's `n` parameter,
+parsed as a uint32. Example: QR contains `n=4a312aaa`, set
+`meshPacket.to = 0x4a312aaa` (decimal `1244736170`).
+
+### BLE device name
+
+The board advertises over BLE as `<short_name>_<last_2_mac_bytes>`.
+Example: short name "007", MAC ending in 61:84 → BLE name
+`007_6184`. The `long_name` ("Mezulla 007") is NOT used in the
+BLE advertisement — only in the Meshtastic protocol after
+connection.
+
+To find the board via BLE scan, match on:
+- Service UUID: `6ba1b218-15a8-461f-9fa8-5dcae273eafd`
+- Or device name pattern matching the short name from the QR
+
+### Claim-ownership command (0x01)
 
 | Field | Value |
 |---|---|
-| Port | `PRIVATE_APP` (256) |
-| Payload type | Mezulla-specific protobuf (not registered upstream) |
+| Command byte | `0x01` |
 | Direction | Phone → Board |
 
-Payload fields:
-- `pairing_token`: bytes — must match the QR-displayed token
-- `owner_id`: string — phone-side identifier for the claiming pilot
+Payload layout (raw bytes in `decoded.payload`):
+```
+[0x01]                         — command byte (CLAIM)
+[token_length: 1 byte]         — length of the token string (8)
+[token: token_length bytes]    — the pairing token from the QR URL
+[owner_id: remaining bytes]    — stable phone-side identifier (e.g. UUID)
+```
 
-Response: board sends ACK via `ROUTING_APP` if claim succeeds,
-NAK if token mismatch.
+Response (in `decoded.payload` of the reply MeshPacket):
+```
+[status: 1 byte]               — 0x00 = OK, 0x01 = token mismatch, 0x02 = already claimed
+[owner_id: remaining bytes]    — the stored owner (on OK)
+```
 
-### Ownership query packet
+### Ownership query command (0x02)
 
 | Field | Value |
 |---|---|
-| Port | `PRIVATE_APP` (256) |
+| Command byte | `0x02` |
 | Direction | Phone → Board |
 
-Allows the phone to ask "who owns this board?" without needing to
-see the QR. Response is a Mezulla-specific protobuf with `owner_id`
-(or empty if unclaimed).
+Payload: `[0x02]` (just the command byte).
+
+Response:
+```
+[status: 1 byte]               — 0x00 = OK
+[owner_id: remaining bytes]    — the stored owner (empty if unclaimed)
+```
+
+Allows the phone to detect Mezulla firmware vs stock Meshtastic.
+Stock boards silently ignore `PRIVATE_APP` packets — no response
+within 2 seconds means stock firmware.
+
+### Release-ownership command (0x03)
+
+| Field | Value |
+|---|---|
+| Command byte | `0x03` |
+| Direction | Phone → Board (owner only) |
+
+Payload: `[0x03][owner_id bytes]` — sender must prove they are the
+current owner.
+
+Response:
+```
+[status: 1 byte]               — 0x00 = OK, 0x03 = not owner
+```
+
+On success, board clears ownership and reboots into QR mode.
+
+### BLE configuration notes
+
+- `bluetooth.mode` should be `NO_PIN` (mode 2) for pairing
+  development. The QR pairing token is the authentication
+  mechanism, not BLE PIN.
+- `power.wait_bluetooth_secs` is overridden by firmware: set to
+  0 (advertise forever) when unclaimed, restored to default (60s)
+  after claiming.
+- Meshtastic allows only ONE BLE client at a time. If the official
+  Meshtastic app is connected, Tern cannot connect. The Meshtastic
+  app must be force-stopped or uninstalled on the pilot's phone.
 
 ## Epic 02 extensions (future, not yet designed)
 
