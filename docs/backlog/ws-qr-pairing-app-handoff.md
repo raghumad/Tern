@@ -119,6 +119,27 @@ Payload: [0x02]   — command byte (QUERY)
 
 If no response within 2 seconds, assume stock Meshtastic.
 
+## BLE connection sequence
+
+The Meshtastic BLE stack requires this exact handshake order.
+Skipping or reordering steps causes the board to drop the connection.
+
+1. **Scan** for devices advertising service UUID `6ba1b218-...eafd`
+2. **Connect** GATT (`device.connectGatt`)
+3. **Request MTU 517** (`gatt.requestMtu(517)`) — the board expects
+   this immediately after connect. Without it, the board drops the
+   connection after ~2.5 seconds.
+4. **Discover services** (`gatt.discoverServices()`) — only after
+   `onMtuChanged` callback confirms MTU negotiation succeeded.
+5. **Find characteristics by property** — ToRadio is WRITE (props=8),
+   FromRadio is READ (props=2), FromNum is NOTIFY (props=18). Do not
+   hardcode UUIDs — discover them from the service.
+6. **Read/Write** — ToRadio for outbound packets, FromRadio for
+   inbound (polled via FromNum notify).
+
+This sequence applies to ALL Meshtastic BLE communication, not just
+pairing. The `BleConnection` class must follow the same order.
+
 ## Wire protocol reference
 
 Full protocol spec: `docs/architecture/mezulla-wire-contract.md`
