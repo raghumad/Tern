@@ -70,7 +70,7 @@ object MezullaPairingCodec {
         val data = ProtoWriter().apply {
             writeInt32(1, PORT_PRIVATE_APP)  // Data.portnum
             writeBytes(2, payload)            // Data.payload
-            writeBool(5, true)               // Data.want_response
+            writeBool(3, true)               // Data.want_response (field 3, not 5)
         }.toByteArray()
         val packet = ProtoWriter().apply {
             writeFixed32(1, fromNodeNumber)   // MeshPacket.from
