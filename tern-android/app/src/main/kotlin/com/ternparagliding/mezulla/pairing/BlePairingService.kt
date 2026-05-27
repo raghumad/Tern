@@ -144,9 +144,21 @@ class BlePairingService(private val context: Context) {
 
         val callback = object : ScanCallback() {
             override fun onScanResult(callbackType: Int, result: ScanResult) {
-                Log.d(TAG, "Scan hit: ${result.device.name ?: result.device.address}")
-                deferred.complete(result.device)
-                scanner.stopScan(this)
+                val name = result.device.name ?: ""
+                val addr = result.device.address
+                Log.d(TAG, "Scan hit: name='$name' addr=$addr rssi=${result.rssi}")
+
+                // Match Meshtastic devices by service UUID in the advertisement
+                // or by device name prefix (Meshtastic boards advertise as "Meshtastic XXXX")
+                val serviceUuids = result.scanRecord?.serviceUuids ?: emptyList()
+                val isMeshtastic = serviceUuids.any { it.uuid == MESHTASTIC_SERVICE_UUID }
+                        || name.startsWith("Meshtastic", ignoreCase = true)
+
+                if (isMeshtastic && !deferred.isCompleted) {
+                    Log.i(TAG, "Found Meshtastic device: $name ($addr)")
+                    deferred.complete(result.device)
+                    scanner.stopScan(this)
+                }
             }
 
             override fun onScanFailed(errorCode: Int) {
@@ -155,14 +167,13 @@ class BlePairingService(private val context: Context) {
             }
         }
 
-        val filter = ScanFilter.Builder()
-            .setServiceUuid(ParcelUuid(MESHTASTIC_SERVICE_UUID))
-            .build()
+        // Scan without service UUID filter — some boards don't include
+        // the UUID in their advertisement data. We match by name or UUID.
         val settings = ScanSettings.Builder()
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
             .build()
 
-        scanner.startScan(listOf(filter), settings, callback)
+        scanner.startScan(null, settings, callback)
 
         return withTimeout(SCAN_TIMEOUT_MS) {
             deferred.await()

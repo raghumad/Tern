@@ -24,14 +24,14 @@ internal object MeshtasticGattUuids {
     val FROM_RADIO: UUID = UUID.fromString("2c55e69e-4993-11ed-b878-0242ac120002")
 
     /** Written by the phone to push `ToRadio` protobufs into the board. */
-    val TO_RADIO: UUID = UUID.fromString("f75c76d2-129e-4dad-a1dd-7866124401e7")
+    val TO_RADIO: UUID = UUID.fromString("2c55e69e-4993-11ed-b878-0242ac120003")
 
     /**
      * Notify-only. The board increments + notifies this value whenever a new
      * packet is enqueued in [FROM_RADIO]. The numeric value itself is a
      * monotonic counter; the only useful information is the change event.
      */
-    val FROM_NUM: UUID = UUID.fromString("ed9da18c-a800-4f66-a670-aa7547e34453")
+    val FROM_NUM: UUID = UUID.fromString("2c55e69e-4993-11ed-b878-0242ac120004")
 
     /**
      * Standard BLE Client Characteristic Configuration Descriptor. We write
