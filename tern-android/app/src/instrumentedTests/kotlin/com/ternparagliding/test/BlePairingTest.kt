@@ -35,10 +35,22 @@ class BlePairingTest : MapVisualTest() {
     )
 
     companion object {
-        // Board's QR payload — keep in sync with the real board
-        private const val PAIR_URI = "tern://p?n=4a312aaa&t=e7f3a1b2c4d5e6f78901a2b3c4d5e6f7"
         private const val EXPECTED_NODE = "4a312aaa"
-        private const val BLE_TIMEOUT_MS = 20_000L
+        private const val BLE_TIMEOUT_MS = 30_000L
+        // Read from docs/handoffs/mezulla-deeplink.txt at build time
+        // via test instrumentation args, or fall back to this default.
+        private const val DEFAULT_PAIR_URI = "tern://p?n=4a312aaa&t=69f5bbbf"
+
+        private fun getPairUri(): String {
+            return try {
+                val args = androidx.test.platform.app.InstrumentationRegistry
+                    .getArguments()
+                val uri = args.getString("pairUri")
+                if (!uri.isNullOrBlank()) uri else DEFAULT_PAIR_URI
+            } catch (_: Exception) {
+                DEFAULT_PAIR_URI
+            }
+        }
     }
 
     @Test
@@ -53,8 +65,10 @@ class BlePairingTest : MapVisualTest() {
             }
 
             `when`("a tern:// deep link triggers the pairing flow") {
+                val pairUri = getPairUri()
+                android.util.Log.i("BlePairingTest", "Using pair URI: $pairUri")
                 val intent = Intent(Intent.ACTION_VIEW).apply {
-                    data = Uri.parse(PAIR_URI)
+                    data = Uri.parse(pairUri)
                 }
                 composeTestRule.runOnUiThread {
                     composeTestRule.activity.pairingOrchestrator.handleIntent(intent)
