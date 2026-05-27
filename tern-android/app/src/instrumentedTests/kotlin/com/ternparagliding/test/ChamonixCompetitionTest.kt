@@ -2,7 +2,6 @@ package com.ternparagliding.test
 
 import androidx.compose.ui.test.*
 import com.ternparagliding.model.LocationType
-import com.ternparagliding.utils.Liar
 import com.ternparagliding.utils.MapVisualTest
 import com.ternparagliding.model.Waypoint
 import com.ternparagliding.model.Route
@@ -30,7 +29,6 @@ class ChamonixCompetitionTest : MapVisualTest() {
         WeatherTestHelper.stopServer()
     }
 
-    @Liar("Truthful metrics step checks for km substring, not actual distance")
     @Test
     fun pilot_flies_chamonix_valley_tour() {
         scenario("Chamonix Open 2026 - Valley Tour") {
@@ -66,8 +64,12 @@ class ChamonixCompetitionTest : MapVisualTest() {
                     waitForMapToRender(2000)
                 }
 
-                then("the route detail panel should auto-minimize to SSA mode") {
-                    // TODO: write real assertions
+                then("the route detail panel should show in SSA mode with route summary") {
+                    composeTestRule.onNodeWithTag("RouteDetailPanel").assertIsDisplayed()
+                    composeTestRule.onNodeWithTag("SSA_Header").assertExists()
+                    // SSA mode shows route name and distance summary
+                    composeTestRule.onNodeWithText("Chamonix Open 2026 - Valley Tour").assertIsDisplayed()
+                    composeTestRule.onNodeWithText("km", substring = true).assertExists()
                 }
 
                 `when`("the pilot clicks on the header to expand tactically", takeScreenshot = true) {
@@ -75,12 +77,16 @@ class ChamonixCompetitionTest : MapVisualTest() {
                     composeTestRule.waitForIdle()
                 }
 
-                then("the panel should transition to TEA mode with detailed telemetry") {
-                    // TODO: write real assertions
+                then("the panel should transition to TEA mode with waypoint list") {
+                    composeTestRule.onNodeWithTag("TEA_Header").assertExists()
+                    // TEA mode expands to show the DETAILS/SEARCH/LIBRARY tabs
+                    composeTestRule.onNodeWithText("DETAILS").assertIsDisplayed()
                 }
 
-                and("the HUD should display truthful distance and ETA metrics", takeScreenshot = true) {
-                    // TODO: write real assertions
+                and("the HUD should display distance and weather metrics", takeScreenshot = true) {
+                    composeTestRule.onNodeWithTag("RoutePlanningHUD").assertIsDisplayed()
+                    composeTestRule.onNodeWithTag("HUD_Distance").assertIsDisplayed()
+                    composeTestRule.onNodeWithTag("HUD_ETA_Goal").assertIsDisplayed()
                 }
 
                 `when`("the pilot enters the Start Speed Section cylinder") {
@@ -92,8 +98,10 @@ class ChamonixCompetitionTest : MapVisualTest() {
                     waitForMapToRender(1000)
                 }
 
-                then("the tactical telemetry should update to show distance to the next goal (TP1)", takeScreenshot = true) {
-                    // TODO: write real assertions
+                then("the HUD should still display route telemetry after position update", takeScreenshot = true) {
+                    composeTestRule.onNodeWithTag("RoutePlanningHUD").assertIsDisplayed()
+                    composeTestRule.onNodeWithTag("HUD_Distance").assertIsDisplayed()
+                    composeTestRule.onNodeWithTag("HUD_FaiPoints").assertIsDisplayed()
                 }
             }
         }

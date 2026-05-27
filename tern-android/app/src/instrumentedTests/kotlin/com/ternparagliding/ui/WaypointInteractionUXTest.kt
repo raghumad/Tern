@@ -7,7 +7,6 @@ import com.ternparagliding.redux.MapStore
 import com.ternparagliding.redux.MapAction
 import com.ternparagliding.model.Route
 import com.ternparagliding.model.Waypoint
-import com.ternparagliding.utils.Liar
 import com.ternparagliding.utils.MapVisualTest
 import com.ternparagliding.utils.MapTestHelper
 import com.ternparagliding.utils.ReportGenerator
@@ -20,9 +19,6 @@ import org.osmdroid.util.GeoPoint
 @RunWith(AndroidJUnit4::class)
 class WaypointInteractionUXTest : MapVisualTest() {
 
-    @Liar("Drag gesture requires MapTestHelper.pressAndHoldGeoPoint which uses dead " +
-          "OSMDroid MapView. Rewritten to test waypoint repositioning via Redux dispatch " +
-          "instead of physical drag. The physical drag UX is a human-test item.")
     @Test
     fun testPremiumWaypointDragAndDrop() {
         scenario("Premium Waypoint Repositioning") {

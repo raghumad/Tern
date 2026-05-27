@@ -22,9 +22,10 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class DenseClusterDeclutteringTest : MapVisualTest() {
 
-    @Liar("Waypoint labels are MapLibre SymbolLayer text (GPU-drawn), not Compose nodes. " +
-          "onNodeWithText('WP-BETA').assertDoesNotExist() matches the RouteDetailPanel list, " +
-          "which always shows all waypoints. Map-level label decluttering cannot be tested via Compose semantics.")
+    @Liar("Map-level label decluttering cannot be tested via Compose semantics. " +
+          "Waypoint labels are MapLibre SymbolLayer text (GPU-drawn). " +
+          "assertDoesNotExist() for WP-BETA would match the RouteDetailPanel list " +
+          "which always shows all waypoints regardless of map decluttering state.")
     @Test
     fun testManualSelectionDecluttering() {
         val baseLat = 40.015
@@ -58,9 +59,9 @@ class DenseClusterDeclutteringTest : MapVisualTest() {
         }
     }
 
-    @Liar("Same issue: waypoint labels are MapLibre SymbolLayer text, not Compose nodes. " +
-          "assertDoesNotExist() for 'CLUMP' matches RouteDetailPanel, not the map. " +
-          "Leg label suppression ('0.1 km') is also a MapLibre rendering concern.")
+    @Liar("Map-level label decluttering and leg label suppression cannot be tested via Compose. " +
+          "Waypoint labels and leg distances are MapLibre SymbolLayer text (GPU-drawn). " +
+          "assertDoesNotExist() for CLUMP/leg labels would match RouteDetailPanel, not the map.")
     @Test
     fun testZoomToRouteAutomaticDecluttering() {
         val baseLat = 40.015

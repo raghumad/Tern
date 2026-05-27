@@ -174,9 +174,9 @@ class DynamicMarkerTest : com.ternparagliding.utils.MapVisualTest() {
         }
     }
 
-    @Liar("Asserts Redux weather state (upstream), not the wind gauge rendering on the MapLibre map (downstream). " +
-          "Wind gauge markers are MapLibre SymbolLayer bitmaps -- GPU-drawn, not Compose nodes -- " +
-          "so the only truthful assertion is screenshot evidence reviewed by a human.")
+    @Liar("Wind gauge markers are MapLibre SymbolLayer bitmaps (GPU-drawn, not Compose nodes). " +
+          "Cannot assert via Compose semantics that the marker visually changed from pin to gauge. " +
+          "Screenshot is captured as human-test evidence. The setup and data injection are truthful.")
     @Test
     fun testPGSpotMarkerSwitchesToWindGauge() {
         scenario("PG Spot Marker Transforms from Static Pin to Live Wind Gauge After REAL Weather Load") {

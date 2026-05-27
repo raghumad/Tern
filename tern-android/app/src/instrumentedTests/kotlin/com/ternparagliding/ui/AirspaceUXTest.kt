@@ -23,16 +23,27 @@ class AirspaceUXTest : MapVisualTest() {
         WeatherTestHelper.stopServer()
     }
 
-    @Liar("Claims to verify floor/ceiling altitudes, only checks map_view exists")
+    @Liar("Airspace tap-to-info panel is not implemented in production code. " +
+          "Airspace polygons are MapLibre FillLayer (GPU-drawn), so their presence " +
+          "cannot be verified via Compose semantics. Tapping airspace to see floor/ceiling " +
+          "requires MapLibre queryRenderedFeatures which is not exposed to Compose tests.")
     @Test
     fun testAirspacePanningAndVisibility() {
         scenario("Airspace UX: Pan to High Density Area (Boulder, US)") {
             story("As a pilot planning a cross-country flight, I want to see restricted airspaces on the map so I can stay safe and compliant with aviation regulations during my flight.") {
 
-                given("I am preparing for a flight in the Boulder area") {
+                given("I am preparing for a flight in the Boulder area with injected airspace data") {
                     givenAppIsLaunchedOnMap(lat = 40.0, lon = -105.2, countryCode = "us")
-                    waitForCacheReadiness("US", timeoutMillis = 120000)
-                    waitForAirspaces(minCount = 1, timeoutMillis = 20000)
+                    // Inject test airspace so the setup does not depend on real network data
+                    val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
+                    val airspaceFeature = createTestAirspace("Boulder CTR", 40.0, -105.2)
+                    com.ternparagliding.utils.TestCacheInjector.injectAirspaces(
+                        context, com.ternparagliding.utils.CacheManager.airspaceCache, "US", listOf(airspaceFeature))
+                    composeTestRule.runOnUiThread {
+                        val store = androidx.lifecycle.ViewModelProvider(composeTestRule.activity)[com.ternparagliding.redux.MapStore::class.java]
+                        store.dispatch(com.ternparagliding.redux.MapAction.AddAirspaceCountry("US"))
+                    }
+                    waitForAirspaces(minCount = 1, timeoutMillis = 10000)
                 }
 
                 `when`("I pan the map towards a complex airspace structure near the mountains") {
@@ -44,25 +55,49 @@ class AirspaceUXTest : MapVisualTest() {
                     }
                     composeTestRule.waitForIdle()
                     assertMapLocation(40.1, -105.2)
-                    waitForAirspaces(minCount = 1, timeoutMillis = 45000)
                     waitForMapToRender()
                 }
 
                 and("I tap on a specific airspace polygon to identify its boundaries and limits") {
-                    // MapTestHelper.clickOnGeoPoint uses OSMDroid MapView projection
-                    // which no longer exists. Airspace click-to-info requires MapLibre
-                    // queryRenderedFeatures which is not exposed to Compose tests.
-                    // This step is a no-op until airspace tap handling is implemented.
+                    // Airspace click-to-info requires MapLibre queryRenderedFeatures
+                    // which is not exposed to Compose tests. This step is a no-op.
                 }
 
                 then("The airspace details should be clearly visible, showing floor and ceiling altitudes") {
-                    // TODO: write real assertions -- airspace tap info panel not implemented
+                    // Cannot verify: airspace tap-to-info panel is not implemented.
+                    // Airspace polygons are MapLibre FillLayer, not Compose nodes.
                 }
 
-                and("The map response should remain fluid without performance degradation") {
-                    // TODO: write real assertions
+                and("The map should still be displaying without crashes", takeScreenshot = true) {
+                    composeTestRule.onNodeWithTag("map_view").assertExists()
                 }
             }
         }
+    }
+
+    // --- Test data helpers ---
+
+    private fun createTestAirspace(name: String, lat: Double, lon: Double): com.ternparagliding.utils.MapOverlayCacheUtils.OverlayFeature {
+        val featureMap = mapOf(
+            "type" to "Feature",
+            "properties" to mapOf("name" to name, "class" to "D"),
+            "geometry" to mapOf(
+                "type" to "Polygon",
+                "coordinates" to listOf(listOf(
+                    listOf(lon, lat),
+                    listOf(lon + 0.01, lat),
+                    listOf(lon + 0.01, lat + 0.01),
+                    listOf(lon, lat + 0.01),
+                    listOf(lon, lat)
+                ))
+            )
+        )
+        val centroid = org.osmdroid.util.GeoPoint(lat, lon)
+        return com.ternparagliding.utils.MapOverlayCacheUtils.OverlayFeature(
+            feature = featureMap,
+            centroid = centroid,
+            hilbertIndex = com.ternparagliding.utils.MapOverlayCacheUtils.computeHilbertIndex(centroid, 16),
+            overlayType = "airspace"
+        )
     }
 }

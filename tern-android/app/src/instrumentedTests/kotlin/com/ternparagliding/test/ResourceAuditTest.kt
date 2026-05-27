@@ -18,8 +18,10 @@ import androidx.lifecycle.ViewModelProvider
  */
 @RunWith(AndroidJUnit4::class)
 @Liar("HazardHalo and HazardBolt Compose test tags do not exist in production code. " +
-      "The hazard indicators are either MapLibre layers or not yet implemented. " +
-      "thenExpectHazardFidelity will fail immediately with node-not-found.")
+      "Hazard indicators (amber halo, red lightning bolt) are not implemented as Compose " +
+      "nodes. thenExpectHazardFidelity will fail with node-not-found. " +
+      "Weather hazards are currently shown as text badges in RouteDetailPanel (AHV_BADGE), " +
+      "not as animated map overlays.")
 class ResourceAuditTest : MapVisualTest() {
 
     private val AMBER_HALO = 0xFFFFBF00.toInt()

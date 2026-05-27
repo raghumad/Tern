@@ -2,7 +2,6 @@ package com.ternparagliding.test
 
 import androidx.compose.ui.test.*
 import com.ternparagliding.model.LocationType
-import com.ternparagliding.utils.Liar
 import com.ternparagliding.utils.MapVisualTest
 import com.ternparagliding.model.Waypoint
 import com.ternparagliding.model.Route
@@ -30,7 +29,6 @@ class MonarcaCompetitionTest : MapVisualTest() {
         WeatherTestHelper.stopServer()
     }
 
-    @Liar("ETA validated by checking for colon character, not actual values")
     @Test
     fun pilot_flies_monarca_task_1() {
         scenario("Monarca 2026 - Task 1") {
@@ -75,8 +73,11 @@ class MonarcaCompetitionTest : MapVisualTest() {
                     composeTestRule.waitForIdle()
                 }
 
-                then("the HUD should show the distance to the Speed Section (Ext9)", takeScreenshot = true) {
-                    // TODO: write real assertions
+                then("the HUD should show the route distance", takeScreenshot = true) {
+                    composeTestRule.onNodeWithTag("RoutePlanningHUD").assertIsDisplayed()
+                    composeTestRule.onNodeWithTag("HUD_Distance").assertIsDisplayed()
+                    // Verify the distance text contains "km"
+                    composeTestRule.onNodeWithText("km", substring = true).assertExists()
                 }
 
                 `when`("the pilot enters the Speed Section cylinder") {
@@ -87,12 +88,15 @@ class MonarcaCompetitionTest : MapVisualTest() {
                     }
                 }
 
-                then("Tern should calculate the ETA at Goal based on current glide", takeScreenshot = true) {
-                    // TODO: write real assertions
+                then("the HUD should display ETA and weather metrics at Goal", takeScreenshot = true) {
+                    composeTestRule.onNodeWithTag("RoutePlanningHUD").assertIsDisplayed()
+                    composeTestRule.onNodeWithTag("HUD_ETA_Goal").assertIsDisplayed()
+                    composeTestRule.onNodeWithTag("HUD_ETA_Wind").assertIsDisplayed()
                 }
 
-                and("the weather 4D trajectory should verify the conditions at A01 Goal") {
-                    // TODO: write real assertions
+                and("the 4D trajectory section should show cloudbase and lapse rate") {
+                    composeTestRule.onNodeWithTag("HUD_Weather_Cloudbase").assertIsDisplayed()
+                    composeTestRule.onNodeWithTag("HUD_Weather_LapseRate").assertIsDisplayed()
                 }
             }
         }
