@@ -51,8 +51,13 @@ class BlePairingService(private val context: Context) {
         ownerId: String,
         boardNodeNumber: Long,
     ): ClaimResult {
-        val adapter = (context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)
-            ?.adapter ?: return ClaimResult.BluetoothUnavailable
+        val btManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
+        Log.d(TAG, "BluetoothManager: $btManager, context: ${context.javaClass.name}")
+        val adapter = btManager?.adapter
+        if (adapter == null) {
+            Log.w(TAG, "BluetoothAdapter is null. btManager=$btManager")
+            return ClaimResult.BluetoothUnavailable
+        }
 
         if (!adapter.isEnabled) return ClaimResult.BluetoothDisabled
 

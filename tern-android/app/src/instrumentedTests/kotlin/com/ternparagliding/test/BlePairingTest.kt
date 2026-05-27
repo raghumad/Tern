@@ -7,8 +7,10 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.ternparagliding.TernParaglidingActivity
 import com.ternparagliding.mezulla.pairing.PairingState
 import com.ternparagliding.utils.MapVisualTest
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import androidx.test.rule.GrantPermissionRule
 
 /**
  * BLE pairing integration test. Runs on a REAL PHONE with a real
@@ -25,6 +27,12 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class BlePairingTest : MapVisualTest() {
+
+    @get:Rule
+    val blePermissionRule: GrantPermissionRule = GrantPermissionRule.grant(
+        android.Manifest.permission.BLUETOOTH_SCAN,
+        android.Manifest.permission.BLUETOOTH_CONNECT,
+    )
 
     companion object {
         // Board's QR payload — keep in sync with the real board
