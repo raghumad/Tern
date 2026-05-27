@@ -101,8 +101,12 @@ class BlePairingService(private val context: Context) {
             }
 
             val payload = MezullaPairingCodec.encodeClaimPacket(pairingToken, ownerId)
-            val toRadio = gatt.getService(MESHTASTIC_SERVICE_UUID)
-                ?.getCharacteristic(MeshtasticGattUuids.TO_RADIO)
+            // Discover ToRadio by property — the writable characteristic
+            // under the Meshtastic service. No hardcoded UUID needed.
+            val meshService = gatt.getService(MESHTASTIC_SERVICE_UUID)
+            val toRadio = meshService?.characteristics?.firstOrNull { ch ->
+                (ch.properties and android.bluetooth.BluetoothGattCharacteristic.PROPERTY_WRITE) != 0
+            }
 
             if (toRadio == null) {
                 gatt.disconnect()
