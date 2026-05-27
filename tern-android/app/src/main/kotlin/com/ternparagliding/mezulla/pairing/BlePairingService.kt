@@ -185,7 +185,7 @@ class BlePairingService(private val context: Context) {
             .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
             .build()
 
-        Log.d(TAG, "Starting BLE scan with empty filter + ALL_MATCHES callback")
+        Log.i(TAG, "Starting BLE scan: pid=${android.os.Process.myPid()} tid=${Thread.currentThread().id} uid=${android.os.Process.myUid()}")
         scanner.startScan(listOf(filter), settings, callback)
 
         try {
@@ -204,22 +204,31 @@ class BlePairingService(private val context: Context) {
 
         val callback = object : BluetoothGattCallback() {
             override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
+                Log.i(TAG, "onConnectionStateChange: status=$status newState=$newState")
                 when (newState) {
                     BluetoothProfile.STATE_CONNECTED -> {
-                        Log.i(TAG, "GATT connected, discovering services...")
-                        gatt.discoverServices()
+                        Log.i(TAG, "GATT connected (status=$status), requesting MTU 517...")
+                        gatt.requestMtu(517)
                     }
                     BluetoothProfile.STATE_DISCONNECTED -> {
+                        Log.w(TAG, "GATT disconnected: status=$status (0x${status.toString(16)})")
                         if (!deferred.isCompleted) {
-                            deferred.completeExceptionally(RuntimeException("Disconnected during connect"))
+                            deferred.completeExceptionally(RuntimeException("Disconnected: GATT status=$status (0x${status.toString(16)})"))
                         }
                     }
                 }
             }
 
+            override fun onMtuChanged(gatt: BluetoothGatt, mtu: Int, status: Int) {
+                Log.i(TAG, "MTU changed: mtu=$mtu status=$status")
+                Log.i(TAG, "Discovering services...")
+                gatt.discoverServices()
+            }
+
             override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
+                Log.i(TAG, "onServicesDiscovered: status=$status")
                 if (status == BluetoothGatt.GATT_SUCCESS) {
-                    Log.i(TAG, "Services discovered")
+                    Log.i(TAG, "Services discovered (${gatt.services.size} services)")
                     deferred.complete(gatt)
                 } else {
                     deferred.completeExceptionally(RuntimeException("Service discovery failed: $status"))
