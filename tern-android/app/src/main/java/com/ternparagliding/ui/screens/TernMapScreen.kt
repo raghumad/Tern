@@ -162,10 +162,12 @@ fun TernMapScreen(
 
 
     if (showSettingsSheet) {
+        val activity = androidx.compose.ui.platform.LocalContext.current as? com.ternparagliding.TernParaglidingActivity
         SettingsSheet(
             onDismiss = { showSettingsSheet = false },
             store = store,
             demoReplay = demoReplay,
+            pairingOrchestrator = activity?.pairingOrchestrator,
         )
     }
 

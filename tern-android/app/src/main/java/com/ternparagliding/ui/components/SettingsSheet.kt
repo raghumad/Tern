@@ -36,8 +36,16 @@ import com.ternparagliding.ui.screens.MAP_VIEW_SATELLITE
 import com.ternparagliding.ui.screens.MAP_VIEW_TERRAIN
 
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.compose.material.icons.filled.BluetoothSearching
+import androidx.compose.material.icons.filled.LinkOff
+import androidx.compose.material3.Button
 import androidx.compose.ui.platform.testTag
+import com.journeyapps.barcodescanner.ScanContract
+import com.journeyapps.barcodescanner.ScanOptions
 import com.ternparagliding.mezulla.demo.AravisDemoReplay
+import com.ternparagliding.mezulla.pairing.PairingOrchestrator
+import com.ternparagliding.mezulla.pairing.TernPairLink
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -45,11 +53,68 @@ fun SettingsSheet(
     onDismiss: () -> Unit,
     store: com.ternparagliding.redux.MapStore = viewModel(),
     demoReplay: AravisDemoReplay? = null,
+    pairingOrchestrator: PairingOrchestrator? = null,
 ) {
     val state by store.state.collectAsState()
     val settingsState = state.settingsState
+
+    // QR scanner for Mezulla board pairing
+    val scanLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
+        if (result.contents != null) {
+            val link = TernPairLink.parse(result.contents)
+            if (link != null) {
+                pairingOrchestrator?.handlePairLink(link)
+            }
+        }
+    }
+
     ModalBottomSheet(onDismissRequest = onDismiss) {
         LazyColumn(modifier = Modifier.padding(horizontal = 16.dp)) {
+
+            // Mezulla section
+            if (pairingOrchestrator != null) {
+                item {
+                    val pairedNodeId = pairingOrchestrator.getPairedNodeId()
+                    Text("Mezulla", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
+                    if (pairedNodeId != null) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(Icons.Filled.BluetoothSearching, contentDescription = null, tint = Color(0xFF4CAF50))
+                            Text(
+                                "Board: $pairedNodeId",
+                                modifier = Modifier.weight(1f).padding(start = 12.dp),
+                                fontSize = 14.sp,
+                            )
+                        }
+                        OutlinedButton(
+                            onClick = { pairingOrchestrator.forgetBoard() },
+                            modifier = Modifier.fillMaxWidth().height(48.dp).testTag("btn_forget_board"),
+                        ) {
+                            Icon(Icons.Filled.LinkOff, contentDescription = null, modifier = Modifier.size(20.dp))
+                            Text("  Forget Board", fontSize = 16.sp)
+                        }
+                    } else {
+                        Button(
+                            onClick = {
+                                scanLauncher.launch(ScanOptions().apply {
+                                    setDesiredBarcodeFormats(ScanOptions.QR_CODE)
+                                    setPrompt("Point at the Mezulla board's QR code")
+                                    setBeepEnabled(false)
+                                    setOrientationLocked(false)
+                                })
+                            },
+                            modifier = Modifier.fillMaxWidth().height(48.dp).testTag("btn_scan_board"),
+                        ) {
+                            Icon(Icons.Filled.BluetoothSearching, contentDescription = null, modifier = Modifier.size(20.dp))
+                            Text("  Scan Board", fontSize = 16.sp)
+                        }
+                    }
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+                }
+            }
+
             item {
                 Text("Map Layers", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
                 SettingsToggleRow(

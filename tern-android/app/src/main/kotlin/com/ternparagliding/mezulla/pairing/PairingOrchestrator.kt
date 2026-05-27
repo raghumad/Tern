@@ -38,15 +38,21 @@ class PairingOrchestrator(private val context: Context) {
     fun handleIntent(intent: Intent): Boolean {
         val uri = intent.data?.toString() ?: return false
         val link = TernPairLink.parse(uri) ?: return false
+        handlePairLink(link)
+        return true
+    }
 
+    /**
+     * Start the pairing flow from a parsed link. Called from either
+     * the deep link intent handler or the in-app QR scanner.
+     */
+    fun handlePairLink(link: TernPairLink) {
         Log.i(TAG, "Pairing link received: node=${link.nodeIdHex}")
         _state.value = PairingState.Received(link)
 
         // TODO: next steps (BLE scan → connect → claim) will be
         // implemented when we're ready for the human test. For now,
         // receiving and parsing the link is the milestone.
-
-        return true
     }
 
     /**
