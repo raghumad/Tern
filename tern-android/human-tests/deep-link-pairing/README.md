@@ -74,3 +74,23 @@ Tern build: fix-tests-and-scrub @ 6e89483
 - [ ] Board OLED changes — not tested
 
 Steps 5-7 blocked on BLE claim wiring.
+
+## Results — 2026-05-26 (FULL PASS)
+
+Date: 2026-05-26
+Phone model: Pixel (58051FDCH001PA)
+Board: 007_6184 / MAC F0:24:F9:92:61:86 / node 4a312aaa
+Board firmware: Mezulla (NO_PIN, fixed QR + BLE advert)
+Tern build: fix-tests-and-scrub @ 0804b12
+
+### Outcome: PASS
+
+- [x] Camera recognizes the QR as a `tern://` URL
+- [x] Tapping the link opens Tern
+- [x] BLE scan finds the board via Meshtastic service UUID
+- [x] GATT connects and discovers services
+- [x] ToRadio found by WRITE property (not hardcoded UUID)
+- [x] Claim packet written successfully
+- [x] Board ID 4a312aaa persisted in SharedPreferences
+- [x] Settings shows "Board: 4a312aaa"
+- [x] Board OLED changes from QR to normal status display
