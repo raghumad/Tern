@@ -30,7 +30,8 @@
         android:theme="@style/Theme.Tern"
         android:largeHeap="true"
         android:usesCleartextTraffic="true"
-        android:requestLegacyExternalStorage="true">
+        android:requestLegacyExternalStorage="true"
+        android:extractNativeLibs="true">
         
         <provider
             android:name="androidx.core.content.FileProvider"
