@@ -153,6 +153,7 @@ class BlePairingService(private val context: Context) {
                 val serviceUuids = result.scanRecord?.serviceUuids ?: emptyList()
                 val isMeshtastic = serviceUuids.any { it.uuid == MESHTASTIC_SERVICE_UUID }
                         || name.startsWith("Meshtastic", ignoreCase = true)
+                        || name.startsWith("Mezulla", ignoreCase = true)
 
                 if (isMeshtastic && !deferred.isCompleted) {
                     Log.i(TAG, "Found Meshtastic device: $name ($addr)")

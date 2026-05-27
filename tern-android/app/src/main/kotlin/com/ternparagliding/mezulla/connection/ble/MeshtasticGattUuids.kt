@@ -4,12 +4,14 @@ import java.util.UUID
 
 /**
  * GATT service + characteristic UUIDs that Meshtastic firmware exposes on
- * the BLE peripheral. Source:
- * https://meshtastic.org/docs/development/device/client-api/
+ * the BLE peripheral.
  *
- * These are fixed by the Meshtastic firmware and have been stable across
- * 2.x releases. Bumping a Meshtastic major version is the only realistic
- * way these change.
+ * Source of truth: meshtastic-firmware BluetoothCommon.h
+ * Verified against Mezulla firmware handoff (2026-05-26):
+ *   Service:  6ba1b218-15a8-461f-9fa8-5dcae273eafd
+ *   FromRadio: 2c55e69e-4993-11ed-b878-0242ac120002
+ *   ToRadio:   2c55e69e-4993-11ed-b878-0242ac120003
+ *   FromNum:   2c55e69e-4993-11ed-b878-0242ac120004
  */
 internal object MeshtasticGattUuids {
 
