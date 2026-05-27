@@ -92,6 +92,14 @@ class BlePairingService(private val context: Context) {
         // Step 3: Send claim packet
         Log.i(TAG, "Sending claim packet...")
         try {
+            // Log discovered services and characteristics for debugging
+            for (svc in gatt.services) {
+                Log.d(TAG, "Service: ${svc.uuid}")
+                for (ch in svc.characteristics) {
+                    Log.d(TAG, "  Char: ${ch.uuid} props=${ch.properties}")
+                }
+            }
+
             val payload = MezullaPairingCodec.encodeClaimPacket(pairingToken, ownerId)
             val toRadio = gatt.getService(MESHTASTIC_SERVICE_UUID)
                 ?.getCharacteristic(MeshtasticGattUuids.TO_RADIO)
