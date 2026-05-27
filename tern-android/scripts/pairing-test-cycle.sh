@@ -37,8 +37,15 @@ sleep 5
 
 # Step 3: Run instrumented test
 echo "[3/3] Running BlePairingTest..."
+# Ensure screen is ON (Android 12 blocks BLE scan with screen off)
+adb -s "$DEVICE" shell "settings put system screen_off_timeout 600000" 2>/dev/null || true
 adb -s "$DEVICE" shell input keyevent KEYCODE_WAKEUP 2>/dev/null || true
 sleep 1
+adb -s "$DEVICE" shell input keyevent 82 2>/dev/null || true
+sleep 1
+SCREEN=$(adb -s "$DEVICE" shell "dumpsys deviceidle | grep mScreenOn" 2>/dev/null)
+echo "    Screen: $SCREEN"
+
 adb -s "$DEVICE" shell "am force-stop com.ternparagliding" 2>/dev/null || true
 sleep 2
 adb -s "$DEVICE" logcat -c 2>/dev/null || true
