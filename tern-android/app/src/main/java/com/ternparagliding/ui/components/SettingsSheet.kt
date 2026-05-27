@@ -60,8 +60,11 @@ fun SettingsSheet(
 
     // QR scanner for Mezulla board pairing
     val scanLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
-        if (result.contents != null) {
-            val link = TernPairLink.parse(result.contents)
+        val contents = result.contents
+        android.util.Log.i("SettingsSheet", "QR scan result: $contents")
+        if (contents != null) {
+            val link = TernPairLink.parse(contents)
+            android.util.Log.i("SettingsSheet", "Parsed link: $link")
             if (link != null) {
                 pairingOrchestrator?.handlePairLink(link)
             }
@@ -102,7 +105,7 @@ fun SettingsSheet(
                                     setDesiredBarcodeFormats(ScanOptions.QR_CODE)
                                     setPrompt("Point at the Mezulla board's QR code")
                                     setBeepEnabled(false)
-                                    setOrientationLocked(false)
+                                    setOrientationLocked(true)
                                 })
                             },
                             modifier = Modifier.fillMaxWidth().height(48.dp).testTag("btn_scan_board"),
