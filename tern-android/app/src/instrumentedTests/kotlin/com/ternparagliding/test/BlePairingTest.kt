@@ -35,26 +35,31 @@ class BlePairingTest : MapVisualTest() {
     )
 
     companion object {
-        private const val EXPECTED_NODE = "4a312aaa"
         private const val BLE_TIMEOUT_MS = 30_000L
-        // Read from docs/handoffs/mezulla-deeplink.txt at build time
-        // via test instrumentation args, or fall back to this default.
-        private const val DEFAULT_PAIR_URI = "tern://p?n=4a312aaa&t=69f5bbbf"
 
         private fun getPairUri(): String {
             return try {
                 val args = androidx.test.platform.app.InstrumentationRegistry
                     .getArguments()
                 val uri = args.getString("pairUri")
-                if (!uri.isNullOrBlank()) uri else DEFAULT_PAIR_URI
+                if (!uri.isNullOrBlank()) uri else error("pairUri instrumentation arg required")
             } catch (_: Exception) {
-                DEFAULT_PAIR_URI
+                error("pairUri instrumentation arg required — run via pairing-test-cycle.sh")
             }
+        }
+
+        private fun extractNodeFromUri(uri: String): String {
+            val parsed = Uri.parse(uri)
+            return parsed.getQueryParameter("n")
+                ?: error("pairUri missing 'n' parameter: $uri")
         }
     }
 
     @Test
     fun pilot_pairs_with_mezulla_board_via_ble() {
+        val pairUri = getPairUri()
+        val expectedNode = extractNodeFromUri(pairUri)
+
         scenario("Pilot pairs with Mezulla board via BLE") {
 
             given("Tern is running and no board is paired") {
@@ -65,8 +70,7 @@ class BlePairingTest : MapVisualTest() {
             }
 
             `when`("a tern:// deep link triggers the pairing flow") {
-                val pairUri = getPairUri()
-                android.util.Log.i("BlePairingTest", "Using pair URI: $pairUri")
+                android.util.Log.i("BlePairingTest", "Using pair URI: $pairUri (node=$expectedNode)")
                 val intent = Intent(Intent.ACTION_VIEW).apply {
                     data = Uri.parse(pairUri)
                 }
@@ -76,7 +80,6 @@ class BlePairingTest : MapVisualTest() {
             }
 
             then("the orchestrator scans, connects, and claims the board") {
-                // Wait for pairing to complete or fail
                 val startTime = System.currentTimeMillis()
                 var finalState: PairingState = PairingState.Idle
 
@@ -93,15 +96,15 @@ class BlePairingTest : MapVisualTest() {
                 assert(finalState is PairingState.Success) {
                     "Expected PairingState.Success but got: $finalState"
                 }
-                assert((finalState as PairingState.Success).nodeIdHex == EXPECTED_NODE) {
-                    "Expected node $EXPECTED_NODE but got ${finalState.nodeIdHex}"
+                assert((finalState as PairingState.Success).nodeIdHex == expectedNode) {
+                    "Expected node $expectedNode but got ${finalState.nodeIdHex}"
                 }
             }
 
             and("the board ID is persisted") {
                 val persisted = composeTestRule.activity.pairingOrchestrator.getPairedNodeId()
-                assert(persisted == EXPECTED_NODE) {
-                    "Expected persisted node $EXPECTED_NODE but got $persisted"
+                assert(persisted == expectedNode) {
+                    "Expected persisted node $expectedNode but got $persisted"
                 }
             }
 
