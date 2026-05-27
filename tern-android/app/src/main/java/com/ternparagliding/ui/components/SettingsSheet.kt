@@ -36,16 +36,11 @@ import com.ternparagliding.ui.screens.MAP_VIEW_SATELLITE
 import com.ternparagliding.ui.screens.MAP_VIEW_TERRAIN
 
 
-import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.material.icons.filled.BluetoothSearching
 import androidx.compose.material.icons.filled.LinkOff
-import androidx.compose.material3.Button
 import androidx.compose.ui.platform.testTag
-import com.journeyapps.barcodescanner.ScanContract
-import com.journeyapps.barcodescanner.ScanOptions
 import com.ternparagliding.mezulla.demo.AravisDemoReplay
 import com.ternparagliding.mezulla.pairing.PairingOrchestrator
-import com.ternparagliding.mezulla.pairing.TernPairLink
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -58,23 +53,12 @@ fun SettingsSheet(
     val state by store.state.collectAsState()
     val settingsState = state.settingsState
 
-    // QR scanner for Mezulla board pairing
-    val scanLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
-        val contents = result.contents
-        android.util.Log.i("SettingsSheet", "QR scan result: $contents")
-        if (contents != null) {
-            val link = TernPairLink.parse(contents)
-            android.util.Log.i("SettingsSheet", "Parsed link: $link")
-            if (link != null) {
-                pairingOrchestrator?.handlePairLink(link)
-            }
-        }
-    }
-
     ModalBottomSheet(onDismissRequest = onDismiss) {
         LazyColumn(modifier = Modifier.padding(horizontal = 16.dp)) {
 
-            // Mezulla section
+            // Mezulla section — shows paired board or "scan with phone camera" hint.
+            // Pairing happens via the phone's native camera scanning the board's QR,
+            // which opens Tern through the tern:// deep link. No in-app scanner needed.
             if (pairingOrchestrator != null) {
                 item {
                     val pairedNodeId = pairingOrchestrator.getPairedNodeId()
@@ -99,20 +83,12 @@ fun SettingsSheet(
                             Text("  Forget Board", fontSize = 16.sp)
                         }
                     } else {
-                        Button(
-                            onClick = {
-                                scanLauncher.launch(ScanOptions().apply {
-                                    setDesiredBarcodeFormats(ScanOptions.QR_CODE)
-                                    setPrompt("Point at the Mezulla board's QR code")
-                                    setBeepEnabled(false)
-                                    setOrientationLocked(true)
-                                })
-                            },
-                            modifier = Modifier.fillMaxWidth().height(48.dp).testTag("btn_scan_board"),
-                        ) {
-                            Icon(Icons.Filled.BluetoothSearching, contentDescription = null, modifier = Modifier.size(20.dp))
-                            Text("  Scan Board", fontSize = 16.sp)
-                        }
+                        Text(
+                            "No board paired. Point your phone camera at the Mezulla board's QR code to pair.",
+                            fontSize = 14.sp,
+                            color = Color(0xFF94A3B8),
+                            modifier = Modifier.padding(vertical = 8.dp),
+                        )
                     }
                     HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
                 }
