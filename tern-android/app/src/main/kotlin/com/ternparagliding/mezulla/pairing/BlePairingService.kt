@@ -91,33 +91,10 @@ class BlePairingService(private val context: Context) {
             return ClaimResult.ConnectionFailed(e.message ?: "Unknown error")
         }
 
-        // Step 3: Read board's long name from FromRadio (NodeInfo)
-        val meshService = gatt.getService(MESHTASTIC_SERVICE_UUID)
-        val fromRadio = meshService?.characteristics?.firstOrNull { ch ->
-            (ch.properties and android.bluetooth.BluetoothGattCharacteristic.PROPERTY_READ) != 0
-        }
-        var boardLongName: String? = null
-        if (fromRadio != null) {
-            // Drain FromRadio — the board queues NodeInfo on first connect
-            for (i in 0 until 20) {
-                val readOk = gatt.readCharacteristic(fromRadio)
-                if (!readOk) break
-                Thread.sleep(100)
-                val bytes = fromRadio.value ?: break
-                if (bytes.isEmpty()) break
-                val event = com.ternparagliding.mezulla.connection.ble.MeshPacketCodec.decodeFromRadio(bytes)
-                if (event is com.ternparagliding.mezulla.connection.MeshEvent.PeerIdentityKnown) {
-                    boardLongName = event.peer.longName
-                    Log.i(TAG, "Board long name: $boardLongName")
-                    if (boardLongName != null) break
-                }
-            }
-        }
-        val resolvedName = boardLongName ?: deviceName
-
-        // Step 4: Send claim packet
+        // Step 3: Send claim packet
         Log.i(TAG, "Sending claim packet...")
         try {
+            val meshService = gatt.getService(MESHTASTIC_SERVICE_UUID)
             val payload = MezullaPairingCodec.encodeClaimPacket(pairingToken, ownerId)
             val toRadio = meshService?.characteristics?.firstOrNull { ch ->
                 (ch.properties and android.bluetooth.BluetoothGattCharacteristic.PROPERTY_WRITE) != 0
@@ -137,25 +114,22 @@ class BlePairingService(private val context: Context) {
                 payload = payload,
             )
 
-            toRadio.value = frame
-            val writeOk = gatt.writeCharacteristic(toRadio)
-            Log.i(TAG, "Claim write result: $writeOk")
+            Log.d(TAG, "ToRadio UUID: ${toRadio.uuid}, frame size: ${frame.size} bytes")
 
-            if (!writeOk) {
+            val writeResult = writeCharacteristic(gatt, toRadio, frame)
+            Log.i(TAG, "Claim write result: $writeResult")
+
+            if (!writeResult) {
                 gatt.disconnect()
                 gatt.close()
                 return ClaimResult.ConnectionFailed("Write failed")
             }
 
-            // For now, treat successful write as claimed.
-            // Reading the response requires subscribing to FromRadio
-            // notifications and parsing the PRIVATE_APP response —
-            // that's the next step after this basic flow works.
             gatt.disconnect()
             gatt.close()
 
             Log.i(TAG, "Claim sent successfully")
-            return ClaimResult.Success(device.address, resolvedName)
+            return ClaimResult.Success(device.address, deviceName)
 
         } catch (e: Exception) {
             Log.e(TAG, "Claim failed", e)
@@ -242,6 +216,24 @@ class BlePairingService(private val context: Context) {
 
         return withTimeout(CONNECT_TIMEOUT_MS) {
             deferred.await()
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun writeCharacteristic(
+        gatt: BluetoothGatt,
+        characteristic: BluetoothGattCharacteristic,
+        value: ByteArray,
+    ): Boolean {
+        return if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            val result = gatt.writeCharacteristic(
+                characteristic, value, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+            )
+            result == BluetoothGatt.GATT_SUCCESS
+        } else {
+            characteristic.value = value
+            characteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+            gatt.writeCharacteristic(characteristic)
         }
     }
 }
