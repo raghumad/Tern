@@ -34,32 +34,23 @@ meshtastic --port "$SERIAL_PORT" --reboot 2>&1 | grep -v '^$'
 
 # Step 2: Capture token from boot log
 echo "[2/4] Capturing token from boot log..."
-sleep 11  # wait for meshtastic CLI to release port + board to reboot
+sleep 10  # wait for meshtastic CLI to release port
 
-TOKEN=""
-TIMEOUT=15
-START=$(date +%s)
-while [ -z "$TOKEN" ] && [ $(( $(date +%s) - START )) -lt $TIMEOUT ]; do
-    LINE=$(timeout 1 head -c 500 "$SERIAL_PORT" 2>/dev/null | tr -d '\0' | grep -o 'token=[a-f0-9]*' | head -1 || true)
-    if [ -n "$LINE" ]; then
-        TOKEN="${LINE#token=}"
-    fi
-done
-
-if [ -z "$TOKEN" ]; then
-    # Fallback: try Python serial reader
-    TOKEN=$(python3 -c "
+TOKEN=$(python3 << 'PYEOF'
 import serial, time, re
-ser = serial.Serial('$SERIAL_PORT', 115200, timeout=1)
+ser = serial.Serial('/dev/ttyACM0', 115200, timeout=1)
 start = time.time()
-while time.time() - start < 10:
-    line = ser.readline().decode('utf-8', errors='replace')
-    m = re.search(r'token=([a-f0-9]+)', line)
-    if m:
-        print(m.group(1))
-        break
-" 2>/dev/null || true)
-fi
+while time.time() - start < 20:
+    try:
+        line = ser.readline().decode('utf-8', errors='replace')
+        m = re.search(r'token=([a-f0-9]{4,})', line)
+        if m:
+            print(m.group(1))
+            break
+    except:
+        pass
+PYEOF
+)
 
 if [ -z "$TOKEN" ]; then
     echo "ERROR: Could not capture token. Board may have booted too fast."
