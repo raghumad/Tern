@@ -159,9 +159,12 @@ class BlePairingService(private val context: Context) {
                 // Match Meshtastic devices by service UUID in the advertisement
                 // or by device name prefix (Meshtastic boards advertise as "Meshtastic XXXX")
                 val serviceUuids = result.scanRecord?.serviceUuids ?: emptyList()
+                // Meshtastic boards advertise with service UUID and/or a
+                // device name of format "{shortName}_{lastMacBytes}" e.g. "007_6184"
                 val isMeshtastic = serviceUuids.any { it.uuid == MESHTASTIC_SERVICE_UUID }
                         || name.startsWith("Meshtastic", ignoreCase = true)
                         || name.startsWith("Mezulla", ignoreCase = true)
+                        || name.matches(Regex("^\\w+_[0-9a-fA-F]{4}$"))
 
                 if (isMeshtastic && !deferred.isCompleted) {
                     Log.i(TAG, "Found Meshtastic device: $name ($addr)")
