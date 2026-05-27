@@ -3,22 +3,14 @@ package com.ternparagliding.mezulla.pairing
 import android.content.Context
 import android.content.Intent
 import android.util.Log
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 import java.util.UUID
 
-/**
- * Coordinates the QR pairing flow: deep link → BLE scan → connect →
- * claim → persist.
- *
- * Lifecycle: created when a `tern://` deep link arrives, runs the
- * flow, then reports the result. The activity observes [state] and
- * shows appropriate UI (progress, success, error).
- *
- * This class does NOT own the BLE connection lifecycle — it uses
- * [BleConnection] transiently for the claim handshake, then hands
- * off to the normal always-on connection manager.
- */
 class PairingOrchestrator(private val context: Context) {
 
     companion object {
@@ -31,10 +23,9 @@ class PairingOrchestrator(private val context: Context) {
     private val _state = MutableStateFlow<PairingState>(PairingState.Idle)
     val state: StateFlow<PairingState> = _state
 
-    /**
-     * Handle an incoming deep link intent. Returns true if the intent
-     * was a valid `tern://` pairing link, false otherwise.
-     */
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val blePairingService = BlePairingService(context)
+
     fun handleIntent(intent: Intent): Boolean {
         val uri = intent.data?.toString() ?: return false
         val link = TernPairLink.parse(uri) ?: return false
@@ -42,41 +33,70 @@ class PairingOrchestrator(private val context: Context) {
         return true
     }
 
-    /**
-     * Start the pairing flow from a parsed link. Called from either
-     * the deep link intent handler or the in-app QR scanner.
-     */
     fun handlePairLink(link: TernPairLink) {
         Log.i(TAG, "Pairing link received: node=${link.nodeIdHex}")
         _state.value = PairingState.Received(link)
 
-        // TODO: next steps (BLE scan → connect → claim) will be
-        // implemented when we're ready for the human test. For now,
-        // receiving and parsing the link is the milestone.
+        scope.launch {
+            executePairing(link)
+        }
     }
 
-    /**
-     * Get the persisted paired board's node ID, or null if unpaired.
-     */
+    private suspend fun executePairing(link: TernPairLink) {
+        _state.value = PairingState.Scanning(link.nodeIdHex)
+        Log.i(TAG, "Scanning for board ${link.nodeIdHex}...")
+
+        val ownerId = getOwnerId()
+        val result = blePairingService.claimBoard(
+            pairingToken = link.pairingToken,
+            ownerId = ownerId,
+        )
+
+        when (result) {
+            is ClaimResult.Success -> {
+                persistPairing(link.nodeIdHex)
+                _state.value = PairingState.Success(link.nodeIdHex)
+                Log.i(TAG, "Pairing successful: node=${link.nodeIdHex} device=${result.deviceAddress}")
+            }
+            is ClaimResult.BoardNotFound -> {
+                _state.value = PairingState.Failed("Board not found. Make sure it's powered on and nearby.")
+                Log.w(TAG, "Board not found")
+            }
+            is ClaimResult.BluetoothUnavailable -> {
+                _state.value = PairingState.Failed("Bluetooth not available on this device.")
+                Log.w(TAG, "Bluetooth unavailable")
+            }
+            is ClaimResult.BluetoothDisabled -> {
+                _state.value = PairingState.Failed("Please enable Bluetooth.")
+                Log.w(TAG, "Bluetooth disabled")
+            }
+            is ClaimResult.ConnectionFailed -> {
+                _state.value = PairingState.Failed("Connection failed: ${result.reason}")
+                Log.w(TAG, "Connection failed: ${result.reason}")
+            }
+            is ClaimResult.ClaimRejected -> {
+                val msg = when (result.status) {
+                    PairingStatus.TOKEN_MISMATCH -> "Pairing failed — try scanning again."
+                    PairingStatus.ALREADY_CLAIMED -> "Board is already paired. Reset the board to re-pair."
+                    else -> "Pairing rejected."
+                }
+                _state.value = PairingState.Failed(msg)
+                Log.w(TAG, "Claim rejected: ${result.status}")
+            }
+        }
+    }
+
     fun getPairedNodeId(): String? {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         return prefs.getString(KEY_PAIRED_NODE_ID, null)
     }
 
-    /**
-     * Persist the paired board's node ID after a successful claim.
-     */
     fun persistPairing(nodeIdHex: String) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit()
-            .putString(KEY_PAIRED_NODE_ID, nodeIdHex)
-            .apply()
+        prefs.edit().putString(KEY_PAIRED_NODE_ID, nodeIdHex).apply()
         Log.i(TAG, "Pairing persisted: node=$nodeIdHex")
     }
 
-    /**
-     * Clear the persisted pairing (forget board).
-     */
     fun forgetBoard() {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().remove(KEY_PAIRED_NODE_ID).apply()
@@ -84,10 +104,6 @@ class PairingOrchestrator(private val context: Context) {
         Log.i(TAG, "Board forgotten")
     }
 
-    /**
-     * Get or create a stable owner ID for this phone. Generated once
-     * on first pairing attempt and persisted forever.
-     */
     fun getOwnerId(): String {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         var id = prefs.getString(KEY_OWNER_ID, null)
