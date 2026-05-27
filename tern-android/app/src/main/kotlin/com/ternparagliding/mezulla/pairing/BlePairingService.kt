@@ -36,7 +36,7 @@ class BlePairingService(private val context: Context) {
 
     companion object {
         private const val TAG = "BlePairingService"
-        private const val SCAN_TIMEOUT_MS = 15_000L
+        private const val SCAN_TIMEOUT_MS = 30_000L
         private const val CONNECT_TIMEOUT_MS = 10_000L
         private const val CLAIM_TIMEOUT_MS = 5_000L
         private val MESHTASTIC_SERVICE_UUID = UUID.fromString("6ba1b218-15a8-461f-9fa8-5dcae273eafd")
@@ -176,20 +176,26 @@ class BlePairingService(private val context: Context) {
             }
         }
 
-        // Try with service UUID filter first (most reliable), fall back
-        // to unfiltered scan if no results after 5 seconds.
-        val filter = ScanFilter.Builder()
-            .setServiceUuid(ParcelUuid(MESHTASTIC_SERVICE_UUID))
-            .build()
+        // Unfiltered scan — MediaTek BLE stacks sometimes ignore service
+        // UUID filters even when the board advertises them. We match by
+        // service UUID in the callback instead.
+        val filter = ScanFilter.Builder().build()
         val settings = ScanSettings.Builder()
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+            .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
             .build()
 
-        Log.d(TAG, "Starting filtered scan for service UUID $MESHTASTIC_SERVICE_UUID")
+        Log.d(TAG, "Starting BLE scan with empty filter + ALL_MATCHES callback")
         scanner.startScan(listOf(filter), settings, callback)
 
-        return withTimeout(SCAN_TIMEOUT_MS) {
-            deferred.await()
+        try {
+            return withTimeout(SCAN_TIMEOUT_MS) {
+                deferred.await()
+            }
+        } catch (e: TimeoutCancellationException) {
+            scanner.stopScan(callback)
+            Log.w(TAG, "Scan timed out, scanner stopped")
+            throw e
         }
     }
 
