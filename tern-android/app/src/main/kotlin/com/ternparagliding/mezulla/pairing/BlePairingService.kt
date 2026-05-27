@@ -55,6 +55,17 @@ class BlePairingService(private val context: Context) {
 
         if (!adapter.isEnabled) return ClaimResult.BluetoothDisabled
 
+        // Check BLE permissions at runtime (Android 12+)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            val scanPerm = context.checkSelfPermission(android.Manifest.permission.BLUETOOTH_SCAN)
+            val connectPerm = context.checkSelfPermission(android.Manifest.permission.BLUETOOTH_CONNECT)
+            if (scanPerm != android.content.pm.PackageManager.PERMISSION_GRANTED ||
+                connectPerm != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                Log.w(TAG, "Missing BLE permissions (BLUETOOTH_SCAN or BLUETOOTH_CONNECT)")
+                return ClaimResult.BluetoothUnavailable
+            }
+        }
+
         // Step 1: Scan for Meshtastic devices
         Log.i(TAG, "Scanning for Meshtastic devices...")
         val device = try {
