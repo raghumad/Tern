@@ -115,11 +115,12 @@ class BlePairingService(private val context: Context) {
             val frame = MezullaPairingCodec.encodeToRadioPrivateApp(
                 fromNodeNumber = 0L,
                 toNodeNumber = boardNodeNumber,
-                packetId = 1,
+                packetId = (System.nanoTime() and 0x7FFFFFFF).toInt().coerceAtLeast(1),
                 payload = payload,
             )
 
-            Log.d(TAG, "ToRadio UUID: ${toRadio.uuid}, frame size: ${frame.size} bytes")
+            Log.i(TAG, "ToRadio UUID: ${toRadio.uuid}, frame size: ${frame.size} bytes")
+            Log.i(TAG, "Frame hex: ${frame.joinToString(" ") { "%02x".format(it) }}")
 
             val writeResult = writeCharacteristic(gatt, toRadio, frame)
             Log.i(TAG, "Claim write result: $writeResult")
