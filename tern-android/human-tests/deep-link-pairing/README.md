@@ -52,3 +52,25 @@ Tern build:
 ### Outcome: (PASS / FAIL / PARTIAL)
 
 Notes:
+
+## Results — 2026-05-26
+
+Date: 2026-05-26
+Phone model: (58051FDCH001PA)
+Board firmware: Mezulla (fixed QR library)
+Tern build: fix-tests-and-scrub @ 6e89483
+
+### Outcome: PARTIAL PASS (steps 1-4)
+
+- [x] Camera recognizes the QR as a `tern://` URL
+- [x] Tapping the link opens Tern (not a browser)
+- [x] Logcat: `PairingOrchestrator: Pairing link received: node=4a312aaa`
+- [x] Logcat: `TernParaglidingActivity: Deep link handled by pairing orchestrator`
+- [x] Settings shows "No board paired" (correct — BLE claim not wired yet)
+- [ ] BLE connect — not implemented
+- [ ] Claim packet — not implemented
+- [ ] Board responds OK — not implemented
+- [ ] Persist pairing — not implemented
+- [ ] Board OLED changes — not tested
+
+Steps 5-7 blocked on BLE claim wiring.
