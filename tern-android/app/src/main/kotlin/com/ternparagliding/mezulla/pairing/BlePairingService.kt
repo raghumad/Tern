@@ -49,6 +49,7 @@ class BlePairingService(private val context: Context) {
     suspend fun claimBoard(
         pairingToken: String,
         ownerId: String,
+        boardNodeNumber: Long,
     ): ClaimResult {
         val adapter = (context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)
             ?.adapter ?: return ClaimResult.BluetoothUnavailable
@@ -130,8 +131,8 @@ class BlePairingService(private val context: Context) {
 
             // Write the claim as a raw ToRadio frame on PRIVATE_APP
             val frame = MezullaPairingCodec.encodeToRadioPrivateApp(
-                fromNodeNumber = 0L, // We don't know our node number yet
-                toNodeNumber = 0xFFFFFFFFL, // Broadcast — the board checks the token
+                fromNodeNumber = 0L,
+                toNodeNumber = boardNodeNumber,
                 packetId = 1,
                 payload = payload,
             )

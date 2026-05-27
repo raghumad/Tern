@@ -51,6 +51,7 @@ class PairingOrchestrator(private val context: Context) {
         val result = blePairingService.claimBoard(
             pairingToken = link.pairingToken,
             ownerId = ownerId,
+            boardNodeNumber = link.nodeNumber,
         )
 
         when (result) {
