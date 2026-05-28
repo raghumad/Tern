@@ -246,6 +246,18 @@ class MezullaConnectionManager(
     }
 
     /**
+     * The currently active BLE connection, if any. Exposed so on-device
+     * test harnesses (notably the Aravis replay) can pump synthetic
+     * Position frames through the live link via
+     * [com.ternparagliding.sim.replay.AravisReplayRunner].
+     *
+     * Returns null when no board is paired (or the connection has been
+     * torn down). Callers must tolerate that — production UX paths should
+     * not depend on this; they go through Redux peerState the normal way.
+     */
+    fun activeBleConnection(): BleConnection? = activeConnection
+
+    /**
      * Stop the active connection and middleware. Safe to call when nothing
      * is running.
      */

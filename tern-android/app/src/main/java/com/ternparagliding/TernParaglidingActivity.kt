@@ -34,7 +34,14 @@ class TernParaglidingActivity : ComponentActivity() {
         PairingOrchestrator(applicationContext)
     }
 
-    private val connectionManager: MezullaConnectionManager by lazy {
+    /**
+     * Persistent BLE connection manager. Public for on-device test
+     * harnesses (Aravis replay) that need to reach the live
+     * [com.ternparagliding.mezulla.connection.ble.BleConnection] to pump
+     * synthetic Position frames through it. Production UX paths must not
+     * touch this directly — they go through Redux peerState.
+     */
+    val connectionManager: MezullaConnectionManager by lazy {
         MezullaConnectionManager(applicationContext, pairingOrchestrator)
     }
 
