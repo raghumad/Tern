@@ -1,6 +1,6 @@
 # QR pairing — app-side handoff from firmware
 
-Status: ready for app work
+Status: COMPLETE (2026-05-27) — both firmware and app verified end-to-end
 Relates to: Epic 01 WS5 Phase 2 (stories 5.2.4–5.2.6)
 
 ## What the firmware already does
@@ -197,19 +197,19 @@ scenario: settings screen shows paired board
 
 | Item | Status | Evidence |
 |---|---|---|
-| QR on OLED | Done | Visible on real board, scannable |
+| QR on OLED | Done | Visible on real board, scannable, decoded programmatically |
 | Ownership in flash | Done | Persists across reboots |
-| Claim handler | Done, untested end-to-end | Needs app-side claim packet to verify |
-| Ownership query | Done, untested end-to-end | Needs app-side query to verify |
-| Board reset (long-press) | Not yet implemented | F2.4 still pending on firmware side |
+| Claim handler | Done, verified end-to-end (2026-05-27) | Phone claims board, ownership persists across reboot |
+| Ownership query | Done, verified (2026-05-27) | Also triggers on-demand OLED screen dump |
+| Release (phone-initiated) | Done, untested end-to-end | Command 0x03, owner must authenticate |
+| BLE mode transitions | Done (2026-05-27) | NO_PIN unclaimed → FIXED_PIN claimed → NO_PIN released |
+| OLED screen dump | Done (2026-05-27) | SSD1306 buffer → serial hex → PIL → pyzbar QR decode |
+| Physical button reset | Deferred to v2 | LilyGo T3 V1.6.1 has no user button |
 
 ## What blocks this
 
-- Nothing on the firmware side blocks app work. The board is
-  running and showing the QR.
-- The `tern://` deep link registration is the critical first step —
-  without it, scanning the QR does nothing (which is the current
-  state).
+- Nothing. Both firmware and app sides are complete for the claim
+  flow. Release (unpair) needs app-side implementation.
 - `BleConnection` already exists in the codebase and handles
   Meshtastic packet exchange. The claim packet is just a new
   payload on `PRIVATE_APP` through the same connection.

@@ -45,7 +45,13 @@ features. The LilyGo board is an addition, not a requirement.
 ## Stories
 
 ### Story 1.1: Phone discovers and pairs with a LilyGo board
-Status: in-progress (deep link + wire contract done, orchestrator next)
+Status: done (2026-05-27, verified end-to-end on real hardware)
+
+Current state: QR pairing works. Phone camera → tern:// deep link →
+BLE scan → GATT connect → MTU 517 → claim on PRIVATE_APP (port 256) →
+ownership persisted → BLE mode switches to FIXED_PIN. Automated test
+decodes the QR from the board's OLED screen dump. Remaining: auto-
+reconnect lifecycle (board disconnect/reconnect mid-flight).
 
 The phone app can detect a nearby LilyGo board, pair with it, and persist
 the pairing across app restarts. If the board disconnects, the app keeps
