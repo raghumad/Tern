@@ -76,10 +76,16 @@ of focus changes lives in git log.
 
 ## Index
 
-- [Current focus](current-focus.md) — converge on passing a multi-pilot
-  flight-simulation BDD test (the "buddy-flying" test). Four parallel
-  workstreams; one north-star scenario.
+- [Current focus](current-focus.md) — the Aravis replay: 4-pilot XC
+  replayed at 64x through real hardware, producing a side-by-side video
+  of the phone map and board OLED.
 - [Epic 01](epic-01-peer-awareness-and-sos.md) — Pilots in the same area
   see each other and signal for help without cell service. (End goal.)
+- [Epic 02](epic-02-traffic-awareness.md) — Pilots see nearby aircraft
+  and are seen by them. FANET/FLARM/ADS-L. (After Epic 01.)
+- [QR pairing reference](ws-qr-pairing-app-handoff.md) — how pairing
+  works, BLE sequence, wire protocol, what's implemented.
+- [Overlay audit](overlay-infrastructure-audit.md) — reactive rendering
+  fix (S1) to prevent OOM on long flights.
 - [Known issues](known-issues.md) — snapshot of regressions parked while
   focus is on LoRa. Not a to-do for now; revisit when focus shifts.

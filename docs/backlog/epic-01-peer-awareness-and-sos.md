@@ -53,14 +53,17 @@ ownership persisted → BLE mode switches to FIXED_PIN. Automated test
 decodes the QR from the board's OLED screen dump. Remaining: auto-
 reconnect lifecycle (board disconnect/reconnect mid-flight).
 
-The phone app can detect a nearby LilyGo board, pair with it, and persist
-the pairing across app restarts. If the board disconnects, the app keeps
-working and quietly tries to reconnect in the background.
+What shipped:
+- QR scan with phone camera opens Tern, claims board over BLE.
+- Pairing persists across app and board reboots.
+- Settings shows paired board name + "Forget Board" button.
+- Automated test decodes QR from OLED screen dump — no human needed.
+- BLE mode: NO_PIN when unclaimed, FIXED_PIN when claimed.
 
-What done looks like:
-- Pairing flow is reachable from settings and works on a real device.
-- Pairing survives an app restart.
-- Disconnect doesn't break or block any other part of the app.
+Remaining:
+- Auto-reconnect when board drops and reappears mid-flight.
+- Release packet (app "Forget Board" clears local state but doesn't
+  tell the board yet).
 
 ### Story 1.2: My position is broadcast over LoRa when a board is paired
 Status: todo — blocked on persistent BLE connection
@@ -101,16 +104,12 @@ What done looks like:
 - Stale ageing is visible at a glance.
 - More than one peer at a time works.
 
-Current state (2026-05-26): Peer markers render as composite bitmap
-GeoJSON features on the single compose MaplibreMap via `PeerLayer.kt`.
-Layout: callsign pill above, colored circle with Nerd Font glyph,
-metric pills flanking (age/altitude/climb/speed depending on view mode),
-warning pill below for stale/lost peers. Staleness drives circle color
-(green→yellow→orange→gray). Three view modes (safety/climb/tactical).
-BDD convergence test passes with 4-pilot Aravis XC flight simulation.
-Two-map bug fixed — everything renders on one MapView now.
-Opacity pulsing was on the deleted NativeMapView, needs porting to
-the compose PeerLayer. NOT verified on a real device yet.
+What exists (2026-05-27): Peer markers render as composite bitmap
+GeoJSON on a single MaplibreMap via `PeerLayer.kt`. Staleness drives
+color (green→yellow→orange→gray). Three view modes. BDD convergence
+test passes with 4-pilot Aravis XC simulation. Not verified on real
+hardware — the Aravis replay milestone (see current-focus.md) is the
+test that closes this story.
 
 ### Story 1.4: One-button SOS, broadcast and receive
 Status: todo
