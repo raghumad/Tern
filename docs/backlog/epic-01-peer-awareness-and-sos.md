@@ -63,7 +63,16 @@ What done looks like:
 - Disconnect doesn't break or block any other part of the app.
 
 ### Story 1.2: My position is broadcast over LoRa when a board is paired
-Status: todo
+Status: todo — blocked on persistent BLE connection
+
+Requires three pieces that don't exist yet:
+1. Persistent BLE connection (keep GATT open after pairing)
+2. ToRadio/FromRadio codec (Meshtastic protobuf encode/decode in Kotlin)
+3. GPS → Position protobuf → ToRadio write to board
+
+No custom packet format needed — Meshtastic's POSITION_APP (portnum 3)
+already defines lat/lon/alt/time. The board handles LoRa broadcast
+automatically once it receives the position via BLE.
 
 When a board is paired, Tern sends the pilot's GPS position to the board,
 which transmits it over LoRa at a sane cadence. When no board is paired,
@@ -75,7 +84,13 @@ What done looks like:
 - The board doesn't crash or drain battery unreasonably when the phone is briefly idle.
 
 ### Story 1.3: Other pilots' positions appear on my map
-Status: in-progress (emulator-verified, pending human test)
+Status: in-progress (emulator-verified, pending human test + real BLE path)
+
+Rendering works in the emulator via SwarmSimulatedConnection. But the
+simulator bypasses the wire protocol — it pushes PeerState directly
+into Redux without encoding/decoding Meshtastic protobufs. For this
+story to be truly done, peer positions must flow through the real path:
+FromRadio BLE read → decode Position protobuf → PeerState → Redux → map.
 
 When another Tern pilot in LoRa range is broadcasting, their position
 appears on my map. Each peer shows a "last seen Xs ago" indicator. Stale
