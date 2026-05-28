@@ -153,11 +153,46 @@ trap - EXIT INT TERM
 # (See VideoHelper.kt — recordings land in /sdcard/tern-tests/<testName>.mp4)
 # -----------------------------------------------------------------------------
 
-echo "[3/3] Pulling screen recording from phone..."
-PHONE_VIDEO_NAME="aravis_team_xc_replay_golden_path_15km_range.mp4"
-adb -s "$DEVICE" pull "/sdcard/tern-tests/${PHONE_VIDEO_NAME}" \
-    "$OUT_DIR/phone-screen.mp4" 2>/dev/null \
-    || echo "WARN: no screen recording found at /sdcard/tern-tests/${PHONE_VIDEO_NAME}" >&2
+echo "[3/3] Pulling screen recording / frames from phone..."
+TEST_NAME="aravis_team_xc_replay_golden_path_15km_range"
+
+# Try the screenrecord .mp4 first; if missing, pull the FrameCaptureHelper
+# fallback PNGs and ffmpeg them into a phone-screen.mp4. AOSP-based phones
+# often refuse screenrecord and silently fall back.
+if adb -s "$DEVICE" pull "/sdcard/tern-tests/${TEST_NAME}.mp4" \
+        "$OUT_DIR/phone-screen.mp4" 2>/dev/null; then
+    echo "    Pulled screenrecord .mp4"
+elif adb -s "$DEVICE" shell "ls /sdcard/Android/data/com.ternparagliding/files/tern-tests/${TEST_NAME}-frames/" >/dev/null 2>&1; then
+    FRAMES_DIR="$OUT_DIR/phone-frames"
+    mkdir -p "$FRAMES_DIR"
+    # Use '/.' to copy contents only (not the source dir itself)
+    adb -s "$DEVICE" pull "/sdcard/Android/data/com.ternparagliding/files/tern-tests/${TEST_NAME}-frames/." "$FRAMES_DIR/" 2>&1 | tail -1
+    FRAME_COUNT=$(find "$FRAMES_DIR" -name '*.png' 2>/dev/null | wc -l)
+    echo "    Pulled $FRAME_COUNT frames"
+    if [ "$FRAME_COUNT" -gt 0 ]; then
+        echo "    Stitching frames into phone-screen.mp4 (2 fps)..."
+        # Glob recursively for frames anywhere under FRAMES_DIR.
+        # Use sort to ensure chronological order (filenames have unix_ms suffix).
+        FRAME_LIST="$OUT_DIR/phone-frames.list"
+        find "$FRAMES_DIR" -name '*.png' | sort > "$FRAME_LIST"
+        # Build an ffconcat file: each frame held for 0.5s (2fps)
+        CONCAT_FILE="$OUT_DIR/phone-frames.ffconcat"
+        echo "ffconcat version 1.0" > "$CONCAT_FILE"
+        while IFS= read -r f; do
+            echo "file '$f'" >> "$CONCAT_FILE"
+            echo "duration 0.5" >> "$CONCAT_FILE"
+        done < "$FRAME_LIST"
+        # Repeat the last file (ffconcat quirk — last duration is ignored)
+        tail -1 "$FRAME_LIST" | sed "s/^/file '/" | sed "s/$/'/" >> "$CONCAT_FILE"
+        ffmpeg -y -f concat -safe 0 -i "$CONCAT_FILE" \
+               -c:v libx264 -pix_fmt yuv420p -movflags +faststart -vf "fps=2" \
+               "$OUT_DIR/phone-screen.mp4" >"$OUT_DIR/ffmpeg.log" 2>&1 \
+            && echo "    Phone video: OK ($(du -h "$OUT_DIR/phone-screen.mp4" | cut -f1))" \
+            || { echo "    WARN: ffmpeg failed — see $OUT_DIR/ffmpeg.log" >&2; tail -5 "$OUT_DIR/ffmpeg.log" >&2; }
+    fi
+else
+    echo "WARN: no screen recording OR fallback frames found on phone" >&2
+fi
 
 # -----------------------------------------------------------------------------
 # Drop a meta file so downstream tools (compose-replay-video.py) know what
