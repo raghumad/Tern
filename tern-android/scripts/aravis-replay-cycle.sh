@@ -102,8 +102,8 @@ if [ "$SKIP_OLED" -eq 0 ]; then
         while true; do
             TS_MS=$(date +%s%3N)
             OUT="$OLED_DIR/oled_${TS_MS}.png"
-            # screendump.sh uses positional args: PORT [unused] FILE
-            bash "$SCREENDUMP" "$SERIAL_PORT" --save "$OUT" >/dev/null 2>&1 || true
+            # screendump.sh args: PORT SAVE_PATH
+            bash "$SCREENDUMP" "$SERIAL_PORT" "$OUT" >/dev/null 2>&1 || true
             sleep "$OLED_INTERVAL_SECONDS"
         done
     ) &
@@ -181,7 +181,7 @@ if [ -f "$COMPOSE_VIDEO" ] && [ -f "$OUT_DIR/phone-screen.mp4" ]; then
     if [ "$OLED_COUNT" -gt 0 ]; then
         echo "[+] Composing side-by-side video ($OLED_COUNT OLED frames)..."
         python3 "$COMPOSE_VIDEO" \
-            --phone "$OUT_DIR/phone-screen.mp4" \
+            --phone-video "$OUT_DIR/phone-screen.mp4" \
             --oled-dir "$OLED_DIR" \
             --virtual-start "$VIRTUAL_START" \
             --speed-multiplier "$SPEED_MULTIPLIER" \
