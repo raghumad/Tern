@@ -90,6 +90,8 @@ sleep 1
 
 adb -s "$DEVICE" shell "am force-stop com.ternparagliding" 2>/dev/null || true
 adb -s "$DEVICE" logcat -c 2>/dev/null || true
+# Wipe stale frame dirs from previous runs so wall-clock-start is honest.
+adb -s "$DEVICE" shell "rm -rf /sdcard/Android/data/com.ternparagliding/files/tern-tests/*-frames" 2>/dev/null || true
 sleep 2
 
 # -----------------------------------------------------------------------------
@@ -224,13 +226,23 @@ EOF
 if [ -f "$COMPOSE_VIDEO" ] && [ -f "$OUT_DIR/phone-screen.mp4" ]; then
     OLED_COUNT=$(find "$OLED_DIR" -name 'oled_*.png' 2>/dev/null | wc -l)
     if [ "$OLED_COUNT" -gt 0 ]; then
-        echo "[+] Composing side-by-side video ($OLED_COUNT OLED frames)..."
+        # The stitched phone-screen.mp4 has no creation_time metadata
+        # because we built it from PNGs. Compute the wall-clock-start
+        # from the earliest pulled phone frame so OLED frames align.
+        FRAMES_DIR="${FRAMES_DIR:-$OUT_DIR/phone-frames}"
+        WALL_CLOCK_START=$(find "$FRAMES_DIR" -name '*.png' 2>/dev/null \
+            | xargs -I{} basename {} \
+            | grep -oE '[0-9]{13}' \
+            | sort -n | head -1)
+        echo "[+] Composing side-by-side video ($OLED_COUNT OLED frames, wall-clock-start=${WALL_CLOCK_START})..."
         python3 "$COMPOSE_VIDEO" \
             --phone-video "$OUT_DIR/phone-screen.mp4" \
             --oled-dir "$OLED_DIR" \
             --virtual-start "$VIRTUAL_START" \
             --speed-multiplier "$SPEED_MULTIPLIER" \
+            --wall-clock-start "$WALL_CLOCK_START" \
             --output "$OUT_DIR/composite.mp4" \
+            --scenario "Aravis team XC — golden path (50 km LoRa)" \
             2>&1 | sed 's/^/    /' \
             || echo "WARN: compose-replay-video.py failed" >&2
     else
