@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.rule.GrantPermissionRule
+import com.ternparagliding.mezulla.connection.LinkState
 import com.ternparagliding.mezulla.connection.ble.BleConnection
 import com.ternparagliding.mezulla.redux.PeerState
 import com.ternparagliding.redux.MapStore
@@ -93,6 +94,10 @@ class AravisReplayTest : MapVisualTest() {
          */
         private const val PEER_DISCOVERY_TIMEOUT_MS = 60_000L
 
+        // Cold reconnect after force-stop takes 30-60s based on observation.
+        // Give 120s margin to avoid flakiness without hanging forever.
+        private const val LINK_UP_TIMEOUT_MS = 120_000L
+
         /** Peer node numbers — arbitrary unique 32-bit values for the loopback. */
         private val PEER_NODE_NUMBERS: Map<PilotId, Long> = mapOf(
             AravisTeam2026.CBE to 0x10000001L,
@@ -163,6 +168,23 @@ class AravisReplayTest : MapVisualTest() {
                     )
                 connection = live
                 Log.i(TAG, "Live BLE connection found (linkState=${connection.linkState})")
+
+                // Wait for linkState=UP before starting the runner — otherwise
+                // VirtualPeerInjector's writeToRadio calls silently drop. Cold
+                // reconnect after force-stop has been observed to take 30-60s.
+                val linkUpDeadline = System.currentTimeMillis() + LINK_UP_TIMEOUT_MS
+                while (connection.linkState != LinkState.UP &&
+                       System.currentTimeMillis() < linkUpDeadline) {
+                    Thread.sleep(500)
+                }
+                if (connection.linkState != LinkState.UP) {
+                    error(
+                        "BLE link did not reach UP within ${LINK_UP_TIMEOUT_MS}ms " +
+                            "(currently ${connection.linkState}). Check that the " +
+                            "board is powered on and within range."
+                    )
+                }
+                Log.i(TAG, "BLE link is UP, proceeding with replay")
             }
 
             and("the Aravis IGC bundle (tonio24, cbe, cor, lma) is loaded") {

@@ -126,13 +126,23 @@ trap cleanup EXIT INT TERM
 # -----------------------------------------------------------------------------
 
 echo "[2/3] Running AravisReplayTest (this drives the runner + records screen)..."
+TEST_LOG="$OUT_DIR/instrumentation.log"
 set +e
 adb -s "$DEVICE" shell "am instrument -w \
     -e class com.ternparagliding.test.AravisReplayTest \
     -e speedMultiplier '$SPEED_MULTIPLIER' \
-    com.ternparagliding.test/androidx.test.runner.AndroidJUnitRunner"
-TEST_EXIT=$?
+    com.ternparagliding.test/androidx.test.runner.AndroidJUnitRunner" 2>&1 | tee "$TEST_LOG"
+INSTRUMENT_EXIT=$?
 set -e
+
+# am instrument exits 0 even when tests fail. Parse the output for the real verdict.
+if grep -qE 'FAILURES!!!|Tests run: [0-9]+,  Failures: [1-9]' "$TEST_LOG"; then
+    TEST_EXIT=1
+elif grep -qE 'OK \([0-9]+ tests?\)' "$TEST_LOG"; then
+    TEST_EXIT=0
+else
+    TEST_EXIT=$INSTRUMENT_EXIT
+fi
 
 # Stop OLED loop before pulling
 cleanup
