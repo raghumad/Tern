@@ -161,6 +161,31 @@ class BleConnection internal constructor(
         runCatching { transport.writeToRadio(bytes) }
     }
 
+    /**
+     * Write a pre-encoded `ToRadio` frame straight to the transport, with
+     * none of the bookkeeping `sendOwnPosition` / `sendAlert` apply (no
+     * packet-id allocation, no link-state gate, no retry, no encoding).
+     *
+     * This is a test/sim back door for the
+     * [com.ternparagliding.sim.injector.VirtualPeerInjector] loopback
+     * trick: the injector pre-builds Position frames with `from = peer
+     * node number`, hands them here, the board accepts them on the BLE
+     * write characteristic, decides they look like packets it just heard
+     * over the air (because that's what `from` says), and reflects them
+     * back to us on the FromRadio stream as `PeerPositionUpdate`s.
+     *
+     * Named bluntly so an unsuspecting caller has to opt into the bypass.
+     * Production code (UI, redux, alert path) must continue to use
+     * [sendOwnPosition] / [sendAlert]; calling this from production would
+     * mean an outbound packet had no `id` allocated and would skip the
+     * link-state check.
+     *
+     * Returns whatever [BleTransport.writeToRadio] returned. Caller decides
+     * what to do on `false` (typically: drop the tick — the link is down).
+     */
+    internal suspend fun injectRawToRadio(toRadioBytes: ByteArray): Boolean =
+        runCatching { transport.writeToRadio(toRadioBytes) }.getOrDefault(false)
+
     override suspend fun sendAlert(
         lastKnownPosition: PeerPosition.Fix?,
         maxRetries: Int,
