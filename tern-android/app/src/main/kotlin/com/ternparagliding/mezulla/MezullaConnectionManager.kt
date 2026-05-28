@@ -184,6 +184,7 @@ class MezullaConnectionManager(
             scope = scope,
             pairedBoardId = nodeIdHex,
         )
+        Log.i(TAG, "Constructed BleConnection@${System.identityHashCode(connection)} for $macAddress")
 
         val middleware = PeerMiddleware(
             connection = connection,
@@ -255,7 +256,11 @@ class MezullaConnectionManager(
      * torn down). Callers must tolerate that — production UX paths should
      * not depend on this; they go through Redux peerState the normal way.
      */
-    fun activeBleConnection(): BleConnection? = activeConnection
+    fun activeBleConnection(): BleConnection? {
+        val c = activeConnection
+        Log.i(TAG, "activeBleConnection() returning ${c?.let { "BleConnection@${System.identityHashCode(it)}" } ?: "null"}")
+        return c
+    }
 
     /**
      * Stop the active connection and middleware. Safe to call when nothing

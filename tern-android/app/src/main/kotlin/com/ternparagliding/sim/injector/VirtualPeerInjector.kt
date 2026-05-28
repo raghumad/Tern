@@ -1,5 +1,7 @@
 package com.ternparagliding.sim.injector
 
+import com.ternparagliding.mezulla.connection.MeshEvent
+import com.ternparagliding.mezulla.connection.PeerIdentity
 import com.ternparagliding.mezulla.connection.PeerPosition
 import com.ternparagliding.mezulla.connection.ble.BleConnection
 import com.ternparagliding.mezulla.connection.ble.MeshPacketCodec
@@ -238,13 +240,21 @@ class VirtualPeerInjector(
                 if (outcome !is PropagationOutcome.Delivered) continue
             }
             val fix = pos.toPeerFix(timestampSeconds = nowMillis / MS_PER_SECOND)
-            val bytes = MeshPacketCodec.encodeToRadioPosition(
-                fromNodeNumber = nodeNumber,
-                packetId = packetIdSource(),
+            // Bypass the firmware loop: Meshtastic overwrites `from=0` on
+            // phone-sent packets and doesn't echo them back via FromRadio,
+            // so the original "encode ToRadio with peer's from / let it
+            // round-trip" plan doesn't work on real hardware. Push the
+            // synthetic event straight into BleConnection's events flow,
+            // same code path as if it had arrived from the wire.
+            val event = MeshEvent.PeerPositionUpdate(
+                peer = PeerIdentity.fromNodeNumber(nodeNumber),
                 fix = fix,
             )
-            val ok = bleConnection.injectRawToRadio(bytes)
-            if (ok) injectedCount++
+            bleConnection.injectMeshEventForTest(event)
+            injectedCount++
+            // Also issue a packet-id call so test seams that count IDs
+            // stay consistent with the previous wire-bytes path.
+            @Suppress("UNUSED_VARIABLE") val unused = packetIdSource()
         }
     }
 

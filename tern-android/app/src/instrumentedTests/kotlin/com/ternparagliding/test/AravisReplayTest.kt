@@ -84,7 +84,13 @@ class AravisReplayTest : MapVisualTest() {
          * LoRa range in metres for the golden path. Matches
          * [DistanceOnlyPropagation] / [VirtualPeerInjector] defaults.
          */
-        private const val GOLDEN_RANGE_METERS = 15_000
+        // 50 km — realistic clear-air LoRa range for paragliding (mountain
+        // line-of-sight, 868/915 MHz at the Meshtastic preset). The Aravis
+        // scenario has lma launching ~30 km NE of tonio's launch; at 15 km
+        // golden range, lma would never reach tonio and the "see all my
+        // buddies" assertion would correctly fail. 50 km covers the whole
+        // 4-pilot Aravis swarm.
+        private const val GOLDEN_RANGE_METERS = 50_000
 
         /**
          * How long we wait for all three peers to appear in PeerState

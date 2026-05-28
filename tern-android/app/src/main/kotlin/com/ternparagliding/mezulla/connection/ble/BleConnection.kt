@@ -86,6 +86,7 @@ class BleConnection internal constructor(
      */
     suspend fun start() {
         if (collectorJob != null) return
+        android.util.Log.i("BleConnection", "[@${System.identityHashCode(this)}] start() called, pairedBoardId=$pairedBoardId")
         // If we have a paired board, the initial state is DOWN until the
         // transport reports otherwise. If no board has ever been paired
         // (constructor was given pairedBoardId == null), we stay in
@@ -115,6 +116,7 @@ class BleConnection internal constructor(
     }
 
     private suspend fun handleTransportEvent(event: BleTransportEvent) {
+        android.util.Log.i("BleConnection", "[@${System.identityHashCode(this)}] event=${event.javaClass.simpleName}")
         when (event) {
             BleTransportEvent.Connected -> {
                 everSeenBoard = true
@@ -183,8 +185,27 @@ class BleConnection internal constructor(
      * Returns whatever [BleTransport.writeToRadio] returned. Caller decides
      * what to do on `false` (typically: drop the tick — the link is down).
      */
-    internal suspend fun injectRawToRadio(toRadioBytes: ByteArray): Boolean =
-        runCatching { transport.writeToRadio(toRadioBytes) }.getOrDefault(false)
+    internal suspend fun injectRawToRadio(toRadioBytes: ByteArray): Boolean {
+        val result = runCatching { transport.writeToRadio(toRadioBytes) }.getOrDefault(false)
+        android.util.Log.i("BleConnection", "[@${System.identityHashCode(this)}] injectRawToRadio: ${toRadioBytes.size}B -> $result (linkState=$linkState)")
+        return result
+    }
+
+    /**
+     * Push a synthetic [MeshEvent] directly into the connection's events
+     * flow, bypassing the BLE wire and the firmware. For replay tests that
+     * need virtual peer positions to land in Redux without round-tripping
+     * through Meshtastic — the firmware overwrites `from=0` on phone-sent
+     * packets and doesn't echo them back via FromRadio, so the "loopback
+     * peer trick" doesn't work on real hardware.
+     *
+     * The real BleConnection wire (DUT GPS, ownership packets, future
+     * SOS) still goes through the transport unmodified.
+     */
+    internal suspend fun injectMeshEventForTest(event: MeshEvent) {
+        android.util.Log.i("BleConnection", "[@${System.identityHashCode(this)}] injectMeshEventForTest: ${event.javaClass.simpleName}")
+        _events.emit(event)
+    }
 
     override suspend fun sendAlert(
         lastKnownPosition: PeerPosition.Fix?,
