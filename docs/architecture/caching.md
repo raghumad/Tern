@@ -38,15 +38,9 @@ classDiagram
         +getCacheStats()
     }
 
-    class AdaptiveOverlaySystem {
-        <<Singleton>>
-        +onOverlayBudgetChanged(OverlayBudget)
-    }
-
-    class OverlayCoordinator {
-        -AdaptiveOverlaySystem adaptiveSystem
-        -UniversalOverlayPool pool
-        +onOverlayBudgetChanged(OverlayBudget)
+    class OverlayPrioritizer {
+        +score(List~OverlayCandidate~): List~OverlayCandidate~
+        +distanceDecay(Double): Double
     }
 
     class MapOverlayCacheUtils {
@@ -82,16 +76,16 @@ classDiagram
     SpatialDiskCache ..> MapOverlayCacheUtils : uses
     SpatialDiskCache ..> SpatialIndex : uses
     
-    OverlayCoordinator --> UniversalCountryCacheManager : coordinates
-    OverlayCoordinator --> AdaptiveOverlaySystem : respects budget
+    OverlayPrioritizer --> UniversalCountryCacheManager : queries cache
+    OverlayPrioritizer ..> OverlayFeature : scores candidates
 ```
 
 ## Single Source of Truth (SSOT)
 
-The caching system adheres to the **Source of Truth** skill by clearly defining ownership:
+The caching system defines clear ownership:
 
 1.  **Disk-Based Feature Data**: `SpatialDiskCache` is the SSOT for all serialized map features. Individual caches (Airspace, PGSpot) are typed wrappers around this generic engine to ensure consistent indexing and storage logic.
-2.  **Resource Allocation**: `AdaptiveOverlaySystem` is the SSOT for memory and object budgets. It calculates the `OverlayBudget` based on device performance, which the `OverlayCoordinator` then propagates to all active managers and caches.
+2.  **Viewport Rendering Budget**: `OverlayPrioritizer` (in `overlay/priority/`) scores `OverlayCandidate` objects using distance-decay weighting to decide what renders in the current viewport. Memory is bounded by viewport size, not flight distance.
 3.  **Country/Region Boundary**: `UniversalCountryCacheManager` is the SSOT for determining which geographical regions are currently active and loaded.
 
 ## Key Components
@@ -106,7 +100,7 @@ The core generic engine for spatial storage.
 Queries follow a two-stage "Prune and Filter" strategy:
 1.  **Pruning**: `SpatialIndex.findNearbyIndices` calculates Hilbert ranges that cover the search area. This limits the search to small, contiguous chunks of the file.
 2.  **Lazy Hydration**: The system "peeks" at the feature's centroid from the buffer. It only performs full FlexBuffer hydration into a `Map` if the feature is within the exact distance threshold.
-3.  **Adaptive Budgeting**: All queries respect a `limit` provided by the `AdaptiveOverlaySystem` to prevent UI lag during density spikes.
+3.  **Viewport Budgeting**: All queries respect a limit derived from `OverlayPrioritizer` scoring to prevent UI lag during density spikes.
 
 ### 3. UniversalCountryCacheManager
 The orchestrator for location-based data loading. It determines the current country and triggers preloading of adjacent regions. It relies on the generic `SpatialDiskCache` for each data type.
@@ -115,7 +109,7 @@ The orchestrator for location-based data loading. It determines the current coun
 
 ```mermaid
 sequenceDiagram
-    participant App as OverlayCoordinator
+    participant App as OverlayPrioritizer
     participant Cache as SpatialDiskCache
     participant Index as SpatialIndex
     participant Disk as File System (Mapped)

@@ -3,7 +3,7 @@
 This checklist is designed to validate the user experience of all implemented features. Use this to manually verify that the app behaves as expected on a real device or emulator.
 
 ## 🗺️ Map & Navigation
-- [ ] **Map Rendering**: Map tiles load correctly (OpenTopoMap/Mapbox).
+- [ ] **Map Rendering**: Map tiles load correctly (MapLibre with OpenFreeMap vector tiles).
 - [ ] **Pan & Zoom**: Smooth panning and zooming interactions.
 - [ ] **My Location**: "Locate Me" button centers map on user location.
 - [ ] **Scale Bar**: Scale bar updates correctly while zooming.

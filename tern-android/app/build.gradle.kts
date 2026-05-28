@@ -12,11 +12,11 @@ plugins {
 apply(plugin = "jacoco")
 
 android {
-    namespace = "com.madanala.tern"
+    namespace = "com.ternparagliding"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.madanala.tern"
+        applicationId = "com.ternparagliding"
         minSdk = 24
         targetSdk = 36
         versionCode = 1
@@ -204,8 +204,9 @@ dependencies {
 
     // Android Testing
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
-    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test:runner:1.7.0")
     androidTestImplementation("androidx.test:rules:1.6.1")
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")
 
     // Compose Testing
     androidTestImplementation("androidx.test.services:storage:1.5.0")
@@ -280,7 +281,7 @@ tasks.register<JacocoCoverageVerification>("jacocoTestCoverageVerification") {
         // Safety-critical components have higher thresholds
         rule {
             element = "PACKAGE"
-            includes = listOf("com.madanala.tern.model.*", "com.madanala.tern.redux.*")
+            includes = listOf("com.ternparagliding.model.*", "com.ternparagliding.redux.*")
             limit {
                 minimum = "0.0".toBigDecimal() // 0% for safety-critical packages (temporarily relaxed)
                 counter = "INSTRUCTION"
@@ -731,6 +732,32 @@ $coverageText
                  }
             }
         }
+
+        // Pull screen recordings from device before dashboard generation
+        try {
+            val videoDir = file("${project.layout.buildDirectory.get()}/reports/bdd-report")
+            ProcessBuilder("adb", "pull", "/sdcard/tern-tests/.", videoDir.absolutePath)
+                .redirectErrorStream(true).start().waitFor()
+            val vids = videoDir.listFiles()?.count { it.extension == "mp4" } ?: 0
+            if (vids > 0) println("🎬 Pulled $vids screen recordings from device")
+        } catch (_: Exception) {}
+
+        // Generate the consolidated sidebar dashboard
+        try {
+            val script = file("${project.projectDir}/scripts/test_report.py")
+            if (script.exists()) {
+                val dashProc = ProcessBuilder("python3", script.absolutePath)
+                    .directory(project.projectDir)
+                    .redirectErrorStream(true).start()
+                dashProc.inputStream.bufferedReader().readText()
+                dashProc.waitFor()
+                if (dashProc.exitValue() == 0) {
+                    println("📊 Dashboard: file://${project.layout.buildDirectory.get()}/reports/tern-test-dashboard.html")
+                }
+            }
+        } catch (e: Exception) {
+            println("⚠️ Dashboard generation skipped: ${e.message}")
+        }
     }
 }
 
@@ -911,7 +938,7 @@ tasks.register("runBenchmarkBuild") {
     doLast {
         println("✅ Benchmark APK built successfully!")
         println("📱 Install on device: adb install app/build/outputs/apk/benchmark/app-benchmark.apk")
-        println("🏃 Run benchmarks: adb shell am instrument -w com.madanala.tern.benchmark/androidx.benchmark.junit4.AndroidBenchmarkRunner")
+        println("🏃 Run benchmarks: adb shell am instrument -w com.ternparagliding.benchmark/androidx.benchmark.junit4.AndroidBenchmarkRunner")
     }
 }
 
@@ -946,7 +973,7 @@ tasks.register("device") {
     val testClass = project.findProperty("test") as? String ?: project.findProperty("t") as? String
     if (testClass != null) {
         val fullClasses = testClass.split(",").joinToString(",") { 
-            if (it.contains(".")) it else "com.madanala.tern.ui.$it"
+            if (it.contains(".")) it else "com.ternparagliding.ui.$it"
         }
         // Set the project property that AGP's test task automatically picks up
         project.extensions.extraProperties.set("android.testInstrumentationRunnerArguments.class", fullClasses)

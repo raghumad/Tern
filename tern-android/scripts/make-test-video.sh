@@ -1,48 +1,47 @@
 #!/usr/bin/env bash
 #
-# make-test-video.sh — pull captured frames from the managed device
-# and stitch into an MP4 video.
+# make-test-video.sh — stitch captured frame PNGs into an MP4 video.
 #
 # Usage:
-#   ./scripts/make-test-video.sh <test-name>
+#   ./scripts/make-test-video.sh <test-name> [frame-dir]
 #
-# Example:
-#   ./scripts/make-test-video.sh mezulla_convergence
+# Frames are named: ${test_name}_frame_NNNN_${timestamp}.png
+# Output: ${frame_dir}/${test_name}.mp4
 #
-# Prerequisites:
-#   - adb in PATH
-#   - ffmpeg installed
-#   - The managed device still running (or frames already pulled)
-#
+# Prerequisites: ffmpeg installed
 
 set -euo pipefail
 
-TEST_NAME="${1:?Usage: make-test-video.sh <test-name>}"
-DEVICE_DIR="/sdcard/tern-tests/$TEST_NAME"
-LOCAL_DIR="app/build/test-videos/$TEST_NAME"
-OUTPUT="app/build/test-videos/${TEST_NAME}.mp4"
+TEST_NAME="${1:?Usage: make-test-video.sh <test-name> [frame-dir]}"
+FRAME_DIR="${2:-app/build/reports/bdd-report}"
+OUTPUT="${FRAME_DIR}/${TEST_NAME}.mp4"
 
-mkdir -p "$LOCAL_DIR"
-
-echo "--- pulling frames from device ---"
-adb pull "$DEVICE_DIR/" "$LOCAL_DIR/" 2>/dev/null || {
-    echo "Warning: could not pull from device (may be shut down)."
-    echo "Looking for frames in $LOCAL_DIR..."
-}
-
-FRAME_COUNT=$(ls "$LOCAL_DIR"/frame_*.png 2>/dev/null | wc -l)
-if [ "$FRAME_COUNT" -eq 0 ]; then
-    echo "No frames found. Run the test with FrameCaptureHelper first."
-    exit 1
+if [ -f "$OUTPUT" ]; then
+    echo "Video already exists: $OUTPUT"
+    exit 0
 fi
 
-echo "--- stitching $FRAME_COUNT frames into video ---"
-ffmpeg -y -framerate 2 \
-    -i "$LOCAL_DIR/frame_%04d.png" \
-    -c:v libx264 -pix_fmt yuv420p \
-    -preset fast \
-    "$OUTPUT" 2>&1 | tail -5
+# Find frames for this test (handles timestamp-suffixed filenames)
+FRAMES=$(find "$FRAME_DIR" -name "${TEST_NAME}_frame_*\.png" 2>/dev/null | sort)
+COUNT=$(echo "$FRAMES" | grep -c . || true)
 
-echo "--- done ---"
-echo "Video: $OUTPUT ($FRAME_COUNT frames)"
-ls -lh "$OUTPUT"
+if [ "$COUNT" -eq 0 ]; then
+    echo "No frames found for $TEST_NAME in $FRAME_DIR"
+    exit 0
+fi
+
+# Create a temp dir with sequential symlinks (ffmpeg needs sequential numbering)
+STAGING=$(mktemp -d)
+trap "rm -rf $STAGING" EXIT
+
+i=1
+echo "$FRAMES" | while read -r frame; do
+    ln -s "$(realpath "$frame")" "$STAGING/$(printf 'frame_%04d.png' $i)"
+    i=$((i + 1))
+done
+
+ffmpeg -y -framerate 2 -i "$STAGING/frame_%04d.png" \
+    -c:v libx264 -pix_fmt yuv420p -movflags +faststart \
+    "$OUTPUT" 2>/dev/null
+
+echo "Created: $OUTPUT ($COUNT frames)"

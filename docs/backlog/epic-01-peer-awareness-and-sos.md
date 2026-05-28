@@ -45,19 +45,37 @@ features. The LilyGo board is an addition, not a requirement.
 ## Stories
 
 ### Story 1.1: Phone discovers and pairs with a LilyGo board
-Status: todo
+Status: done (2026-05-27, verified end-to-end on real hardware)
 
-The phone app can detect a nearby LilyGo board, pair with it, and persist
-the pairing across app restarts. If the board disconnects, the app keeps
-working and quietly tries to reconnect in the background.
+Current state: QR pairing works. Phone camera → tern:// deep link →
+BLE scan → GATT connect → MTU 517 → claim on PRIVATE_APP (port 256) →
+ownership persisted → BLE mode switches to FIXED_PIN. Automated test
+decodes the QR from the board's OLED screen dump. Remaining: auto-
+reconnect lifecycle (board disconnect/reconnect mid-flight).
 
-What done looks like:
-- Pairing flow is reachable from settings and works on a real device.
-- Pairing survives an app restart.
-- Disconnect doesn't break or block any other part of the app.
+What shipped:
+- QR scan with phone camera opens Tern, claims board over BLE.
+- Pairing persists across app and board reboots.
+- Settings shows paired board name + "Forget Board" button.
+- Automated test decodes QR from OLED screen dump — no human needed.
+- BLE mode: NO_PIN when unclaimed, FIXED_PIN when claimed.
+
+Remaining:
+- Auto-reconnect when board drops and reappears mid-flight.
+- Release packet (app "Forget Board" clears local state but doesn't
+  tell the board yet).
 
 ### Story 1.2: My position is broadcast over LoRa when a board is paired
-Status: todo
+Status: todo — blocked on persistent BLE connection
+
+Requires three pieces that don't exist yet:
+1. Persistent BLE connection (keep GATT open after pairing)
+2. ToRadio/FromRadio codec (Meshtastic protobuf encode/decode in Kotlin)
+3. GPS → Position protobuf → ToRadio write to board
+
+No custom packet format needed — Meshtastic's POSITION_APP (portnum 3)
+already defines lat/lon/alt/time. The board handles LoRa broadcast
+automatically once it receives the position via BLE.
 
 When a board is paired, Tern sends the pilot's GPS position to the board,
 which transmits it over LoRa at a sane cadence. When no board is paired,
@@ -69,7 +87,13 @@ What done looks like:
 - The board doesn't crash or drain battery unreasonably when the phone is briefly idle.
 
 ### Story 1.3: Other pilots' positions appear on my map
-Status: in-progress (emulator-verified, pending human test)
+Status: in-progress (emulator-verified, pending human test + real BLE path)
+
+Rendering works in the emulator via SwarmSimulatedConnection. But the
+simulator bypasses the wire protocol — it pushes PeerState directly
+into Redux without encoding/decoding Meshtastic protobufs. For this
+story to be truly done, peer positions must flow through the real path:
+FromRadio BLE read → decode Position protobuf → PeerState → Redux → map.
 
 When another Tern pilot in LoRa range is broadcasting, their position
 appears on my map. Each peer shows a "last seen Xs ago" indicator. Stale
@@ -80,15 +104,12 @@ What done looks like:
 - Stale ageing is visible at a glance.
 - More than one peer at a time works.
 
-Current state (2026-05-25): Peer markers render as composite bitmap
-GeoJSON features on native MapLibre SymbolLayer. Layout: callsign pill
-above, colored circle with Nerd Font glyph, metric pills flanking
-(age/altitude/climb/speed depending on view mode), warning pill below
-for stale/lost peers. Staleness drives circle color (green→yellow→orange→
-gray) and opacity pulsing. Three view modes (safety/climb/tactical).
-BDD convergence test passes with 4-pilot Aravis XC flight simulation.
-Standalone bitmap visual test suite covers staleness states, view modes,
-and edge cases. NOT verified on a real device yet.
+What exists (2026-05-27): Peer markers render as composite bitmap
+GeoJSON on a single MaplibreMap via `PeerLayer.kt`. Staleness drives
+color (green→yellow→orange→gray). Three view modes. BDD convergence
+test passes with 4-pilot Aravis XC simulation. Not verified on real
+hardware — the Aravis replay milestone (see current-focus.md) is the
+test that closes this story.
 
 ### Story 1.4: One-button SOS, broadcast and receive
 Status: todo
@@ -145,8 +166,8 @@ What done looks like:
   (off-the-shelf LilyGo T3 V1.6.1). Custom board and protocol later
   once the feature proves itself. Local Meshtastic fork if needed for
   QR pairing.
-- ~~**Phone ↔ board transport.**~~ DECIDED: BLE for production, TCP
-  for emulator dev workflow (emulator can't pass through Bluetooth).
+- ~~**Phone ↔ board transport.**~~ DECIDED: BLE only. TCP bridge
+  killed — test bench uses real phone over WiFi adb, not emulator.
 - **Beacon cadence vs. board battery life.** What rate balances peer
   freshness against a 2–5 hour flight on the board's battery?
 - **Realistic LoRa range in paragliding.** Open air, high altitude,

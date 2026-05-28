@@ -1,6 +1,9 @@
 # RFC 005: PGSpot Visualization Enhancements
 
-## Status: Approved
+> **Status: Archived.** This RFC was designed for OSMDroid bitmap caching.
+> MapLibre handles icon scaling natively via `iconSize` interpolation
+> expressions. The approach described here is architecturally obsolete.
+
 ## Date: 2026-03-18
 
 ## 1. Problem Statement

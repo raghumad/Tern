@@ -9,9 +9,9 @@ This guide outlines the mandatory development patterns and standards for the Ter
 *   **Safety First**: Smooth transitions, predictable performance, offline resilience.
 *   **Redux Single Source of Truth**: All domain state lives in Redux. Use batching (100ms) for high-frequency updates.
 
-### Hybrid Development Pattern
-1.  **Phase 1 (Development)**: Use ViewModel-based state management for rapid prototyping.
-2.  **Phase 2 (Polish)**: Migrate to Redux pattern with overlay managers extending `BaseOverlayManager` before release.
+### Development Pattern
+*   **ViewModel**: Use ViewModel-based state management for rapid prototyping.
+*   **Redux migration**: Migrate to Redux pattern with `OverlayPrioritizer` for overlay management before release.
 
 ## 🪂 Domain-Specific Standards
 
@@ -22,8 +22,8 @@ This guide outlines the mandatory development patterns and standards for the Ter
 4.  **ℹ️ Level 4 (Low)**: Airways, navigation aids.
 
 ### Coordinate & Data Precision
-*   **Coordinate Swap**: Always convert GeoJSON `[Lon, Lat]` to OSMDroid `(Lat, Lon)`.
-*   **Unit Convention**: Miles for User UI, Meters for Internal Engine (OSMDroid).
+*   **Coordinate Swap**: Always convert GeoJSON `[Lon, Lat]` to `(Lat, Lon)`. GeoPoint is still the coordinate type.
+*   **Unit Convention**: Miles for User UI, Meters for Internal Engine (MapLibre).
 *   **Spatial Indexing**: Mandatory use of Hilbert Curve for proximity-based feature loading.
 
 ## 📱 Hardware Integration
