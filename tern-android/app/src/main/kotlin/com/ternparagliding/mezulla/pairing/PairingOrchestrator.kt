@@ -58,8 +58,13 @@ class PairingOrchestrator(private val context: Context) {
         when (result) {
             is ClaimResult.Success -> {
                 persistPairing(link.nodeIdHex, result.deviceName, result.deviceAddress)
-                _state.value = PairingState.Success(link.nodeIdHex, result.deviceAddress)
-                Log.i(TAG, "Pairing successful: node=${link.nodeIdHex} name=${result.deviceName} device=${result.deviceAddress}")
+                // Claim packet was accepted by the board. The persistent BLE
+                // connection is not yet up — that takes ~30s after the claim
+                // because the board reboots into paired-only mode. Hand off
+                // to EstablishingLink; MezullaConnectionManager will call
+                // confirmLinkEstablished() once the persistent link reaches UP.
+                _state.value = PairingState.EstablishingLink(link.nodeIdHex, result.deviceAddress)
+                Log.i(TAG, "Claim accepted, establishing link: node=${link.nodeIdHex} name=${result.deviceName} device=${result.deviceAddress}")
             }
             is ClaimResult.BoardNotFound -> {
                 _state.value = PairingState.Failed("Board not found. Make sure it's powered on and nearby.")
@@ -86,6 +91,38 @@ class PairingOrchestrator(private val context: Context) {
                 _state.value = PairingState.Failed(msg)
                 Log.w(TAG, "Claim rejected: ${result.status}")
             }
+        }
+    }
+
+    /**
+     * Called by [com.ternparagliding.mezulla.MezullaConnectionManager] when
+     * the persistent BLE link to the freshly-paired board reaches
+     * [com.ternparagliding.mezulla.connection.LinkState.UP].
+     *
+     * No-op if the current state is anything other than
+     * [PairingState.EstablishingLink] — e.g. the link came up after a
+     * Failed/timeout transition, or this is a previously-paired board
+     * coming up at app launch (Idle, not part of an active pairing flow).
+     */
+    fun confirmLinkEstablished() {
+        val current = _state.value
+        if (current is PairingState.EstablishingLink) {
+            _state.value = PairingState.Success(current.nodeIdHex, current.deviceAddress)
+            Log.i(TAG, "Link established: node=${current.nodeIdHex}")
+        }
+    }
+
+    /**
+     * Called when establishing the persistent BLE link times out or fails.
+     * No-op if the current state is anything other than
+     * [PairingState.EstablishingLink] — the link can drop later for other
+     * reasons (board off, out of range) and that is not a pairing failure.
+     */
+    fun confirmLinkFailed(reason: String) {
+        val current = _state.value
+        if (current is PairingState.EstablishingLink) {
+            _state.value = PairingState.Failed(reason)
+            Log.w(TAG, "Link failed: $reason")
         }
     }
 
@@ -143,6 +180,15 @@ sealed interface PairingState {
     data class Scanning(val nodeIdHex: String) : PairingState
     data class Connecting(val nodeIdHex: String) : PairingState
     data class Claiming(val nodeIdHex: String) : PairingState
+    /**
+     * The board accepted the claim packet, but the persistent BLE
+     * connection is not yet up. Sits between [Claiming] and [Success];
+     * the gap is the ~30s the board takes to reboot into paired-only mode
+     * and start advertising under its new identity. Showing this state
+     * (instead of jumping straight to Success) tells the pilot "we're not
+     * done yet, hang on" so they don't put the phone away too early.
+     */
+    data class EstablishingLink(val nodeIdHex: String, val deviceAddress: String) : PairingState
     data class Success(val nodeIdHex: String, val deviceAddress: String) : PairingState
     data class Failed(val reason: String) : PairingState
 }

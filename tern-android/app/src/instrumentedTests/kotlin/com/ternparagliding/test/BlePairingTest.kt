@@ -35,7 +35,12 @@ class BlePairingTest : MapVisualTest() {
     )
 
     companion object {
-        private const val BLE_TIMEOUT_MS = 30_000L
+        // Reach Success now requires the post-claim persistent BLE link
+        // to actually come up (board reboots into paired-only mode, then
+        // re-advertises, then GATT handshake). Observed worst case is
+        // ~33s; give 90s so an intermittent re-scan doesn't make this
+        // test flaky.
+        private const val BLE_TIMEOUT_MS = 90_000L
 
         private fun getPairUri(): String {
             return try {
