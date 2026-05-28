@@ -30,6 +30,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ternparagliding.mezulla.connection.LinkState
@@ -298,12 +299,13 @@ fun MezullaStatusBadge(
 
     Box(
         modifier = modifier
-            .size(40.dp)
-            .background(Color(0xFF1A1A2E).copy(alpha = 0.7f), CircleShape)
+            .size(32.dp)
+            .shadow(3.dp, CircleShape)
+            .background(Color(0xFF1A1A2E).copy(alpha = 0.55f), CircleShape)
             .testTag("mezulla_status_badge"),
         contentAlignment = Alignment.Center,
     ) {
-        MezullaBrandIcon(size = 22.dp, color = iconColor)
+        MezullaBrandIcon(size = 20.dp, color = iconColor)
 
         // Status dot in the bottom-right corner (like a notification badge)
         Box(

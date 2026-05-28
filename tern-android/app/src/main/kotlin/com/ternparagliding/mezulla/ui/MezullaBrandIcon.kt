@@ -36,12 +36,13 @@ fun MezullaBrandIcon(
         val h = this.size.height
         val sw = strokeWidthDp.toPx()
 
-        // M occupies the left-bottom 75% of the canvas; the radio waves
-        // live in the top-right quadrant.
-        val mLeft = w * 0.05f
-        val mRight = w * 0.72f
-        val mTop = h * 0.30f
-        val mBottom = h * 0.95f
+        // M occupies the bottom-left ~60% of the canvas; radio waves
+        // live in the top-right and MUST stay within the canvas bounds
+        // (previous version had arcCenter+outerR > w, clipping the wave).
+        val mLeft = w * 0.10f
+        val mRight = w * 0.55f
+        val mTop = h * 0.40f
+        val mBottom = h * 0.92f
         val mMid = (mLeft + mRight) / 2f
         val mMidDip = mTop + (mBottom - mTop) * 0.55f  // valley between humps
 
@@ -60,11 +61,13 @@ fun MezullaBrandIcon(
                 join = androidx.compose.ui.graphics.StrokeJoin.Round),
         )
 
-        // Two radio-wave arcs in the top-right corner. Anchored above the
-        // right peak of the M, sweeping out toward upper-right.
+        // Two radio-wave arcs in the top-right corner, anchored at the
+        // right peak of the M. Radii kept conservative so outerR doesn't
+        // exceed the remaining canvas width to the right of arcCenter.
         val arcCenter = Offset(mRight, mTop)
-        val innerR = w * 0.22f
-        val outerR = w * 0.36f
+        val available = (w - arcCenter.x) - sw  // leave a stroke-width margin
+        val outerR = available * 0.95f
+        val innerR = outerR * 0.6f
         // Arc spans -75° to -15° (top-right quadrant), where 0° = east.
         val startAngle = -75f
         val sweepAngle = 60f
