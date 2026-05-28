@@ -17,24 +17,6 @@ Unit tests: 325 passed, 0 failed. Instrumented: 26 passed, 23 failed,
 Issues that need systematic fixing. Not blocking mezulla work but
 tracked so they don't get forgotten.
 
-### Map defaults to streets, not terrain (PG-critical)
-
-`MapViewContainer.kt:249` hardcodes the MapLibre style to
-`openfreemap.org/styles/liberty` — a **streets** style. The
-`state.mapStyle` value (default `"terrain"`) and the Settings
-toggle ("Terrain" / "Satellite") are both ignored.
-
-Paragliding pilots need terrain contours to read ridges, valleys,
-and lee sides at a glance. Streets-without-terrain is the wrong
-default for the entire user base.
-
-Fix: replace the hardcoded URI with a style selector that maps
-`state.mapStyle` → terrain URL by default. Candidate sources:
-OpenTopoMap (OSM contours), MapTiler outdoor, openfreemap terrain
-variant if/when available. Verify on a real device against a
-familiar site (e.g. Col de la Forclaz) — the ridge should be
-visually obvious.
-
 ### Airspaces and PG spots never render in test screenshots
 
 Every instrumented test screenshot shows an empty map — no airspace
