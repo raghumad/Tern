@@ -250,13 +250,21 @@ internal class AndroidBleTransport(
                     }
                 }
             }
-            // Initial drain of FROM_RADIO. The first successful drain
-            // emits Connected.
-            drainFromRadio(g, isFirstDrain = true)
+            // Initial drain is now kicked from onDescriptorWrite — Android
+            // GATT serializes operations and a readCharacteristic issued
+            // here while the FROM_NUM descriptor write is in flight is
+            // silently dropped, so the first drain never returns, Connected
+            // never fires, and linkState never reaches UP.
         }
 
+        @SuppressLint("MissingPermission")
         override fun onDescriptorWrite(g: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
-            // No-op: we already kicked the first drain on onServicesDiscovered.
+            if (descriptor.characteristic.uuid != MeshtasticGattUuids.FROM_NUM) return
+            // FROM_NUM notification subscription is established. NOW we can
+            // safely issue the initial FROM_RADIO read — the first empty
+            // result will trigger emit(Connected) and the link transitions
+            // to UP.
+            drainFromRadio(g, isFirstDrain = true)
         }
 
         @Suppress("OVERRIDE_DEPRECATION")
