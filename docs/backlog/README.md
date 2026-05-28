@@ -86,6 +86,9 @@ of focus changes lives in git log.
 - [Epic 03](epic-03-spedmo-social-layer.md) — Spedmo integration for
   social/cloud features (live tracking, IGC upload, site enrichment,
   ground-crew notifications). Offline-first preserved. (After Epic 01.)
+- [Epic 04](epic-04-first-time-onboarding.md) — The 7-step brochure:
+  ship the onboarding UX so a non-engineer can pair their Mezulla in
+  under 10 minutes from a sealed box. Includes OTA firmware updates.
 - [QR pairing reference](ws-qr-pairing-app-handoff.md) — how pairing
   works, BLE sequence, wire protocol, what's implemented.
 - [Overlay audit](overlay-infrastructure-audit.md) — reactive rendering
