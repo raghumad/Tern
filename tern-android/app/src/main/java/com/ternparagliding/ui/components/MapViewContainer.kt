@@ -330,15 +330,26 @@ fun MapViewContainer(
             )
         }
 
-        // Compass (reads rotation from Redux state, same as before)
-        if (state.compassVisible) {
-            Compass(
-                rotation = state.rotation,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(WindowInsets.statusBars.asPaddingValues())
-                    .padding(COMPASS_PADDING),
+        // Top-right glance-only cluster: Mezulla status badge + compass.
+        // Both are visual-only, no tap targets, so they live in the
+        // hard-to-reach corner per the one-handed UI principle.
+        // Likely future work: merge these into a single combined overlay
+        // (e.g. compass ring with the M+waves inside, or Mezulla state
+        // embedded in the compass rose).
+        androidx.compose.foundation.layout.Row(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(WindowInsets.statusBars.asPaddingValues())
+                .padding(COMPASS_PADDING),
+            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            com.ternparagliding.mezulla.ui.MezullaStatusBadge(
+                peerState = state.peerState,
             )
+            if (state.compassVisible) {
+                Compass(rotation = state.rotation)
+            }
         }
 
         // Route Planning HUD

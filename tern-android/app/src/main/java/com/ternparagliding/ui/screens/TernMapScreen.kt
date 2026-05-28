@@ -135,15 +135,8 @@ fun TernMapScreen(
                 )
             }
 
-            // Mezulla status — compact M+waves badge in the top-right
-            // corner, below the compass. Glance-only per the one-handed
-            // UI principle (text/peer-list reachable via Settings).
-            com.ternparagliding.mezulla.ui.MezullaStatusBadge(
-                peerState = state.peerState,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(top = 96.dp, end = 16.dp),
-            )
+            // Mezulla status badge moved into MapViewContainer alongside
+            // the compass (top-right glance-only cluster).
 
             RouteDetailPanel(
                 modifier = Modifier.align(Alignment.BottomCenter),
