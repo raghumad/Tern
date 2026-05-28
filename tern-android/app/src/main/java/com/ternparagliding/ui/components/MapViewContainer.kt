@@ -43,6 +43,62 @@ import org.osmdroid.util.GeoPoint
 private const val TAG = "MapViewContainer"
 private val COMPASS_PADDING = 16.dp
 
+// Map style selection. PG pilots need terrain by default — ridges and
+// lee sides have to be visually obvious without panning or zooming.
+//
+// "terrain" uses OpenTopoMap raster tiles (free, no API key, OSM-derived
+// contour lines every 25m). Their tile usage policy permits low-volume
+// development use. For production we'll likely move to a tile provider
+// with an API key (MapTiler outdoor, Stadia Outdoors) for higher
+// quality + better rate limits.
+//
+// "satellite" uses ESRI World Imagery (free, no API key).
+//
+// Anything else falls back to openfreemap "liberty" (streets, light).
+private fun mapStyleFor(styleId: String): BaseStyle = when (styleId) {
+    "terrain" -> BaseStyle.Json(
+        """{
+          "version": 8,
+          "sources": {
+            "opentopomap": {
+              "type": "raster",
+              "tiles": [
+                "https://a.tile.opentopomap.org/{z}/{x}/{y}.png",
+                "https://b.tile.opentopomap.org/{z}/{x}/{y}.png",
+                "https://c.tile.opentopomap.org/{z}/{x}/{y}.png"
+              ],
+              "tileSize": 256,
+              "maxzoom": 17,
+              "attribution": "Map data: © OpenStreetMap contributors, SRTM | Map style: © OpenTopoMap (CC-BY-SA)"
+            }
+          },
+          "layers": [
+            { "id": "opentopomap", "type": "raster", "source": "opentopomap" }
+          ]
+        }""".trimIndent()
+    )
+    "satellite" -> BaseStyle.Json(
+        """{
+          "version": 8,
+          "sources": {
+            "esri": {
+              "type": "raster",
+              "tiles": [
+                "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+              ],
+              "tileSize": 256,
+              "maxzoom": 19,
+              "attribution": "Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community"
+            }
+          },
+          "layers": [
+            { "id": "esri", "type": "raster", "source": "esri" }
+          ]
+        }""".trimIndent()
+    )
+    else -> BaseStyle.Uri("https://tiles.openfreemap.org/styles/liberty")
+}
+
 // Default center (roughly center of France — reasonable for a paragliding app
 // that starts without a GPS fix). Once the GPS acquires, Redux pushes the real
 // position and the map snaps to it.
@@ -246,7 +302,7 @@ fun MapViewContainer(
             Modifier
                 .fillMaxSize()
                 .testTag("map_view"),
-            BaseStyle.Uri("https://tiles.openfreemap.org/styles/liberty"),
+            mapStyleFor(state.mapStyle),
             cameraState,
         ) {
             // Route overlay
