@@ -114,9 +114,11 @@ class AravisReplayTest : MapVisualTest() {
         /** Display names we expect on the peers, in test-spec order. */
         private val EXPECTED_PEER_NAMES: Set<String> = setOf("cbe", "cor", "lma")
 
-        /** Aravis launch site centre (Col de la Forclaz). */
-        private const val ARAVIS_LAT = 45.85
-        private const val ARAVIS_LON = 6.42
+        /** Centroid covering tonio/cbe/cor's launch (45.747, 6.507),
+         *  the close-cluster peers ~10km east during early flight
+         *  (45.77, 6.60), and the convergence area with lma (45.90, 6.88). */
+        private const val ARAVIS_LAT = 45.83
+        private const val ARAVIS_LON = 6.65
 
         private fun speedMultiplierArg(): Int {
             return try {
@@ -234,6 +236,9 @@ class AravisReplayTest : MapVisualTest() {
                     store.dispatch(com.ternparagliding.redux.MapAction.UpdateCenter(
                         org.osmdroid.util.GeoPoint(ARAVIS_LAT, ARAVIS_LON)
                     ))
+                    // Zoom 11 ≈ 5 km visible radius — peers spread out over
+                    // ~10 km early in the flight fit comfortably with the DUT.
+                    store.dispatch(com.ternparagliding.redux.MapAction.UpdateZoom(11.0))
                 }
                 val cameraDeadline = System.currentTimeMillis() + 5000
                 while (System.currentTimeMillis() < cameraDeadline) {

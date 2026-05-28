@@ -65,20 +65,8 @@ fun PeerLayer(
     // maplibre-compose limitation of not supporting iconImage from
     // feature properties with pre-registered named bitmaps.
     bundle.specs.forEachIndexed { i, spec ->
-        val peerGeoJson = remember(bundle.geoJson, spec.imageName) {
-            val json = bundle.geoJson
-            val start = json.indexOf("""{"type":"Feature""", json.indexOf(spec.imageName) - 100)
-            val end = json.indexOf("}", start + 1).let { first ->
-                json.indexOf("}", first + 1).let { second ->
-                    json.indexOf("}", second + 1) + 1
-                }
-            }
-            if (start >= 0 && end > start) {
-                """{"type":"FeatureCollection","features":[${json.substring(start, end)}]}"""
-            } else {
-                """{"type":"FeatureCollection","features":[]}"""
-            }
-        }
+        val peerGeoJson = bundle.perPeerGeoJson[spec.imageName]
+            ?: """{"type":"FeatureCollection","features":[]}"""
 
         val source = rememberGeoJsonSource(data = GeoJsonData.JsonString(peerGeoJson))
         val bmp = remember(spec) { renderMarkerBitmap(spec, font).asImageBitmap() }
@@ -110,7 +98,13 @@ private fun opacityForStaleness(
     MezullaPeerTextFormatter.StalenessLevel.LOST  -> 0.25f + phase * (0.7f - 0.25f)
 }
 
+private val savedDebugBitmap = java.util.concurrent.atomic.AtomicBoolean(false)
+
 internal fun renderMarkerBitmap(spec: MarkerSpec, nerdFont: Typeface): Bitmap {
+    android.util.Log.i("PeerLayer",
+        "render: callsign='${spec.callsign}' glyph='${spec.glyph}' " +
+        "left='${spec.leftValue}${spec.leftUnit}' right='${spec.rightValue}${spec.rightUnit}' " +
+        "bottom='${spec.bottomText}' staleness=${spec.staleness}")
     val callsignPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = AndroidColor.WHITE
         textSize = 13f * S
@@ -224,5 +218,8 @@ internal fun renderMarkerBitmap(spec: MarkerSpec, nerdFont: Typeface): Bitmap {
         c.drawText(spec.bottomText, cx, btmTop + pV - btmPaint.ascent(), btmPaint)
     }
 
+    if (savedDebugBitmap.compareAndSet(false, true)) {
+        android.util.Log.i("PeerLayer", "render: first bitmap ${bmp.width}x${bmp.height}")
+    }
     return bmp
 }

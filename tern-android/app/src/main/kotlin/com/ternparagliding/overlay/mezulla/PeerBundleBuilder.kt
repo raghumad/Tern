@@ -5,7 +5,12 @@ import com.ternparagliding.redux.MezullaViewMode
 import java.time.Duration
 import java.time.Instant
 
-internal data class PeerBundle(val geoJson: String, val specs: List<MarkerSpec>)
+internal data class PeerBundle(
+    val geoJson: String,
+    val specs: List<MarkerSpec>,
+    /** Per-peer single-feature GeoJSON, keyed by spec.imageName. */
+    val perPeerGeoJson: Map<String, String> = emptyMap(),
+)
 
 internal data class MarkerSpec(
     val imageName: String,
@@ -27,11 +32,14 @@ internal fun buildPeerBundle(
     now: Instant,
 ): PeerBundle {
     val withPos = peers.entries.filter { it.value.lastPosition != null }
+    android.util.Log.i("PeerBundle",
+        "build: peers.total=${peers.size}, withPos=${withPos.size}, viewMode=$viewMode")
     if (withPos.isEmpty()) {
         return PeerBundle("""{"type":"FeatureCollection","features":[]}""", emptyList())
     }
 
     val specs = mutableListOf<MarkerSpec>()
+    val perPeerGeoJson = mutableMapOf<String, String>()
     val sb = StringBuilder(withPos.size * 200)
     sb.append("""{"type":"FeatureCollection","features":[""")
 
@@ -107,10 +115,14 @@ internal fun buildPeerBundle(
             leftValue, leftUnit, rightValue, rightUnit, bottomText, bottomColor,
             staleness))
 
+        val feature = """{"type":"Feature","geometry":{"type":"Point","coordinates":[${fix.longitudeDeg},${fix.latitudeDeg}]},"properties":{"markerImage":"$imageName","staleness":"${staleness.name}"}}"""
         if (i > 0) sb.append(",")
-        sb.append("""{"type":"Feature","geometry":{"type":"Point","coordinates":[${fix.longitudeDeg},${fix.latitudeDeg}]},"properties":{"markerImage":"$imageName","staleness":"${staleness.name}"}}""")
+        sb.append(feature)
+        perPeerGeoJson[imageName] = """{"type":"FeatureCollection","features":[$feature]}"""
     }
 
     sb.append("]}")
-    return PeerBundle(sb.toString(), specs)
+    val result = sb.toString()
+    android.util.Log.i("PeerBundle", "built ${specs.size} peers")
+    return PeerBundle(result, specs, perPeerGeoJson)
 }
