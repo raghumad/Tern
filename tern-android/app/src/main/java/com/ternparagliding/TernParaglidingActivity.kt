@@ -13,8 +13,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.ViewModelProvider
+import com.ternparagliding.mezulla.MezullaConnectionManager
 import com.ternparagliding.mezulla.pairing.PairingOrchestrator
 import com.ternparagliding.mezulla.pairing.TernPairLink
+import com.ternparagliding.redux.MapStore
 import com.ternparagliding.ui.screens.TernMapScreen
 import com.ternparagliding.ui.theme.TernTheme
 import com.ternparagliding.utils.CacheManager
@@ -29,6 +32,10 @@ class TernParaglidingActivity : ComponentActivity() {
 
     val pairingOrchestrator: PairingOrchestrator by lazy {
         PairingOrchestrator(applicationContext)
+    }
+
+    private val connectionManager: MezullaConnectionManager by lazy {
+        MezullaConnectionManager(applicationContext, pairingOrchestrator)
     }
 
     private var pendingPairLink: TernPairLink? = null
@@ -59,12 +66,18 @@ class TernParaglidingActivity : ComponentActivity() {
         Configuration.getInstance().load(applicationContext, getSharedPreferences(PREFS_NAME, MODE_PRIVATE))
         Configuration.getInstance().userAgentValue = packageName
 
+        // Get the activity-scoped MapStore ViewModel and wire the persistent
+        // BLE connection. The same ViewModel instance is used by TernMapScreen
+        // (passed explicitly below) so there is exactly one MapStore per activity.
+        val mapStore = ViewModelProvider(this)[MapStore::class.java]
+        connectionManager.initialize(mapStore)
+
         intent?.let { handleDeepLink(it) }
 
         setContent {
             TernTheme(darkTheme = true) {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    TernMapScreen()
+                    TernMapScreen(store = mapStore)
                 }
             }
         }

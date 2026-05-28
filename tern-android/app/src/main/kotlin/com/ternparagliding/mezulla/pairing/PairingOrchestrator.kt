@@ -18,6 +18,7 @@ class PairingOrchestrator(private val context: Context) {
         private const val PREFS_NAME = "tern_pairing"
         private const val KEY_PAIRED_NODE_ID = "paired_node_id"
         private const val KEY_PAIRED_DEVICE_NAME = "paired_device_name"
+        private const val KEY_PAIRED_DEVICE_ADDRESS = "paired_device_address"
         private const val KEY_OWNER_ID = "owner_id"
     }
 
@@ -56,8 +57,8 @@ class PairingOrchestrator(private val context: Context) {
 
         when (result) {
             is ClaimResult.Success -> {
-                persistPairing(link.nodeIdHex, result.deviceName)
-                _state.value = PairingState.Success(link.nodeIdHex)
+                persistPairing(link.nodeIdHex, result.deviceName, result.deviceAddress)
+                _state.value = PairingState.Success(link.nodeIdHex, result.deviceAddress)
                 Log.i(TAG, "Pairing successful: node=${link.nodeIdHex} name=${result.deviceName} device=${result.deviceAddress}")
             }
             is ClaimResult.BoardNotFound -> {
@@ -93,13 +94,14 @@ class PairingOrchestrator(private val context: Context) {
         return prefs.getString(KEY_PAIRED_NODE_ID, null)
     }
 
-    fun persistPairing(nodeIdHex: String, deviceName: String? = null) {
+    fun persistPairing(nodeIdHex: String, deviceName: String? = null, deviceAddress: String? = null) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit()
             .putString(KEY_PAIRED_NODE_ID, nodeIdHex)
             .putString(KEY_PAIRED_DEVICE_NAME, deviceName)
+            .putString(KEY_PAIRED_DEVICE_ADDRESS, deviceAddress)
             .apply()
-        Log.i(TAG, "Pairing persisted: node=$nodeIdHex name=$deviceName")
+        Log.i(TAG, "Pairing persisted: node=$nodeIdHex name=$deviceName mac=$deviceAddress")
     }
 
     fun getPairedDeviceName(): String? {
@@ -107,9 +109,18 @@ class PairingOrchestrator(private val context: Context) {
         return prefs.getString(KEY_PAIRED_DEVICE_NAME, null)
     }
 
+    fun getPairedDeviceAddress(): String? {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getString(KEY_PAIRED_DEVICE_ADDRESS, null)
+    }
+
     fun forgetBoard() {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().remove(KEY_PAIRED_NODE_ID).apply()
+        prefs.edit()
+            .remove(KEY_PAIRED_NODE_ID)
+            .remove(KEY_PAIRED_DEVICE_NAME)
+            .remove(KEY_PAIRED_DEVICE_ADDRESS)
+            .apply()
         _state.value = PairingState.Idle
         Log.i(TAG, "Board forgotten")
     }
@@ -132,6 +143,6 @@ sealed interface PairingState {
     data class Scanning(val nodeIdHex: String) : PairingState
     data class Connecting(val nodeIdHex: String) : PairingState
     data class Claiming(val nodeIdHex: String) : PairingState
-    data class Success(val nodeIdHex: String) : PairingState
+    data class Success(val nodeIdHex: String, val deviceAddress: String) : PairingState
     data class Failed(val reason: String) : PairingState
 }

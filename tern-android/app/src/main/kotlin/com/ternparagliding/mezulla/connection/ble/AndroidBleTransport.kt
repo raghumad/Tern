@@ -192,7 +192,8 @@ internal class AndroidBleTransport(
         override fun onConnectionStateChange(g: BluetoothGatt, status: Int, newState: Int) {
             when (newState) {
                 BluetoothProfile.STATE_CONNECTED -> {
-                    runCatching { g.discoverServices() }
+                    Log.i(TAG, "GATT connected (status=$status), requesting MTU 517...")
+                    runCatching { g.requestMtu(517) }
                 }
                 BluetoothProfile.STATE_DISCONNECTED -> {
                     val wasConnected = connected
@@ -209,6 +210,16 @@ internal class AndroidBleTransport(
                     }
                 }
             }
+        }
+
+        @SuppressLint("MissingPermission")
+        override fun onMtuChanged(g: BluetoothGatt, mtu: Int, status: Int) {
+            Log.i(TAG, "MTU changed: mtu=$mtu status=$status")
+            // Regardless of the negotiated MTU value, proceed to service
+            // discovery. Some boards negotiate lower than 517 -- that's fine,
+            // Meshtastic packets are small enough.
+            Log.i(TAG, "Discovering services...")
+            runCatching { g.discoverServices() }
         }
 
         @SuppressLint("MissingPermission")

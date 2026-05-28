@@ -37,7 +37,7 @@ class PairingOrchestratorTest {
             PairingState.Scanning("aabb"),
             PairingState.Connecting("aabb"),
             PairingState.Claiming("aabb"),
-            PairingState.Success("aabb"),
+            PairingState.Success("aabb", "AA:BB:CC:DD:EE:FF"),
             PairingState.Failed("error"),
         )
         assertThat(states).hasSize(7)
