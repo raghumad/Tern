@@ -72,10 +72,11 @@ fun MezullaViewModeButton(
             containerColor = Color(0xFF1A1A2E).copy(alpha = 0.85f),
             contentColor = Color.White,
         ),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(2.dp),
     ) {
         Text(
             text = viewMode.name,
-            fontSize = 10.sp,
+            fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
             maxLines = 1,
         )

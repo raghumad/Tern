@@ -314,11 +314,19 @@ fun MapViewContainer(
             // Airspace overlay
             AirspaceOverlay(store = store, cameraState = cameraState)
 
-            // Peer markers (mezulla)
+            // Peer markers (mezulla) — load Nerd Font for the glyph in
+            // the marker circle (otherwise the glyph renders as tofu).
+            val ctx = androidx.compose.ui.platform.LocalContext.current
+            val nerdFont = remember {
+                androidx.core.content.res.ResourcesCompat.getFont(
+                    ctx, com.ternparagliding.R.font.jetbrains_mono_nerd_regular
+                )
+            }
             com.ternparagliding.overlay.mezulla.PeerLayer(
                 peers = state.peerState.peers,
                 viewMode = state.mezullaViewMode,
                 lastEventTime = state.peerState.lastEventTime,
+                nerdFont = nerdFont,
             )
         }
 
