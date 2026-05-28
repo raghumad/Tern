@@ -223,6 +223,7 @@ EOF
 # Optional: compose the side-by-side video
 # -----------------------------------------------------------------------------
 
+COMPOSITE_PATH=""
 if [ -f "$COMPOSE_VIDEO" ] && [ -f "$OUT_DIR/phone-screen.mp4" ]; then
     OLED_COUNT=$(find "$OLED_DIR" -name 'oled_*.png' 2>/dev/null | wc -l)
     if [ "$OLED_COUNT" -gt 0 ]; then
@@ -245,6 +246,30 @@ if [ -f "$COMPOSE_VIDEO" ] && [ -f "$OUT_DIR/phone-screen.mp4" ]; then
             --scenario "Aravis team XC — golden path (50 km LoRa)" \
             2>&1 | sed 's/^/    /' \
             || echo "WARN: compose-replay-video.py failed" >&2
+        # Publish to BDD reports dir so test_report.py picks it up.
+        # The composite .mp4 is matched to the test by method name
+        # (lowercase, _-joined). The summary_*.json is what makes the
+        # test row appear in the dashboard at all when the test was
+        # invoked via `am instrument` instead of gradle (so there's
+        # no JUnit XML in app/build/outputs/androidTest-results/).
+        if [ -f "$OUT_DIR/composite.mp4" ]; then
+            BDD_DIR="$ANDROID_DIR/app/build/reports/bdd-report"
+            mkdir -p "$BDD_DIR"
+            cp "$OUT_DIR/composite.mp4" \
+               "$BDD_DIR/aravis_team_xc_replay_golden_path_15km_range.mp4"
+            cat > "$BDD_DIR/summary_AravisReplayTest_aravis_team_xc_replay_golden_path_15km_range.json" <<JSON
+{
+  "className": "com.ternparagliding.test.AravisReplayTest",
+  "testName": "aravis_team_xc_replay_golden_path_15km_range",
+  "status": "$([ "$TEST_EXIT" -eq 0 ] && echo PASS || echo FAIL)",
+  "scenarioName": "Aravis team XC replay — golden path (50 km LoRa) at ${SPEED_MULTIPLIER}x",
+  "reportFile": "",
+  "outputDir": "$OUT_DIR"
+}
+JSON
+            COMPOSITE_PATH="$BDD_DIR/aravis_team_xc_replay_golden_path_15km_range.mp4"
+            echo "[+] Published composite + summary to test report"
+        fi
     else
         echo "[+] No OLED frames captured — skipping composite video"
     fi
