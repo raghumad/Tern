@@ -167,8 +167,8 @@ What done looks like:
   (off-the-shelf LilyGo T3 V1.6.1). Custom board and protocol later
   once the feature proves itself. Local Meshtastic fork if needed for
   QR pairing.
-- ~~**Phone ↔ board transport.**~~ DECIDED: BLE for production, TCP
-  for emulator dev workflow (emulator can't pass through Bluetooth).
+- ~~**Phone ↔ board transport.**~~ DECIDED: BLE only. TCP bridge
+  killed — test bench uses real phone over WiFi adb, not emulator.
 - **Beacon cadence vs. board battery life.** What rate balances peer
   freshness against a 2–5 hour flight on the board's battery?
 - **Realistic LoRa range in paragliding.** Open air, high altitude,
