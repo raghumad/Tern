@@ -17,10 +17,11 @@ When this BDD test passes and produces that video, we celebrate.
 ## The BDD scenario
 
 ```gherkin
-scenario: Aravis team XC replay — Tonio sees his buddies fly
+scenario: Aravis team XC replay — golden path (15 km range)
   given the Aravis IGC bundle (tonio24, antoine, guillaume, luc)
     and Tonio's phone (emulator) is paired with a real Mezulla board
     and the board is running test firmware (radio silent)
+    and a LoRa propagation model with 15 km clear-air range
     and screen recording is active on the emulator
     and OLED screendumps are captured every 5 seconds from the board
 
@@ -39,7 +40,29 @@ scenario: Aravis team XC replay — Tonio sees his buddies fly
        peer markers moving smoothly
    and the final output is a side-by-side video:
        left = phone map, right = stitched OLED screendumps
+
+scenario: Aravis team XC replay — chaos (random 3–15 km range)
+  given the Aravis IGC bundle (tonio24, antoine, guillaume, luc)
+    and Tonio's phone (emulator) is paired with a real Mezulla board
+    and the board is running test firmware (radio silent)
+    and a LoRa propagation model with random range 3–15 km
+    and screen recording is active on the emulator
+    and OLED screendumps are captured every 5 seconds from the board
+
+  when the replay runs at 64x speed
+
+  then peers appear and disappear as they cross the random range
+       boundary — no crashes, no frozen ghosts
+   and stale markers fade within 30 seconds of losing contact
+   and markers recover within 10 seconds of regaining contact
+   and the app never shows an error dialog or blocks the UI
+   and the final output is a side-by-side video
 ```
+
+The golden path proves the feature works. The chaos path proves it
+handles real-world LoRa flakiness — peers flickering at range
+boundaries, staleness timers firing, recovery after dropout. Both
+produce a video.
 
 ## What this proves
 
