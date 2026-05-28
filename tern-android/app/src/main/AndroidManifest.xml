@@ -1,11 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Permissions for offline maps and location -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <!-- Mock GPS for IGC-replay tests (com.ternparagliding.sim.mockgps).
+         On Android 6+ this permission alone is not sufficient; the user
+         must also select the Tern test APK as the system mock-location
+         app under Developer Options ("Select mock location app"). The
+         permission is declared so platforms that gate the test-provider
+         API on it still allow our injector. The production app never
+         starts a mock provider. -->
+    <uses-permission android:name="android.permission.ACCESS_MOCK_LOCATION"
+        tools:ignore="MockLocation,ProtectedPermissions" />
 
     <!-- Compass sensor permissions -->
     <uses-feature android:name="android.hardware.sensor.compass" android:required="false" />
