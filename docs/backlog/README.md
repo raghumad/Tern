@@ -83,6 +83,9 @@ of focus changes lives in git log.
   see each other and signal for help without cell service. (End goal.)
 - [Epic 02](epic-02-traffic-awareness.md) — Pilots see nearby aircraft
   and are seen by them. FANET/FLARM/ADS-L. (After Epic 01.)
+- [Epic 03](epic-03-spedmo-social-layer.md) — Spedmo integration for
+  social/cloud features (live tracking, IGC upload, site enrichment,
+  ground-crew notifications). Offline-first preserved. (After Epic 01.)
 - [QR pairing reference](ws-qr-pairing-app-handoff.md) — how pairing
   works, BLE sequence, wire protocol, what's implemented.
 - [Overlay audit](overlay-infrastructure-audit.md) — reactive rendering
