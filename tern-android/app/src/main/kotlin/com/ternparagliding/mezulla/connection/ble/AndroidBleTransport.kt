@@ -259,11 +259,8 @@ internal class AndroidBleTransport(
 
         @SuppressLint("MissingPermission")
         override fun onDescriptorWrite(g: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
+            Log.i(TAG, "onDescriptorWrite: uuid=${descriptor.characteristic.uuid} status=$status")
             if (descriptor.characteristic.uuid != MeshtasticGattUuids.FROM_NUM) return
-            // FROM_NUM notification subscription is established. NOW we can
-            // safely issue the initial FROM_RADIO read — the first empty
-            // result will trigger emit(Connected) and the link transitions
-            // to UP.
             drainFromRadio(g, isFirstDrain = true)
         }
 
@@ -312,16 +309,16 @@ internal class AndroidBleTransport(
 
     private fun handleFromRadioRead(g: BluetoothGatt, uuid: java.util.UUID, bytes: ByteArray) {
         if (uuid != MeshtasticGattUuids.FROM_RADIO) return
+        Log.i(TAG, "handleFromRadioRead: ${bytes.size} bytes, connected=$connected")
         if (bytes.isEmpty()) {
-            // FIFO drained.
             if (!connected) {
                 connected = true
+                Log.i(TAG, "FIFO drained — emitting Connected")
                 scope.launch { _events.emit(BleTransportEvent.Connected) }
             }
             return
         }
         scope.launch { _events.emit(BleTransportEvent.FromRadioFrame(bytes)) }
-        // Keep reading until empty.
         drainFromRadio(g, isFirstDrain = false)
     }
 
@@ -329,11 +326,12 @@ internal class AndroidBleTransport(
     private fun drainFromRadio(g: BluetoothGatt, isFirstDrain: Boolean) {
         val ch = g.getService(MeshtasticGattUuids.SERVICE)
             ?.getCharacteristic(MeshtasticGattUuids.FROM_RADIO)
-            ?: return
-        runCatching { g.readCharacteristic(ch) }
-        // The actual emission happens in onCharacteristicRead. isFirstDrain
-        // is just a hint kept for future telemetry; not load-bearing.
-        @Suppress("UNUSED_PARAMETER") val unused = isFirstDrain
+        if (ch == null) {
+            Log.w(TAG, "drainFromRadio: FROM_RADIO characteristic not found (isFirstDrain=$isFirstDrain)")
+            return
+        }
+        val ok = runCatching { g.readCharacteristic(ch) }.getOrDefault(false)
+        Log.i(TAG, "drainFromRadio: readCharacteristic returned $ok (isFirstDrain=$isFirstDrain)")
     }
 
     companion object {
