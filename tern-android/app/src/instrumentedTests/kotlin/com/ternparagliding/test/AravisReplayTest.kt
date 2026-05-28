@@ -221,6 +221,17 @@ class AravisReplayTest : MapVisualTest() {
 
             `when`("the AravisReplayRunner starts at ${speedMultiplier}x speed") {
                 val scope = runnerScope ?: error("runnerScope not initialised")
+                // Centre the map on the Aravis launch site so the video
+                // shows what we expect — terrain map of the Alps with
+                // peer markers moving across it. Without this, Tern's
+                // camera stays at whatever the last user-pan location
+                // was (default Boulder, CO for fresh installs), and the
+                // peer markers render off-screen.
+                composeTestRule.runOnUiThread {
+                    store.dispatch(com.ternparagliding.redux.MapAction.UpdateCenter(
+                        org.osmdroid.util.GeoPoint(45.85, 6.42)
+                    ))
+                }
                 runner?.start(scope) ?: error("runner not initialised")
 
                 // Sanity: state should transition to Running synchronously.
