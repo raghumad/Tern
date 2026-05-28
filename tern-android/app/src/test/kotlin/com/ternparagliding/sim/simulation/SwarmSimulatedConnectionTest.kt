@@ -516,6 +516,63 @@ class SwarmSimulatedConnectionTest {
         }
     }
 
+    // -- Speed multiplier ------------------------------------------------
+
+    @Test
+    fun `speed multiplier does not affect event count - only wall-clock timing`() = runTest {
+        // Walk 90 seconds of virtual time at 30s cadence with speed=1
+        // and speed=64. Both must produce the same number and type of
+        // events. The multiplier only affects the delay inside
+        // driveRealtime(); advanceTo() is unaffected.
+        val conn1x = newConnection()
+        val events1x = collectEvents(conn1x)
+        conn1x.start()
+        conn1x.advanceTo(swarmStart.plusSeconds(90))
+
+        val conn64x = SwarmSimulatedConnection(
+            scenario = scenario,
+            dutPilotId = dut,
+            propagation = DistanceOnlyPropagation(SwarmSimulatedConnection.DEFAULT_RANGE_METERS),
+            positionBroadcastIntervalSeconds = SwarmSimulatedConnection.DEFAULT_POSITION_INTERVAL_SECONDS,
+            playbackTickSeconds = SwarmSimulatedConnection.DEFAULT_TICK_SECONDS,
+            speedMultiplier = 64,
+            clock = Clock.fixed(Instant.parse("2026-04-25T00:00:00Z"), ZoneOffset.UTC),
+        )
+        val events64x = collectEvents(conn64x)
+        conn64x.start()
+        conn64x.advanceTo(swarmStart.plusSeconds(90))
+
+        // Same event types in same order.
+        assertThat(events64x.map { it::class }).isEqualTo(events1x.map { it::class })
+        // Same total count.
+        assertThat(events64x).hasSize(events1x.size)
+    }
+
+    @Test
+    fun `construction rejects non-positive speed multiplier`() {
+        val failZero = runCatching {
+            SwarmSimulatedConnection(
+                scenario = scenario,
+                dutPilotId = dut,
+                speedMultiplier = 0,
+            )
+        }
+        assertThat(failZero.isFailure).isTrue()
+        assertThat(failZero.exceptionOrNull())
+            .isInstanceOf(IllegalArgumentException::class.java)
+
+        val failNeg = runCatching {
+            SwarmSimulatedConnection(
+                scenario = scenario,
+                dutPilotId = dut,
+                speedMultiplier = -1,
+            )
+        }
+        assertThat(failNeg.isFailure).isTrue()
+        assertThat(failNeg.exceptionOrNull())
+            .isInstanceOf(IllegalArgumentException::class.java)
+    }
+
     // -- Construction validation ----------------------------------------
 
     @Test
