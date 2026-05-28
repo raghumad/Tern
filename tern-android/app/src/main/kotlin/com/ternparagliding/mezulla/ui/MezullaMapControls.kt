@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -62,6 +63,11 @@ fun MezullaViewModeButton(
 ) {
     if (linkState != LinkState.UP) return
 
+    val (icon, label) = when (viewMode) {
+        com.ternparagliding.redux.MezullaViewMode.SAFETY -> "👁" to "SAFETY"   // 👁 eye = watching peers
+        com.ternparagliding.redux.MezullaViewMode.CLIMB -> "🌀" to "CLIMB"    // 🌀 spiral = thermalling
+        com.ternparagliding.redux.MezullaViewMode.TACTICAL -> "🧭" to "TACT"   // 🧭 compass = bearing
+    }
     Button(
         onClick = onCycle,
         modifier = modifier
@@ -74,12 +80,12 @@ fun MezullaViewModeButton(
         ),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(2.dp),
     ) {
-        Text(
-            text = viewMode.name,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1,
-        )
+        androidx.compose.foundation.layout.Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(text = icon, fontSize = 20.sp, maxLines = 1)
+            Text(text = label, fontSize = 9.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+        }
     }
 }
 
@@ -259,6 +265,60 @@ fun MezullaStatusIndicator(
                     text = "connected",
                     color = Color.White,
                     fontSize = 12.sp,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Compact, glance-only Mezulla status badge intended for the top-right
+ * corner of the map (next to the compass). Shows the brand mark (M
+ * with two radio-wave arcs), a small peer count, and a colored ring
+ * that signals link state at a glance.
+ *
+ * Per one-handed-UI principle: visual-only info goes in the hard-to-
+ * reach corner; the pilot just glances at it, never taps it.
+ *
+ *   NEVER_PAIRED → invisible
+ *   DOWN         → grey M, no count, dim ring
+ *   UP           → white M, peer count, green ring
+ */
+@Composable
+fun MezullaStatusBadge(
+    peerState: PeerState,
+    modifier: Modifier = Modifier,
+) {
+    if (peerState.linkState == LinkState.NEVER_PAIRED) return
+
+    val isUp = peerState.linkState == LinkState.UP
+    val ringColor = if (isUp) Color(0xFF4CAF50) else Color.Gray
+    val iconColor = if (isUp) Color.White else Color(0xFFAAAAAA)
+    val peerCount = if (isUp) peerState.peers.size else null
+
+    Box(
+        modifier = modifier
+            .size(40.dp)
+            .background(Color(0xFF1A1A2E).copy(alpha = 0.7f), CircleShape)
+            .testTag("mezulla_status_badge"),
+        contentAlignment = Alignment.Center,
+    ) {
+        MezullaBrandIcon(size = 22.dp, color = iconColor)
+
+        // Status dot in the bottom-right corner (like a notification badge)
+        Box(
+            modifier = Modifier
+                .size(10.dp)
+                .align(Alignment.BottomEnd)
+                .background(ringColor, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (peerCount != null && peerCount > 0) {
+                Text(
+                    text = peerCount.toString(),
+                    color = Color.White,
+                    fontSize = 7.sp,
+                    fontWeight = FontWeight.Bold,
                 )
             }
         }
