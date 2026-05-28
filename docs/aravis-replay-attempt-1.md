@@ -1,105 +1,135 @@
-# Aravis replay — first attempt notes (2026-05-27 evening)
+# Aravis replay — late-night session debrief (2026-05-27 → 2026-05-28 ~00:00)
+
+## Bottom line
+
+Four end-to-end attempts. Pipeline fully built, multiple real bugs found
+and fixed. Final blocker is downstream of the BLE link — the link IS
+reaching UP now, but injected ToRadio writes don't round-trip back as
+peer events. Likely **duplicate concurrent BleConnections** (two GATT
+callbacks fire on different TIDs in the same PID).
 
 ## What we built tonight
 
-Complete pipeline for the Aravis replay test, end to end:
-
 | Layer | Status |
 |-------|--------|
-| `SwarmPlayback` + speedMultiplier + RandomRangePropagation | Working, unit-tested |
-| `MEZULLA_TEST_BUILD` firmware (radio-silent) | Flashed, verified |
+| `SwarmPlayback`, `SwarmSimulatedConnection`, speedMultiplier | Done, unit-tested |
+| `RandomRangePropagation` (chaos) | Done, unit-tested |
+| `MEZULLA_TEST_BUILD` firmware (radio-silent) | Done |
 | `IgcMockLocationProvider` (DUT GPS injection) | 16 unit tests pass |
-| `VirtualPeerInjector` (peer ToRadio over persistent BLE) | 5 unit tests pass, round-trip verified |
-| `AravisReplayRunner` (composer) | Compiles, integration tested |
-| `AravisReplayTest` (instrumented BDD) | Runs on device |
-| `aravis-replay-cycle.sh` (host orchestrator) | Runs, OLED loop + video compose |
-| `compose-replay-video.py` (side-by-side video) | ffmpeg pipeline validated dry-run |
+| `VirtualPeerInjector` (peer ToRadio over persistent BLE) | 5 unit tests pass |
+| `AravisReplayRunner` (composer) | Done |
+| `AravisReplayTest` (instrumented BDD) | Runs, hits final blocker |
+| `aravis-replay-cycle.sh` (host orchestrator) | Done |
+| `compose-replay-video.py` (side-by-side video) | Done, dry-run validated |
 
-## Two attempts tonight
+## Bugs found and fixed tonight
 
-### Attempt 1 — fix(replay) commit `b09716a`
+1. **`FIXED_PIN` after claim caused infinite bond loop** — fixed by
+   keeping board in NO_PIN forever. Firmware commit `d560687`.
+   The QR token IS the authentication; default FIXED_PIN (123456) was
+   never real security.
 
-- Test launched while `BleConnection.linkState=DOWN`
-- `VirtualPeerInjector` wrote ToRadio packets, but `BleTransport.writeToRadio` returns false when DOWN — silent drops
-- BLE eventually came up at 58s, leaving only 12s for peer injection
-- Result: `saw []` (zero peers in Redux)
-- Bonus bug: cycle script reported `RESULT: PASS` despite test failure (am instrument exit code lies)
+2. **Mock location appops not granted** — fixed by `adb shell appops
+   set ... android:mock_location allow` for both Tern and test APKs.
+   No manual Developer Options step needed.
 
-### Attempt 2 — fix `375527b` (link UP wait + correct failure detection)
+3. **Stale Android BLE bond from FIXED_PIN era** — fixed by toggling
+   Bluetooth off/on via `adb shell svc bluetooth disable/enable` (NPE
+   stack traces in stderr are non-fatal Android 12 noise).
 
-- Test now waits up to 120s for `linkState=UP` before starting runner
-- Cycle script parses instrumentation output for real verdict
-- Result: `BLE link did not reach UP within 120000ms (currently DOWN)`
-- Underlying issue: bond loop — see below
+4. **Phone screen off → Android 12 throttles BLE scan to nothing** —
+   verified `mScreenOn=true` before pairing. The cycle scripts already
+   wake the screen.
 
-## The bond loop (the actual blocker)
+5. **EstablishingLink timeout too short** — bumped from 30s to 90s in
+   BlePairingTest; AravisReplayTest waits 120s for link UP.
 
-Pattern visible in `/tmp/aravis-debug-2251/ble_logs.txt`:
+6. **am instrument exits 0 on test failure** — cycle script now parses
+   instrumentation log for `FAILURES!!!` / `OK (N tests)` instead of
+   trusting exit code.
+
+7. **GATT race: drainFromRadio fired during pending descriptor write**
+   — fixed by moving the first drain into `onDescriptorWrite` filtered
+   to FROM_NUM. Commit `dc0e678`. Verified via diagnostic logs in
+   commit `4bcd037`:
+   ```
+   onDescriptorWrite: uuid=ed9da18c-... (FROM_NUM) status=0
+   drainFromRadio: readCharacteristic returned true
+   handleFromRadioRead: 0 bytes, connected=false
+   FIFO drained — emitting Connected
+   ```
+
+## What's still broken
+
+**After all four attempts, the test fails with `saw []` — 0 peers in
+Redux.** The BLE link is verified UP. But peer Position frames injected
+via `VirtualPeerInjector` → `BleConnection.injectRawToRadio` →
+`BleTransport.writeToRadio` apparently don't round-trip back as
+PeerPositionUpdate events.
+
+The smoking gun: in every test run, the logs show duplicate
+`AndroidBleTransport: GATT connected` events at the same time, on
+DIFFERENT thread IDs within the same PID:
 
 ```
-22:50:04: GATT connected → MTU 517 → Discovering services
-22:50:15: bond_state → 0 (bond dropped)
-22:50:18: BLE scan failed code 1 ALREADY_STARTED
-22:50:20: GATT connected → bonding (state=1)
-22:50:30: bond_state → 0 (dropped again)
-22:50:35: GATT connected → ...
-22:50:47: bond_state → 0 ...
+22459 22471 I AndroidBleTransport: GATT connected ... TID 22471
+22459 22547 I AndroidBleTransport: GATT connected ... TID 22547
 ```
 
-The bond is being created every ~10s and dropped before reaching state=2 (bonded).
-Board is confirmed in NO_PIN mode (`bluetooth.mode: 2`), so bonding shouldn't even
-be required — but Android keeps trying anyway. Possibly due to a stale bond record
-from earlier FIXED_PIN sessions or some Android Bluetooth stack state we can't
-clear via adb without root.
+Hypothesis: Two `BleConnection` instances are racing. The test's
+`activity.connectionManager.activeBleConnection()` returns one of them.
+`VirtualPeerInjector` writes ToRadio to that one. But the board's
+FromRadio response comes back on the OTHER connection's
+`onCharacteristicChanged`. Neither connection sees the full round-trip.
 
 ## Morning fix-it plan
 
-**Step 1: Clear the stale bond manually on the phone.**
-- Open Android Settings → Bluetooth → Paired devices
-- Find `007_6184` (MAC `F0:24:F9:92:61:86`)
-- Long-press / settings cog → "Forget" / "Unpair"
-- OR: toggle Bluetooth off then on (often clears stuck bond state)
+### Step 1: Confirm the duplicate-connection hypothesis
 
-**Step 2: Re-pair from scratch.**
-- Run: `./scripts/pairing-test-cycle.sh` from `tern-android/`
-- This will: erase board flash → flash test firmware → set identity → pair via QR
+Add a connection-identity log to `BleConnection.injectRawToRadio` and
+`BleConnection.handleTransportEvent`:
+```kotlin
+Log.i(TAG, "[BleConnection@${System.identityHashCode(this)}] injectRawToRadio: ${bytes.size} bytes")
+Log.i(TAG, "[BleConnection@${System.identityHashCode(this)}] received event $event")
+```
+Run the test. If we see different `BleConnection@xxx` IDs for inject vs
+event, hypothesis confirmed.
 
-**Step 3: Retry the replay.**
-- Run: `./scripts/aravis-replay-cycle.sh 10.10.10.82:5555 64`
-- Expected output: `tern-android/build/aravis-replay/<timestamp>/{phone-screen.mp4,oled/*.png,composite.mp4}`
+### Step 2: Find where the second connection comes from
 
-**Step 4: If bond loop reappears, investigate:**
-- Is the AndroidBleTransport requesting bonding implicitly? Look at GATT
-  connection flags — `createBond=true` somewhere?
-- Should we use `device.connectGatt(... TRANSPORT_LE, PHY_LE_1M)` with
-  explicit no-bond flag?
-- Is there a known issue with NimBLE bonding on the ESP32 at high
-  connect/disconnect rates?
+Possibilities to investigate:
+- `MezullaConnectionManager.startConnection()` racing with itself if
+  fired twice in rapid succession (e.g., onCreate + the
+  PairingState observer)
+- The instrumented test creating its own activity instance while the
+  pre-existing app process still has one
+- `AndroidBleTransport.start()` being called twice somehow
 
-## Side issue: OLED capture wrote 0 PNGs
+### Step 3: Deduplicate
 
-The screendump.sh loop runs every 5s during the test, but produced 0 PNGs
-both runs. Likely causes:
-1. Serial port contention — meshtastic Python lib opens `/dev/ttyACM0` while
-   the firmware is logging to it. Maybe inits too slowly.
-2. The `screendump.sh` script's positional-args fix may have a subtle bug.
+Once the source is found, gate it. Likely a simple `if (activeMac ==
+mac && activeConnection != null) return` check that's currently being
+bypassed by some race.
 
-Quick check: run `bash /home/raghu/src/meshtastic-firmware/scripts/screendump.sh /dev/ttyACM0 /tmp/test.png`
-manually and see if it produces a PNG. If yes, the cycle loop issue is timing-related.
+### Step 4: Re-run aravis-replay-cycle.sh
+
+If the connection is single, the round-trip should work and peers
+should land in Redux within 60s.
 
 ## Files reference
 
-- Logs: `/tmp/aravis-debug-2251/`
-- Test outputs: `tern-android/build/aravis-replay/20260527-22*`
-- Test source: `tern-android/app/src/instrumentedTests/kotlin/com/ternparagliding/test/AravisReplayTest.kt`
-- Cycle script: `tern-android/scripts/aravis-replay-cycle.sh`
+- Final logs: `tern-android/build/aravis-replay/20260527-234918/`
+- Diagnostic patch: `dc0e678` (GATT race fix) + `4bcd037` (diagnostic logs)
+- Old debug bundle: `/tmp/aravis-debug-2251/`
 
-## What's verifiably true after tonight
+## What's verifiably true
 
-- All Kotlin compiles, 365+ unit tests pass
-- Pairing works end-to-end (verified earlier)
-- Persistent BLE connection works in isolation (verified earlier)
-- The replay pipeline is wired correctly; the only blocker is the BLE bond
-  stability under the test harness's force-stop + reconnect pattern
-- Once BLE link is UP, the rest should work — `VirtualPeerInjector` round-trip
-  is verified in unit tests
+- Board flashed, paired (node `42ad0e6d`), persistent BLE in NO_PIN mode
+- Pairing flow works end-to-end (verified by EstablishingLink commit's smoke test earlier today)
+- BLE link reaches UP cleanly with GATT race fix (verified by `FIFO drained` log)
+- All 365+ unit tests pass
+- `VirtualPeerInjector` round-trip works in unit tests (encodes ToRadio → decodes as FromRadio → produces PeerPositionUpdate with correct node number)
+- The duplicate-connection theory is the only remaining unverified piece
+
+The Aravis replay is one bug away from working end-to-end. Sleep, then
+add the identity log, see which BleConnection instance is which, fix.
