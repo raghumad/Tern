@@ -987,3 +987,265 @@ tasks.register("device") {
     }
 }
 
+// ============================================================================
+// Mezulla hardware-cycle Gradle tasks
+//
+// Replace the previous shell-script wrappers (`full-cycle.sh`,
+// `pairing-test-cycle.sh`, `aravis-replay-cycle.sh`) with Gradle tasks so the
+// whole flow — firmware reflash, identity write, QR-token capture, then the
+// matching instrumented test on the phone — is one command and the results
+// land in Gradle's standard test-report pipeline (JUnit XML → BDD dashboard).
+//
+// Why Gradle and not the test itself: the firmware reflash MUST run on the
+// host (esptool over USB serial), which an instrumented test running on the
+// phone cannot do. Gradle is the host-side orchestrator; the instrumented
+// tests stay pure instrumented tests.
+//
+// User-facing commands:
+//   ./gradlew fullCycleTest    — pair + Aravis replay (whole journey)
+//   ./gradlew pairOnlyTest     — diagnostic: pair-test only
+//   ./gradlew aravisOnlyTest   — diagnostic: Aravis-replay only (assumes paired)
+//
+// Optional CLI args:
+//   -PdeviceSerial=10.10.10.82:5555     (default; or USB serial)
+//   -PspeedMultiplier=256               (Aravis replay speed)
+// ============================================================================
+
+val mezullaPort = "/dev/ttyACM0"
+val firmwareDir = file("${System.getProperty("user.home")}/src/meshtastic-firmware")
+val resetMezullaScript = file("$firmwareDir/scripts/reset-mezulla.sh")
+val mezullaDeeplinkFile = file("${System.getProperty("user.home")}/src/Tern/docs/handoffs/mezulla-deeplink.txt")
+
+/**
+ * Async readiness probe: poll the phone for the Meshtastic peripheral
+ * via the BoardReadinessTest instrumented test. On failure, esptool
+ * hard-reset the board and re-probe. This replaces "tune the timeout"
+ * with observation — we proceed only when the board is actually
+ * findable from the phone.
+ */
+tasks.register("mezullaWaitForReady") {
+    group = "mezulla"
+    description = "Probe the phone for the Meshtastic peripheral; hard-reset the board on failure and retry."
+
+    dependsOn("installDebug", "installDebugAndroidTest")
+
+    doLast {
+        val deviceSerial = (project.findProperty("deviceSerial") as? String) ?: "10.10.10.82:5555"
+        val maxAttempts = 4
+
+        fun runAdb(cmd: List<String>): Int {
+            val pb = ProcessBuilder(cmd).inheritIO().redirectErrorStream(true)
+            return pb.start().waitFor()
+        }
+
+        fun probeBoard(): Boolean {
+            val log = file("${project.layout.buildDirectory.get()}/mezulla-cycle/readiness/instrumentation.log")
+            log.parentFile.mkdirs()
+            val amCmd = "am instrument -w " +
+                "-e class 'com.ternparagliding.test.BoardReadinessTest#mezulla_board_is_advertising_findably' " +
+                "com.ternparagliding.test/androidx.test.runner.AndroidJUnitRunner"
+            val out = log.outputStream().buffered()
+            ProcessBuilder("adb", "-s", deviceSerial, "shell", amCmd)
+                .redirectErrorStream(true)
+                .start().apply {
+                    inputStream.copyTo(out)
+                    out.flush()
+                    waitFor()
+                }
+            out.close()
+            val text = log.readText()
+            return text.contains(Regex("OK \\(\\d+ tests?\\)")) && !text.contains("FAILURES!!!")
+        }
+
+        fun hardResetBoard() {
+            println("🔧 esptool hard-resetting board...")
+            runAdb(listOf("esptool.py", "--port", mezullaPort,
+                "--before", "default_reset", "--after", "hard_reset", "run"))
+            // Boot + BLE adv settle time. Not a flake-prone timeout — by
+            // observation BLE init logs reliably appear within ~6 s; we
+            // wait a bit longer just to be safe before re-probing.
+            Thread.sleep(8_000)
+        }
+
+        var ready = false
+        for (attempt in 1..maxAttempts) {
+            println("🛰️  Readiness probe attempt $attempt/$maxAttempts...")
+            if (probeBoard()) {
+                println("✅ Board is advertising findably.")
+                ready = true
+                break
+            }
+            if (attempt < maxAttempts) {
+                println("❌ Probe failed; recovering...")
+                hardResetBoard()
+            }
+        }
+        if (!ready) {
+            throw GradleException(
+                "Board never became findable after $maxAttempts probe attempts " +
+                    "(with esptool hard-reset between each). " +
+                    "Check power, USB serial, antenna, or that the board isn't already " +
+                    "connected to another central."
+            )
+        }
+    }
+}
+
+tasks.register<Exec>("mezullaReflash") {
+    group = "mezulla"
+    description = "Reflash the Mezulla board (erase → flash → identity → capture QR token)."
+    workingDir = firmwareDir
+    commandLine = listOf("bash", resetMezullaScript.absolutePath)
+    doFirst {
+        if (!resetMezullaScript.exists())
+            error("Mezulla firmware reset script not found at ${resetMezullaScript.absolutePath}. " +
+                  "Set firmwareDir in build.gradle.kts.")
+    }
+    doLast {
+        if (!mezullaDeeplinkFile.exists() || mezullaDeeplinkFile.readText().isBlank())
+            error("Reflash completed but no deeplink at ${mezullaDeeplinkFile.absolutePath}. " +
+                  "Board may not have advertised its QR.")
+        println("✅ Mezulla reflashed. Pair URI: ${mezullaDeeplinkFile.readText().trim()}")
+    }
+}
+
+/**
+ * Run a single instrumented test class on a real connected device via
+ * `adb shell am instrument`, passing the captured pair URI + speed
+ * multiplier as instrumentation runner arguments. Bypasses AGP's
+ * connectedDebugAndroidTest (which doesn't honor execution-time
+ * argument changes) — we want exact control over which test runs and
+ * what args reach the runner.
+ *
+ * Publishes a BDD summary JSON so the dashboard at
+ * app/build/reports/bdd-report/ picks up the result. JUnit XML
+ * conversion would be a future enhancement.
+ */
+fun configureHardwareCycleTest(
+    name: String,
+    testClass: String,
+    testMethod: String,
+    requiresReflash: Boolean,
+) = tasks.register(name) {
+    group = "mezulla"
+    description = "Hardware test: $testClass#$testMethod"
+
+    if (requiresReflash) dependsOn("mezullaReflash")
+    dependsOn("installDebug", "installDebugAndroidTest")
+    // Always probe before the heavy test runs. The probe itself depends
+    // on the APK installs so it has a runnable test process to work with.
+    dependsOn("mezullaWaitForReady")
+
+    doLast {
+        val pairUri = if (mezullaDeeplinkFile.exists()) mezullaDeeplinkFile.readText().trim() else ""
+        if (requiresReflash && pairUri.isBlank())
+            error("$name needs a pair URI but ${mezullaDeeplinkFile.absolutePath} is empty.")
+
+        val speedMultiplier = (project.findProperty("speedMultiplier") as? String) ?: "256"
+        val deviceSerial = (project.findProperty("deviceSerial") as? String) ?: "10.10.10.82:5555"
+
+        println("🧪 $name: device=$deviceSerial pairUri=$pairUri speedMultiplier=$speedMultiplier")
+
+        fun runAdb(cmd: List<String>, output: java.io.OutputStream? = null): Int {
+            val pb = ProcessBuilder(cmd).redirectErrorStream(true)
+            if (output == null) pb.inheritIO()
+            val p = pb.start()
+            if (output != null) p.inputStream.copyTo(output).also { output.flush() }
+            return p.waitFor()
+        }
+
+        // Bump logcat ring buffer so investigations don't lose history mid-run.
+        runAdb(listOf("adb", "-s", deviceSerial, "shell", "logcat", "-G", "16M"))
+        // Keep the screen on for the duration of the test. Without this,
+        // the device sleeps mid-test, screen recording / screenshots
+        // come back BLANK, and visual-assert tests fail spuriously.
+        // 7 = USB + AC + wireless. Sticks until reboot.
+        runAdb(listOf("adb", "-s", deviceSerial, "shell", "settings", "put", "global", "stay_on_while_plugged_in", "7"))
+        // Wake the screen and dismiss the keyguard. Without dismissing
+        // the keyguard, the test activity launches behind the lock
+        // screen — screenshots come back showing the lock screen
+        // wallpaper, peer markers are off-screen, visual asserts fail.
+        // (Avoid `input keyevent 82` MENU — observed to interact with
+        // system pair dialog and dismiss it without confirmation.)
+        runAdb(listOf("adb", "-s", deviceSerial, "shell", "input", "keyevent", "KEYCODE_WAKEUP"))
+        runAdb(listOf("adb", "-s", deviceSerial, "shell", "wm", "dismiss-keyguard"))
+
+        val outputDir = file("${project.layout.buildDirectory.get()}/mezulla-cycle/$name")
+        outputDir.mkdirs()
+        val instrumentationLog = file("$outputDir/instrumentation.log")
+
+        // Run the test via am instrument. AGP's connectedDebugAndroidTest
+        // can't have its args changed at execution time, so this is the
+        // most reliable path. The whole am-instrument command goes as one
+        // quoted string so the device-side shell doesn't split the pair
+        // URI on its '&' (the URI is `tern://p?n=X&t=Y` — the & looks
+        // like a shell background-job separator without quoting).
+        val amCmd = buildString {
+            append("am instrument -w ")
+            append("-e class '$testClass#$testMethod' ")
+            if (pairUri.isNotBlank()) append("-e pairUri '$pairUri' ")
+            append("-e speedMultiplier '$speedMultiplier' ")
+            append("com.ternparagliding.test/androidx.test.runner.AndroidJUnitRunner")
+        }
+        val amArgs = listOf("adb", "-s", deviceSerial, "shell", amCmd)
+
+        val outStream = instrumentationLog.outputStream().buffered()
+        val exitCode = runAdb(amArgs, outStream)
+        outStream.close()
+
+        val logText = instrumentationLog.readText()
+        val passed = logText.contains(Regex("OK \\(\\d+ tests?\\)")) &&
+            !logText.contains("FAILURES!!!")
+
+        // Publish to BDD dashboard so test_report.py picks it up.
+        val bddDir = file("${project.layout.buildDirectory.get()}/reports/bdd-report")
+        bddDir.mkdirs()
+        val summaryFile = file(
+            "$bddDir/summary_${testClass.substringAfterLast('.')}_$testMethod.json"
+        )
+        summaryFile.writeText(
+            """
+            {
+              "className": "$testClass",
+              "testName": "$testMethod",
+              "status": "${if (passed) "PASS" else "FAIL"}",
+              "scenarioName": "Mezulla $name",
+              "reportFile": "",
+              "outputDir": "${outputDir.absolutePath}"
+            }
+            """.trimIndent()
+        )
+
+        println("📝 BDD summary → ${summaryFile.absolutePath}")
+        println("📋 Instrumentation log → ${instrumentationLog.absolutePath}")
+
+        if (!passed) {
+            println("❌ $name FAILED. Tail of log:")
+            logText.lines().takeLast(30).forEach { println("    $it") }
+            throw GradleException("$name failed (am instrument exit $exitCode, parsed result: FAIL)")
+        }
+        println("✅ $name PASSED")
+    }
+}
+
+configureHardwareCycleTest(
+    name = "fullCycleTest",
+    testClass = "com.ternparagliding.test.FullCycleTest",
+    testMethod = "pilot_pairs_then_flies_with_buddies_visible",
+    requiresReflash = true,
+)
+
+configureHardwareCycleTest(
+    name = "pairOnlyTest",
+    testClass = "com.ternparagliding.test.BlePairingTest",
+    testMethod = "pilot_pairs_with_mezulla_board_via_ble",
+    requiresReflash = true,
+)
+
+configureHardwareCycleTest(
+    name = "aravisOnlyTest",
+    testClass = "com.ternparagliding.test.AravisReplayTest",
+    testMethod = "aravis_team_xc_replay_golden_path_50km_range",
+    requiresReflash = false,
+)
+

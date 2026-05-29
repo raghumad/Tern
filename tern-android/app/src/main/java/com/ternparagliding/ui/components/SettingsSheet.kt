@@ -38,9 +38,11 @@ import com.ternparagliding.ui.screens.MAP_VIEW_TERRAIN
 
 import androidx.compose.material.icons.filled.BluetoothSearching
 import androidx.compose.material.icons.filled.LinkOff
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.ui.platform.testTag
 import com.ternparagliding.mezulla.demo.AravisDemoReplay
 import com.ternparagliding.mezulla.pairing.PairingOrchestrator
+import com.ternparagliding.mezulla.pairing.PairingState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -61,9 +63,33 @@ fun SettingsSheet(
             // which opens Tern through the tern:// deep link. No in-app scanner needed.
             if (pairingOrchestrator != null) {
                 item {
+                    val pairingState by pairingOrchestrator.state.collectAsState()
                     val pairedNodeId = pairingOrchestrator.getPairedNodeId()
                     val pairedName = pairingOrchestrator.getPairedDeviceName()
                     Text("Mezulla", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
+                    // While the persistent BLE link is being established
+                    // (post-claim, pre-link-up) show a progress row so the
+                    // pilot knows we are still working and roughly how long
+                    // it takes. The persisted name above already reflects
+                    // the claim, so we render this in addition rather than
+                    // instead of it.
+                    if (pairingState is PairingState.EstablishingLink) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp)
+                                .testTag("pairing_establishing_link"),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                            Text(
+                                "Establishing link... (this can take up to 30 seconds)",
+                                modifier = Modifier.weight(1f).padding(start = 12.dp),
+                                fontSize = 14.sp,
+                                color = Color(0xFF94A3B8),
+                            )
+                        }
+                    }
                     if (pairedNodeId != null) {
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),

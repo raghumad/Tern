@@ -86,6 +86,7 @@ class BleConnection internal constructor(
      */
     suspend fun start() {
         if (collectorJob != null) return
+        android.util.Log.i("BleConnection", "[@${System.identityHashCode(this)}] start() called, pairedBoardId=$pairedBoardId")
         // If we have a paired board, the initial state is DOWN until the
         // transport reports otherwise. If no board has ever been paired
         // (constructor was given pairedBoardId == null), we stay in
@@ -115,6 +116,7 @@ class BleConnection internal constructor(
     }
 
     private suspend fun handleTransportEvent(event: BleTransportEvent) {
+        android.util.Log.i("BleConnection", "[@${System.identityHashCode(this)}] event=${event.javaClass.simpleName}")
         when (event) {
             BleTransportEvent.Connected -> {
                 everSeenBoard = true
@@ -159,6 +161,50 @@ class BleConnection internal constructor(
         // Best-effort. Failures are silent — position is by nature lossy
         // and a hidden retry storm is worse than a missed broadcast.
         runCatching { transport.writeToRadio(bytes) }
+    }
+
+    /**
+     * Write a pre-encoded `ToRadio` frame straight to the transport, with
+     * none of the bookkeeping `sendOwnPosition` / `sendAlert` apply (no
+     * packet-id allocation, no link-state gate, no retry, no encoding).
+     *
+     * This is a test/sim back door for the
+     * [com.ternparagliding.sim.injector.VirtualPeerInjector] loopback
+     * trick: the injector pre-builds Position frames with `from = peer
+     * node number`, hands them here, the board accepts them on the BLE
+     * write characteristic, decides they look like packets it just heard
+     * over the air (because that's what `from` says), and reflects them
+     * back to us on the FromRadio stream as `PeerPositionUpdate`s.
+     *
+     * Named bluntly so an unsuspecting caller has to opt into the bypass.
+     * Production code (UI, redux, alert path) must continue to use
+     * [sendOwnPosition] / [sendAlert]; calling this from production would
+     * mean an outbound packet had no `id` allocated and would skip the
+     * link-state check.
+     *
+     * Returns whatever [BleTransport.writeToRadio] returned. Caller decides
+     * what to do on `false` (typically: drop the tick — the link is down).
+     */
+    internal suspend fun injectRawToRadio(toRadioBytes: ByteArray): Boolean {
+        val result = runCatching { transport.writeToRadio(toRadioBytes) }.getOrDefault(false)
+        android.util.Log.i("BleConnection", "[@${System.identityHashCode(this)}] injectRawToRadio: ${toRadioBytes.size}B -> $result (linkState=$linkState)")
+        return result
+    }
+
+    /**
+     * Push a synthetic [MeshEvent] directly into the connection's events
+     * flow, bypassing the BLE wire and the firmware. For replay tests that
+     * need virtual peer positions to land in Redux without round-tripping
+     * through Meshtastic — the firmware overwrites `from=0` on phone-sent
+     * packets and doesn't echo them back via FromRadio, so the "loopback
+     * peer trick" doesn't work on real hardware.
+     *
+     * The real BleConnection wire (DUT GPS, ownership packets, future
+     * SOS) still goes through the transport unmodified.
+     */
+    internal suspend fun injectMeshEventForTest(event: MeshEvent) {
+        android.util.Log.i("BleConnection", "[@${System.identityHashCode(this)}] injectMeshEventForTest: ${event.javaClass.simpleName}")
+        _events.emit(event)
     }
 
     override suspend fun sendAlert(

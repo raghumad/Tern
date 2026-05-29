@@ -13,8 +13,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.ViewModelProvider
+import com.ternparagliding.mezulla.MezullaConnectionManager
 import com.ternparagliding.mezulla.pairing.PairingOrchestrator
 import com.ternparagliding.mezulla.pairing.TernPairLink
+import com.ternparagliding.redux.MapStore
 import com.ternparagliding.ui.screens.TernMapScreen
 import com.ternparagliding.ui.theme.TernTheme
 import com.ternparagliding.utils.CacheManager
@@ -29,6 +32,17 @@ class TernParaglidingActivity : ComponentActivity() {
 
     val pairingOrchestrator: PairingOrchestrator by lazy {
         PairingOrchestrator(applicationContext)
+    }
+
+    /**
+     * Persistent BLE connection manager. Public for on-device test
+     * harnesses (Aravis replay) that need to reach the live
+     * [com.ternparagliding.mezulla.connection.ble.BleConnection] to pump
+     * synthetic Position frames through it. Production UX paths must not
+     * touch this directly — they go through Redux peerState.
+     */
+    val connectionManager: MezullaConnectionManager by lazy {
+        MezullaConnectionManager(applicationContext, pairingOrchestrator)
     }
 
     private var pendingPairLink: TernPairLink? = null
@@ -59,12 +73,23 @@ class TernParaglidingActivity : ComponentActivity() {
         Configuration.getInstance().load(applicationContext, getSharedPreferences(PREFS_NAME, MODE_PRIVATE))
         Configuration.getInstance().userAgentValue = packageName
 
+        // Get the activity-scoped MapStore ViewModel and wire the persistent
+        // BLE connection. The same ViewModel instance is used by TernMapScreen
+        // (passed explicitly below) so there is exactly one MapStore per activity.
+        val mapStore = ViewModelProvider(this)[MapStore::class.java]
+        connectionManager.initialize(mapStore)
+
+        // When a new pair starts (deep link OR direct orchestrator call
+        // from tests), tear down any stale persistent connection so it
+        // doesn't race the new pair's SMP handshake with a stale PIN.
+        pairingOrchestrator.onPairStart = { connectionManager.stopActiveConnection() }
+
         intent?.let { handleDeepLink(it) }
 
         setContent {
             TernTheme(darkTheme = true) {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    TernMapScreen()
+                    TernMapScreen(store = mapStore)
                 }
             }
         }
@@ -83,6 +108,14 @@ class TernParaglidingActivity : ComponentActivity() {
         Log.i(TAG, "Deep link received: node=${link.nodeIdHex}")
 
         if (hasBlePermissions()) {
+            // Close any stale persistent connection from a prior session
+            // BEFORE starting the new pair flow. Without this, the prior
+            // connection (started by initialize() at activity onCreate
+            // from the saved pair record) can race ahead and trigger an
+            // SMP pair request using the *previous* PIN, blowing the
+            // new pair before it begins. Pairing always wants a fresh
+            // GATT slot.
+            connectionManager.stopActiveConnection()
             pairingOrchestrator.handlePairLink(link)
             Log.i(TAG, "Deep link handled by pairing orchestrator")
         } else {

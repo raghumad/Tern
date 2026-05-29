@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -20,17 +21,28 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ternparagliding.R
 import com.ternparagliding.mezulla.connection.LinkState
 import com.ternparagliding.mezulla.redux.ActiveAlert
 import com.ternparagliding.mezulla.redux.PeerState
@@ -62,6 +74,11 @@ fun MezullaViewModeButton(
 ) {
     if (linkState != LinkState.UP) return
 
+    val (icon, label) = when (viewMode) {
+        com.ternparagliding.redux.MezullaViewMode.SAFETY -> "👁" to "SAFETY"   // 👁 eye = watching peers
+        com.ternparagliding.redux.MezullaViewMode.CLIMB -> "🌀" to "CLIMB"    // 🌀 spiral = thermalling
+        com.ternparagliding.redux.MezullaViewMode.TACTICAL -> "🧭" to "TACT"   // 🧭 compass = bearing
+    }
     Button(
         onClick = onCycle,
         modifier = modifier
@@ -72,13 +89,14 @@ fun MezullaViewModeButton(
             containerColor = Color(0xFF1A1A2E).copy(alpha = 0.85f),
             contentColor = Color.White,
         ),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(2.dp),
     ) {
-        Text(
-            text = viewMode.name,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1,
-        )
+        androidx.compose.foundation.layout.Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(text = icon, fontSize = 20.sp, maxLines = 1)
+            Text(text = label, fontSize = 9.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+        }
     }
 }
 
@@ -261,6 +279,70 @@ fun MezullaStatusIndicator(
                 )
             }
         }
+    }
+}
+
+/**
+ * Compact, glance-only Mezulla status badge intended for the top-right
+ * corner of the map (next to the compass). Uses Nerd Font Material
+ * Design glyphs so a single character encodes both link state and
+ * peer count -- the pilot reads the badge in one glance, no decoding.
+ *
+ *   NEVER_PAIRED         → invisible
+ *   DOWN                 → grey status glyph (U+F0C0F), pulsing
+ *   UP & 0 peers         → white status glyph, pulsing
+ *   UP & N peers (1..9)  → numeric_N_box_multiple_outline
+ *   UP & 10+ peers       → numeric_9_plus_box_multiple_outline
+ *
+ * The Material Design "numeric_N_box_multiple_outline" series in
+ * Nerd Font is laid out with a +3 codepoint stride between adjacent
+ * numbers: 1=F03A5, 2=F03A8, 3=F03AB, ..., 9=F03BD, 9+=F03C0.
+ */
+@Composable
+fun MezullaStatusBadge(
+    peerState: PeerState,
+    modifier: Modifier = Modifier,
+) {
+    if (peerState.linkState == LinkState.NEVER_PAIRED) return
+
+    val isUp = peerState.linkState == LinkState.UP
+    val count = if (isUp) peerState.peers.size else 0
+
+    val codepoint = when {
+        !isUp || count == 0 -> 0xF0C0F
+        count >= 10 -> 0xF03C0
+        else -> 0xF03A5 + (count - 1) * 3
+    }
+    val glyph = String(Character.toChars(codepoint))
+    val color = if (isUp) Color.White else Color.Gray
+
+    val transition = rememberInfiniteTransition(label = "mezulla-badge-pulse")
+    val alpha by transition.animateFloat(
+        initialValue = 0.65f,
+        targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1500, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "mezulla-badge-alpha",
+    )
+
+    val nerdFontFamily = FontFamily(Font(R.font.jetbrains_mono_nerd_regular))
+
+    Box(
+        modifier = modifier
+            .size(32.dp)
+            .shadow(3.dp, CircleShape)
+            .background(Color(0xFF1A1A2E).copy(alpha = 0.55f), CircleShape)
+            .testTag("mezulla_status_badge"),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = glyph,
+            color = color.copy(alpha = alpha),
+            fontFamily = nerdFontFamily,
+            fontSize = 22.sp,
+        )
     }
 }
 

@@ -98,6 +98,13 @@ import java.time.Instant
  * @param playbackTickSeconds virtual seconds advanced per simulator tick.
  *   The broadcast cadence must be evenly divisible by the tick interval
  *   so cadence boundaries can be hit precisely. Default 1 s.
+ * @param speedMultiplier how much faster than real time the real-time
+ *   driver should run. Default 1 (real time). At 64x, one second of
+ *   flight elapses every 15.6 ms of wall clock. Virtual time still
+ *   advances by [playbackTickSeconds] per tick — the multiplier only
+ *   affects how long [driveRealtime] sleeps between ticks. Has no
+ *   effect on scripted (test) mode; [advanceTo] runs as fast as it can
+ *   regardless.
  * @param clock injected to keep real-time mode testable. Defaults to
  *   [Clock.systemUTC]; tests do not need this — they use [advanceTo].
  * @param playbackFlightsOverride optional pre-parsed flights for tests
@@ -109,6 +116,7 @@ class SwarmSimulatedConnection(
     val propagation: PropagationModel = DistanceOnlyPropagation(DEFAULT_RANGE_METERS),
     val positionBroadcastIntervalSeconds: Int = DEFAULT_POSITION_INTERVAL_SECONDS,
     val playbackTickSeconds: Int = DEFAULT_TICK_SECONDS,
+    val speedMultiplier: Int = DEFAULT_SPEED_MULTIPLIER,
     private val clock: Clock = Clock.systemUTC(),
     playbackFlightsOverride: Map<PilotId, com.ternparagliding.sim.igc.IgcFlight>? = null,
 ) : MeshtasticConnection {
@@ -122,6 +130,9 @@ class SwarmSimulatedConnection(
         }
         require(playbackTickSeconds > 0) {
             "playbackTickSeconds must be > 0 (got $playbackTickSeconds)"
+        }
+        require(speedMultiplier > 0) {
+            "speedMultiplier must be > 0 (got $speedMultiplier)"
         }
         require(positionBroadcastIntervalSeconds % playbackTickSeconds == 0) {
             "positionBroadcastIntervalSeconds ($positionBroadcastIntervalSeconds) must be a " +
@@ -310,13 +321,15 @@ class SwarmSimulatedConnection(
 
     /**
      * Real-time driver loop. Advances virtual time by one tick every
-     * `playbackTickSeconds` seconds of wall clock until the scenario ends
-     * or the coroutine is cancelled. Cooperative cancellation: [delay]
+     * `playbackTickSeconds / speedMultiplier` seconds of wall clock
+     * until the scenario ends or the coroutine is cancelled. At 1x the
+     * delay matches the tick interval; at 64x each tick sleeps only
+     * 15.6 ms (for a 1-second tick). Cooperative cancellation: [delay]
      * propagates `CancellationException` so cancelling the parent job
      * exits the loop without further work.
      */
     private suspend fun driveRealtime() {
-        val realtimePerTickMs = playbackTickSeconds.toLong() * MS_PER_SECOND
+        val realtimePerTickMs = playbackTickSeconds.toLong() * MS_PER_SECOND / speedMultiplier
         while (!endingEmitted) {
             val next = virtualClock.plus(tickStep)
             if (next.isAfter(playback.swarmEnd)) {
@@ -448,6 +461,9 @@ class SwarmSimulatedConnection(
 
         /** Default virtual-clock step per tick. */
         const val DEFAULT_TICK_SECONDS: Int = 1
+
+        /** Default speed multiplier (real time). */
+        const val DEFAULT_SPEED_MULTIPLIER: Int = 1
 
         /**
          * Buffer capacity on the event SharedFlow. Mirrors

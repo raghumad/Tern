@@ -46,10 +46,41 @@ class FrameCaptureHelper(
                 } catch (e: Exception) {
                     Log.w(tag, "Frame $frameCount failed: ${e.message}")
                 }
+                // Also save to /sdcard/tern-tests/<testName>-frames/ so the
+                // host can pull frames when TestStorage is not available
+                // (e.g. when the test is run via `am instrument` instead of
+                // `./gradlew connectedDebugAndroidTest`).
+                try {
+                    saveScreenshotToSdcard(frameName)
+                } catch (e: Exception) {
+                    Log.w(tag, "Frame $frameCount sdcard save failed: ${e.message}")
+                }
                 delay(intervalMs)
             }
         }
         Log.i(tag, "Frame capture started @ ${intervalMs}ms intervals")
+    }
+
+    private fun saveScreenshotToSdcard(frameName: String) {
+        val bitmap = androidx.test.platform.app.InstrumentationRegistry
+            .getInstrumentation().uiAutomation.takeScreenshot()
+            ?: return
+        // App-scoped external files dir — always writable, adb pull-able
+        // at /sdcard/Android/data/<test_pkg>/files/tern-tests/<test>-frames/
+        val ctx = androidx.test.platform.app.InstrumentationRegistry
+            .getInstrumentation().targetContext
+        val baseDir = ctx.getExternalFilesDir(null)
+            ?: return
+        val dir = java.io.File(baseDir, "tern-tests/${testName}-frames")
+        if (!dir.exists() && !dir.mkdirs()) {
+            Log.w(tag, "mkdirs failed: $dir")
+            return
+        }
+        val nowMs = System.currentTimeMillis()
+        val file = java.io.File(dir, "${frameName}_${nowMs}.png")
+        java.io.FileOutputStream(file).use { out ->
+            bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
+        }
     }
 
     fun stop(): Int {

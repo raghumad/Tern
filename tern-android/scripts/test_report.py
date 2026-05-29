@@ -48,7 +48,38 @@ def parse_unit_tests() -> list[TC]:
                 cases.append(tc)
     return cases
 
-# -- Parse instrumented tests from BDD summaries + JUnit XML --
+# -- Parse instrumented tests from BDD summaries + JUnit XML + source --
+_TEST_FUN_RE = re.compile(r'^\s*@Test\b[^\n]*\n\s*fun\s+(\w+)', re.M)
+_CLASS_RE = re.compile(r'^\s*(?:open|abstract|sealed)?\s*class\s+(\w+)', re.M)
+_PACKAGE_RE = re.compile(r'^\s*package\s+([\w.]+)', re.M)
+
+def _discover_from_source(seen: set[str]) -> list[TC]:
+    """Walk instrumented source for @Test methods that have not produced
+    a result file yet. We surface them as 'not_run' so the dashboard
+    reflects the real suite size — previously they were silently absent
+    whenever the build dir was empty, which masked entire test classes
+    (the hardware-only ones) from view."""
+    cases: list[TC] = []
+    if not INSTR_SRC.is_dir(): return cases
+    for kt in sorted(INSTR_SRC.rglob("*.kt")):
+        text = kt.read_text(errors="replace")
+        class_m = _CLASS_RE.search(text)
+        if not class_m: continue
+        class_short = class_m.group(1)
+        pkg_m = _PACKAGE_RE.search(text)
+        class_fqn = f"{pkg_m.group(1)}.{class_short}" if pkg_m else class_short
+        for m in _TEST_FUN_RE.finditer(text):
+            method = m.group(1)
+            # Match the key shape used by the result parsers below, which
+            # store the short class name (rsplit on '.'). That way a result
+            # for FullCycleTest::foo overrides our discovered 'not_run' row.
+            key = f"{class_short}::{method}"
+            if key in seen: continue
+            seen.add(key)
+            cases.append(TC(name=method, classname=class_fqn,
+                            status="not_run", category="instrumented"))
+    return cases
+
 def parse_instrumented_tests() -> list[TC]:
     cases: list[TC] = []
     seen: set[str] = set()
@@ -57,7 +88,9 @@ def parse_instrumented_tests() -> list[TC]:
             try: d = json.loads(jp.read_text())
             except Exception: continue
             cn = d.get("className",""); tn = d.get("testName","")
-            seen.add(f"{cn}::{tn}")
+            # Use short class name in `seen` so source-discovery (which only
+            # has the short name to work with) can de-dupe correctly.
+            seen.add(f"{cn.rsplit('.',1)[-1]}::{tn}")
             tc = TC(name=tn, classname=cn, category="instrumented",
                     status="pass" if d.get("status") == "PASS" else "fail",
                     scenario_name=d.get("scenarioName",""),
@@ -81,6 +114,7 @@ def parse_instrumented_tests() -> list[TC]:
                     if fail_el is not None: tc.status = "fail"
                     elif el.find("skipped") is not None: tc.status = "skip"
                     cases.append(tc)
+    cases.extend(_discover_from_source(seen))
     return cases
 
 # -- @Liar detection --
@@ -152,9 +186,10 @@ def generate_html(unit: list[TC], instr: list[TC]) -> str:
     passed = sum(1 for c in all_c if c.status == "pass" and not c.liar)
     failed = sum(1 for c in all_c if c.status == "fail")
     skipped = sum(1 for c in all_c if c.status == "skip")
+    not_run = sum(1 for c in all_c if c.status == "not_run")
     liars = sum(1 for c in all_c if c.liar)
 
-    colors = {"pass":"#22c55e","fail":"#ef4444","skip":"#f59e0b"}
+    colors = {"pass":"#22c55e","fail":"#ef4444","skip":"#f59e0b","not_run":"#64748b"}
     rel = BDD_REPORTS.relative_to(OUTPUT_FILE.parent) if BDD_REPORTS.is_dir() else "bdd-report"
 
     # Build sidebar items
@@ -175,16 +210,25 @@ def generate_html(unit: list[TC], instr: list[TC]) -> str:
                     f'{dot}<span class="nav-label">{label}</span>'
                     f'<span class="nav-class">{short}</span></div>')
 
-    # Instrumented tests: failures first, then liars, then passing
-    instr_sorted = sorted(instr, key=lambda t: (0 if t.status=="fail" else 1 if t.liar else 2, t.classname, t.name))
+    # Instrumented tests: failures first, then liars, then not-run, then passing
+    def _rank(t: TC) -> int:
+        if t.status == "fail": return 0
+        if t.liar: return 1
+        if t.status == "not_run": return 2
+        return 3
+    instr_sorted = sorted(instr, key=lambda t: (_rank(t), t.classname, t.name))
     instr_items = "\n".join(sidebar_item(tc, i) for i, tc in enumerate(instr_sorted))
 
     # Unit test summary
     up = sum(1 for c in unit if c.status == "pass")
     uf = sum(1 for c in unit if c.status == "fail")
 
-    oc = "#22c55e" if failed == 0 else "#ef4444"
-    badge = "ALL PASS" if failed == 0 else f"{failed} FAILURES"
+    if failed:
+        oc, badge = "#ef4444", f"{failed} FAILURES"
+    elif not_run:
+        oc, badge = "#64748b", f"{not_run} NEVER RUN"
+    else:
+        oc, badge = "#22c55e", "ALL PASS"
 
     # Default report to show
     default_report = ""
@@ -232,6 +276,7 @@ body {{ font-family: -apple-system,'Inter',system-ui,sans-serif; background: #0f
       <div class="stat"><div class="stat-num" style="color:#22c55e">{passed}</div><div class="stat-label">Pass</div></div>
       <div class="stat"><div class="stat-num" style="color:#ef4444">{failed}</div><div class="stat-label">Fail</div></div>
       <div class="stat"><div class="stat-num" style="color:#f59e0b">{skipped}</div><div class="stat-label">Skip</div></div>
+      <div class="stat"><div class="stat-num" style="color:#64748b">{not_run}</div><div class="stat-label">Not Run</div></div>
       <div class="stat"><div class="stat-num" style="color:#a855f7">{liars}</div><div class="stat-label">Liar</div></div>
     </div>
   </div>
@@ -262,11 +307,14 @@ def main() -> None:
     html = generate_html(unit, instr)
     OUTPUT_FILE.write_text(html, encoding="utf-8")
     total = len(all_cases)
+    passed = sum(1 for c in all_cases if c.status == "pass")
     failed = sum(1 for c in all_cases if c.status == "fail")
+    skipped = sum(1 for c in all_cases if c.status == "skip")
+    not_run = sum(1 for c in all_cases if c.status == "not_run")
     liars = sum(1 for c in all_cases if c.liar)
     vids = sum(1 for c in all_cases if c.video_file)
     print(f"Dashboard: {OUTPUT_FILE}")
-    print(f"  {total} tests | {total-failed} passed | {failed} failed | {liars} liar | {vids} with video")
+    print(f"  {total} tests | {passed} pass | {failed} fail | {skipped} skip | {not_run} never-run | {liars} liar | {vids} with video")
 
 if __name__ == "__main__":
     main()
