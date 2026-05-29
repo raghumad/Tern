@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Base application theme. -->
+    <style name="Theme.Tern" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <!-- Primary brand color. -->
+        <item name="colorPrimary">#00BCD4</item>
+        <item name="colorPrimaryVariant">#0097A7</item>
+        <item name="colorOnPrimary">#FFFFFFFF</item>
+        <!-- Secondary brand color. -->
+        <item name="colorSecondary">#A7FFEB</item>
+        <item name="colorSecondaryVariant">#0097A7</item>
+        <item name="colorOnSecondary">#FF000000</item>
+        <!-- Status bar color. -->
+        <item name="android:statusBarColor">?attr/colorPrimaryVariant</item>
+        <!-- Custom font -->
+        <item name="android:fontFamily">@font/gruppo_regular</item>
+        <!-- Customize your theme here. -->
+    </style>
+</resources>

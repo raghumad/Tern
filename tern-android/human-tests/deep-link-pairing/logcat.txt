@@ -1,0 +1,3 @@
+--------- beginning of main
+05-26 19:33:17.388   952   952 I PairingOrchestrator: Pairing link received: node=4a312aaa
+05-26 19:33:17.388   952   952 I TernParaglidingActivity: Deep link handled by pairing orchestrator

@@ -1,0 +1,31 @@
+namespace Tern;
+
+enum WaypointType : byte {
+  LAUNCH = 0,
+  TURNPOINT = 1,
+  LANDING = 2
+}
+
+table Waypoint {
+  id: string;
+  latitude: double;
+  longitude: double;
+  type: WaypointType = TURNPOINT;
+  elevation: double;
+  cylinderRadius: double;
+  title: string;
+  subtitle: string;
+}
+
+table Route {
+  id: string;
+  name: string;
+  waypoints: [Waypoint];
+  totalDistanceKm: double;
+  estimatedFlightTimeMinutes: int;
+  createdAt: long;
+  updatedAt: long;
+  version: int;
+}
+
+root_type Route;

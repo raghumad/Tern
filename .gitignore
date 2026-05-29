@@ -92,3 +92,60 @@ Tern/Views/.DS_Store
 .DS_Store
 .DS_Store
 .DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Testing Artifacts
+coverage-dashboard/
+*.json
+badges/
+htmlcov/
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+.hypothesis/
+
+# IDE and Editor Files
+# Ignore VS Code per-user state, but allow project-shared config to be
+# committed (snippets and settings). Note: must ignore .vscode/* (the
+# contents) rather than .vscode/ (the directory) for the !-overrides
+# to work, since Git won't re-include files under an excluded directory.
+.vscode/*
+!.vscode/settings.json
+!.vscode/*.code-snippets
+.idea/
+*.swp
+*.swo
+*~
+
+# Android Build Outputs
+*.apk
+*.aab
+*.aar
+build/
+.gradle/
+local.properties
+.claude/

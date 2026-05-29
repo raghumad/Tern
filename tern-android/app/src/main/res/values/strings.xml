@@ -1,0 +1,37 @@
+<resources>
+    <string name="app_name">Tern</string>
+    <string name="menu_save_text">Save</string>
+    <string name="menu_share_xctsk">Share .xctsk File</string>
+    <string name="menu_share_qrcode">Share QR Code</string>
+    <string name="menu_share_cup">Share .cup File</string>
+    <string name="menu_share_wpt">Share .wpt (CompeGPS)</string>
+    <string name="content_desc_settings_button">Settings</string>
+    <string name="content_desc_add_waypoint_button">Add Waypoint</string>
+    <string name="content_desc_share_menu_button">Share Menu</string>
+    <string name="content_desc_welcome_image">Welcome Image</string>
+    <string name="tern_paragliding">Tern Paragliding</string>
+
+    <!-- Settings Bottom Sheet -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_content_desc_exit_button">Close settings</string>
+    <string name="settings_airspaces">Airspaces</string>
+    <string name="settings_hotspots">Hotspots</string>
+    <string name="settings_pglaunches">PG Launches</string>
+    <string name="settings_map_view">Map View</string>
+    <string name="settings_map_view_terrain">Terrain</string>
+    <string name="settings_map_view_satellite">Satellite</string>
+    <string name="settings_units">Units</string>
+    <string name="settings_units_temperature">Temperature</string>
+    <string name="settings_units_temp_celsius">°C</string>
+    <string name="settings_units_temp_fahrenheit">°F</string>
+    <string name="settings_units_distance">Distance</string>
+    <string name="settings_units_dist_km">km</string>
+    <string name="settings_units_dist_miles">mi</string>
+    <string name="settings_units_speed">Speed</string>
+    <string name="settings_units_speed_kmh">km/h</string>
+    <string name="settings_units_speed_mph">mph</string>
+    <string name="settings_units_speed_ms">m/s</string>
+    <string name="settings_units_altitude">Altitude</string>
+    <string name="settings_units_alt_meters">m</string>
+    <string name="settings_units_alt_feet">ft</string>
+</resources>

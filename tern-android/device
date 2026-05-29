@@ -1,0 +1,78 @@
+#!/bin/bash
+# Shorthand for running Tern UI tests
+# Usage: ./device ClassName1 ClassName2 ... or ./device Keyword or ./device --all
+
+# 1. Discover all instrumented tests in the source tree
+TEST_FILES=$(find app/src/instrumentedTests/kotlin -name "*Test.kt" 2>/dev/null)
+TOTAL_TEST_FILES=$(echo "$TEST_FILES" | wc -l)
+
+if [ -z "$1" ]; then
+  echo "Usage: ./device [ClassName | Keyword | --all]"
+  echo "Available instrumented tests: $TOTAL_TEST_FILES"
+  exit 1
+fi
+
+CLASSES=""
+
+# Helper to append a unique class to the list
+add_class() {
+    local cls=$1
+    if [ -z "$CLASSES" ]; then
+        CLASSES="$cls"
+    else
+        # Avoid duplicate entries if multiple keywords match the same test
+        if [[ ",$CLASSES," != *",$cls,"* ]]; then
+            CLASSES="$CLASSES,$cls"
+        fi
+    fi
+}
+
+if [ "$1" == "--all" ]; then
+    echo "🔎 Selecting ALL $TOTAL_TEST_FILES instrumented tests..."
+    for file in $TEST_FILES; do
+        REL_PATH=${file#*kotlin/}
+        CLASS_NAME=$(echo ${REL_PATH%.kt} | tr '/' '.')
+        add_class "$CLASS_NAME"
+    done
+else
+    for arg in "$@"; do
+        # 2. Try to find fuzzy matches for the argument (case-insensitive)
+        MATCHING_FILES=$(echo "$TEST_FILES" | grep -i "$arg")
+        
+        if [ -n "$MATCHING_FILES" ]; then
+            MATCH_COUNT=$(echo "$MATCHING_FILES" | wc -l)
+            echo "✅ Found $MATCH_COUNT match(es) for '$arg'"
+            for file in $MATCHING_FILES; do
+                # Extract package and class name from path
+                REL_PATH=${file#*kotlin/}
+                CLASS_NAME=$(echo ${REL_PATH%.kt} | tr '/' '.')
+                echo "   - $CLASS_NAME"
+                add_class "$CLASS_NAME"
+            done
+        else
+            # 3. Fallback to exact name if no fuzzy matches found
+            # If it doesn't have a dot, default to the most common package
+            if [[ "$arg" != *"."* ]]; then
+                FALLBACK="com.madanala.tern.ui.$arg"
+                echo "⚠️ No fuzzy match for '$arg', using fallback: $FALLBACK"
+                add_class "$FALLBACK"
+            else
+                echo "🎯 Using exact class: $arg"
+                add_class "$arg"
+            fi
+        fi
+    done
+fi
+
+if [ -z "$CLASSES" ]; then
+    echo "❌ No tests found matching: $@"
+    exit 1
+fi
+
+# Clearing stale BDD reports to ensure fresh results
+echo "🧹 Clearing stale BDD reports..."
+rm -rf app/build/reports/bdd-report/*
+
+NUM_CLASSES=$(echo "$CLASSES" | tr ',' '\n' | wc -l)
+echo "🚀 Running $NUM_CLASSES UI Test(s): $CLASSES"
+./gradlew :app:pixel9proapi35DebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class="$CLASSES"

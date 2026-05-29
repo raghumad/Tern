@@ -1,0 +1,88 @@
+package com.ternparagliding.ui.components
+
+import android.widget.Toast
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Icon
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+
+private val DOCK_BUTTON_SIZE = 40.dp
+private val DOCK_ICON_SIZE = 22.dp  // ~55% of button — leaves a comfortable visible pill ring
+private val DOCK_BG = Color(0xFF1A1A2E).copy(alpha = 0.55f)
+private val DOCK_ICON = Color.White
+private val DOCK_ELEVATION = 3.dp
+
+/**
+ * One dock control: a clickable circular hit target with a soft shadow
+ * + a moderate dark pill. Shadow alone proved unreliable over light
+ * terrain (snow / cloud cover); pill at 55% alpha is visible without
+ * dominating the map.
+ *
+ * We deliberately do NOT wrap a Material IconButton — IconButton
+ * imposes its own 48dp internal sizing that misaligns the icon inside
+ * any smaller outer Box.
+ */
+@Composable
+private fun DockButton(
+    onClick: () -> Unit,
+    contentDescription: String,
+    icon: @Composable (Modifier) -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .size(DOCK_BUTTON_SIZE)
+            .shadow(elevation = DOCK_ELEVATION, shape = CircleShape)
+            .background(color = DOCK_BG, shape = CircleShape)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        icon(Modifier.size(DOCK_ICON_SIZE))
+    }
+}
+
+@Composable
+fun SettingsButton(onClick: () -> Unit) {
+    DockButton(onClick, "Settings") { m ->
+        Icon(Icons.Default.Settings, contentDescription = "Settings", tint = DOCK_ICON, modifier = m)
+    }
+}
+
+@Composable
+fun AddWaypointButton() {
+    val context = LocalContext.current
+    DockButton({ Toast.makeText(context, "Add waypoint clicked", Toast.LENGTH_SHORT).show() }, "Add Waypoint") { m ->
+        Icon(Icons.Default.Add, contentDescription = "Add Waypoint", tint = DOCK_ICON, modifier = m)
+    }
+}
+
+@Composable
+fun ShareButton(onClick: () -> Unit) {
+    DockButton(onClick, "Share Menu") { m ->
+        Icon(Icons.Default.MoreVert, contentDescription = "Share Menu", tint = DOCK_ICON, modifier = m)
+    }
+}
+
+@Composable
+fun RouteButton(onClick: () -> Unit) {
+    DockButton(onClick, "Route Management") { m ->
+        Icon(
+            painter = androidx.compose.ui.res.painterResource(id = com.ternparagliding.R.drawable.route_24),
+            contentDescription = "Route Management",
+            tint = DOCK_ICON,
+            modifier = m,
+        )
+    }
+}
