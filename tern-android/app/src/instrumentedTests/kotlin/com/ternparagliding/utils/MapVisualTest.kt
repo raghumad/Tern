@@ -21,7 +21,53 @@ import androidx.test.platform.app.InstrumentationRegistry
  * Provides BDD-style helpers but launches TernParaglidingActivity.
  */
 open class MapVisualTest {
-    
+
+    /**
+     * Start a background thread that watches for Android's system
+     * "Pair and connect" Bluetooth pair dialog and auto-clicks the
+     * "Pair" button when it appears. Returns a `stop()` lambda the
+     * test invokes once pairing has settled.
+     *
+     * Why this exists: per BLE Core Spec + AOSP, non-privileged apps
+     * cannot silently complete SMP — Tern's design accepts that and
+     * shows a priming screen + relies on a single user tap. The test
+     * runs unattended by simulating the same tap the pilot does.
+     */
+    protected fun startPairDialogAutoTapper(timeoutPerLook: Long = 1000L): () -> Unit {
+        val device = androidx.test.uiautomator.UiDevice.getInstance(
+            androidx.test.platform.app.InstrumentationRegistry.getInstrumentation()
+        )
+        val stopped = java.util.concurrent.atomic.AtomicBoolean(false)
+        val thread = Thread {
+            val pattern = java.util.regex.Pattern.compile(
+                "^(Pair|PAIR|Pair & connect|Pair and connect)$",
+                java.util.regex.Pattern.CASE_INSENSITIVE,
+            )
+            while (!stopped.get()) {
+                runCatching {
+                    val button = device.wait(
+                        androidx.test.uiautomator.Until.findObject(
+                            androidx.test.uiautomator.By.text(pattern)
+                        ),
+                        timeoutPerLook,
+                    )
+                    if (button != null) {
+                        android.util.Log.i("PairDialogTapper", "Found Pair button: '${button.text}', clicking")
+                        button.click()
+                        Thread.sleep(500)
+                    }
+                }
+            }
+        }.apply {
+            name = "PairDialogTapper"
+            isDaemon = true
+            start()
+        }
+        return {
+            stopped.set(true)
+            thread.join(2000)
+        }
+    }
 
     @get:org.junit.Rule
     val testNameRule = org.junit.rules.TestName()

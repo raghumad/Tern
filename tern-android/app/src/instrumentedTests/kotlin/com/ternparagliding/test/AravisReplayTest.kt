@@ -22,6 +22,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
 import org.junit.After
+import org.junit.Assume
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -74,11 +76,40 @@ class AravisReplayTest : MapVisualTest() {
 
         /**
          * Speed multiplier — passed via instrumentation arg so the cycle
-         * script can dial it without recompiling the APK. Default 64x:
-         * a 60-wall-second test covers ~64 virtual minutes, enough to
-         * see all three Aravis teammates register and start moving.
+         * script can dial it without recompiling the APK. Default 256x:
+         * the full 11h 15m Aravis flight replays in ~158 wall-clock
+         * seconds, end-to-end, with frames captured every 500 ms.
          */
-        private const val DEFAULT_SPEED_MULTIPLIER = 64
+        private const val DEFAULT_SPEED_MULTIPLIER = 256
+
+        /**
+         * Wall-clock budget headroom over computed flight duration, in
+         * milliseconds. Covers GPS+camera settle, the in-flight sample
+         * cadence overhead, and slow ticks under load.
+         */
+        private const val BUDGET_HEADROOM_MS = 60_000L
+
+        /**
+         * Total span of the Aravis 2026-04-25 fixtures: earliest fix
+         * cbe@07:21:16, latest fix lma@18:36:05 → 40,489 s. Rounded up
+         * to give the runner a clean end-of-data boundary.
+         */
+        private const val FLIGHT_DURATION_SECONDS = 40_500L
+
+        /**
+         * How often we take a checkpoint screenshot (wall-clock ms)
+         * to assert the rendered map keeps showing peer markers
+         * across the full flight.
+         */
+        private const val SAMPLE_INTERVAL_MS = 30_000L
+
+        /**
+         * Fresh-peer green from [com.ternparagliding.overlay.mezulla.PeerBundleBuilder]
+         * — the glyph color a pilot sees on every fresh peer marker.
+         * The peer-visible assertion looks for this color on the
+         * rendered map.
+         */
+        private const val FRESH_PEER_GREEN = 0xFF4CAF50.toInt()
 
         /**
          * LoRa range in metres for the golden path. Matches
@@ -111,9 +142,6 @@ class AravisReplayTest : MapVisualTest() {
             AravisTeam2026.LMA to 0x10000003L,
         )
 
-        /** Display names we expect on the peers, in test-spec order. */
-        private val EXPECTED_PEER_NAMES: Set<String> = setOf("cbe", "cor", "lma")
-
         /** Centroid covering tonio/cbe/cor's launch (45.747, 6.507),
          *  the close-cluster peers ~10km east during early flight
          *  (45.77, 6.60), and the convergence area with lma (45.90, 6.88). */
@@ -134,6 +162,24 @@ class AravisReplayTest : MapVisualTest() {
     private var runner: AravisReplayRunner? = null
     private var runnerScope: CoroutineScope? = null
 
+    @Before
+    fun requireRealHardware() {
+        Assume.assumeFalse(
+            "Skipping AravisReplayTest: requires real phone + Mezulla board, not emulator",
+            isEmulator(),
+        )
+    }
+
+    private fun isEmulator(): Boolean {
+        val fp = android.os.Build.FINGERPRINT
+        val model = android.os.Build.MODEL
+        return fp.startsWith("generic") || fp.startsWith("unknown") ||
+            fp.contains("emulator") || fp.contains("vbox") ||
+            model.contains("Emulator") || model.contains("Android SDK") ||
+            android.os.Build.HARDWARE.contains("ranchu") ||
+            android.os.Build.HARDWARE.contains("goldfish")
+    }
+
     @After
     fun tearDownRunner() {
         val r = runner
@@ -146,11 +192,11 @@ class AravisReplayTest : MapVisualTest() {
     }
 
     @Test
-    fun aravis_team_xc_replay_golden_path_15km_range() {
+    fun aravis_team_xc_replay_golden_path_50km_range() {
         val speedMultiplier = speedMultiplierArg()
         Log.i(TAG, "Running Aravis replay at ${speedMultiplier}x")
 
-        scenario("Aravis team XC replay — golden path (15 km range)") {
+        scenario("Aravis team XC replay — golden path (50 km range), full 11h 15m flight") {
 
             // ================================================================
             // GIVEN: paired board + scenario loaded
@@ -260,76 +306,79 @@ class AravisReplayTest : MapVisualTest() {
             }
 
             // ================================================================
-            // THEN: pilot-visible validation — what's actually on the map.
+            // THEN: pilot-visible validation across the full flight.
             //
-            // Per project_tern_test_infrastructure_purpose +
-            // feedback_assert_downstream: we do NOT validate Redux internals.
-            // The pilot's truth is the rendered map. Two pilot-visible
-            // checks here:
-            //   1. The map is centered on Aravis (DUT GPS reached the
-            //      camera, so the pilot sees their own area).
-            //   2. The screenshot at end-of-test is not blank (something
-            //      is being rendered — the captured video is the human-
-            //      reviewable artifact for peer-correctness).
+            // Per feedback_assert_downstream + the user's "we wont do any
+            // more redux validation" guidance: we sample the rendered
+            // bitmap (the pilot's truth) on a steady cadence across the
+            // whole replay and assert (a) the map is not blank and
+            // (b) the fresh-peer green glyph color is visible somewhere
+            // on screen.
+            //
+            // Total wait = flight duration / speedMultiplier + headroom.
+            // At 256x that's ~158 s + 60 s budget = ~3.6 min wall-clock
+            // for the full 11h 15m Aravis flight.
             // ================================================================
 
-            then("the map is centered on Aravis, not the default location") {
-                // Pilot-visible: Tern's camera (the actual MapLibre view
-                // the pilot sees) shows their area. The peer markers
-                // overlay the same map.
-                val center = store.state.value.center
-                assert(center != null) { "Map center is null" }
-                val dLat = kotlin.math.abs(center!!.latitude - ARAVIS_LAT)
-                val dLon = kotlin.math.abs(center.longitude - ARAVIS_LON)
-                assert(dLat < 0.5 && dLon < 0.5) {
-                    "Map center (${center.latitude}, ${center.longitude}) " +
-                        "is more than ~50 km from Aravis " +
-                        "($ARAVIS_LAT, $ARAVIS_LON)"
-                }
-            }
-
-            and("after letting the replay run, the screen shows rendered content (not blank)") {
-                // Let the replay run for ~30 wall-clock seconds at 64x
-                // so it covers ~32 virtual minutes — past lma's launch,
-                // past the close-cluster early flight, into the meat
-                // of the convergence.
-                Thread.sleep(30_000)
-
-                composeTestRule.waitForIdle()
-                val bitmap = androidx.test.platform.app.InstrumentationRegistry
-                    .getInstrumentation().uiAutomation.takeScreenshot()
-                    ?: throw AssertionError("uiAutomation.takeScreenshot returned null")
-
-                assert(!com.ternparagliding.utils.VisualValidator.isBlank(bitmap)) {
-                    "Screenshot is blank — nothing rendered on the map"
-                }
-                Log.i(TAG, "Map screenshot OK (${bitmap.width}x${bitmap.height}, non-blank)")
-            }
-
-            and("the runner reports Running state with non-zero virtual elapsed", takeScreenshot = false) {
-                val state = runner?.state?.value
-                assert(state is ReplayState.Running) {
-                    "Expected Running, got $state"
-                }
-                val running = state as ReplayState.Running
+            then("the rendered map keeps showing peer markers across the full Aravis flight") {
+                val budgetWallMs = (FLIGHT_DURATION_SECONDS * 1000L) / speedMultiplier +
+                    BUDGET_HEADROOM_MS
+                val deadline = System.currentTimeMillis() + budgetWallMs
                 Log.i(
                     TAG,
-                    "Runner state: virtualTime=${running.virtualTime}, " +
-                        "elapsed=${running.elapsed.toMillis()}ms",
+                    "Pilot-visible sampling: budget=${budgetWallMs}ms, " +
+                        "interval=${SAMPLE_INTERVAL_MS}ms, " +
+                        "expected samples=${budgetWallMs / SAMPLE_INTERVAL_MS}",
                 )
-                assert(!running.elapsed.isZero) {
-                    "Expected non-zero elapsed wall-clock time, got ${running.elapsed}"
-                }
-            }
 
-            and("a screenshot captures the map with peer markers") {
-                // The screen recording (started by MapVisualTest.setup()) is
-                // the primary evidence — this checkpoint screenshot is a
-                // belt-and-braces still frame for the report.
-                composeTestRule.waitForIdle()
-                Thread.sleep(500)
-                // Captured automatically by the BDD framework via
-                // takeScreenshot=true on this step.
+                var samples = 0
+                var peerVisibleSamples = 0
+                while (System.currentTimeMillis() < deadline) {
+                    Thread.sleep(SAMPLE_INTERVAL_MS)
+                    composeTestRule.waitForIdle()
+
+                    val bitmap = androidx.test.platform.app.InstrumentationRegistry
+                        .getInstrumentation().uiAutomation.takeScreenshot()
+                        ?: throw AssertionError("uiAutomation.takeScreenshot returned null")
+                    samples++
+
+                    assert(!com.ternparagliding.utils.VisualValidator.isBlank(bitmap)) {
+                        "Sample $samples is blank — rendering failed mid-flight"
+                    }
+
+                    val peerVisible = com.ternparagliding.utils.VisualValidator
+                        .findColorSignature(
+                            bitmap = bitmap,
+                            rect = android.graphics.Rect(0, 0, bitmap.width, bitmap.height),
+                            targetColor = FRESH_PEER_GREEN,
+                            tolerance = 25,
+                            minPixels = 10,
+                        )
+                    if (peerVisible) peerVisibleSamples++
+
+                    val virtualNow = (runner?.state?.value as? ReplayState.Running)
+                        ?.virtualTime?.toString() ?: "—"
+                    Log.i(
+                        TAG,
+                        "Sample $samples: virtual=$virtualNow, peerVisible=$peerVisible",
+                    )
+                }
+
+                Log.i(
+                    TAG,
+                    "Flight complete: $samples samples, " +
+                        "$peerVisibleSamples with visible fresh-peer green",
+                )
+                assert(samples > 0) {
+                    "Wall-clock budget ${budgetWallMs}ms was too small to take any sample"
+                }
+                // First sample lands while DUT GPS is settling and peers
+                // are still registering — allow some warm-up. Require the
+                // strict majority of samples to show a peer marker.
+                assert(peerVisibleSamples * 2 > samples) {
+                    "Only $peerVisibleSamples/$samples samples showed a peer marker — " +
+                        "the rendered map did not consistently display fresh peers"
+                }
             }
 
             // ================================================================

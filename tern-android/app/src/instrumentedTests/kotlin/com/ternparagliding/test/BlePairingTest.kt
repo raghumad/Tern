@@ -7,6 +7,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.ternparagliding.TernParaglidingActivity
 import com.ternparagliding.mezulla.pairing.PairingState
 import com.ternparagliding.utils.MapVisualTest
+import org.junit.Assume
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -33,6 +35,24 @@ class BlePairingTest : MapVisualTest() {
         android.Manifest.permission.BLUETOOTH_SCAN,
         android.Manifest.permission.BLUETOOTH_CONNECT,
     )
+
+    @Before
+    fun requireRealHardware() {
+        Assume.assumeFalse(
+            "Skipping BlePairingTest: requires real phone + Mezulla board, not emulator",
+            isEmulator(),
+        )
+    }
+
+    private fun isEmulator(): Boolean {
+        val fp = android.os.Build.FINGERPRINT
+        val model = android.os.Build.MODEL
+        return fp.startsWith("generic") || fp.startsWith("unknown") ||
+            fp.contains("emulator") || fp.contains("vbox") ||
+            model.contains("Emulator") || model.contains("Android SDK") ||
+            android.os.Build.HARDWARE.contains("ranchu") ||
+            android.os.Build.HARDWARE.contains("goldfish")
+    }
 
     companion object {
         // Reach Success now requires the post-claim persistent BLE link
@@ -65,6 +85,31 @@ class BlePairingTest : MapVisualTest() {
         val pairUri = getPairUri()
         val expectedNode = extractNodeFromUri(pairUri)
 
+        // Pilot-visible Gherkin (Option A, post-deep-research 2026-05-29):
+        // silent BLE bond is not achievable from a non-privileged Android
+        // app per BLE Core Spec Vol 3 Part H + AOSP source. The pilot's
+        // expected flow is ONE pair-dialog tap (the PIN is shown by Tern
+        // and on the OLED so the dialog is unsurprising), then silent
+        // reconnects forever after.
+        //
+        //   Scenario: Pilot pairs with Mezulla board via BLE
+        //     Given Tern is running and no board is paired
+        //     And the Mezulla board is unclaimed, showing its QR + PIN
+        //     When the pilot scans the QR with the phone camera
+        //     Then Tern shows the pair-priming screen with the matching PIN
+        //     When the Android system pair dialog appears
+        //         (UI Automator simulates the pilot tap so the test
+        //          is unattended; production: pilot taps the same button)
+        //     Then the persistent BLE link reaches PairingState.Success
+        //         with the board's node ID from the QR
+        //     And the board ID is persisted to disk so it survives a restart
+        //     And Settings shows the paired board
+
+        // Watcher thread: clicks "Pair" on Android's system pair dialog
+        // whenever it appears. Runs throughout the scenario so it
+        // catches the dialog at whatever moment it pops.
+        val pairTapper = startPairDialogAutoTapper()
+
         scenario("Pilot pairs with Mezulla board via BLE") {
 
             given("Tern is running and no board is paired") {
@@ -84,7 +129,7 @@ class BlePairingTest : MapVisualTest() {
                 }
             }
 
-            then("the orchestrator scans, connects, and claims the board") {
+            then("the persistent BLE link reaches Success with the board's node ID") {
                 val startTime = System.currentTimeMillis()
                 var finalState: PairingState = PairingState.Idle
 
@@ -112,6 +157,9 @@ class BlePairingTest : MapVisualTest() {
                     "Expected persisted node $expectedNode but got $persisted"
                 }
             }
+
+            // Stop the pair-dialog watcher now that pairing is settled.
+            pairTapper.invoke()
 
             and("Settings shows the paired board") {
                 // Wait for activity to settle after BLE operations
