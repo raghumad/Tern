@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.services.storage.TestStorage
 import java.io.BufferedWriter
+import java.io.OutputStream
 import java.io.OutputStreamWriter
 import java.util.concurrent.ConcurrentLinkedQueue
 import android.util.Log
@@ -11,6 +12,55 @@ import android.util.Log
 object ReportGenerator {
 
     private val testStorage = TestStorage()
+
+    /**
+     * Opens an output file that writes to BOTH TestStorage (where AGP
+     * `connectedAndroidTest` pulls from) AND the app's external-files
+     * dir (where our `am instrument`–based gradle tasks pull from
+     * because they bypass the AGP orchestrator and TestStorage delivers
+     * nothing in that flow). Each path is independent — if one throws,
+     * the other still writes. If both fail, returns a no-op stream so
+     * the caller's `.use { }` block doesn't throw.
+     */
+    private fun openOutputBothPaths(filename: String): OutputStream {
+        val ts: OutputStream? = try { testStorage.openOutputFile(filename) } catch (e: Exception) {
+            Log.w("ReportGenerator", "TestStorage open failed for $filename: ${e.message}"); null
+        }
+        val fileStream: OutputStream? = try {
+            val ctx = InstrumentationRegistry.getInstrumentation().targetContext
+            val baseDir = ctx.getExternalFilesDir(null)
+            if (baseDir == null) null else {
+                val dir = java.io.File(baseDir, "tern-tests-report")
+                if (!dir.exists() && !dir.mkdirs()) null else
+                    java.io.FileOutputStream(java.io.File(dir, filename))
+            }
+        } catch (e: Exception) {
+            Log.w("ReportGenerator", "External-files open failed for $filename: ${e.message}"); null
+        }
+        if (ts == null && fileStream == null) {
+            Log.w("ReportGenerator", "Both output paths unavailable for $filename — discarding")
+            return object : OutputStream() { override fun write(b: Int) {} }
+        }
+        return object : OutputStream() {
+            override fun write(b: Int) {
+                runCatching { ts?.write(b) }
+                runCatching { fileStream?.write(b) }
+            }
+            override fun write(b: ByteArray, off: Int, len: Int) {
+                runCatching { ts?.write(b, off, len) }
+                runCatching { fileStream?.write(b, off, len) }
+            }
+            override fun flush() {
+                runCatching { ts?.flush() }
+                runCatching { fileStream?.flush() }
+            }
+            override fun close() {
+                runCatching { ts?.close() }
+                runCatching { fileStream?.close() }
+            }
+        }
+    }
+
     private val currentSteps = ConcurrentLinkedQueue<Step>()
     private val recordedScenarios = ConcurrentLinkedQueue<ScenarioData>()
     private val screenshots = ConcurrentLinkedQueue<String>()
@@ -72,7 +122,7 @@ object ReportGenerator {
                     Log.w("ReportGenerator", "Screenshot '$name' (hash: $currentHash) matches a BLACKLISTED bad state")
                 }
                 
-                testStorage.openOutputFile(filename).use { out ->
+                openOutputBothPaths(filename).use { out ->
                     bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
                 }
                 screenshots.add(filename)
@@ -87,8 +137,11 @@ object ReportGenerator {
     fun captureLogCat(): String {
         return try {
             val device = androidx.test.uiautomator.UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
-            val result = device.executeShellCommand("logcat -d -v threadtime")
-            
+            // Cap at the last ~5000 lines. Full unbounded dump can be
+            // 200+ MB after a long replay run and OOMs the test process
+            // before any assertion has a chance to surface.
+            val result = device.executeShellCommand("logcat -d -v threadtime -t 5000")
+
             // Filter by current test name if set
             var filteredResult = result
             currentTestName?.let { name ->
@@ -98,12 +151,14 @@ object ReportGenerator {
                     filteredResult = filteredResult.substring(startIndex)
                 }
             }
-            
+
             if (filteredResult.isEmpty()) {
                 "WARNING: Logcat was empty."
             } else {
                 filteredResult
             }
+        } catch (e: OutOfMemoryError) {
+            "Failed to capture logcat: out of memory (logcat too large)"
         } catch (e: Exception) {
             "Failed to capture logcat: ${e.message}"
         }
@@ -277,7 +332,7 @@ object ReportGenerator {
         var storyHighlight: String? = null
         var firstScreenshot: String? = null
 
-        testStorage.openOutputFile(reportFilename).use { out ->
+        openOutputBothPaths(reportFilename).use { out ->
             val writer = BufferedWriter(OutputStreamWriter(out))
             writer.write("<html><head><style>")
             writer.write("body { font-family: 'Inter', -apple-system, sans-serif; padding: 40px; background-color: #0f172a; color: #f8fafc; line-height: 1.6; }")
@@ -464,7 +519,7 @@ object ReportGenerator {
                 }
             }
 
-            testStorage.openOutputFile(summaryFilename).use { out ->
+            openOutputBothPaths(summaryFilename).use { out ->
                 val writer = BufferedWriter(OutputStreamWriter(out))
                 writer.write("{")
                 writer.write("\"className\": \"$className\",")

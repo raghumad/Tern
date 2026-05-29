@@ -1200,6 +1200,25 @@ fun configureHardwareCycleTest(
         // Publish to BDD dashboard so test_report.py picks it up.
         val bddDir = file("${project.layout.buildDirectory.get()}/reports/bdd-report")
         bddDir.mkdirs()
+
+        // Pull the on-device BDD report HTML + screenshots back to the host.
+        // ReportGenerator mirrors them to /sdcard/Android/data/com.ternparagliding/files/tern-tests-report/
+        // so we can adb pull them — TestStorage isn't reachable when we run
+        // via `am instrument` (no AGP orchestrator).
+        val onDeviceReportDir = "/sdcard/Android/data/com.ternparagliding/files/tern-tests-report"
+        val reportFilename = "report_${testClass.substringAfterLast('.')}_$testMethod.html"
+        val reportFile = file("$bddDir/$reportFilename")
+        runAdb(
+            listOf("adb", "-s", deviceSerial, "pull", "$onDeviceReportDir/.", bddDir.absolutePath),
+            ByteArrayOutputStream(),
+        )
+        val reportFileExists = reportFile.exists()
+        if (reportFileExists) {
+            println("📊 BDD report → ${reportFile.absolutePath}")
+        } else {
+            println("⚠️  No on-device BDD report at $onDeviceReportDir/$reportFilename")
+        }
+
         val summaryFile = file(
             "$bddDir/summary_${testClass.substringAfterLast('.')}_$testMethod.json"
         )
@@ -1210,7 +1229,7 @@ fun configureHardwareCycleTest(
               "testName": "$testMethod",
               "status": "${if (passed) "PASS" else "FAIL"}",
               "scenarioName": "Mezulla $name",
-              "reportFile": "",
+              "reportFile": "${if (reportFileExists) reportFilename else ""}",
               "outputDir": "${outputDir.absolutePath}"
             }
             """.trimIndent()
@@ -1247,5 +1266,15 @@ configureHardwareCycleTest(
     testClass = "com.ternparagliding.test.AravisReplayTest",
     testMethod = "aravis_team_xc_replay_golden_path_50km_range",
     requiresReflash = false,
+)
+
+// Fast-iteration variant: pair + replay using the Edith's Gap two-pilot
+// scenario (~2 h flight instead of 11 h 15 m). Whole cycle lands in
+// ~1–2 min wall-clock — useful for debugging map / peer-render issues.
+configureHardwareCycleTest(
+    name = "edithsGapCycleTest",
+    testClass = "com.ternparagliding.test.EdithsGapCycleTest",
+    testMethod = "pilot_pairs_then_flies_with_one_buddy_visible",
+    requiresReflash = true,
 )
 
