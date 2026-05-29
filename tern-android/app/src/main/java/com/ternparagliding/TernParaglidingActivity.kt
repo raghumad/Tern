@@ -79,6 +79,11 @@ class TernParaglidingActivity : ComponentActivity() {
         val mapStore = ViewModelProvider(this)[MapStore::class.java]
         connectionManager.initialize(mapStore)
 
+        // When a new pair starts (deep link OR direct orchestrator call
+        // from tests), tear down any stale persistent connection so it
+        // doesn't race the new pair's SMP handshake with a stale PIN.
+        pairingOrchestrator.onPairStart = { connectionManager.stopActiveConnection() }
+
         intent?.let { handleDeepLink(it) }
 
         setContent {
@@ -103,6 +108,14 @@ class TernParaglidingActivity : ComponentActivity() {
         Log.i(TAG, "Deep link received: node=${link.nodeIdHex}")
 
         if (hasBlePermissions()) {
+            // Close any stale persistent connection from a prior session
+            // BEFORE starting the new pair flow. Without this, the prior
+            // connection (started by initialize() at activity onCreate
+            // from the saved pair record) can race ahead and trigger an
+            // SMP pair request using the *previous* PIN, blowing the
+            // new pair before it begins. Pairing always wants a fresh
+            // GATT slot.
+            connectionManager.stopActiveConnection()
             pairingOrchestrator.handlePairLink(link)
             Log.i(TAG, "Deep link handled by pairing orchestrator")
         } else {

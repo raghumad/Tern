@@ -152,6 +152,25 @@ fun TernMapScreen(
             ) {
                 WelcomeScreen(gpsStatus = gpsStatus)
             }
+
+            // Pair-priming overlay. Visible while a pair flow is in
+            // progress. No system pair dialog ever appears (Mezulla uses
+            // an unencrypted BLE link with QR-token auth) — this overlay
+            // is the pilot's only feedback that pair is happening, and
+            // surfaces the security trade-off transparently.
+            val activity = androidx.compose.ui.platform.LocalContext.current as? com.ternparagliding.TernParaglidingActivity
+            if (activity != null) {
+                val pairingState by activity.pairingOrchestrator.state.collectAsState()
+                val pairingLink by activity.pairingOrchestrator.currentLink.collectAsState()
+                val showPriming = pairingState !is com.ternparagliding.mezulla.pairing.PairingState.Idle &&
+                    pairingState !is com.ternparagliding.mezulla.pairing.PairingState.Success
+                AnimatedVisibility(visible = showPriming, enter = fadeIn(), exit = fadeOut()) {
+                    com.ternparagliding.mezulla.ui.PairingPrimingScreen(
+                        state = pairingState,
+                        link = pairingLink,
+                    )
+                }
+            }
         }
     }
 

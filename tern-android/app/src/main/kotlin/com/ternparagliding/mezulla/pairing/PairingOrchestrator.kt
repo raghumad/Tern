@@ -25,8 +25,18 @@ class PairingOrchestrator(private val context: Context) {
     private val _state = MutableStateFlow<PairingState>(PairingState.Idle)
     val state: StateFlow<PairingState> = _state
 
+    /** The QR pair link currently being processed (if any). Surfaced
+     *  so the priming UI can show the expected PIN, node ID, etc. */
+    private val _currentLink = MutableStateFlow<TernPairLink?>(null)
+    val currentLink: StateFlow<TernPairLink?> = _currentLink
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val blePairingService = BlePairingService(context)
+
+    /** Called at the very start of a new pair flow so the caller can
+     *  tear down any stale persistent connection that might race with
+     *  the new pair's GATT/SMP handshake. Wired by the activity. */
+    var onPairStart: (() -> Unit)? = null
 
     fun handleIntent(intent: Intent): Boolean {
         val uri = intent.data?.toString() ?: return false
@@ -37,6 +47,16 @@ class PairingOrchestrator(private val context: Context) {
 
     fun handlePairLink(link: TernPairLink) {
         Log.i(TAG, "Pairing link received: node=${link.nodeIdHex}")
+        _currentLink.value = link
+
+        // Tear down any stale persistent connection before we start.
+        // Without this, the previous session's BleConnection (started
+        // by MezullaConnectionManager.initialize() from the saved pair
+        // record) can race ahead and trigger an SMP pair request with
+        // the *previous* PIN — failing the pair before our new flow
+        // has stored the correct PIN.
+        onPairStart?.invoke()
+
         _state.value = PairingState.Received(link)
 
         scope.launch {
@@ -159,6 +179,7 @@ class PairingOrchestrator(private val context: Context) {
             .remove(KEY_PAIRED_DEVICE_ADDRESS)
             .apply()
         _state.value = PairingState.Idle
+        _currentLink.value = null
         Log.i(TAG, "Board forgotten")
     }
 

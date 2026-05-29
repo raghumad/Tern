@@ -74,6 +74,10 @@ internal class AndroidBleTransport(
     @Volatile private var gatt: BluetoothGatt? = null
     @Volatile private var connected: Boolean = false
     @Volatile private var scanTimeoutJob: Job? = null
+    @Volatile private var reconnectJob: Job? = null
+    @Volatile private var scanning: Boolean = false
+    @Volatile private var everEmittedInitialTimeout: Boolean = false
+    private val stateLock = Any()
 
     /**
      * Serialises GATT writes. BluetoothGatt only allows one in-flight
@@ -90,6 +94,7 @@ internal class AndroidBleTransport(
             Log.i(TAG, "BLE adapter unavailable or off; staying silent per graceful-degradation policy.")
             return
         }
+        everEmittedInitialTimeout = false
         startScanning()
     }
 
@@ -135,23 +140,47 @@ internal class AndroidBleTransport(
 
     @SuppressLint("MissingPermission")
     private fun startScanning() {
-        val s = adapter?.bluetoothLeScanner ?: return
-        scanner = s
+        // Idempotency gate. Three things can race onto this method:
+        // the initial start(), the timeout retry, and the disconnect
+        // reconnect path. Without this guard, two parallel scans hit
+        // BluetoothLeScanner.startScan and the second returns
+        // SCAN_FAILED_ALREADY_STARTED (error code 1).
+        synchronized(stateLock) {
+            if (scanning || connected || gatt != null) return
+            val s = adapter?.bluetoothLeScanner ?: return
+            scanner = s
+            scanning = true
+        }
+        val s = scanner ?: return
         val filter = ScanFilter.Builder()
             .setDeviceAddress(targetMacAddress)
             .build()
         val settings = ScanSettings.Builder()
             .setScanMode(ScanSettings.SCAN_MODE_LOW_POWER)
             .build()
+        Log.i(TAG, "startScanning(mac=$targetMacAddress, timeout=${initialScanTimeoutMillis}ms)")
         runCatching { s.startScan(listOf(filter), settings, scanCallback) }
         scanTimeoutJob?.cancel()
         scanTimeoutJob = scope.launch {
             delay(initialScanTimeoutMillis)
-            // If we still have not seen the board, surface the timeout
-            // once so BleConnection can drive its state machine.
-            if (!connected && gatt == null) {
+            if (connected || gatt != null) return@launch
+            // Surface the timeout the first time so BleConnection can
+            // drive its state machine. After that we keep cycling
+            // scan→backoff→scan: the pilot may walk back into range at
+            // any moment (e.g. phone woke up before the board did, or
+            // the radio was momentarily blocked by their body), and a
+            // "persistent" connection has to keep trying.
+            if (!everEmittedInitialTimeout) {
+                everEmittedInitialTimeout = true
                 _events.emit(BleTransportEvent.InitialScanTimeout)
             }
+            synchronized(stateLock) {
+                scanner?.let { runCatching { it.stopScan(scanCallback) } }
+                scanner = null
+                scanning = false
+            }
+            delay(RECONNECT_BACKOFF_MS)
+            if (!connected && gatt == null) startScanning()
         }
     }
 

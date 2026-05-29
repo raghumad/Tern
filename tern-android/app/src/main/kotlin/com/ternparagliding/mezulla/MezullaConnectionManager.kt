@@ -109,14 +109,27 @@ class MezullaConnectionManager(
         mapStore = store
         Log.i(TAG, "Initializing MezullaConnectionManager")
 
-        // If a board was previously paired, start the connection now.
-        // freshPairing = false → don't touch PairingState; the Idle->Success
-        // arc is irrelevant for a session that didn't go through pairing.
+        // If a board was previously paired AND we still have an OS bond
+        // for it, start the connection now. Without a bond, attempting
+        // connection is futile — the board (FIXED_PIN) will demand
+        // encryption, Android will start SMP with no stored keys, the
+        // bond attempt will fail in ~1 s, and the BLE stack ends up in
+        // a corrupted state that breaks any pair flow that follows.
+        //
+        // Common reasons the bond would be missing: pilot tapped
+        // "Forget" in Settings, OS bond store got wiped, or the board
+        // was reflashed (new BLE identity, old keys no longer valid).
+        // In all cases the right answer is "wait for a fresh pair via
+        // QR scan", not "thrash trying to reconnect".
         val savedMac = pairingOrchestrator.getPairedDeviceAddress()
         val savedNodeId = pairingOrchestrator.getPairedNodeId()
         if (savedMac != null && savedNodeId != null) {
-            Log.i(TAG, "Previously paired board found: node=$savedNodeId mac=$savedMac")
-            startConnection(savedMac, savedNodeId, freshPairing = false)
+            if (osHasBondFor(savedMac)) {
+                Log.i(TAG, "Previously paired board with valid bond: node=$savedNodeId mac=$savedMac")
+                startConnection(savedMac, savedNodeId, freshPairing = false)
+            } else {
+                Log.i(TAG, "Previously paired board $savedMac has no OS bond — waiting for re-pair")
+            }
         } else {
             Log.i(TAG, "No previously paired board — waiting for pairing")
         }
@@ -159,9 +172,16 @@ class MezullaConnectionManager(
             return
         }
 
-        // Don't create a duplicate connection for the same board.
-        if (activeMac == macAddress && activeConnection != null) {
-            Log.d(TAG, "Connection already active for $macAddress — skipping")
+        // Idempotency: dedupe duplicate auto-reconnect calls for the same
+        // MAC. Critically, this check does NOT apply to freshPairing=true:
+        // the pairing flow has its own watchers (installFreshPairingWatchers)
+        // that MUST be installed to drive the EstablishingLink → Success
+        // transition. ESP32 MACs are baked in efuse — they survive reflash
+        // — so a freshly-paired board legitimately has the same MAC as a
+        // previously-paired stale session. Skipping startConnection in that
+        // case leaves the orchestrator stuck at EstablishingLink forever.
+        if (!freshPairing && activeMac == macAddress && activeConnection != null) {
+            Log.d(TAG, "Connection already active for $macAddress — skipping (auto-reconnect)")
             return
         }
 
@@ -260,6 +280,27 @@ class MezullaConnectionManager(
         val c = activeConnection
         Log.i(TAG, "activeBleConnection() returning ${c?.let { "BleConnection@${System.identityHashCode(it)}" } ?: "null"}")
         return c
+    }
+
+    @android.annotation.SuppressLint("MissingPermission")
+    private fun osHasBondFor(mac: String): Boolean {
+        val btManager = appContext.getSystemService(android.content.Context.BLUETOOTH_SERVICE)
+            as? android.bluetooth.BluetoothManager
+        val bonded = btManager?.adapter?.bondedDevices ?: return false
+        return bonded.any { it.address.equals(mac, ignoreCase = true) }
+    }
+
+    /**
+     * Public wrapper for [stopConnection]. Used by
+     * [com.ternparagliding.mezulla.pairing.PairingOrchestrator.forgetBoard]
+     * to close the race where the previous session's persistent
+     * connection is still in the middle of a GATT connect when a NEW
+     * pair starts — that mid-flight connect would trigger an SMP pair
+     * request with the stale PIN, before the new flow has had a chance
+     * to store the right one.
+     */
+    fun stopActiveConnection() {
+        stopConnection()
     }
 
     /**
