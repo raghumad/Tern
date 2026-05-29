@@ -1249,3 +1249,13 @@ configureHardwareCycleTest(
     requiresReflash = false,
 )
 
+// Fast-iteration variant: pair + replay using the Edith's Gap two-pilot
+// scenario (~2 h flight instead of 11 h 15 m). Whole cycle lands in
+// ~1–2 min wall-clock — useful for debugging map / peer-render issues.
+configureHardwareCycleTest(
+    name = "edithsGapCycleTest",
+    testClass = "com.ternparagliding.test.EdithsGapCycleTest",
+    testMethod = "pilot_pairs_then_flies_with_one_buddy_visible",
+    requiresReflash = true,
+)
+
