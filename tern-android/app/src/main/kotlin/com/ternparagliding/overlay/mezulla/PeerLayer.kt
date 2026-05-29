@@ -5,31 +5,39 @@ import android.graphics.Canvas
 import android.graphics.Color as AndroidColor
 import android.graphics.Paint
 import android.graphics.Typeface
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.Color as ComposeColor
+import androidx.compose.ui.unit.dp
 import com.ternparagliding.mezulla.redux.KnownPeer
 import com.ternparagliding.redux.MezullaViewMode
-import org.maplibre.compose.expressions.ast.Expression
 import org.maplibre.compose.expressions.dsl.const
-import org.maplibre.compose.expressions.dsl.feature
-import org.maplibre.compose.expressions.dsl.image
-import org.maplibre.compose.expressions.value.StringValue
 import org.maplibre.compose.sources.GeoJsonData
 import org.maplibre.compose.sources.rememberGeoJsonSource
+import org.maplibre.compose.util.MaplibreComposable
 import java.time.Instant
 
 private const val S = 2.5f
 
-@Suppress("UNCHECKED_CAST")
+/**
+ * Renders each known peer as a green CircleLayer dot on the map.
+ *
+ * Pattern follows the canonical maplibre-compose example: ONE GeoJSON
+ * source containing all peer features, ONE layer that references it.
+ * Compose layers are NOT designed to be instantiated inside a forEach
+ * loop — the MapNodeApplier silently drops loop-emitted nodes, which
+ * is why the previous per-peer-source pattern produced zero visible
+ * markers despite the bitmap render path firing cleanly. See:
+ * https://github.com/maplibre/maplibre-compose/blob/main/demo-app/src/commonMain/kotlin/org/maplibre/compose/demoapp/demos/MarkersDemo.kt
+ *
+ * Current scope: one colour for all peers. Future work (separate
+ * commits): staleness-driven colour via a data-driven `case()`
+ * expression on the `staleness` feature property; callsign/distance
+ * labels via a sibling SymbolLayer with `textField` driven by feature
+ * properties.
+ */
 @Composable
+@MaplibreComposable
 fun PeerLayer(
     peers: Map<Long, KnownPeer>,
     viewMode: MezullaViewMode,
@@ -42,60 +50,18 @@ fun PeerLayer(
 
     if (bundle.specs.isEmpty()) return
 
-    val font = nerdFont ?: Typeface.MONOSPACE
-
-    // Opacity pulse: 0→1→0 over 1200ms (600ms each direction).
-    // The animated value drives per-peer opacity based on staleness:
-    //   FRESH/AGING: solid 1.0 (no pulse)
-    //   STALE:       oscillates 0.45 ↔ 1.0
-    //   LOST:        oscillates 0.25 ↔ 0.7
-    val pulseTransition = rememberInfiniteTransition(label = "peerPulse")
-    val pulsePhase by pulseTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 600, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "pulsePhase",
+    val source = rememberGeoJsonSource(
+        data = GeoJsonData.JsonString(bundle.geoJson),
     )
 
-    // One source + one layer per peer. With 1-5 peers in a buddy
-    // group this is negligible overhead, and it sidesteps the
-    // maplibre-compose limitation of not supporting iconImage from
-    // feature properties with pre-registered named bitmaps.
-    bundle.specs.forEachIndexed { i, spec ->
-        val peerGeoJson = bundle.perPeerGeoJson[spec.imageName]
-            ?: """{"type":"FeatureCollection","features":[]}"""
-
-        val source = rememberGeoJsonSource(data = GeoJsonData.JsonString(peerGeoJson))
-        val bmp = remember(spec) { renderMarkerBitmap(spec, font).asImageBitmap() }
-
-        val opacity = opacityForStaleness(spec.staleness, pulsePhase)
-
-        org.maplibre.compose.layers.SymbolLayer(
-            id = "peer-${spec.imageName}",
-            source = source,
-            iconImage = image(bmp),
-            iconAllowOverlap = const(true),
-            iconSize = const(0.75f),
-            iconOpacity = const(opacity),
-        )
-    }
-}
-
-/**
- * Map staleness + animation phase to a concrete opacity value.
- * Phase oscillates 0..1; we lerp within each staleness band.
- */
-private fun opacityForStaleness(
-    staleness: MezullaPeerTextFormatter.StalenessLevel,
-    phase: Float,
-): Float = when (staleness) {
-    MezullaPeerTextFormatter.StalenessLevel.FRESH -> 1.0f
-    MezullaPeerTextFormatter.StalenessLevel.AGING -> 1.0f
-    MezullaPeerTextFormatter.StalenessLevel.STALE -> 0.45f + phase * (1.0f - 0.45f)
-    MezullaPeerTextFormatter.StalenessLevel.LOST  -> 0.25f + phase * (0.7f - 0.25f)
+    org.maplibre.compose.layers.CircleLayer(
+        id = "mezulla-peers-circle",
+        source = source,
+        color = const(ComposeColor(0xFF4CAF50)),
+        radius = const(12.dp),
+        strokeColor = const(ComposeColor.White),
+        strokeWidth = const(2.dp),
+    )
 }
 
 private val savedDebugBitmap = java.util.concurrent.atomic.AtomicBoolean(false)
