@@ -120,6 +120,16 @@ class BleConnection internal constructor(
         when (event) {
             BleTransportEvent.Connected -> {
                 everSeenBoard = true
+                // Wake the Meshtastic phone-protocol stream. Without
+                // this request the firmware sits quiet — initial
+                // FromRadio drain returns empty and no FromNum
+                // notifications fire even when LoRa packets land,
+                // because the protocol expects the phone to opt in
+                // first. See MeshPacketCodec.encodeWantConfigId.
+                val wantConfigBytes = MeshPacketCodec.encodeWantConfigId(WANT_CONFIG_ID)
+                val sent = runCatching { transport.writeToRadio(wantConfigBytes) }.getOrDefault(false)
+                android.util.Log.i("BleConnection",
+                    "[@${System.identityHashCode(this)}] want_config_id=$WANT_CONFIG_ID writeToRadio.success=$sent bytes=${wantConfigBytes.size}")
                 updateLinkState(LinkState.UP)
             }
             BleTransportEvent.Disconnected -> {
@@ -229,5 +239,13 @@ class BleConnection internal constructor(
             attempt++
         }
         return MeshtasticConnection.SendResult.NoAck
+    }
+
+    companion object {
+        // Sentinel sent in our want_config_id request on each connect.
+        // The firmware echoes this in its config_complete_id packet so
+        // the phone can match the bundle to its request — we don't act
+        // on that echo today, just need a stable non-zero value.
+        private const val WANT_CONFIG_ID = 0x7E270001
     }
 }

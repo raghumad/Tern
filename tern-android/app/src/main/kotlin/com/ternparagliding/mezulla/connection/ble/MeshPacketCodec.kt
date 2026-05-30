@@ -68,6 +68,7 @@ internal object MeshPacketCodec {
 
     // ToRadio variant field numbers.
     private const val F_TORADIO_PACKET = 1
+    private const val F_TORADIO_WANT_CONFIG_ID = 3
 
     // NodeInfo field numbers (subset).
     private const val F_NODEINFO_NUM = 1
@@ -402,4 +403,24 @@ internal object MeshPacketCodec {
             writeMessage(F_TORADIO_PACKET, packet)
         }.toByteArray()
     }
+
+    /**
+     * Encode a ToRadio frame that asks the firmware to replay its
+     * NodeInfo + config + nodeDB (its "config bundle") and then start
+     * streaming subsequent packets. Without this request, the
+     * Meshtastic phone protocol leaves the firmware quiet — the
+     * initial FromRadio drain returns empty and no FromNum
+     * notifications fire even when LoRa packets arrive. Required
+     * once per BLE (or TCP) connect.
+     *
+     * The configId is an arbitrary 32-bit identifier the phone picks
+     * to mark this config request — the firmware echoes it back in a
+     * `config_complete_id` packet so the phone knows the bundle is
+     * fully delivered. Any non-zero value works; we use a fixed
+     * sentinel.
+     */
+    fun encodeWantConfigId(configId: Int): ByteArray =
+        ProtoWriter().apply {
+            writeInt32(F_TORADIO_WANT_CONFIG_ID, configId)
+        }.toByteArray()
 }
