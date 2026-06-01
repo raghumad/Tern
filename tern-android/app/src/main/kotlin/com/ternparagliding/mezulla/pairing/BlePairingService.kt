@@ -19,6 +19,7 @@ import android.util.Log
 import com.ternparagliding.mezulla.connection.ble.MeshtasticGattUuids
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeout
 import java.util.UUID
 
@@ -39,6 +40,12 @@ class BlePairingService(private val context: Context) {
         private const val SCAN_TIMEOUT_MS = 30_000L
         private const val CONNECT_TIMEOUT_MS = 10_000L
         private const val CLAIM_TIMEOUT_MS = 5_000L
+        // Grace period between disconnect() and close(). disconnect() is
+        // async — it kicks off the LL terminate. Calling close() immediately
+        // releases the client interface before the terminate goes out, which
+        // can leave the board half-open (connected, not advertising). Let the
+        // terminate land before we close.
+        private const val GATT_TERMINATE_GRACE_MS = 250L
         private val MESHTASTIC_SERVICE_UUID = UUID.fromString("6ba1b218-15a8-461f-9fa8-5dcae273eafd")
     }
 
@@ -106,8 +113,7 @@ class BlePairingService(private val context: Context) {
             }
 
             if (toRadio == null) {
-                gatt.disconnect()
-                gatt.close()
+                disconnectAndClose(gatt)
                 return ClaimResult.ConnectionFailed("ToRadio characteristic not found")
             }
 
@@ -126,20 +132,18 @@ class BlePairingService(private val context: Context) {
             Log.i(TAG, "Claim write result: $writeResult")
 
             if (!writeResult) {
-                gatt.disconnect()
-                gatt.close()
+                disconnectAndClose(gatt)
                 return ClaimResult.ConnectionFailed("Write failed")
             }
 
-            gatt.disconnect()
-            gatt.close()
+            disconnectAndClose(gatt)
 
             Log.i(TAG, "Claim sent successfully")
             return ClaimResult.Success(device.address, deviceName)
 
         } catch (e: Exception) {
             Log.e(TAG, "Claim failed", e)
-            runCatching { gatt.disconnect(); gatt.close() }
+            disconnectAndClose(gatt)
             return ClaimResult.ConnectionFailed(e.message ?: "Claim error")
         }
     }
@@ -198,6 +202,17 @@ class BlePairingService(private val context: Context) {
             Log.w(TAG, "Scan timed out, scanner stopped")
             throw e
         }
+    }
+
+    /**
+     * Tear down a transient claim connection cleanly. Unlike a bare
+     * disconnect()+close(), this lets the LL terminate propagate before
+     * releasing the client interface, so the board doesn't end up half-open.
+     */
+    private suspend fun disconnectAndClose(gatt: BluetoothGatt) {
+        runCatching { gatt.disconnect() }
+        delay(GATT_TERMINATE_GRACE_MS)
+        runCatching { gatt.close() }
     }
 
     private suspend fun connectGatt(device: BluetoothDevice): BluetoothGatt {

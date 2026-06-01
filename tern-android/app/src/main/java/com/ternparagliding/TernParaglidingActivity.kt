@@ -30,20 +30,24 @@ class TernParaglidingActivity : ComponentActivity() {
         private const val PREFS_NAME = "tern_settings_prefs"
     }
 
-    val pairingOrchestrator: PairingOrchestrator by lazy {
-        PairingOrchestrator(applicationContext)
-    }
+    // The orchestrator and connection manager are owned by [TernApplication]
+    // at process scope, NOT by the Activity — the persistent BLE link must
+    // survive Activity recreation (rotation, config change, process-restore).
+    // These accessors keep the existing call sites (incl. on-device test
+    // harnesses: composeTestRule.activity.connectionManager) working.
+    val pairingOrchestrator: PairingOrchestrator
+        get() = (application as TernApplication).pairingOrchestrator
 
     /**
-     * Persistent BLE connection manager. Public for on-device test
-     * harnesses (Aravis replay) that need to reach the live
+     * Persistent BLE connection manager (process-scoped, owned by
+     * [TernApplication]). Public for on-device test harnesses (Aravis
+     * replay) that need to reach the live
      * [com.ternparagliding.mezulla.connection.ble.BleConnection] to pump
      * synthetic Position frames through it. Production UX paths must not
      * touch this directly — they go through Redux peerState.
      */
-    val connectionManager: MezullaConnectionManager by lazy {
-        MezullaConnectionManager(applicationContext, pairingOrchestrator)
-    }
+    val connectionManager: MezullaConnectionManager
+        get() = (application as TernApplication).connectionManager
 
     private var pendingPairLink: TernPairLink? = null
 
@@ -76,13 +80,14 @@ class TernParaglidingActivity : ComponentActivity() {
         // Get the activity-scoped MapStore ViewModel and wire the persistent
         // BLE connection. The same ViewModel instance is used by TernMapScreen
         // (passed explicitly below) so there is exactly one MapStore per activity.
+        // Bind this Activity's MapStore to the process-scoped connection
+        // manager. First call (process start) sets up the pairing observer +
+        // auto-reconnect; subsequent calls (Activity recreated) re-point the
+        // peer-event stream at the new store while keeping the live link.
+        // The pairing-flow hooks (onPairStart / isAlreadyLinked) are wired
+        // once in TernApplication, not here.
         val mapStore = ViewModelProvider(this)[MapStore::class.java]
         connectionManager.initialize(mapStore)
-
-        // When a new pair starts (deep link OR direct orchestrator call
-        // from tests), tear down any stale persistent connection so it
-        // doesn't race the new pair's SMP handshake with a stale PIN.
-        pairingOrchestrator.onPairStart = { connectionManager.stopActiveConnection() }
 
         intent?.let { handleDeepLink(it) }
 

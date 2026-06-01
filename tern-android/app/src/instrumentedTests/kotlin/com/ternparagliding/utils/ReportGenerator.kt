@@ -347,66 +347,10 @@ object ReportGenerator {
             writer.write("details { margin-top: 24px; border: 1px solid #334155; padding: 16px; border-radius: 8px; background-color: #0f172a; }")
             writer.write("summary { cursor: pointer; font-weight: 600; margin-bottom: 12px; color: #38bdf8; font-size: 0.9rem; }")
             writer.write("pre { white-space: pre-wrap; word-wrap: break-word; font-family: 'JetBrains Mono', monospace; font-size: 12px; max-height: 400px; overflow-y: auto; color: #cbd5e1; padding: 12px; background: #020617; border-radius: 6px; border: 1px solid #1e293b; }")
-            writer.write(".approve-btn { background-color: #22c55e; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.85rem; margin-right: 12px; transition: background 0.2s; }")
-            writer.write(".approve-btn:hover { background-color: #16a34a; }")
-            writer.write(".reject-btn { background-color: #ef4444; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.85rem; transition: background 0.2s; }")
-            writer.write(".reject-btn:hover { background-color: #dc2626; }")
+            writer.write(".video-block { padding: 16px; background: #1e293b; border-radius: 12px; margin-bottom: 24px; border: 1px solid #334155; }")
+            writer.write(".video-block video { width: 100%; max-height: 480px; border-radius: 8px; border: 1px solid #334155; background: #000; }")
+            writer.write(".video-block .label { color: #94a3b8; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }")
             writer.write("</style>")
-            writer.write("<script>")
-            writer.write("async function approve(filename, testName, btn) {")
-            writer.write("  const originalText = btn.innerText;")
-            writer.write("  btn.innerText = '⌛ Processing...';")
-            writer.write("  btn.disabled = true;")
-            writer.write("  try {")
-            writer.write("    const response = await fetch('http://localhost:8080/approve', {")
-            writer.write("      method: 'POST',")
-            writer.write("      headers: { 'Content-Type': 'application/json' },")
-            writer.write("      body: JSON.stringify({ filename, test_name: testName })")
-            writer.write("    });")
-            writer.write("    if (response.ok) {")
-            writer.write("      btn.innerText = '✅ Approved';")
-            writer.write("      btn.style.backgroundColor = '#2E7D32';")
-            writer.write("      const rejectBtn = btn.parentElement.querySelector('.reject-btn');")
-            writer.write("      if (rejectBtn) rejectBtn.style.display = 'none';") // Hide reject button safely
-            writer.write("    } else {")
-            writer.write("      alert('Failed to approve. Is visual_reviewer.py running?');")
-            writer.write("      btn.innerText = originalText;")
-            writer.write("      btn.disabled = false;")
-            writer.write("    }")
-            writer.write("  } catch (e) {")
-            writer.write("    alert('Error: ' + e.message + '. Ensure visual_reviewer.py is running on port 8080');")
-            writer.write("    btn.innerText = originalText;")
-            writer.write("    btn.disabled = false;")
-            writer.write("  }")
-            writer.write("}")
-            writer.write("async function reject(filename, testName, hash, btn) {")
-            writer.write("  if (!confirm('Mark this image as WRONG? It will be blacklisted.')) return;")
-            writer.write("  const originalText = btn.innerText;")
-            writer.write("  btn.innerText = '⌛ Processing...';")
-            writer.write("  btn.disabled = true;")
-            writer.write("  try {")
-            writer.write("    const response = await fetch('http://localhost:8080/reject', {")
-            writer.write("      method: 'POST',")
-            writer.write("      headers: { 'Content-Type': 'application/json' },")
-            writer.write("      body: JSON.stringify({ filename, test_name: testName, hash: hash })")
-            writer.write("    });")
-            writer.write("    if (response.ok) {")
-            writer.write("      btn.innerText = '❌ Rejected & Blacklisted';")
-            writer.write("      btn.style.backgroundColor = '#C62828';")
-            writer.write("      const approveBtn = btn.parentElement.querySelector('.approve-btn');")
-            writer.write("      if (approveBtn) approveBtn.style.display = 'none';") // Hide approve button safely
-            writer.write("    } else {")
-            writer.write("      alert('Failed to reject. Is visual_reviewer.py running?');")
-            writer.write("      btn.innerText = originalText;")
-            writer.write("      btn.disabled = false;")
-            writer.write("    }")
-            writer.write("  } catch (e) {")
-            writer.write("    alert('Error: ' + e.message + '. Ensure visual_reviewer.py is running on port 8080');")
-            writer.write("    btn.innerText = originalText;")
-            writer.write("    btn.disabled = false;")
-            writer.write("  }")
-            writer.write("}")
-            writer.write("</script>")
             writer.write("</head><body>")
             
             writer.write("<h1>Test Report: $testName</h1>")
@@ -477,7 +421,18 @@ object ReportGenerator {
                     
                     writer.write("</div></div>")
                 }
-                
+
+                // Video embed (right after Performance Scorecard, per pilot
+                // feedback: video is the primary evidence for failure
+                // diagnosis). VideoHelper records `<testName>.mp4` for the
+                // full test span; the file lives in the same bdd-report
+                // dir as this HTML so the relative href just works.
+                val videoFilename = "$testName.mp4"
+                writer.write("<div class='video-block'>")
+                writer.write("<div class='label'>Test Recording</div>")
+                writer.write("<video controls preload='metadata' src='$videoFilename'></video>")
+                writer.write("</div>")
+
                 // Print the rest of the steps
                 val timeFormatter = java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.US)
                 scenario.steps.filter { it.type != "STORY" }.forEach { step ->
@@ -487,9 +442,7 @@ object ReportGenerator {
                     writer.write("<strong>${step.type}</strong>: ${step.description}")
                     if (step.screenshotPath != null) {
                         writer.write("<br/><details><summary>Screenshot</summary>")
-                        writer.write("<img src='${step.screenshotPath}' /><br/>")
-                        writer.write("<button class='approve-btn' onclick=\"approve('${step.screenshotPath}', '${testName}', this)\">✅ Approve as Golden</button>")
-                        writer.write("<button class='reject-btn' onclick=\"reject('${step.screenshotPath}', '${testName}', '${step.screenshotHash}', this)\">❌ Wrong / Reject</button>")
+                        writer.write("<img src='${step.screenshotPath}' />")
                         writer.write("</details>")
                     }
                     writer.write("</div>")

@@ -1161,6 +1161,8 @@ fun configureHardwareCycleTest(
         // come back BLANK, and visual-assert tests fail spuriously.
         // 7 = USB + AC + wireless. Sticks until reboot.
         runAdb(listOf("adb", "-s", deviceSerial, "shell", "settings", "put", "global", "stay_on_while_plugged_in", "7"))
+        // Clear stale screen recordings so we only ever pull this run's video.
+        runAdb(listOf("adb", "-s", deviceSerial, "shell", "mkdir -p /sdcard/tern-tests; rm -f /sdcard/tern-tests/*.mp4"))
         // Wake the screen and dismiss the keyguard. Without dismissing
         // the keyguard, the test activity launches behind the lock
         // screen — screenshots come back showing the lock screen
@@ -1174,6 +1176,39 @@ fun configureHardwareCycleTest(
         outputDir.mkdirs()
         val instrumentationLog = file("$outputDir/instrumentation.log")
 
+        // ---- Board (Mezulla) serial capture, host-side --------------------
+        // The phone can't see the board's USB serial, so we capture it here
+        // and merge it into the per-test BDD reports afterwards. Two-sided
+        // logs are what make BLE drop/reconnect RCA possible.
+        val serialLog = file("$outputDir/mezulla-serial.log")
+        var serialProc: Process? = null
+        run {
+            val captureScript = rootProject.file("scripts/capture_mezulla_serial.py")
+            val pioPython = "${System.getProperty("user.home")}/.platformio/penv/bin/python"
+            if (!captureScript.exists() || !file(mezullaPort).exists()) {
+                println("📟 board serial capture skipped (script or $mezullaPort missing)")
+            } else runCatching {
+                // Stamp serial lines in the PHONE's clock so they line up with
+                // the report step timestamps. offset = host_epoch - device_epoch.
+                val devOut = ByteArrayOutputStream()
+                runAdb(listOf("adb", "-s", deviceSerial, "shell", "date", "+%s%3N"), devOut)
+                val devMs = devOut.toString().trim().toLongOrNull()
+                val offsetMs = if (devMs != null) System.currentTimeMillis() - devMs else 0L
+                serialProc = ProcessBuilder(
+                    pioPython, captureScript.absolutePath,
+                    "--port", mezullaPort, "--baud", "115200",
+                    "--offset-ms", offsetMs.toString(), "--out", serialLog.absolutePath,
+                ).redirectErrorStream(true)
+                    .redirectOutput(file("$outputDir/serial-capture.out"))
+                    .start()
+                println("📟 board serial capture started → ${serialLog.absolutePath} (clock offset ${offsetMs}ms)")
+                // Opening the port pulses DTR/RTS and resets the ESP32. Give it
+                // time to reboot + start advertising before the first pair, so
+                // the first scenario doesn't burn its budget waiting for boot.
+                Thread.sleep(14_000)
+            }.onFailure { println("📟 board serial capture setup failed: ${it.message}") }
+        }
+
         // Run the test via am instrument. AGP's connectedDebugAndroidTest
         // can't have its args changed at execution time, so this is the
         // most reliable path. The whole am-instrument command goes as one
@@ -1182,7 +1217,10 @@ fun configureHardwareCycleTest(
         // like a shell background-job separator without quoting).
         val amCmd = buildString {
             append("am instrument -w ")
-            append("-e class '$testClass#$testMethod' ")
+            // Empty testMethod → run all @Test methods in the class
+            // (used by the BLE reliability suite which has many small tests).
+            val classFilter = if (testMethod.isBlank()) testClass else "$testClass#$testMethod"
+            append("-e class '$classFilter' ")
             if (pairUri.isNotBlank()) append("-e pairUri '$pairUri' ")
             append("-e speedMultiplier '$speedMultiplier' ")
             append("com.ternparagliding.test/androidx.test.runner.AndroidJUnitRunner")
@@ -1192,6 +1230,17 @@ fun configureHardwareCycleTest(
         val outStream = instrumentationLog.outputStream().buffered()
         val exitCode = runAdb(amArgs, outStream)
         outStream.close()
+
+        // Stop the board serial capture and let it flush before we merge.
+        serialProc?.let { p ->
+            runCatching {
+                p.destroy()        // SIGTERM — capture script flushes + closes
+                Thread.sleep(800)
+                if (p.isAlive) p.destroyForcibly()
+                p.waitFor()
+            }
+            println("📟 board serial capture stopped")
+        }
 
         val logText = instrumentationLog.readText()
         val passed = logText.contains(Regex("OK \\(\\d+ tests?\\)")) &&
@@ -1217,6 +1266,53 @@ fun configureHardwareCycleTest(
             println("📊 BDD report → ${reportFile.absolutePath}")
         } else {
             println("⚠️  No on-device BDD report at $onDeviceReportDir/$reportFilename")
+        }
+
+        // Merge the board serial log into each pulled per-test report (adds a
+        // "📟 Mezulla Serial (board)" section sliced to that scenario's window).
+        run {
+            val injectScript = rootProject.file("scripts/inject_mezulla_serial.py")
+            if (injectScript.exists() && serialLog.exists()) runCatching {
+                ProcessBuilder(
+                    "python3", injectScript.absolutePath,
+                    "--bdd-dir", bddDir.absolutePath,
+                    "--serial-log", serialLog.absolutePath,
+                ).inheritIO().start().waitFor()
+            }.onFailure { println("📟 board serial inject failed: ${it.message}") }
+        }
+
+        // Pull screen recordings next to the report so the <video> tags
+        // resolve. screenrecord writes to /sdcard/tern-tests as the shell
+        // uid; the app can't read those under scoped storage, so we adb-pull
+        // them here (adb runs as shell). The report references "<test>.mp4"
+        // relative to bddDir.
+        runCatching {
+            val lsOut = ByteArrayOutputStream()
+            runAdb(listOf("adb", "-s", deviceSerial, "shell", "ls", "/sdcard/tern-tests/"), lsOut)
+            lsOut.toString().lines().map { it.trim() }.filter { it.endsWith(".mp4") }.forEach { mp4 ->
+                runAdb(
+                    listOf("adb", "-s", deviceSerial, "pull", "/sdcard/tern-tests/$mp4", "${bddDir.absolutePath}/$mp4"),
+                    ByteArrayOutputStream(),
+                )
+                println("🎬 pulled video → $mp4")
+            }
+        }.onFailure { println("🎬 video pull failed: ${it.message}") }
+
+        // For class-level runs (testMethod == ""), the BDD framework
+        // already writes one summary_*.json per individual @Test method
+        // and the dashboard picks those up. Skip writing the aggregate
+        // gradle summary in that case — it'd override the per-test
+        // entries with one misleading "FAIL" row for the whole class.
+        if (testMethod.isBlank()) {
+            println("📝 BDD summaries written per-test by the framework")
+            println("📋 Instrumentation log → ${instrumentationLog.absolutePath}")
+            if (!passed) {
+                println("❌ $name FAILED. Tail of log:")
+                logText.lines().takeLast(30).forEach { println("    $it") }
+                throw GradleException("$name failed (am instrument exit $exitCode, parsed result: FAIL)")
+            }
+            println("✅ $name PASSED")
+            return@doLast
         }
 
         val summaryFile = file(
@@ -1275,6 +1371,17 @@ configureHardwareCycleTest(
     name = "edithsGapCycleTest",
     testClass = "com.ternparagliding.test.EdithsGapCycleTest",
     testMethod = "pilot_pairs_then_flies_with_one_buddy_visible",
+    requiresReflash = false,
+)
+
+// BLE reliability suite — runs all @Test methods in BleReliabilityTest
+// in one shot. Each test is its own scenario; the runnable ones
+// (T2/T3/T4/T6/T7/F5) exercise the reliability contract on real
+// hardware. @Ignore'd ones are skipped silently.
+configureHardwareCycleTest(
+    name = "bleReliabilityTest",
+    testClass = "com.ternparagliding.test.BleReliabilityTest",
+    testMethod = "",  // empty → all @Test methods in the class
     requiresReflash = true,
 )
 

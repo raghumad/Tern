@@ -43,6 +43,13 @@ internal class FakeBleTransport : BleTransport {
         return true
     }
 
+    override fun currentMtu(): Int? = 517
+    override fun currentPhy(): Int? = null
+    override fun simulateDisconnectForTest() {
+        // No-op for the JVM fake — unit tests drive Disconnected events
+        // directly via emit(BleTransportEvent.Disconnected).
+    }
+
     /** Push a transport event into [BleConnection]. */
     suspend fun emit(event: BleTransportEvent) = _events.emit(event)
 }

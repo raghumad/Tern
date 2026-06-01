@@ -36,6 +36,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -329,12 +331,23 @@ fun MezullaStatusBadge(
 
     val nerdFontFamily = FontFamily(Font(R.font.jetbrains_mono_nerd_regular))
 
+    // Content description encodes the current link state so the BLE
+    // reliability test (T7) can semantic-match without scraping the
+    // visual surface. Format: "mezulla-status:UP:peers=3" /
+    // "mezulla-status:DOWN" / "mezulla-status:NEVER_PAIRED".
+    val statusDescription = when (peerState.linkState) {
+        LinkState.UP -> "mezulla-status:UP:peers=${peerState.peers.size}"
+        LinkState.DOWN -> "mezulla-status:DOWN"
+        LinkState.NEVER_PAIRED -> "mezulla-status:NEVER_PAIRED"
+    }
+
     Box(
         modifier = modifier
             .size(32.dp)
             .shadow(3.dp, CircleShape)
             .background(Color(0xFF1A1A2E).copy(alpha = 0.55f), CircleShape)
-            .testTag("mezulla_status_badge"),
+            .testTag("mezulla_status_badge")
+            .semantics { contentDescription = statusDescription },
         contentAlignment = Alignment.Center,
     ) {
         Text(
