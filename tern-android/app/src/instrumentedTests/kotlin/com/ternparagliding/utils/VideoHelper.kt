@@ -26,11 +26,39 @@ object VideoHelper {
     private const val MAX_DURATION_SECONDS = 180
     private const val SCREENRECORD_PROBE_MS = 1500L
 
-    private var recordingProcess: Process? = null
+    private const val SCREENRECORD_FINALIZE_MS = 1500L
+
+    // screenrecord must run as the shell uid (screen-capture privilege),
+    // so it's launched via UiAutomation.executeShellCommand — NOT
+    // Runtime.exec from the app uid (which exits immediately, denied).
+    private var recordingActive: Boolean = false
+    private var recordingPfd: android.os.ParcelFileDescriptor? = null
     private var currentTestName: String? = null
     private var currentTempPath: String? = null
     private var segmentIndex: Int = 0
     private val testStorage = try { TestStorage() } catch (_: Exception) { null }
+
+    private val uiAutomation
+        get() = androidx.test.platform.app.InstrumentationRegistry
+            .getInstrumentation().uiAutomation
+
+    /** Run a shell command (as shell uid) and return its stdout. */
+    private fun shellOutput(cmd: String): String = try {
+        // AutoCloseInputStream takes ownership of the fd and closes it; do
+        // NOT also wrap the pfd in .use (that double-closes → exception).
+        android.os.ParcelFileDescriptor.AutoCloseInputStream(
+            uiAutomation.executeShellCommand(cmd)
+        ).use { it.readBytes().toString(Charsets.UTF_8) }
+    } catch (e: Exception) {
+        Log.w(TAG, "shell '$cmd' failed: ${e.message}"); ""
+    }
+
+    /** SIGINT screenrecord so it finalizes the mp4 (a hard kill corrupts it). */
+    private fun stopScreenrecordShell() {
+        runCatching { uiAutomation.executeShellCommand("pkill -INT screenrecord").close() }
+        runCatching { recordingPfd?.close() }
+        recordingPfd = null
+    }
 
     // Fallback
     private var frameCaptureHelper: FrameCaptureHelper? = null
@@ -38,7 +66,7 @@ object VideoHelper {
     val isUsingFallback: Boolean get() = frameCaptureHelper != null
 
     fun startRecording(testName: String) {
-        if (recordingProcess != null || frameCaptureHelper != null) {
+        if (recordingActive || frameCaptureHelper != null) {
             Log.w(TAG, "Already recording -- ignoring startRecording($testName)")
             return
         }
@@ -49,15 +77,34 @@ object VideoHelper {
         ensureOutputDir()
         startSegment()
 
-        // Probe: does screenrecord actually produce output on this device?
-        if (recordingProcess != null) {
+        // Probe: is screenrecord actually supported on this device?
+        //
+        // We must NOT check the file size here: screenrecord buffers and
+        // doesn't flush the mp4 (moov atom etc.) until it stops, so the
+        // file is legitimately 0 bytes for the first seconds even on a
+        // perfectly working device. The old size-check therefore ALWAYS
+        // fell back, even though screenrecord works fine — leaving reports
+        // with a <video> tag pointing at an mp4 that was never produced.
+        //
+        // Instead, probe by process liveness: on devices that lack
+        // screenrecord (some AOSP ATD images) the process exits
+        // immediately; on supported devices it stays alive recording.
+        if (recordingActive) {
             try { Thread.sleep(SCREENRECORD_PROBE_MS) } catch (_: InterruptedException) {}
-            val file = currentTempPath?.let { File(it) }
-            if (file == null || !file.exists() || file.length() == 0L) {
-                Log.w(TAG, "screenrecord not producing output — falling back to FrameCaptureHelper")
-                recordingProcess?.destroy()
-                recordingProcess = null
+            // Probe via shell (the app uid can't stat shell-written files
+            // under scoped storage). screenrecord opens its output file
+            // immediately; if it never appears, it's unsupported here
+            // (e.g. AOSP ATD) → fall back to interval screenshots.
+            val present = currentTempPath?.let {
+                shellOutput("ls $it 2>/dev/null").trim().isNotEmpty()
+            } ?: false
+            if (!present) {
+                Log.w(TAG, "screenrecord produced no output file — unsupported; falling back to FrameCaptureHelper")
+                stopScreenrecordShell()
+                recordingActive = false
                 activateFallback(testName)
+            } else {
+                Log.i(TAG, "screenrecord probe OK (output file present)")
             }
         } else {
             activateFallback(testName)
@@ -79,17 +126,18 @@ object VideoHelper {
         }
 
         // screenrecord path
-        val process = recordingProcess ?: return
+        if (!recordingActive) return
         val tempPath = currentTempPath
         val testName = currentTestName
-        try {
-            process.destroy()
-            process.waitFor()
-        } catch (e: Exception) {
-            Log.w(TAG, "Error stopping screenrecord", e)
-        }
-        recordingProcess = null
+        stopScreenrecordShell()   // SIGINT → screenrecord finalizes the mp4
+        recordingActive = false
+        // Let screenrecord flush + close the mp4 container before reads.
+        try { Thread.sleep(SCREENRECORD_FINALIZE_MS) } catch (_: InterruptedException) {}
 
+        // copyToTestStorage mirrors to TestStorage for the AGP managed-device
+        // path. Under `am instrument` the app uid can't read the shell-written
+        // mp4 (scoped storage), so that copy no-ops and the Gradle task
+        // adb-pulls the mp4 (as shell) from $TEMP_DIR next to the report.
         if (tempPath != null && testName != null) {
             copyToTestStorage(tempPath, testName)
         }
@@ -109,7 +157,7 @@ object VideoHelper {
     }
 
     val isRecording: Boolean
-        get() = recordingProcess != null || frameCaptureHelper != null
+        get() = recordingActive || frameCaptureHelper != null
 
     private fun activateFallback(testName: String) {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -127,42 +175,69 @@ object VideoHelper {
         currentTempPath = tempPath
 
         try {
-            recordingProcess = Runtime.getRuntime().exec(arrayOf(
-                "screenrecord",
-                "--time-limit", MAX_DURATION_SECONDS.toString(),
-                tempPath,
-            ))
-            Log.i(TAG, "Recording started: $tempPath")
+            // Launch via UiAutomation so screenrecord runs as the shell uid
+            // (screen-capture privilege). Runtime.exec from the app uid is
+            // denied and exits immediately.
+            recordingPfd = uiAutomation.executeShellCommand(
+                "screenrecord --time-limit $MAX_DURATION_SECONDS $tempPath"
+            )
+            recordingActive = true
+            Log.i(TAG, "Recording started (shell): $tempPath")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start screenrecord", e)
-            recordingProcess = null
+            recordingActive = false
         }
     }
 
     private fun copyToTestStorage(tempPath: String, testName: String) {
-        val storage = testStorage ?: return
         val file = File(tempPath)
         if (!file.exists() || file.length() == 0L) {
             Log.w(TAG, "Recording file missing or empty: $tempPath")
             return
         }
-        try {
-            val suffix = if (segmentIndex == 0) "" else "_seg$segmentIndex"
-            val outputName = "${testName}${suffix}.mp4"
-            storage.openOutputFile(outputName).use { out ->
-                FileInputStream(file).use { inp -> inp.copyTo(out) }
+        val suffix = if (segmentIndex == 0) "" else "_seg$segmentIndex"
+        val outputName = "${testName}${suffix}.mp4"
+
+        // Mirror to TestStorage (AGP connectedAndroidTest path).
+        testStorage?.let { storage ->
+            try {
+                storage.openOutputFile(outputName).use { out ->
+                    FileInputStream(file).use { inp -> inp.copyTo(out) }
+                }
+                Log.i(TAG, "Video copied to TestStorage: $outputName (${file.length()} bytes)")
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to copy video to TestStorage: ${e.message}")
             }
-            Log.i(TAG, "Video copied to TestStorage: $outputName (${file.length()} bytes)")
+        }
+
+        // Mirror to external-files dir so our `am instrument`–based
+        // gradle tasks (which bypass AGP / TestStorage) can adb-pull
+        // the video alongside the BDD report HTML. Matches the
+        // ReportGenerator.openOutputBothPaths pattern.
+        try {
+            val ctx = androidx.test.platform.app.InstrumentationRegistry
+                .getInstrumentation().targetContext
+            val baseDir = ctx.getExternalFilesDir(null)
+            if (baseDir != null) {
+                val dir = File(baseDir, "tern-tests-report")
+                if (dir.exists() || dir.mkdirs()) {
+                    val outFile = File(dir, outputName)
+                    FileInputStream(file).use { inp ->
+                        java.io.FileOutputStream(outFile).use { out -> inp.copyTo(out) }
+                    }
+                    Log.i(TAG, "Video mirrored to external files: ${outFile.absolutePath}")
+                }
+            }
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to copy video to TestStorage: ${e.message}")
+            Log.w(TAG, "Failed to mirror video to external files: ${e.message}")
         }
     }
 
     private fun ensureOutputDir() {
-        try {
-            Runtime.getRuntime().exec(arrayOf("mkdir", "-p", TEMP_DIR)).waitFor()
-        } catch (e: Exception) {
-            Log.w(TAG, "Could not create $TEMP_DIR", e)
-        }
+        // Must create via shell: the app uid can't mkdir under /sdcard scoped
+        // storage on API 30+ (the old Runtime.exec mkdir silently failed, so
+        // shell screenrecord then had no directory to write into and we always
+        // fell back). screenrecord — also shell — writes here.
+        shellOutput("mkdir -p $TEMP_DIR")
     }
 }

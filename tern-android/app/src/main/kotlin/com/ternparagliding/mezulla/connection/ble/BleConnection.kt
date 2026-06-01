@@ -4,13 +4,18 @@ import com.ternparagliding.mezulla.connection.LinkState
 import com.ternparagliding.mezulla.connection.MeshEvent
 import com.ternparagliding.mezulla.connection.MeshtasticConnection
 import com.ternparagliding.mezulla.connection.PeerPosition
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Real BLE implementation of [MeshtasticConnection]. Talks to a
@@ -57,6 +62,44 @@ class BleConnection internal constructor(
     @Volatile
     override var linkState: LinkState = LinkState.NEVER_PAIRED
         private set
+
+    override fun negotiatedMtu(): Int? = transport.currentMtu()
+    override fun activePhy(): Int? = transport.currentPhy()
+    override fun simulateDisconnectForTest() = transport.simulateDisconnectForTest()
+
+    /**
+     * Command the board to reboot in [rebootSeconds] (admin reboot over the
+     * live link). This is a *real* link-loss drop — the board goes away,
+     * re-advertises after boot, and the transport reconnects — unlike
+     * [simulateDisconnectForTest], which is a graceful local GATT teardown
+     * that leaves the board half-open. Used by T2/T3.
+     */
+    override suspend fun rebootBoardForTest(rebootSeconds: Int) {
+        val boardNode = pairedBoardId?.removePrefix("!")?.toLongOrNull(16)
+        if (boardNode == null) {
+            android.util.Log.w("BleConnection", "rebootBoardForTest: no pairedBoardId — cannot address admin reboot")
+            return
+        }
+        val bytes = MeshPacketCodec.encodeToRadioReboot(boardNode, allocatePacketId(), rebootSeconds)
+        val ok = runCatching { transport.writeToRadio(bytes) }.getOrDefault(false)
+        android.util.Log.i(
+            "BleConnection",
+            "[@${System.identityHashCode(this)}] rebootBoardForTest(${rebootSeconds}s) sent=$ok board=0x${boardNode.toString(16)}",
+        )
+    }
+
+    private val heartbeatCounter = java.util.concurrent.atomic.AtomicInteger(0)
+    override fun heartbeatsSent(): Int = heartbeatCounter.get()
+    private var heartbeatJob: Job? = null
+
+    // Bumped on every Connected, Disconnected, and stop(). An in-flight
+    // runHandshake captures the epoch it was launched under; if the epoch
+    // has moved on by the time it would drive the link UP, it bails. This
+    // stops a handshake from a torn-down/superseded connection from
+    // resurrecting the link state or starting a second heartbeat loop —
+    // the bug behind the zombie BleConnection whose heartbeat kept firing
+    // against a null gatt.
+    private val connectionEpoch = java.util.concurrent.atomic.AtomicInteger(0)
 
     private var collectorJob: Job? = null
 
@@ -110,8 +153,18 @@ class BleConnection internal constructor(
 
     /** Tear down the transport. Safe to call repeatedly. */
     suspend fun stop() {
+        // Invalidate any in-flight handshake so it can't drive state or
+        // start a heartbeat after we've stopped.
+        connectionEpoch.incrementAndGet()
         collectorJob?.cancel()
         collectorJob = null
+        // Without these the heartbeat coroutine (launched on the shared
+        // manager scope) outlives the connection and keeps firing against
+        // a dead/null gatt, and handshake waiters leak. This was the
+        // zombie-connection leak across back-to-back pairs.
+        stopPeriodicHeartbeat()
+        handshakeStages.values.forEach { it.cancel() }
+        handshakeStages.clear()
         transport.stop()
     }
 
@@ -120,20 +173,26 @@ class BleConnection internal constructor(
         when (event) {
             BleTransportEvent.Connected -> {
                 everSeenBoard = true
-                // Wake the Meshtastic phone-protocol stream. Without
-                // this request the firmware sits quiet — initial
-                // FromRadio drain returns empty and no FromNum
-                // notifications fire even when LoRa packets land,
-                // because the protocol expects the phone to opt in
-                // first. See MeshPacketCodec.encodeWantConfigId.
-                val wantConfigBytes = MeshPacketCodec.encodeWantConfigId(WANT_CONFIG_ID)
-                val sent = runCatching { transport.writeToRadio(wantConfigBytes) }.getOrDefault(false)
-                android.util.Log.i("BleConnection",
-                    "[@${System.identityHashCode(this)}] want_config_id=$WANT_CONFIG_ID writeToRadio.success=$sent bytes=${wantConfigBytes.size}")
-                updateLinkState(LinkState.UP)
+                // Drive the Meshtastic phone-protocol handshake in a
+                // separate coroutine so we don't block the transport
+                // event pump while we wait for config_complete_id
+                // replies. updateLinkState(UP) only after the handshake
+                // succeeds, so consumers don't try to send positions
+                // before the firmware is actually ready.
+                val epoch = connectionEpoch.incrementAndGet()
+                scope.launch { runHandshake(epoch) }
             }
             BleTransportEvent.Disconnected -> {
-                // Stay paired; transport keeps scanning silently.
+                // Stay paired; transport keeps scanning silently. Bump the
+                // epoch so any handshake still awaiting a stage can't drive
+                // the link back UP after we've gone DOWN.
+                connectionEpoch.incrementAndGet()
+                // Cancel (not complete) the waiters: completion was read as
+                // "firmware replied" and let the handshake march on to UP.
+                // Cancellation surfaces as a failed stage instead.
+                handshakeStages.values.forEach { it.cancel() }
+                handshakeStages.clear()
+                stopPeriodicHeartbeat()
                 updateLinkState(LinkState.DOWN)
             }
             BleTransportEvent.InitialScanTimeout -> {
@@ -150,10 +209,155 @@ class BleConnection internal constructor(
             }
             is BleTransportEvent.FromRadioFrame -> {
                 val decoded = MeshPacketCodec.decodeFromRadio(event.bytes) ?: return
+                // Internal handshake signal — fire the awaiting deferred
+                // BEFORE emitting to consumers so the handshake driver
+                // proceeds without competing with downstream observers.
+                if (decoded is MeshEvent.ConfigComplete) {
+                    handshakeStages.remove(decoded.configId)?.complete(Unit)
+                }
                 _events.emit(decoded)
             }
         }
     }
+
+    /**
+     * Two-stage Meshtastic phone-protocol handshake. Mirrors the
+     * official Meshtastic-Android client (core/data MeshConnectionManagerImpl):
+     *
+     *   pre-handshake heartbeat
+     *   → 100 ms delay (give firmware time to settle)
+     *   → want_config_id(CONFIG_NONCE)     — pulls device + module config + channels
+     *   → wait for ConfigComplete(CONFIG_NONCE)        — stall timeout 30 s
+     *   → want_config_id(NODE_INFO_NONCE)  — pulls full nodeDB
+     *   → wait for ConfigComplete(NODE_INFO_NONCE)     — stall timeout 60 s
+     *   → LinkState.UP
+     *
+     * Without this, the firmware's data plane stays gated — FromRadio
+     * drains return empty and FromNum notifications never fire even when
+     * LoRa traffic arrives. The injected-peer test seam bypasses BLE
+     * entirely so we missed this until the first real dual-board smoke.
+     */
+    private suspend fun runHandshake(epoch: Int) {
+        val tag = "BleConnection.handshake"
+        val instance = System.identityHashCode(this)
+
+        // Step 1: heartbeat (wake firmware's phone-protocol state machine)
+        val heartbeatOk = sendHeartbeat()
+        android.util.Log.i(tag, "[@$instance] heartbeat sent=$heartbeatOk")
+        delay(100)
+
+        // Step 2: Stage 1 — device config
+        val stage1Done = CompletableDeferred<Unit>()
+        handshakeStages[MeshPacketCodec.HANDSHAKE_CONFIG_NONCE] = stage1Done
+        val stage1Sent = runCatching {
+            transport.writeToRadio(
+                MeshPacketCodec.encodeWantConfigId(MeshPacketCodec.HANDSHAKE_CONFIG_NONCE)
+            )
+        }.getOrDefault(false)
+        android.util.Log.i(tag, "[@$instance] stage1 want_config_id=${MeshPacketCodec.HANDSHAKE_CONFIG_NONCE} sent=$stage1Sent")
+        val stage1Ok = runCatching {
+            withTimeout(HANDSHAKE_STAGE1_TIMEOUT_MS) { stage1Done.await() }
+            true
+        }.getOrElse {
+            handshakeStages.remove(MeshPacketCodec.HANDSHAKE_CONFIG_NONCE)
+            android.util.Log.w(tag, "[@$instance] stage1 timeout (${HANDSHAKE_STAGE1_TIMEOUT_MS}ms): $it")
+            false
+        }
+        android.util.Log.i(tag, "[@$instance] stage1 complete (stage1Ok=$stage1Ok)")
+
+        // Emit UP as soon as Stage 1 is done (or has timed out). The
+        // pair flow above us has its own LINK_UP timeout that's
+        // tighter than Stage 1 + Stage 2 combined, and Stage 2 is
+        // only a nodeDB pre-population — ongoing events come through
+        // regardless. Marking UP here is the right "we're ready to
+        // be useful" signal.
+        //
+        // ...but only if this handshake still belongs to the live
+        // connection. If a Disconnected (or stop()) landed while we were
+        // awaiting Stage 1, the epoch has moved on and driving UP now would
+        // resurrect a dead link and start an orphaned heartbeat loop.
+        if (connectionEpoch.get() != epoch) {
+            android.util.Log.w(tag, "[@$instance] epoch $epoch superseded (now ${connectionEpoch.get()}) — aborting before UP")
+            return
+        }
+        updateLinkState(LinkState.UP)
+
+        // Kick off the periodic heartbeat once we're UP. Cancelled on
+        // Disconnected / stop().
+        startPeriodicHeartbeat()
+
+        // Step 3: Stage 2 — full nodeDB. Fired in the background; we
+        // don't block UP on it. If it times out or the write fails
+        // (Android's GATT queue can be busy during the burst of
+        // FromRadio reads from Stage 1) the link stays UP and we
+        // just don't get the historical nodeDB until a fresh
+        // broadcast lands.
+        val stage2Done = CompletableDeferred<Unit>()
+        handshakeStages[MeshPacketCodec.HANDSHAKE_NODE_INFO_NONCE] = stage2Done
+        val stage2Sent = runCatching {
+            transport.writeToRadio(
+                MeshPacketCodec.encodeWantConfigId(MeshPacketCodec.HANDSHAKE_NODE_INFO_NONCE)
+            )
+        }.getOrDefault(false)
+        android.util.Log.i(tag, "[@$instance] stage2 want_config_id=${MeshPacketCodec.HANDSHAKE_NODE_INFO_NONCE} sent=$stage2Sent")
+        runCatching {
+            withTimeout(HANDSHAKE_STAGE2_TIMEOUT_MS) { stage2Done.await() }
+        }.onFailure {
+            handshakeStages.remove(MeshPacketCodec.HANDSHAKE_NODE_INFO_NONCE)
+            android.util.Log.w(tag, "[@$instance] stage2 timeout (${HANDSHAKE_STAGE2_TIMEOUT_MS}ms): $it")
+        }
+        android.util.Log.i(tag, "[@$instance] handshake fully complete")
+    }
+
+    /**
+     * Send one heartbeat ToRadio packet. Returns true if writeToRadio
+     * succeeded (means the OS queued the write and the peer ack'd).
+     * Increments [heartbeatCounter] on success so T6 can observe.
+     */
+    private suspend fun sendHeartbeat(): Boolean {
+        val ok = runCatching {
+            transport.writeToRadio(MeshPacketCodec.encodeHeartbeat())
+        }.getOrDefault(false)
+        if (ok) heartbeatCounter.incrementAndGet()
+        return ok
+    }
+
+    /**
+     * Start the periodic-heartbeat loop. Sends one heartbeat every
+     * [HEARTBEAT_INTERVAL_MS] while the link is UP. Cancel via
+     * [stopPeriodicHeartbeat] (called on Disconnected). The first
+     * heartbeat is the handshake's own pre-config wake — this loop
+     * picks up from there at the regular interval.
+     *
+     * Why: the firmware can keep the BLE link nominally "connected"
+     * even when the data plane has stalled. A regular phone-initiated
+     * round-trip is the cheapest observability + liveness check we
+     * have, and per the [[feedback-definition-of-done]] safety bar
+     * we want to KNOW the link is dead within seconds, not minutes.
+     */
+    private fun startPeriodicHeartbeat() {
+        if (heartbeatJob != null) return
+        heartbeatJob = scope.launch {
+            while (true) {
+                kotlinx.coroutines.delay(HEARTBEAT_INTERVAL_MS)
+                if (linkState != LinkState.UP) break
+                val ok = sendHeartbeat()
+                android.util.Log.i(
+                    "BleConnection.heartbeat",
+                    "[@${System.identityHashCode(this@BleConnection)}] periodic heartbeat sent=$ok total=${heartbeatCounter.get()}"
+                )
+            }
+        }
+    }
+
+    private fun stopPeriodicHeartbeat() {
+        heartbeatJob?.cancel()
+        heartbeatJob = null
+    }
+
+    // Pending CompletableDeferred keyed by configId — completed when the
+    // firmware replies with the matching ConfigComplete on FromRadio.
+    private val handshakeStages = ConcurrentHashMap<Int, CompletableDeferred<Unit>>()
 
     private suspend fun updateLinkState(newState: LinkState) {
         if (linkState == newState) return
@@ -242,10 +446,18 @@ class BleConnection internal constructor(
     }
 
     companion object {
-        // Sentinel sent in our want_config_id request on each connect.
-        // The firmware echoes this in its config_complete_id packet so
-        // the phone can match the bundle to its request — we don't act
-        // on that echo today, just need a stable non-zero value.
-        private const val WANT_CONFIG_ID = 0x7E270001
+        // Stall-guard timeouts for the two-stage handshake. Match the
+        // official Meshtastic-Android client (30 s / 60 s). If a stage
+        // doesn't complete in time we proceed to LinkState.UP anyway —
+        // the connection might still work for ongoing-only events even
+        // if the bulk config dump stalled. Worst case the user sees
+        // empty nodeDB until traffic comes in.
+        private const val HANDSHAKE_STAGE1_TIMEOUT_MS = 30_000L
+        private const val HANDSHAKE_STAGE2_TIMEOUT_MS = 60_000L
+
+        // Periodic heartbeat (T6). 30s matches official Meshtastic
+        // client cadence. Short enough to detect dead links quickly,
+        // long enough to keep airtime + power negligible.
+        private const val HEARTBEAT_INTERVAL_MS = 30_000L
     }
 }

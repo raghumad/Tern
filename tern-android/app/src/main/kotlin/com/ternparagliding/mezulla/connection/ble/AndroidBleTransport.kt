@@ -73,6 +73,8 @@ internal class AndroidBleTransport(
     @Volatile private var scanner: BluetoothLeScanner? = null
     @Volatile private var gatt: BluetoothGatt? = null
     @Volatile private var connected: Boolean = false
+    @Volatile private var currentMtuValue: Int? = null
+    @Volatile private var currentPhyValue: Int? = null
     @Volatile private var scanTimeoutJob: Job? = null
     @Volatile private var reconnectJob: Job? = null
     @Volatile private var scanning: Boolean = false
@@ -112,14 +114,35 @@ internal class AndroidBleTransport(
         connected = false
     }
 
+    override fun currentMtu(): Int? = currentMtuValue
+    override fun currentPhy(): Int? = currentPhyValue
+
+    @SuppressLint("MissingPermission")
+    override fun simulateDisconnectForTest() {
+        Log.i(TAG, "simulateDisconnectForTest: requesting GATT disconnect")
+        runCatching { gatt?.disconnect() }
+        // onConnectionStateChange will fire STATE_DISCONNECTED → standard
+        // reconnect flow takes over (backoff + scan + connect).
+    }
+
     @SuppressLint("MissingPermission")
     override suspend fun writeToRadio(toRadioBytes: ByteArray): Boolean {
-        val g = gatt ?: return false
-        if (!connected) return false
+        val g = gatt
+        if (g == null) {
+            Log.w(TAG, "writeToRadio: gatt is null — rejecting")
+            return false
+        }
+        if (!connected) {
+            Log.w(TAG, "writeToRadio: connected=false — rejecting ${toRadioBytes.size}B")
+            return false
+        }
         val characteristic = g.getService(MeshtasticGattUuids.SERVICE)
             ?.getCharacteristic(MeshtasticGattUuids.TO_RADIO)
-            ?: return false
-        return writeMutex.withLock {
+        if (characteristic == null) {
+            Log.w(TAG, "writeToRadio: TO_RADIO characteristic not found — rejecting")
+            return false
+        }
+        val ok = writeMutex.withLock {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 val rc = g.writeCharacteristic(
                     characteristic,
@@ -136,6 +159,12 @@ internal class AndroidBleTransport(
                 g.writeCharacteristic(characteristic)
             }
         }
+        // Drain is kicked from onCharacteristicWrite once the peer
+        // acks — Android serializes GATT ops, so calling
+        // readCharacteristic while a write is in flight returns false
+        // silently (the read gets dropped, never queued). Wait for the
+        // write to complete first.
+        return ok
     }
 
     @SuppressLint("MissingPermission")
@@ -188,9 +217,17 @@ internal class AndroidBleTransport(
         @SuppressLint("MissingPermission")
         override fun onScanResult(callbackType: Int, result: ScanResult) {
             val device = result.device ?: return
-            // Stop scanning to save battery; we have our target.
-            scanner?.let { runCatching { it.stopScan(this) } }
-            scanner = null
+            // Stop scanning to save battery; we have our target. Release the
+            // `scanning` latch under the same lock startScanning() takes —
+            // otherwise it stays true forever after the first successful
+            // connect, and every later reconnect's startScanning() trips the
+            // `if (scanning) return` guard and silently never re-scans. That
+            // was the auto-reconnect-never-recovers bug (T2/T3).
+            synchronized(stateLock) {
+                scanner?.let { runCatching { it.stopScan(this) } }
+                scanner = null
+                scanning = false
+            }
             scanTimeoutJob?.cancel()
             scanTimeoutJob = null
             connectGatt(device)
@@ -244,11 +281,39 @@ internal class AndroidBleTransport(
         @SuppressLint("MissingPermission")
         override fun onMtuChanged(g: BluetoothGatt, mtu: Int, status: Int) {
             Log.i(TAG, "MTU changed: mtu=$mtu status=$status")
+            // Cache the negotiated MTU so the transport can report it
+            // (consumed by BleConnection and BleReliabilityTest's T4).
+            currentMtuValue = mtu
             // Regardless of the negotiated MTU value, proceed to service
             // discovery. Some boards negotiate lower than 517 -- that's fine,
             // Meshtastic packets are small enough.
+            // F5: also request PHY 2M upgrade for higher throughput +
+            // lower airtime. Quietly best-effort — older boards stay on
+            // PHY 1M without complaint and we'll observe via readPhy.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                runCatching {
+                    g.setPreferredPhy(
+                        BluetoothDevice.PHY_LE_2M_MASK,
+                        BluetoothDevice.PHY_LE_2M_MASK,
+                        BluetoothDevice.PHY_OPTION_NO_PREFERRED,
+                    )
+                }
+                runCatching { g.readPhy() }
+            }
             Log.i(TAG, "Discovering services...")
             runCatching { g.discoverServices() }
+        }
+
+        @SuppressLint("MissingPermission")
+        override fun onPhyUpdate(g: BluetoothGatt, txPhy: Int, rxPhy: Int, status: Int) {
+            Log.i(TAG, "PHY updated: tx=$txPhy rx=$rxPhy status=$status")
+            currentPhyValue = txPhy
+        }
+
+        @SuppressLint("MissingPermission")
+        override fun onPhyRead(g: BluetoothGatt, txPhy: Int, rxPhy: Int, status: Int) {
+            Log.i(TAG, "PHY read: tx=$txPhy rx=$rxPhy status=$status")
+            currentPhyValue = txPhy
         }
 
         @SuppressLint("MissingPermission")
@@ -333,6 +398,26 @@ internal class AndroidBleTransport(
         ) {
             if (status != BluetoothGatt.GATT_SUCCESS) return
             handleFromRadioRead(g, characteristic.uuid, value)
+        }
+
+        // Peer ACK for a write arrives here. We always kick a drain on
+        // successful TO_RADIO writes — this is the canonical Meshtastic
+        // pattern (matches official meshtastic-android: write then
+        // trigger drain). The firmware queues a response to every
+        // ToRadio request, and the BLE FromNum notification is
+        // unreliable during the handshake window. Draining on
+        // write-ack is the correct request/response semantics and
+        // doesn't race the write transaction's serialization queue.
+        override fun onCharacteristicWrite(
+            g: BluetoothGatt,
+            characteristic: BluetoothGattCharacteristic,
+            status: Int,
+        ) {
+            Log.i(TAG, "onCharacteristicWrite: uuid=${characteristic.uuid} status=$status (0=ack, non-zero=error)")
+            if (status == BluetoothGatt.GATT_SUCCESS &&
+                characteristic.uuid == MeshtasticGattUuids.TO_RADIO) {
+                drainFromRadio(g, isFirstDrain = false)
+            }
         }
     }
 

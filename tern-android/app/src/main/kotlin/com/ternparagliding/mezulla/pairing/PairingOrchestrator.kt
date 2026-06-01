@@ -38,6 +38,14 @@ class PairingOrchestrator(private val context: Context) {
      *  the new pair's GATT/SMP handshake. Wired by the activity. */
     var onPairStart: (() -> Unit)? = null
 
+    /** Returns true if the persistent link to this board is already UP.
+     *  When it is, a re-scan is pointless and harmful: the board isn't
+     *  advertising while connected, so the claim scan would fail with
+     *  "Board not found", and the teardown-then-failed-rescan would drop
+     *  a perfectly healthy link. Wired by the activity to query
+     *  MezullaConnectionManager.isLinkedTo. */
+    var isAlreadyLinked: ((nodeIdHex: String) -> Boolean)? = null
+
     fun handleIntent(intent: Intent): Boolean {
         val uri = intent.data?.toString() ?: return false
         val link = TernPairLink.parse(uri) ?: return false
@@ -48,6 +56,17 @@ class PairingOrchestrator(private val context: Context) {
     fun handlePairLink(link: TernPairLink) {
         Log.i(TAG, "Pairing link received: node=${link.nodeIdHex}")
         _currentLink.value = link
+
+        // Idempotent re-scan: if the persistent link to this exact board is
+        // already UP, scanning the QR again should be a no-op success. The
+        // board isn't advertising while connected, so re-running the claim
+        // scan would fail with "Board not found" — and the teardown below
+        // would needlessly drop a healthy link. Short-circuit to Success.
+        if (isAlreadyLinked?.invoke(link.nodeIdHex) == true) {
+            Log.i(TAG, "Already linked to ${link.nodeIdHex} — skipping re-pair (idempotent)")
+            _state.value = PairingState.Success(link.nodeIdHex, getPairedDeviceAddress() ?: "")
+            return
+        }
 
         // Tear down any stale persistent connection before we start.
         // Without this, the previous session's BleConnection (started

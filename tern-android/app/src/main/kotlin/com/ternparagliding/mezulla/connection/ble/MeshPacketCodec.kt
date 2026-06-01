@@ -48,6 +48,10 @@ internal object MeshPacketCodec {
     const val PORT_NODEINFO_APP = 4
     const val PORT_ALERT_APP = 11
     const val PORT_TELEMETRY_APP = 67
+    const val PORT_ADMIN_APP = 6
+
+    // AdminMessage field number — see meshtastic/admin.proto.
+    private const val F_ADMIN_REBOOT_SECONDS = 97
 
     // MeshPacket field numbers — see meshtastic/mesh.proto.
     private const val F_MESHPACKET_FROM = 1
@@ -69,6 +73,13 @@ internal object MeshPacketCodec {
     // ToRadio variant field numbers.
     private const val F_TORADIO_PACKET = 1
     private const val F_TORADIO_WANT_CONFIG_ID = 3
+    private const val F_TORADIO_HEARTBEAT = 7
+
+    // FromRadio variant field numbers used during the multi-stage
+    // Meshtastic handshake. config_complete_id is the firmware's "I'm
+    // done streaming this config bundle" marker — see
+    // BleConnection's runHandshake.
+    private const val F_FROMRADIO_CONFIG_COMPLETE_ID = 7
 
     // NodeInfo field numbers (subset).
     private const val F_NODEINFO_NUM = 1
@@ -126,6 +137,13 @@ internal object MeshPacketCodec {
                     }
                     val niBytes = reader.readLengthDelimited()
                     return decodeNodeInfo(niBytes)
+                }
+                F_FROMRADIO_CONFIG_COMPLETE_ID -> {
+                    if (wire != Proto.WIRE_VARINT) {
+                        reader.skipField(wire); continue
+                    }
+                    val configId = reader.readVarint().toInt()
+                    return MeshEvent.ConfigComplete(configId)
                 }
                 else -> reader.skipField(wire)
             }
@@ -405,22 +423,77 @@ internal object MeshPacketCodec {
     }
 
     /**
-     * Encode a ToRadio frame that asks the firmware to replay its
-     * NodeInfo + config + nodeDB (its "config bundle") and then start
-     * streaming subsequent packets. Without this request, the
-     * Meshtastic phone protocol leaves the firmware quiet — the
-     * initial FromRadio drain returns empty and no FromNum
-     * notifications fire even when LoRa packets arrive. Required
-     * once per BLE (or TCP) connect.
+     * Encode a ToRadio frame that commands the board to reboot in
+     * [rebootSeconds] seconds (an `AdminMessage.reboot_seconds` on
+     * ADMIN_APP, addressed to the board itself).
      *
-     * The configId is an arbitrary 32-bit identifier the phone picks
-     * to mark this config request — the firmware echoes it back in a
-     * `config_complete_id` packet so the phone knows the bundle is
-     * fully delivered. Any non-zero value works; we use a fixed
-     * sentinel.
+     * No admin session passkey is needed: the firmware's AdminModule skips
+     * the passkey check when `MeshPacket.from == 0` (a locally-connected
+     * phone over BLE is implicitly trusted). So we send `from = 0`.
+     *
+     * Used by the BLE reliability suite (T2/T3) to faithfully simulate a
+     * "board rebooted mid-flight" drop — a real link loss + re-advertise +
+     * reconnect — rather than a graceful local GATT disconnect.
+     */
+    fun encodeToRadioReboot(boardNodeNumber: Long, packetId: Int, rebootSeconds: Int): ByteArray {
+        val admin = ProtoWriter().apply {
+            writeInt32(F_ADMIN_REBOOT_SECONDS, rebootSeconds)
+        }.toByteArray()
+        val data = ProtoWriter().apply {
+            writeInt32(F_DATA_PORTNUM, PORT_ADMIN_APP)
+            writeBytes(F_DATA_PAYLOAD, admin)
+        }.toByteArray()
+        val packet = ProtoWriter().apply {
+            writeFixed32(F_MESHPACKET_FROM, 0L) // from=0 → trusted local phone, no passkey
+            writeFixed32(F_MESHPACKET_TO, boardNodeNumber)
+            writeMessage(F_MESHPACKET_DECODED, data)
+            writeFixed32(F_MESHPACKET_ID, packetId.toLong() and 0xFFFFFFFFL)
+            writeBool(F_MESHPACKET_WANT_ACK, true)
+        }.toByteArray()
+        return ProtoWriter().apply {
+            writeMessage(F_TORADIO_PACKET, packet)
+        }.toByteArray()
+    }
+
+    /**
+     * Encode a ToRadio frame that asks the firmware to replay its
+     * config bundle and then start streaming subsequent packets.
+     * Required at least once per BLE (or TCP) connect — the
+     * Meshtastic phone protocol leaves the firmware quiet otherwise.
+     *
+     * The configId is an opaque 32-bit identifier; the firmware
+     * echoes it back in a [MeshEvent.ConfigComplete] packet so the
+     * handshake driver can match each stage's completion. We follow
+     * the official Meshtastic-Android client and use two stages:
+     *   - Stage 1: configId = [HANDSHAKE_CONFIG_NONCE]    → device + module config + channels
+     *   - Stage 2: configId = [HANDSHAKE_NODE_INFO_NONCE] → full nodeDB
      */
     fun encodeWantConfigId(configId: Int): ByteArray =
         ProtoWriter().apply {
             writeInt32(F_TORADIO_WANT_CONFIG_ID, configId)
         }.toByteArray()
+
+    /**
+     * Encode an empty Heartbeat ToRadio frame. Sent immediately after
+     * BLE connect to wake the firmware's phone-protocol state machine
+     * before the [encodeWantConfigId] requests. Without this, the
+     * official Meshtastic-Android client has observed the firmware
+     * dropping the first want_config_id silently on some boards.
+     * Body is empty (zero-length Heartbeat message).
+     */
+    fun encodeHeartbeat(): ByteArray =
+        ProtoWriter().apply {
+            writeMessage(F_TORADIO_HEARTBEAT, ByteArray(0))
+        }.toByteArray()
+
+    /**
+     * Stage-1 nonce — matches `HandshakeConstants.CONFIG_NONCE` in the
+     * official Meshtastic-Android client. Value is opaque/echoed, but
+     * we use the same number so any debug-tooling that recognises it
+     * (e.g. firmware logs) reads the same way.
+     */
+    const val HANDSHAKE_CONFIG_NONCE = 69420
+
+    /** Stage-2 nonce — matches `HandshakeConstants.NODE_INFO_NONCE`. */
+    const val HANDSHAKE_NODE_INFO_NONCE = 69421
 }

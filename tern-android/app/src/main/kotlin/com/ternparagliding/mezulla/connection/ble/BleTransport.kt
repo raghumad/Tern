@@ -35,6 +35,22 @@ internal interface BleTransport {
 
     /** Returns true if the board accepted the write (queued at GATT). */
     suspend fun writeToRadio(toRadioBytes: ByteArray): Boolean
+
+    /** Most-recently-negotiated MTU, or null if no connection / unknown. */
+    fun currentMtu(): Int?
+
+    /** Active BLE PHY (BluetoothDevice.PHY_LE_*), or null if unknown. */
+    fun currentPhy(): Int?
+
+    /**
+     * Trigger a GATT disconnect without tearing down the transport's
+     * reconnect machinery. After this fires, the transport should
+     * observe the disconnect, schedule the standard backoff, then
+     * scan + reconnect like any natural drop. Used by the BLE
+     * reliability test suite (T2/T3) to simulate the "board rebooted
+     * mid-flight" scenario without requiring an actual reboot.
+     */
+    fun simulateDisconnectForTest()
 }
 
 /** Events the [BleTransport] emits up to [BleConnection]. */

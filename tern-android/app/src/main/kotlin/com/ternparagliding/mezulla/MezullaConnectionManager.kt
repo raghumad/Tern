@@ -8,6 +8,7 @@ import com.ternparagliding.mezulla.connection.ble.BleConnection
 import com.ternparagliding.mezulla.connection.ble.buildBleConnection
 import com.ternparagliding.mezulla.pairing.PairingOrchestrator
 import com.ternparagliding.mezulla.pairing.PairingState
+import com.ternparagliding.mezulla.redux.PeerAction
 import com.ternparagliding.mezulla.redux.PeerMiddleware
 import com.ternparagliding.redux.MapStore
 import kotlinx.coroutines.CoroutineScope
@@ -68,6 +69,9 @@ class MezullaConnectionManager(
     /** MAC address of the currently active connection. */
     private var activeMac: String? = null
 
+    /** Node id (hex) of the currently active connection's board. */
+    private var activeNodeId: String? = null
+
     /** The PeerMiddleware wired to the active connection. */
     private var activePeerMiddleware: PeerMiddleware? = null
 
@@ -103,7 +107,13 @@ class MezullaConnectionManager(
      */
     fun initialize(store: MapStore) {
         if (mapStore != null) {
-            Log.d(TAG, "Already initialized — skipping")
+            // The Activity (and its store ViewModel) was recreated, but we
+            // are process-scoped and the BLE link is still live. Keep the
+            // connection; just re-point the peer-event stream at the new
+            // store so the recreated map gets peer updates.
+            Log.i(TAG, "Re-initializing (Activity recreated) — rebinding peer stream to new store, keeping live connection")
+            mapStore = store
+            rebindMiddleware(store)
             return
         }
         mapStore = store
@@ -214,6 +224,7 @@ class MezullaConnectionManager(
 
         activeConnection = connection
         activeMac = macAddress
+        activeNodeId = nodeIdHex
         activePeerMiddleware = middleware
 
         // Start the middleware first so it subscribes to events before
@@ -282,6 +293,45 @@ class MezullaConnectionManager(
         return c
     }
 
+    /**
+     * True iff we already have a live, UP persistent link to this exact
+     * board. Used by [PairingOrchestrator] to short-circuit a re-scan of a
+     * board we're already connected to: while connected, the board isn't
+     * advertising, so a fresh claim scan would fail with "Board not found"
+     * and the teardown-then-failed-rescan would leave us with no active
+     * connection even though the link was healthy. Re-scanning the QR of an
+     * already-connected board should be an idempotent success.
+     */
+    fun isLinkedTo(nodeIdHex: String): Boolean {
+        val c = activeConnection ?: return false
+        return activeNodeId == nodeIdHex && c.linkState == LinkState.UP
+    }
+
+    /**
+     * Re-point the live connection's peer-event stream at a new [MapStore].
+     * Called from [initialize] when the Activity (and its store ViewModel)
+     * is recreated: we keep the BLE connection alive and only rebuild the
+     * Redux bridge so the recreated map receives peer updates. No-op if
+     * there is no active connection.
+     */
+    private fun rebindMiddleware(store: MapStore) {
+        val conn = activeConnection ?: return
+        middlewareJob?.cancel()
+        val middleware = PeerMiddleware(
+            connection = conn,
+            dispatch = { action -> store.dispatch(action) },
+            scope = scope,
+        )
+        activePeerMiddleware = middleware
+        middlewareJob = middleware.start()
+        // Seed the new store with the current link state. The connection is
+        // already UP and the events flow has no replay, so it won't re-emit
+        // LinkStateChange — without this seed the recreated Activity's map
+        // status badge never learns the link is live (T7).
+        store.dispatch(PeerAction.LinkStateChanged(conn.linkState))
+        Log.i(TAG, "Rebound PeerMiddleware to new store for BleConnection@${System.identityHashCode(conn)} (seeded linkState=${conn.linkState})")
+    }
+
     @android.annotation.SuppressLint("MissingPermission")
     private fun osHasBondFor(mac: String): Boolean {
         val btManager = appContext.getSystemService(android.content.Context.BLUETOOTH_SERVICE)
@@ -327,6 +377,7 @@ class MezullaConnectionManager(
         linkEstablishTimeoutJob = null
         activeConnection = null
         activeMac = null
+        activeNodeId = null
         activePeerMiddleware = null
     }
 }

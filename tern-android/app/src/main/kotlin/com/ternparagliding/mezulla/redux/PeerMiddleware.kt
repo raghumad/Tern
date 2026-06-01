@@ -94,6 +94,12 @@ class PeerMiddleware(
             is MeshEvent.LinkStateChange -> {
                 dispatch(PeerAction.LinkStateChanged(event.newState))
             }
+
+            is MeshEvent.ConfigComplete -> {
+                // Internal handshake signal — BleConnection consumes it
+                // directly to advance the two-stage Meshtastic handshake.
+                // Redux doesn't model it; no-op here.
+            }
         }
     }
 
