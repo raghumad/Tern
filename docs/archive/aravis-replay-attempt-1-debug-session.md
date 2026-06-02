@@ -1,5 +1,12 @@
 # Aravis replay — late-night session debrief (2026-05-27 → 2026-05-28 ~00:00)
 
+> **ARCHIVED / RESOLVED.** Historical debug debrief. The "final blocker"
+> below (duplicate concurrent `BleConnection`s) was found and fixed; the
+> reliable self-healing BLE link shipped in PR #20. The Aravis replay now
+> passes end-to-end on real hardware (`aravisCycleTest`), alongside Edith's
+> Gap and Bir Billing, via the unified `MezullaPeerCycleTest` harness.
+> Kept for history only.
+
 ## Bottom line
 
 Four end-to-end attempts. Pipeline fully built, multiple real bugs found

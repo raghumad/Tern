@@ -2,7 +2,8 @@
 
 ## Unit Tests
 
-304 tests, JUnit 5.
+JUnit 5. (Run the task for the current count — it's not pinned here so it
+doesn't go stale.)
 
 ```bash
 ./gradlew :app:testDebugUnitTest
@@ -74,6 +75,29 @@ The buddy-flying pipeline has two layers:
 - `BuddyFlyingSmokeTest` — unit test, gold standard. Validates the mesh event flow end-to-end with `StubMeshtasticConnection`.
 - `MezullaBuddyFlyingVisualTest` — instrumented test running the same pipeline on an emulator using `SwarmSimulatedConnection`, with screenshots at each BDD step.
 
+## Hardware Cycle Tests (Mezulla)
+
+The full pilot-flies-with-buddies cycle on **real hardware** (paired board
++ phone) runs through one shared harness, `MezullaPeerCycleTest`: pair via
+the `tern://` deep link → bring the persistent BLE link UP → load the swarm
+playback → follow the DUT heading-up (look-ahead follow-cam) → inject the
+buddies as LoRa peers → sample the screen, asserting the peer HUD and the
+off-screen edge chips. The three scenarios are thin subclasses differing
+only by their IGC files:
+
+```bash
+# requires a connected phone + paired Mezulla board; pass the device serial
+./gradlew :app:aravisCycleTest    -PdeviceSerial=<serial>   # 4 pilots, France
+./gradlew :app:edithsGapCycleTest -PdeviceSerial=<serial>   # 2 pilots, USA
+./gradlew :app:birBillingCycleTest -PdeviceSerial=<serial>  # 3 pilots, Himalayas
+# optional: -PspeedMultiplier=32  (default 256)
+```
+
+A companion suite, `bleReliabilityTest`, exercises the link itself
+(reconnect-after-reboot, MTU, heartbeat, link badge, PHY upgrade).
+`PeerHudRenderTest` renders the HUD bitmaps to a montage PNG for visual
+review without a flight.
+
 ## Reliability Techniques
 
 ### Cache Clearing
@@ -102,14 +126,14 @@ the pilot sees will produce passing tests and a broken app.
 
 ## Known Issues
 
-- **Two-map bug.** `NativeMapView` creates a second MapView for peer
-  markers (because maplibre-compose SymbolLayer was broken in v0.13.0).
-  This second map doesn't sync with Redux — its camera is stuck at
-  initial position. Root cause of many test/screenshot mismatches.
-  Fix: add peer layers to the compose map's underlying MapView, delete
-  the second one.
+- ~~**Two-map bug.**~~ RESOLVED. The second `NativeMapView` was deleted;
+  peers now render on the single MapLibre instance via a data-driven
+  `SymbolLayer` (`PeerLayer`). Camera and peers share one map/one Redux
+  state, per the "one of everything" rule above.
 - `BaseUITest` has an `@Ignore` that could silently skip `BddTest` subclasses.
-- `MapTestHelper` is dead OSMDroid-era code. Should be deleted.
+- `MapTestHelper` is dead OSMDroid-era code. Should be deleted (MapLibre
+  projection is now available via `cameraState.projection` if gesture
+  helpers are ever rewritten).
 
 ## Output Files
 

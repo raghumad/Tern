@@ -156,12 +156,12 @@ All F2.1–F2.5 are implemented and flashed to the real board.
 QR scan verified with a real phone camera. Firmware branch
 `mezulla-firmware` pushed to `raghumad/mezulla-firmware`.
 
-**Remaining for full "done":**
-- End-to-end test of claim/release/query requires the Tern app
-  to implement the `tern://` deep link handler and send packets
-  on port 256. Handoff doc delivered: `ws-qr-pairing-app-handoff.md`.
-- F1.3 regression gate: Tern app BDD tests against source-built
-  firmware (app agent's responsibility).
+**Status: COMPLETE (2026-06).** The Tern app's `tern://` deep-link
+handler ships and claims over BLE on port 256; claim/query end-to-end is
+verified on real hardware. The app-side BDD regression gate (F1.3) is met
+by the cycle + reliability suites running against the source-built
+firmware (`aravisCycleTest`/`edithsGapCycleTest`/`birBillingCycleTest`,
+`bleReliabilityTest`).
 
 ## Stage 2.5 — Upstream cleanup for device pairing PR
 

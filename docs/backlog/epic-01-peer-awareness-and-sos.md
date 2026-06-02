@@ -66,9 +66,14 @@ Remaining:
   tell the board yet).
 
 ### Story 1.2: My position is broadcast over LoRa when a board is paired
-Status: todo — blocked on persistent BLE connection
+Status: done (hardware-verified 2026-06) — see current-focus.md
 
-Requires three pieces that don't exist yet:
+All three prerequisites shipped: persistent BLE connection, the
+ToRadio/FromRadio Meshtastic codec, and the GPS → Position → ToRadio send
+path. Exercised end-to-end on real hardware by the cycle tests (the DUT's
+mock GPS drives the board's transmit path).
+
+Requires three pieces (now all done):
 1. Persistent BLE connection (keep GATT open after pairing)
 2. ToRadio/FromRadio codec (Meshtastic protobuf encode/decode in Kotlin)
 3. GPS → Position protobuf → ToRadio write to board
@@ -87,29 +92,27 @@ What done looks like:
 - The board doesn't crash or drain battery unreasonably when the phone is briefly idle.
 
 ### Story 1.3: Other pilots' positions appear on my map
-Status: in-progress (emulator-verified, pending human test + real BLE path)
+Status: done (hardware-verified 2026-06) — exceeded original scope
 
-Rendering works in the emulator via SwarmSimulatedConnection. But the
-simulator bypasses the wire protocol — it pushes PeerState directly
-into Redux without encoding/decoding Meshtastic protobufs. For this
-story to be truly done, peer positions must flow through the real path:
-FromRadio BLE read → decode Position protobuf → PeerState → Redux → map.
+Peer positions flow through the real wire path (FromRadio BLE read →
+decode Position protobuf → PeerState → Redux → map), verified on real
+hardware by three replayed flights — Aravis (4 pilots), Edith's Gap (2),
+Bir Billing (3) — via the unified `MezullaPeerCycleTest` harness.
 
-When another Tern pilot in LoRa range is broadcasting, their position
-appears on my map. Each peer shows a "last seen Xs ago" indicator. Stale
-markers fade visually but don't disappear abruptly.
-
-What done looks like:
-- Peer markers render correctly on a real device with at least 2 boards on air.
+What done looks like (all met):
+- Peer markers render correctly on a real device with peers on air.
 - Stale ageing is visible at a glance.
 - More than one peer at a time works.
 
-What exists (2026-05-27): Peer markers render as composite bitmap
-GeoJSON on a single MaplibreMap via `PeerLayer.kt`. Staleness drives
-color (green→yellow→orange→gray). Three view modes. BDD convergence
-test passes with 4-pilot Aravis XC simulation. Not verified on real
-hardware — the Aravis replay milestone (see current-focus.md) is the
-test that closes this story.
+Delivered beyond the original "marker" scope:
+- **Full peer HUD** (`PeerLayer.renderMarkerBitmap`): callsign, staleness
+  puck (green→yellow→orange→gray) + person glyph, heading/track arrow,
+  relative altitude vs me, distance, view-mode metric (SAFETY/CLIMB/
+  TACTICAL), STALE/LOST status, and zoom-based declutter — bound to the map
+  via a data-driven `SymbolLayer`.
+- **Off-screen buddy indicators** (`OffScreenPeerIndicators`): screen-edge
+  chips (callsign + distance) pointing to buddies outside the map view —
+  so a peer is never silently lost on a wide XC.
 
 ### Story 1.4: One-button SOS, broadcast and receive
 Status: todo

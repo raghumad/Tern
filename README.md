@@ -18,7 +18,12 @@ in actual flight conditions:
 - **Weather data** — wind and forecast overlays on the map
 - **Airspace display** — cached airspace polygons rendered per viewport
 - **PG spots** — paragliding site markers with metadata
-- **Peer markers** — other pilots shown on map via simulated Mezulla mesh
+- **Peer markers** — other pilots shown on the map via the Mezulla LoRa
+  mesh, as a full peer HUD (callsign, relative altitude, heading, distance,
+  staleness) plus screen-edge indicators for buddies off the view. The
+  end-to-end path (phone ↔ board ↔ mesh) is verified on real hardware by
+  replaying real flights (Aravis, Edith's Gap, Bir Billing); not yet flown
+  live in the air.
 
 All spatial data (airspaces, PG spots, weather) is cached on disk using
 FlatBuffers with Hilbert spatial indexing. The app is designed to work

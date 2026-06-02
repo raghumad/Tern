@@ -1,5 +1,10 @@
 # Firmware handoff: QR code not readable from OLED
 
+> **ARCHIVED / RESOLVED.** Fixed in the Mezulla firmware: switched to the
+> nayuki/qrcodegen library, shortened the pairing token (8 hex chars), and
+> used a proper 3-module quiet zone. The board's QR now scans reliably with
+> a phone camera on real hardware. Kept for history only.
+
 ## Problem
 
 The Mezulla board's OLED QR code cannot be scanned by any phone camera
