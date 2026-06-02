@@ -4,37 +4,53 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color as AndroidColor
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.Typeface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
-import androidx.compose.ui.graphics.Color as ComposeColor
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.asImageBitmap
 import com.ternparagliding.mezulla.redux.KnownPeer
 import com.ternparagliding.redux.MezullaViewMode
+import org.maplibre.compose.expressions.ast.Expression
+import org.maplibre.compose.expressions.dsl.case
 import org.maplibre.compose.expressions.dsl.const
+import org.maplibre.compose.expressions.dsl.feature
+import org.maplibre.compose.expressions.dsl.image
+import org.maplibre.compose.expressions.dsl.step
+import org.maplibre.compose.expressions.dsl.switch
+import org.maplibre.compose.expressions.dsl.zoom
+import org.maplibre.compose.expressions.value.StringValue
 import org.maplibre.compose.sources.GeoJsonData
 import org.maplibre.compose.sources.rememberGeoJsonSource
 import org.maplibre.compose.util.MaplibreComposable
+import org.osmdroid.util.GeoPoint
 import java.time.Instant
+import kotlin.math.cos
+import kotlin.math.sin
 
 private const val S = 2.5f
 
+/** Below this map zoom, peers render as the compact puck; at/above, full HUD. */
+private const val ZOOM_FULL = 11.0
+
 /**
- * Renders each known peer as a green CircleLayer dot on the map.
+ * Renders each known peer as a full pilot HUD on the map: a staleness-
+ * coloured puck (person glyph) with a track arrow on its rim, the buddy's
+ * relative altitude and distance from the pilot in side pills, callsign on
+ * top, and a view-mode metric (or STALE/LOST status) on the bottom.
  *
  * Pattern follows the canonical maplibre-compose example: ONE GeoJSON
- * source containing all peer features, ONE layer that references it.
- * Compose layers are NOT designed to be instantiated inside a forEach
- * loop — the MapNodeApplier silently drops loop-emitted nodes, which
- * is why the previous per-peer-source pattern produced zero visible
- * markers despite the bitmap render path firing cleanly. See:
- * https://github.com/maplibre/maplibre-compose/blob/main/demo-app/src/commonMain/kotlin/org/maplibre/compose/demoapp/demos/MarkersDemo.kt
+ * source with all peer features, ONE SymbolLayer whose `iconImage` is
+ * data-driven per feature via a `switch` over the `markerImage` property.
+ * Each peer's HUD is rasterised by [renderMarkerBitmap] and bound inline as
+ * an `image(bitmap)`. Compose layers must NOT be emitted in a forEach loop
+ * (MapNodeApplier drops loop-emitted nodes), which is why a single
+ * data-driven layer is used instead of one layer per peer.
  *
- * Current scope: one colour for all peers. Future work (separate
- * commits): staleness-driven colour via a data-driven `case()`
- * expression on the `staleness` feature property; callsign/distance
- * labels via a sibling SymbolLayer with `textField` driven by feature
- * properties.
+ * Declutter: a `step` on the map zoom swaps each peer's icon between a
+ * compact puck (zoomed out) and the full HUD (zoomed in). Icons always
+ * overlap-allow — a buddy marker is never auto-hidden by collision, since
+ * losing sight of a peer in flight is a safety regression.
  */
 @Composable
 @MaplibreComposable
@@ -42,10 +58,11 @@ fun PeerLayer(
     peers: Map<Long, KnownPeer>,
     viewMode: MezullaViewMode,
     lastEventTime: Instant,
+    ownLocation: GeoPoint? = null,
     nerdFont: Typeface? = null,
 ) {
-    val bundle = remember(peers, viewMode, lastEventTime) {
-        buildPeerBundle(peers, viewMode, lastEventTime)
+    val bundle = remember(peers, viewMode, lastEventTime, ownLocation) {
+        buildPeerBundle(peers, viewMode, lastEventTime, ownLocation)
     }
 
     if (bundle.specs.isEmpty()) return
@@ -54,138 +71,221 @@ fun PeerLayer(
         data = GeoJsonData.JsonString(bundle.geoJson),
     )
 
-    org.maplibre.compose.layers.CircleLayer(
-        id = "mezulla-peers-circle",
+    @Suppress("UNCHECKED_CAST")
+    val markerImage = feature.get("markerImage") as Expression<StringValue>
+
+    val iconImage = remember(bundle, nerdFont) {
+        val transparent = image(
+            Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888).asImageBitmap()
+        )
+        val fullCases = bundle.specs.map { spec ->
+            case(spec.imageName, image(renderMarkerBitmap(spec, nerdFont).asImageBitmap()))
+        }.toTypedArray()
+        val compactCases = bundle.specs.map { spec ->
+            case(spec.imageName, image(renderCompactBitmap(spec, nerdFont).asImageBitmap()))
+        }.toTypedArray()
+        step(
+            zoom(),
+            switch(markerImage, *compactCases, fallback = transparent),
+            ZOOM_FULL to switch(markerImage, *fullCases, fallback = transparent),
+        )
+    }
+
+    org.maplibre.compose.layers.SymbolLayer(
+        id = "mezulla-peers",
         source = source,
-        color = const(ComposeColor(0xFF4CAF50)),
-        radius = const(12.dp),
-        strokeColor = const(ComposeColor.White),
-        strokeWidth = const(2.dp),
+        iconImage = iconImage,
+        iconSize = const(1f),
+        iconAllowOverlap = const(true),
     )
 }
 
 private val savedDebugBitmap = java.util.concurrent.atomic.AtomicBoolean(false)
 
-internal fun renderMarkerBitmap(spec: MarkerSpec, nerdFont: Typeface): Bitmap {
+/** White triangle on the puck rim pointing along [trackDeg] (0 = up/N). */
+private fun drawTrackArrow(c: Canvas, cx: Float, cy: Float, rimR: Float, trackDeg: Float) {
+    val a = Math.toRadians(trackDeg.toDouble())
+    val tip = (rimR + 13f * S)
+    val base = (rimR + 1f * S)
+    val spread = 0.42
+    val path = Path().apply {
+        moveTo(cx + tip * sin(a).toFloat(), cy - tip * cos(a).toFloat())
+        lineTo(cx + base * sin(a - spread).toFloat(), cy - base * cos(a - spread).toFloat())
+        lineTo(cx + base * sin(a + spread).toFloat(), cy - base * cos(a + spread).toFloat())
+        close()
+    }
+    c.drawPath(path, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = AndroidColor.WHITE; style = Paint.Style.FILL
+    })
+}
+
+/**
+ * Full peer HUD bitmap. The puck centre sits at the bitmap's centre (top
+ * callsign band and bottom status band are equal height), so the map symbol
+ * anchors the geo point on the puck with the default CENTER anchor.
+ */
+internal fun renderMarkerBitmap(spec: MarkerSpec, nerdFont: Typeface?): Bitmap {
     android.util.Log.i("PeerLayer",
-        "render: callsign='${spec.callsign}' glyph='${spec.glyph}' " +
-        "left='${spec.leftValue}${spec.leftUnit}' right='${spec.rightValue}${spec.rightUnit}' " +
-        "bottom='${spec.bottomText}' staleness=${spec.staleness}")
+        "render: callsign='${spec.callsign}' track=${spec.trackDegrees} " +
+        "dalt='${spec.deltaAltText}' dist='${spec.distanceText}' bottom='${spec.bottomText}'")
+
     val callsignPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = AndroidColor.WHITE
-        textSize = 13f * S
+        color = AndroidColor.WHITE; textSize = 13f * S
         typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         textAlign = Paint.Align.CENTER
     }
     val valuePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = AndroidColor.WHITE
-        textSize = 11f * S
+        color = AndroidColor.WHITE; textSize = 12f * S
         typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
     }
-    val unitPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = AndroidColor.argb(160, 255, 255, 255)
-        textSize = 8f * S
-    }
     val glyphPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = AndroidColor.WHITE
-        textSize = 15f * S
-        typeface = nerdFont
-    }
-    val circlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = spec.glyphColor
-        style = Paint.Style.FILL
-    }
-    val ringPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = AndroidColor.argb(60, 255, 255, 255)
-        style = Paint.Style.STROKE
-        strokeWidth = 2f * S
+        color = AndroidColor.WHITE; textSize = 15f * S; typeface = nerdFont
     }
     val pillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = AndroidColor.argb(190, 20, 20, 20)
-        style = Paint.Style.FILL
+        color = AndroidColor.argb(190, 20, 20, 20); style = Paint.Style.FILL
+    }
+    val circlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = spec.puckColor; style = Paint.Style.FILL
+    }
+    val ringPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = AndroidColor.argb(90, 255, 255, 255); style = Paint.Style.STROKE
+        strokeWidth = 2.5f * S
+    }
+    val btmPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = spec.bottomColor; textSize = 10f * S
+        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        textAlign = Paint.Align.CENTER
     }
 
     val circleR = 14f * S
     val gap = 4f * S
-    val pH = 6f * S
-    val pV = 3f * S
-    val pR = 5f * S
+    val pH = 7f * S   // pill horizontal padding
+    val pV = 3f * S   // pill vertical padding
+    val pR = 6f * S   // pill corner radius
 
     val csH = callsignPaint.descent() - callsignPaint.ascent()
-    val csPillH = csH + pV * 2
+    val bandH = csH + pV * 2                      // callsign / status band height
     val csW = callsignPaint.measureText(spec.callsign)
     val csPillW = csW + pH * 2
 
-    val leftVW = valuePaint.measureText(spec.leftValue)
-    val leftUW = unitPaint.measureText(spec.leftUnit)
-    val leftPW = if (spec.leftValue.isNotEmpty()) leftVW + leftUW + pH * 2 else 0f
-    val rightVW = valuePaint.measureText(spec.rightValue)
-    val rightUW = unitPaint.measureText(spec.rightUnit)
-    val rightPW = if (spec.rightValue.isNotEmpty()) rightVW + rightUW + pH * 2 else 0f
+    val daltW = if (spec.deltaAltText.isNotEmpty()) valuePaint.measureText(spec.deltaAltText) + pH * 2 else 0f
+    val distW = if (spec.distanceText.isNotEmpty()) valuePaint.measureText(spec.distanceText) + pH * 2 else 0f
     val valH = valuePaint.descent() - valuePaint.ascent()
-    val pillH = valH + pV * 2
+    val sidePillH = valH + pV * 2
 
-    val btmPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = spec.bottomColor
-        textSize = 10f * S
-        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-        textAlign = Paint.Align.CENTER
-    }
     val btmW = if (spec.bottomText.isNotEmpty()) btmPaint.measureText(spec.bottomText) + pH * 2 else 0f
 
-    val leftExtent = circleR + (if (leftPW > 0) gap + leftPW else 0f)
-    val rightExtent = circleR + (if (rightPW > 0) gap + rightPW else 0f)
+    val leftExtent = circleR + (if (daltW > 0) gap + daltW else 0f)
+    val rightExtent = circleR + (if (distW > 0) gap + distW else 0f)
     val halfW = maxOf(leftExtent, rightExtent, csPillW / 2f, btmW / 2f) + gap
     val w = halfW * 2
-    val h = csPillH + gap + circleR * 2 + gap + csPillH
+    // Symmetric vertical layout → puck at centre.
+    val h = bandH + gap + circleR * 2 + gap + bandH
 
     val bmp = Bitmap.createBitmap(w.toInt().coerceAtLeast(1), h.toInt().coerceAtLeast(1), Bitmap.Config.ARGB_8888)
     val c = Canvas(bmp)
     val cx = w / 2f
-    val cy = csPillH + gap + circleR
+    val cy = h / 2f
 
-    c.drawRoundRect(cx - csPillW / 2f, 0f, cx + csPillW / 2f, csPillH, pR, pR, pillPaint)
-    c.drawText(spec.callsign, cx, pV - callsignPaint.ascent(), callsignPaint)
+    // Callsign pill (top band)
+    c.drawRoundRect(cx - csPillW / 2f, cy - circleR - gap - bandH, cx - csPillW / 2f + csPillW,
+        cy - circleR - gap, pR, pR, pillPaint)
+    c.drawText(spec.callsign, cx, cy - circleR - gap - bandH + pV - callsignPaint.ascent(), callsignPaint)
 
+    // Track arrow (drawn behind the puck so the rim overlaps its base)
+    spec.trackDegrees?.let { drawTrackArrow(c, cx, cy, circleR, it) }
+
+    // Puck
     c.drawCircle(cx, cy, circleR, circlePaint)
     c.drawCircle(cx, cy, circleR, ringPaint)
+    val gb = android.graphics.Rect()
+    glyphPaint.getTextBounds(spec.glyph, 0, spec.glyph.length, gb)
+    c.drawText(spec.glyph, cx - (gb.left + gb.right) / 2f, cy - (gb.top + gb.bottom) / 2f, glyphPaint)
 
-    val bounds = android.graphics.Rect()
-    glyphPaint.getTextBounds(spec.glyph, 0, spec.glyph.length, bounds)
-    val glyphX = cx - (bounds.left + bounds.right) / 2f
-    val glyphY = cy - (bounds.top + bounds.bottom) / 2f
-    c.drawText(spec.glyph, glyphX, glyphY, glyphPaint)
-
-    if (spec.leftValue.isNotEmpty()) {
+    // Left pill — relative altitude
+    if (spec.deltaAltText.isNotEmpty()) {
+        valuePaint.color = spec.deltaAltColor
         val pr = cx - circleR - gap
-        val pl = pr - leftPW
-        val pt = cy - pillH / 2f
-        val pb = cy + pillH / 2f
-        c.drawRoundRect(pl, pt, pr, pb, pR, pR, pillPaint)
-        val ty = cy - (valuePaint.descent() + valuePaint.ascent()) / 2f
-        c.drawText(spec.leftValue, pl + pH, ty, valuePaint)
-        c.drawText(spec.leftUnit, pl + pH + leftVW, ty, unitPaint)
+        val pl = pr - daltW
+        c.drawRoundRect(pl, cy - sidePillH / 2f, pr, cy + sidePillH / 2f, pR, pR, pillPaint)
+        c.drawText(spec.deltaAltText, pl + pH, cy - (valuePaint.descent() + valuePaint.ascent()) / 2f, valuePaint)
     }
 
-    if (spec.rightValue.isNotEmpty()) {
+    // Right pill — distance
+    if (spec.distanceText.isNotEmpty()) {
+        valuePaint.color = AndroidColor.WHITE
         val pl = cx + circleR + gap
-        val pr = pl + rightPW
-        val pt = cy - pillH / 2f
-        val pb = cy + pillH / 2f
-        c.drawRoundRect(pl, pt, pr, pb, pR, pR, pillPaint)
-        val ty = cy - (valuePaint.descent() + valuePaint.ascent()) / 2f
-        c.drawText(spec.rightValue, pl + pH, ty, valuePaint)
-        c.drawText(spec.rightUnit, pl + pH + rightVW, ty, unitPaint)
+        c.drawRoundRect(pl, cy - sidePillH / 2f, pl + distW, cy + sidePillH / 2f, pR, pR, pillPaint)
+        c.drawText(spec.distanceText, pl + pH, cy - (valuePaint.descent() + valuePaint.ascent()) / 2f, valuePaint)
     }
 
+    // Bottom pill — view-mode metric or status
     if (spec.bottomText.isNotEmpty()) {
-        val btmTop = cy + circleR + gap
-        c.drawRoundRect(cx - btmW / 2f, btmTop, cx + btmW / 2f, btmTop + csPillH, pR, pR, pillPaint)
-        c.drawText(spec.bottomText, cx, btmTop + pV - btmPaint.ascent(), btmPaint)
+        val top = cy + circleR + gap
+        c.drawRoundRect(cx - btmW / 2f, top, cx + btmW / 2f, top + bandH, pR, pR, pillPaint)
+        c.drawText(spec.bottomText, cx, top + pV - btmPaint.ascent(), btmPaint)
     }
 
     if (savedDebugBitmap.compareAndSet(false, true)) {
-        android.util.Log.i("PeerLayer", "render: first bitmap ${bmp.width}x${bmp.height}")
+        android.util.Log.i("PeerLayer", "render: first full bitmap ${bmp.width}x${bmp.height}")
     }
+    return bmp
+}
+
+/**
+ * Compact peer marker for the decluttered (zoomed-out) state: just the
+ * staleness-coloured puck with a track arrow and a short tag below. Puck is
+ * vertically centred (matching [renderMarkerBitmap]) so the anchor is stable
+ * across the zoom swap.
+ */
+internal fun renderCompactBitmap(spec: MarkerSpec, nerdFont: Typeface?): Bitmap {
+    val tagPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = AndroidColor.WHITE; textSize = 9f * S
+        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        textAlign = Paint.Align.CENTER
+    }
+    val glyphPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = AndroidColor.WHITE; textSize = 9f * S; typeface = nerdFont
+    }
+    val pillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = AndroidColor.argb(190, 20, 20, 20); style = Paint.Style.FILL
+    }
+    val circlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = spec.puckColor; style = Paint.Style.FILL
+    }
+    val ringPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = AndroidColor.argb(90, 255, 255, 255); style = Paint.Style.STROKE
+        strokeWidth = 2f * S
+    }
+
+    val circleR = 9f * S
+    val gap = 3f * S
+    val pH = 5f * S
+    val pV = 2f * S
+    val pR = 4f * S
+    val tagH = (tagPaint.descent() - tagPaint.ascent()) + pV * 2
+    val tagW = tagPaint.measureText(spec.shortTag) + pH * 2
+
+    val arrowReach = circleR + 13f * S
+    val halfW = maxOf(arrowReach, tagW / 2f) + gap
+    val w = halfW * 2
+    val h = tagH + gap + circleR * 2 + gap + tagH  // symmetric → puck centred
+
+    val bmp = Bitmap.createBitmap(w.toInt().coerceAtLeast(1), h.toInt().coerceAtLeast(1), Bitmap.Config.ARGB_8888)
+    val c = Canvas(bmp)
+    val cx = w / 2f
+    val cy = h / 2f
+
+    spec.trackDegrees?.let { drawTrackArrow(c, cx, cy, circleR, it) }
+    c.drawCircle(cx, cy, circleR, circlePaint)
+    c.drawCircle(cx, cy, circleR, ringPaint)
+    val gb = android.graphics.Rect()
+    glyphPaint.getTextBounds(spec.glyph, 0, spec.glyph.length, gb)
+    c.drawText(spec.glyph, cx - (gb.left + gb.right) / 2f, cy - (gb.top + gb.bottom) / 2f, glyphPaint)
+
+    val top = cy + circleR + gap
+    c.drawRoundRect(cx - tagW / 2f, top, cx + tagW / 2f, top + tagH, pR, pR, pillPaint)
+    c.drawText(spec.shortTag, cx, top + pV - tagPaint.ascent(), tagPaint)
+
     return bmp
 }

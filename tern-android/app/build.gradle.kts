@@ -1344,8 +1344,8 @@ fun configureHardwareCycleTest(
 }
 
 configureHardwareCycleTest(
-    name = "fullCycleTest",
-    testClass = "com.ternparagliding.test.FullCycleTest",
+    name = "aravisCycleTest",
+    testClass = "com.ternparagliding.test.AravisCycleTest",
     testMethod = "pilot_pairs_then_flies_with_buddies_visible",
     requiresReflash = true,
 )
@@ -1370,7 +1370,17 @@ configureHardwareCycleTest(
 configureHardwareCycleTest(
     name = "edithsGapCycleTest",
     testClass = "com.ternparagliding.test.EdithsGapCycleTest",
-    testMethod = "pilot_pairs_then_flies_with_one_buddy_visible",
+    testMethod = "pilot_pairs_then_flies_with_buddies_visible",
+    requiresReflash = false,
+)
+
+// Bir Billing — long three-pilot Himalayan XC endurance pass (DUT Richard,
+// peers Ariel + Barney). Default 32x ≈ 11 min replay; override with
+// -PspeedMultiplier. The realistic field test for the peer HUD.
+configureHardwareCycleTest(
+    name = "birBillingCycleTest",
+    testClass = "com.ternparagliding.test.BirBillingCycleTest",
+    testMethod = "pilot_pairs_then_flies_with_buddies_visible",
     requiresReflash = false,
 )
 

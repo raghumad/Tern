@@ -326,9 +326,18 @@ fun MapViewContainer(
                 peers = state.peerState.peers,
                 viewMode = state.mezullaViewMode,
                 lastEventTime = state.peerState.lastEventTime,
+                ownLocation = state.userLocation,
                 nerdFont = nerdFont,
             )
         }
+
+        // Screen-edge chips pointing to buddies who are off the map view —
+        // essential on wide XC where peers sit tens of km outside the frame.
+        com.ternparagliding.overlay.mezulla.OffScreenPeerIndicators(
+            peers = state.peerState.peers,
+            ownLocation = state.userLocation,
+            cameraState = cameraState,
+        )
 
         // Top-right glance-only cluster: Mezulla status badge + compass.
         // Both are visual-only, no tap targets, so they live in the

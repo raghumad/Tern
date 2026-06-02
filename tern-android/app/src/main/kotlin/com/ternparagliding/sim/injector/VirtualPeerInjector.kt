@@ -239,7 +239,29 @@ class VirtualPeerInjector(
                 )
                 if (outcome !is PropagationOutcome.Delivered) continue
             }
-            val fix = pos.toPeerFix(timestampSeconds = nowMillis / MS_PER_SECOND)
+            // Derive ground track + speed from the previous fix — the IGC
+            // PilotPosition carries only lat/lon/alt, but peers on the wire
+            // (and the HUD's heading arrow + TACTICAL speed) need course and
+            // speed. Bearing/distance from a fix TRACK_SAMPLE_SECONDS earlier.
+            val prev = playback.currentPosition(
+                pilotId, virtualNow.minusSeconds(TRACK_SAMPLE_SECONDS)
+            )
+            var trackDegrees: Double? = null
+            var groundSpeed: Double? = null
+            if (prev != null) {
+                val from = org.osmdroid.util.GeoPoint(prev.latitude, prev.longitude)
+                val to = org.osmdroid.util.GeoPoint(pos.latitude, pos.longitude)
+                val meters = from.distanceToAsDouble(to)
+                if (meters > 1.0) {
+                    trackDegrees = from.bearingTo(to)
+                    groundSpeed = meters / TRACK_SAMPLE_SECONDS
+                }
+            }
+            val fix = pos.toPeerFix(
+                timestampSeconds = nowMillis / MS_PER_SECOND,
+                trackDegrees = trackDegrees,
+                groundSpeed = groundSpeed,
+            )
             // Bypass the firmware loop: Meshtastic overwrites `from=0` on
             // phone-sent packets and doesn't echo them back via FromRadio,
             // so the original "encode ToRadio with peer's from / let it
@@ -247,7 +269,10 @@ class VirtualPeerInjector(
             // synthetic event straight into BleConnection's events flow,
             // same code path as if it had arrived from the wire.
             val event = MeshEvent.PeerPositionUpdate(
-                peer = PeerIdentity.fromNodeNumber(nodeNumber),
+                // Use the pilot handle as the peer's long name so the HUD
+                // shows a friendly callsign (e.g. RICHARD) instead of the
+                // raw node id. In production this name arrives via NodeInfo.
+                peer = PeerIdentity.fromNodeNumber(nodeNumber, longName = pilotId.value),
                 fix = fix,
             )
             bleConnection.injectMeshEventForTest(event)
@@ -289,13 +314,17 @@ class VirtualPeerInjector(
         altitudeMeters = altitudeMeters.toDouble(),
     )
 
-    private fun PilotPosition.toPeerFix(timestampSeconds: Long): PeerPosition.Fix =
+    private fun PilotPosition.toPeerFix(
+        timestampSeconds: Long,
+        trackDegrees: Double?,
+        groundSpeed: Double?,
+    ): PeerPosition.Fix =
         PeerPosition.Fix(
             latitudeDeg = latitude,
             longitudeDeg = longitude,
             altitudeMeters = altitudeMeters,
-            groundSpeedMetersPerSecond = null,
-            groundTrackDegrees = null,
+            groundSpeedMetersPerSecond = groundSpeed,
+            groundTrackDegrees = trackDegrees,
             timestampSeconds = timestampSeconds,
         )
 
@@ -308,6 +337,9 @@ class VirtualPeerInjector(
         const val DEFAULT_POSITION_INTERVAL_SECONDS: Int = 30
 
         private const val MS_PER_SECOND: Long = 1_000L
+
+        /** Virtual-time lookback used to derive a peer's ground track + speed. */
+        private const val TRACK_SAMPLE_SECONDS: Long = 10L
 
         /**
          * Nanotime-based packet id. Truncated with a positive 31-bit mask

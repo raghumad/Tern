@@ -2,6 +2,7 @@ package com.ternparagliding.overlay.mezulla
 
 import com.ternparagliding.mezulla.redux.KnownPeer
 import com.ternparagliding.redux.MezullaViewMode
+import org.osmdroid.util.GeoPoint
 import java.time.Duration
 import java.time.Instant
 
@@ -12,28 +13,49 @@ internal data class PeerBundle(
     val perPeerGeoJson: Map<String, String> = emptyMap(),
 )
 
+/**
+ * Everything [renderMarkerBitmap] / [renderCompactBitmap] need to draw one
+ * peer's HUD. Geometry-derived fields (distance, relative altitude) are
+ * pre-computed here against the pilot's own position so the renderer stays
+ * a pure drawing function.
+ */
 internal data class MarkerSpec(
     val imageName: String,
     val callsign: String,
+    /** Short tag (≤3 chars) for the decluttered/compact marker. */
+    val shortTag: String,
     val glyph: String,
-    val glyphColor: Int,
-    val leftValue: String,
-    val leftUnit: String,
-    val rightValue: String,
-    val rightUnit: String,
+    /** Puck fill colour, driven by staleness. */
+    val puckColor: Int,
+    /** Buddy track in degrees (0 = N). Null = unknown or lost → no arrow. */
+    val trackDegrees: Float?,
+    /** Relative altitude vs me, e.g. "+340m" / "-180m". "" when unknown. */
+    val deltaAltText: String,
+    val deltaAltColor: Int,
+    /** Distance from me, e.g. "2.4km" / "850m". "" when own position unknown. */
+    val distanceText: String,
+    /** Bottom line: view-mode metric, or "⚠ STALE" / "⚠ LOST" when degraded. */
     val bottomText: String,
     val bottomColor: Int,
     val staleness: MezullaPeerTextFormatter.StalenessLevel,
 )
 
+private const val ALT_UP_COLOR = 0xFFB4FFB4.toInt()   // light green: above me
+private const val ALT_DOWN_COLOR = 0xFFFFB4B4.toInt()  // light red: below me
+
+private fun formatDistance(meters: Double): String =
+    if (meters < 1000) "${meters.toInt()}m"
+    else String.format("%.1fkm", meters / 1000.0)
+
 internal fun buildPeerBundle(
     peers: Map<Long, KnownPeer>,
     viewMode: MezullaViewMode,
     now: Instant,
+    ownLocation: GeoPoint? = null,
 ): PeerBundle {
     val withPos = peers.entries.filter { it.value.lastPosition != null }
     android.util.Log.i("PeerBundle",
-        "build: peers.total=${peers.size}, withPos=${withPos.size}, viewMode=$viewMode")
+        "build: peers.total=${peers.size}, withPos=${withPos.size}, viewMode=$viewMode, ownPos=${ownLocation != null}")
     if (withPos.isEmpty()) {
         return PeerBundle("""{"type":"FeatureCollection","features":[]}""", emptyList())
     }
@@ -48,57 +70,47 @@ internal fun buildPeerBundle(
         val staleness = MezullaPeerTextFormatter.computeStaleness(peer, now)
         val callsign = MezullaPeerTextFormatter.callsign(peer).uppercase()
         val imageName = "peer-$nodeNum"
+        val lost = staleness == MezullaPeerTextFormatter.StalenessLevel.LOST
 
         val glyph: String
-        val glyphColor: Int
+        val puckColor: Int
         when (staleness) {
             MezullaPeerTextFormatter.StalenessLevel.FRESH -> {
-                glyph = MezullaIcons.PEER; glyphColor = 0xFF4CAF50.toInt()
+                glyph = MezullaIcons.PEER; puckColor = 0xFF4CAF50.toInt()
             }
             MezullaPeerTextFormatter.StalenessLevel.AGING -> {
-                glyph = MezullaIcons.PEER; glyphColor = 0xFFFFD600.toInt()
+                glyph = MezullaIcons.PEER; puckColor = 0xFFFFD600.toInt()
             }
             MezullaPeerTextFormatter.StalenessLevel.STALE -> {
-                glyph = MezullaIcons.PEER; glyphColor = 0xFFFF9100.toInt()
+                glyph = MezullaIcons.PEER; puckColor = 0xFFFF9100.toInt()
             }
             MezullaPeerTextFormatter.StalenessLevel.LOST -> {
-                glyph = MezullaIcons.PEER_LOST; glyphColor = 0xFF9E9E9E.toInt()
+                glyph = MezullaIcons.PEER_LOST; puckColor = 0xFF9E9E9E.toInt()
             }
         }
 
-        val leftValue: String
-        val leftUnit: String
-        val rightValue: String
-        val rightUnit: String
-        if (staleness == MezullaPeerTextFormatter.StalenessLevel.LOST) {
-            leftValue = "lost"; leftUnit = ""; rightValue = ""; rightUnit = ""
-        } else {
-            val age = Duration.between(peer.lastSeenAt, now).seconds
-            when (viewMode) {
-                MezullaViewMode.SAFETY -> {
-                    leftValue = if (age < 60) "$age" else "${age / 60}"
-                    leftUnit = if (age < 60) "s" else "m"
-                    rightValue = fix.altitudeMeters?.toString() ?: "---"
-                    rightUnit = if (fix.altitudeMeters != null) "m" else ""
-                }
-                MezullaViewMode.CLIMB -> {
-                    val climb = peer.climbRateMs ?: 0.0
-                    leftValue = "${if (climb >= 0) "+" else ""}${String.format("%.1f", climb)}"
-                    leftUnit = "m/s"
-                    rightValue = fix.altitudeMeters?.toString() ?: "---"
-                    rightUnit = if (fix.altitudeMeters != null) "m" else ""
-                }
-                MezullaViewMode.TACTICAL -> {
-                    leftValue = fix.groundSpeedMetersPerSecond?.let {
-                        String.format("%.0f", it * 3.6)
-                    } ?: "---"
-                    leftUnit = if (fix.groundSpeedMetersPerSecond != null) "km/h" else ""
-                    rightValue = fix.altitudeMeters?.toString() ?: "---"
-                    rightUnit = if (fix.altitudeMeters != null) "m" else ""
-                }
-            }
+        // Track arrow: only when we have a heading and the peer isn't lost.
+        val trackDegrees = if (lost) null else fix.groundTrackDegrees?.toFloat()
+
+        // Relative altitude vs me (left pill).
+        var deltaAltText = ""
+        var deltaAltColor = ALT_UP_COLOR
+        if (!lost && ownLocation != null && fix.altitudeMeters != null) {
+            val delta = fix.altitudeMeters - ownLocation.altitude.toInt()
+            deltaAltText = "${if (delta >= 0) "+" else ""}${delta}m"
+            deltaAltColor = if (delta >= 0) ALT_UP_COLOR else ALT_DOWN_COLOR
         }
 
+        // Distance from me (right pill).
+        var distanceText = ""
+        if (!lost && ownLocation != null) {
+            val meters = ownLocation.distanceToAsDouble(
+                GeoPoint(fix.latitudeDeg, fix.longitudeDeg)
+            )
+            distanceText = formatDistance(meters)
+        }
+
+        // Bottom line: status when degraded, else the view-mode metric.
         val bottomText: String
         val bottomColor: Int
         when (staleness) {
@@ -108,12 +120,42 @@ internal fun buildPeerBundle(
             MezullaPeerTextFormatter.StalenessLevel.LOST -> {
                 bottomText = "⚠ LOST"; bottomColor = 0xFF9E9E9E.toInt()
             }
-            else -> { bottomText = ""; bottomColor = 0 }
+            else -> {
+                bottomColor = 0xFFFFFFFF.toInt()
+                bottomText = when (viewMode) {
+                    MezullaViewMode.SAFETY -> {
+                        val age = Duration.between(peer.lastSeenAt, now).seconds
+                        if (age < 60) "${age}s ago" else "${age / 60}m ago"
+                    }
+                    MezullaViewMode.CLIMB -> {
+                        val climb = peer.climbRateMs ?: 0.0
+                        "${if (climb >= 0) "+" else ""}${String.format("%.1f", climb)} m/s"
+                    }
+                    MezullaViewMode.TACTICAL -> {
+                        fix.groundSpeedMetersPerSecond?.let {
+                            "${String.format("%.0f", it * 3.6)} km/h"
+                        } ?: ""
+                    }
+                }
+            }
         }
 
-        specs.add(MarkerSpec(imageName, callsign, glyph, glyphColor,
-            leftValue, leftUnit, rightValue, rightUnit, bottomText, bottomColor,
-            staleness))
+        specs.add(
+            MarkerSpec(
+                imageName = imageName,
+                callsign = callsign,
+                shortTag = callsign.take(3),
+                glyph = glyph,
+                puckColor = puckColor,
+                trackDegrees = trackDegrees,
+                deltaAltText = deltaAltText,
+                deltaAltColor = deltaAltColor,
+                distanceText = distanceText,
+                bottomText = bottomText,
+                bottomColor = bottomColor,
+                staleness = staleness,
+            )
+        )
 
         val feature = """{"type":"Feature","geometry":{"type":"Point","coordinates":[${fix.longitudeDeg},${fix.latitudeDeg}]},"properties":{"markerImage":"$imageName","staleness":"${staleness.name}"}}"""
         if (i > 0) sb.append(",")
