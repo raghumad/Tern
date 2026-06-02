@@ -42,9 +42,21 @@ adb pull /sdcard/tern-tests/
 Marks tests whose Gherkin steps read correctly but whose assertion
 bodies are missing, tautological, or validate a control's state without
 verifying the control's effect (e.g. toggle is ON but no airspaces
-render). Currently 19 `@Liar` methods. Tracked in the fix-tests-and-scrub
-workstream in the backlog. The Gherkin is preserved as a specification
-for what the test should validate when rewritten.
+render). The Gherkin is preserved as a specification for what the test
+should validate when rewritten. (For the live count, grep `@Liar` — it's
+not pinned here so it doesn't go stale.) The remaining ones are blocked on
+testing GPU-drawn MapLibre output via Compose semantics, or on features
+not yet implemented in production.
+
+## @Ble Annotation
+
+Marks the BLE link-reliability suite (`BleReliabilityTest`) — real
+pilot-safety scenarios that need a phone + paired Mezulla board. A
+scenario blocked on an unbuilt capability declares it via
+`@Ble(blockedOn = "…")` and is reported as **skipped with a reason**
+(not `@Ignore`d). Run blocked scenarios on demand with
+`-e runBlockedBle true`. This replaced the old `@Ignore("blocked: …")`
+tags so the suite reads as a living roadmap, not dead tests.
 
 ## Consolidated Dashboard
 

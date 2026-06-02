@@ -15,6 +15,8 @@ import com.ternparagliding.mezulla.connection.MeshEvent
 import com.ternparagliding.mezulla.connection.ble.BleConnection
 import com.ternparagliding.mezulla.connection.ble.MeshPacketCodec
 import com.ternparagliding.mezulla.connection.ble.MeshtasticGattUuids
+import com.ternparagliding.utils.Ble
+import com.ternparagliding.utils.BleTestRule
 import com.ternparagliding.utils.MapVisualTest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.firstOrNull
@@ -24,7 +26,6 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.Assume
 import org.junit.Before
-import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -61,16 +62,16 @@ import org.junit.runner.RunWith
  * Simulation tactics by scenario:
  *   - Screen lock (T1, T5): UiAutomator's pressKeyCode(KEYCODE_POWER)
  *     toggles the screen state without needing privileged adb.
- *   - Board reboot (T2, T3): not yet supported in-test — would need
- *     either a Mezulla admin message over the live connection or
- *     a host-side sidecar that reboots via meshtastic CLI mid-test.
- *     Stubbed @Ignore("needs-sidecar") for now.
+ *   - Board reboot (T2, T3): a real Meshtastic admin reboot sent over the
+ *     live link (rebootBoardViaAdminMessage) — the board drops, boots, and
+ *     re-advertises. A faithful mid-flight drop, no host sidecar needed.
  *   - Force-disconnect (T2 alt, F2): can be simulated app-side by
  *     calling bleConnection.transport.stop() then start().
  *   - Properties (T4 MTU, F5 PHY, F6 service UUID): pure runtime
  *     queries against BluetoothGatt or scan results.
  */
 @RunWith(AndroidJUnit4::class)
+@Ble
 class BleReliabilityTest : MapVisualTest() {
 
     @get:Rule
@@ -78,6 +79,10 @@ class BleReliabilityTest : MapVisualTest() {
         android.Manifest.permission.BLUETOOTH_SCAN,
         android.Manifest.permission.BLUETOOTH_CONNECT,
     )
+
+    /** Skips scenarios whose [Ble.blockedOn] dependency isn't built yet. */
+    @get:Rule
+    val bleTestRule = BleTestRule()
 
     companion object {
         private const val TAG = "BleReliabilityTest"
@@ -116,7 +121,7 @@ class BleReliabilityTest : MapVisualTest() {
 
     /** T1: link survives the screen locking for 60 s. */
     @Test
-    @Ignore("blocked: needs foreground service to survive backgrounding")
+    @Ble(blockedOn = "foreground service to survive backgrounding")
     fun t1_link_survives_screen_lock_for_60_seconds() {
         scenario("T1 — link survives 60s screen lock (phone in pocket)") {
             given("Tern is paired with Mezulla and receiving peer events") {
@@ -186,7 +191,7 @@ class BleReliabilityTest : MapVisualTest() {
 
     /** T5: handshake completes even if the screen turns off mid-handshake. */
     @Test
-    @Ignore("blocked: needs partial wakelock around handshake")
+    @Ble(blockedOn = "partial wakelock around handshake")
     fun t5_handshake_completes_even_if_screen_locks_mid_handshake() {
         scenario("T5 — handshake survives a screen lock fired mid-sequence") {
             given("Tern is not yet paired") {
@@ -238,7 +243,7 @@ class BleReliabilityTest : MapVisualTest() {
 
     /** T8: hot-swap to a different board without restarting the app. */
     @Test
-    @Ignore("blocked: needs a second pair URI; mostly works today")
+    @Ble(blockedOn = "a second pair URI (pairUriB arg); mostly works today")
     fun t8_hot_swap_to_another_board_without_app_restart() {
         scenario("T8 — scanning a different board's QR re-pairs cleanly") {
             given("Tern is paired with board A") {
@@ -266,7 +271,7 @@ class BleReliabilityTest : MapVisualTest() {
 
     /** F1: firmware is re-advertising within 200 ms of a disconnect. */
     @Test
-    @Ignore("blocked: needs scan-after-disconnect harness, plus firmware audit")
+    @Ble(blockedOn = "scan-after-disconnect harness + firmware re-advertise audit")
     fun f1_firmware_re_advertises_within_200ms_of_disconnect() {
         scenario("F1 — firmware doesn't go quiet after a phone-side drop") {
             given("Tern is paired with the board") {
@@ -283,7 +288,7 @@ class BleReliabilityTest : MapVisualTest() {
 
     /** F2: firmware accepts a fresh client after a stuck phone-API session. */
     @Test
-    @Ignore("blocked: needs CMD_FORCE_DISCONNECT firmware command + handler")
+    @Ble(blockedOn = "CMD_FORCE_DISCONNECT firmware command + handler")
     fun f2_firmware_accepts_fresh_client_after_force_disconnect() {
         scenario("F2 — stale phone-API session can be reset on demand") {
             given("Board has a stale phone-API session held open") {
@@ -302,7 +307,7 @@ class BleReliabilityTest : MapVisualTest() {
 
     /** F3: reconnect from a known phone fast-paths the config bundle. */
     @Test
-    @Ignore("blocked: needs per-phone state checkpointing in PhoneAPI")
+    @Ble(blockedOn = "per-phone state checkpointing in PhoneAPI")
     fun f3_firmware_fast_paths_reconnect_for_known_phone() {
         scenario("F3 — known-phone reconnect skips full config replay") {
             given("Tern has completed a Stage 1 handshake at least once with the board") {
@@ -320,7 +325,7 @@ class BleReliabilityTest : MapVisualTest() {
 
     /** F4: firmware emits a periodic keepalive frame even when LoRa is quiet. */
     @Test
-    @Ignore("blocked: needs firmware-side keepalive emit")
+    @Ble(blockedOn = "firmware-side keepalive emit")
     fun f4_firmware_emits_periodic_keepalive() {
         scenario("F4 — firmware proves it's alive even when LoRa is silent") {
             given("Tern is paired and no LoRa traffic is heard") {
@@ -351,7 +356,7 @@ class BleReliabilityTest : MapVisualTest() {
 
     /** F6: firmware advertises the Mezulla service UUID within 5 s of boot. */
     @Test
-    @Ignore("blocked: needs a 'just rebooted the board, now scan' harness")
+    @Ble(blockedOn = "host sidecar to power-cycle the board, then scan")
     fun f6_firmware_advertises_service_uuid_within_5s_of_boot() {
         scenario("F6 — board comes up advertising findably") {
             given("the board has just been hard-reset (power-cycled)") {

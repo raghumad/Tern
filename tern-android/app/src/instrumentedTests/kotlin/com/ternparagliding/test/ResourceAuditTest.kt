@@ -13,15 +13,17 @@ import androidx.lifecycle.ViewModelProvider
 
 /**
  * High-fidelity algorithmic audit of aviation hazard indicators.
- * Verifies that safety-critical visuals (RFC 005) are active, correctly colored,
- * and animating as expected using pixel-delta analysis.
+ * Verifies that safety-critical visuals (RFC 005) are present and correctly
+ * coloured on the map, using pixel-signature analysis of the rendered frame.
+ *
+ * Hazards now render as a MapLibre `SymbolLayer` (HazardLayer): an amber
+ * ring for convective danger, a red ring + lightning bolt for thunderstorms.
+ * Because that's GPU-drawn — not a Compose node — the audit scans screen
+ * pixels for the exact hazard colours rather than looking up a node tag. The
+ * halos are deliberately static, so the contract is colour presence, not
+ * frame-delta animation.
  */
 @RunWith(AndroidJUnit4::class)
-@Liar("HazardHalo and HazardBolt Compose test tags do not exist in production code. " +
-      "Hazard indicators (amber halo, red lightning bolt) are not implemented as Compose " +
-      "nodes. thenExpectHazardFidelity will fail with node-not-found. " +
-      "Weather hazards are currently shown as text badges in RouteDetailPanel (AHV_BADGE), " +
-      "not as animated map overlays.")
 class ResourceAuditTest : MapVisualTest() {
 
     private val AMBER_HALO = 0xFFFFBF00.toInt()
@@ -54,7 +56,7 @@ class ResourceAuditTest : MapVisualTest() {
                 waitForMapToRender()
             }
 
-            thenExpectHazardFidelity("HazardHalo_Convective Peak", AMBER_HALO)
+            thenExpectHazardColorOnMap("Convective Peak (amber halo)", AMBER_HALO)
 
             given("A PG Spot with Thunderstorm Risk (Flashing Red Bolt)") {
                 clearState()
@@ -79,7 +81,7 @@ class ResourceAuditTest : MapVisualTest() {
                 waitForMapToRender()
             }
 
-            thenExpectHazardFidelity("HazardBolt_Stormy Launch", RED_STORM, waitMillis = 500)
+            thenExpectHazardColorOnMap("Stormy Launch (red halo + bolt)", RED_STORM)
 
             given("Low Zoom Transition (Adaptive Scaling Audit)") {
                 zoomTo(testLocation.latitude, testLocation.longitude, 5.0)

@@ -599,4 +599,37 @@ open class MapVisualTest {
             Log.i("MapVisualTest", "Verified: Animation active for $tag (Delta: $bestDelta)")
         }
     }
+
+    /**
+     * Asserts a hazard colour signature is present in the central region of
+     * the map. Hazard halos render as a MapLibre `SymbolLayer` (GPU-drawn),
+     * not Compose nodes, so we scan screen pixels rather than locate a node.
+     * Callers centre the map on the hazardous site via [zoomTo], so the halo
+     * sits in the central scan box.
+     *
+     * This is the node-free, animation-free counterpart to
+     * [thenExpectHazardFidelity] — the halos are deliberately static (see
+     * HazardLayer), so colour presence, not frame delta, is the contract.
+     */
+    fun thenExpectHazardColorOnMap(label: String, targetColor: Int) {
+        then("Expect $label hazard colour ${Integer.toHexString(targetColor)} on the map") {
+            composeTestRule.waitForIdle()
+            Thread.sleep(500) // let the GPU compose the symbol frame
+            val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
+            val shot = automation.takeScreenshot()
+                ?: throw AssertionError("screenshot failed for $label")
+            // Central 60% box — where zoomTo placed the site.
+            val rect = android.graphics.Rect(
+                shot.width / 5, shot.height / 5,
+                shot.width * 4 / 5, shot.height * 4 / 5,
+            )
+            if (!VisualValidator.findColorSignature(shot, rect, targetColor)) {
+                throw AssertionError(
+                    "Hazard colour ${Integer.toHexString(targetColor)} for '$label' " +
+                        "not found in central map region $rect"
+                )
+            }
+            Log.i("MapVisualTest", "Verified: hazard colour present for $label")
+        }
+    }
 }

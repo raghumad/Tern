@@ -314,6 +314,18 @@ fun MapViewContainer(
             // Airspace overlay
             AirspaceOverlay(store = store, cameraState = cameraState)
 
+            // PG-spot overlay (paragliding sites) — same cache-driven
+            // pattern as airspaces; data is downloaded alongside them.
+            com.ternparagliding.overlay.pgspot.PgSpotOverlay(
+                store = store,
+                cameraState = cameraState,
+            )
+
+            // Weather-hazard halos (RFC 005): amber for convective danger,
+            // red + bolt for thunderstorms. State-derived from waypoint
+            // weather; always on (safety-critical).
+            com.ternparagliding.overlay.hazard.HazardOverlay(store = store)
+
             // Peer markers (mezulla) — load Nerd Font for the glyph in
             // the marker circle (otherwise the glyph renders as tofu).
             val ctx = androidx.compose.ui.platform.LocalContext.current
