@@ -33,6 +33,34 @@ Tests affected: any test that claims to verify overlay rendering
 (AirspaceUXTest, DeclutteringUXTest, DenseClusterDeclutteringTest,
 SettingsScreenTest.testLayerToggles, ResourceAuditTest, etc.)
 
+**Mechanism nailed down (2026-06, PG-spot overlay restore).** There are
+two distinct ways injection silently yields an empty overlay, found while
+verifying the restored PG-spot layer:
+
+1. **Integrity size floor.** `SpatialDiskCache.validateCacheIntegrity`
+   rejects a region whose `.flex` is `< 100 B` (or `.idx < 50 B`). A
+   single injected feature serialises below that, so `isCached` returns
+   false and the query returns 0. Inject a realistic *cluster*, not one
+   feature.
+
+2. **Auto-download clobber (the real blocker).** On camera move the app's
+   `UniversalCountryCacheManager` auto-downloads spots/airspaces for the
+   current country and rewrites the cache — clobbering injected TEST data
+   *after* `@Before` but right around when the overlay first queries it.
+   The injected data is present immediately after injection
+   (`isCached=true`) but gone by query time. This is a flaky race that
+   makes on-map overlay-render assertions unreliable.
+
+   The fix is harness-level: suppress `UniversalCountryCacheManager`
+   auto-download during instrumented tests (e.g. a test flag), so injected
+   data is the single source. Until then, overlay-render tests should
+   verify the *renderer* directly (see `PgSpotRenderTest` /
+   `HazardRenderTest` montages) and SKIP the on-map assertion when the
+   overlay received 0 features (see `PgSpotLegibilityTest`), rather than
+   assert against a clobbered cache. `ResourceAuditTest` dodges this
+   because it injects *weather* via Redux (not the spatial cache), so
+   nothing downloads over it.
+
 ### screenrecord doesn't work on ATD managed device images
 
 `VideoHelper` starts `screenrecord` but AOSP ATD emulator images
