@@ -83,8 +83,16 @@ object AirspaceGeoJson {
             typeNum == 2 -> "DANGER"
             typeNum == 3 -> "PROHIBITED"
             typeNum == 4 -> "MILITARY"
-            icaoNum in 1..5 -> ('A' + (icaoNum!! - 1)).toString()
-            icaoNum in 6..8 -> "G"
+            // OpenAIP icaoClass is 0-indexed: 0=A, 1=B, 2=C, 3=D, 4=E, 5=F,
+            // 6=G. Verified against real data — "DENVER CLASS B AREA A" carries
+            // icaoClass=1. The old `1..5 -> 'A'+(n-1)` shifted every class down
+            // one (Class B rendered as Class A — a safety-relevant mislabel),
+            // dropped Class A (0) to UNKNOWN, and lumped 7/8 into G so they
+            // were skipped as "unrestricted".
+            icaoNum != null && icaoNum in 0..6 -> ('A' + icaoNum).toString()
+            // 7 = unclassified, 8 = special-use airspace — NOT Class G. Map to
+            // UNKNOWN so they still render (isUnrestricted only skips real G).
+            icaoNum == 7 || icaoNum == 8 -> "UNKNOWN"
             else -> "UNKNOWN"
         }
     }
