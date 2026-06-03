@@ -21,6 +21,10 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.osmdroid.util.GeoPoint
+import kotlin.math.asinh
+import kotlin.math.atan
+import kotlin.math.sinh
+import kotlin.math.tan
 
 /**
  * Validates Tern's OFFLINE CACHING CONTRACT — the thing that makes the app
@@ -42,11 +46,23 @@ class OverlayMemoryPressureTest : MapVisualTest() {
 
     private val BOULDER = GeoPoint(40.0150, -105.2705)
     private val DENVER = GeoPoint(39.7392, -104.9903)
+    private val COLORADO_SPRINGS = GeoPoint(38.8339, -104.8214)
     private val DC = GeoPoint(38.9072, -77.0369)
     private val ANNECY_FR = GeoPoint(45.8992, 6.1294)
     private val GENEVA_CH = GeoPoint(46.2044, 6.1432)
     private val AOSTA_IT = GeoPoint(45.7372, 7.3206)
-    private val REGION_ZOOM = 9.0
+
+    // Initial-condition framing: Denver centred, zoomed out far enough that
+    // BOTH Boulder (≈0.28° N of Denver) and Colorado Springs (≈0.91° S) sit
+    // inside the viewport. Zoom 9 only reached ~Castle Rock (39.3° N) at the
+    // bottom edge; each whole level out doubles the span, so 7.5 gives ~1.4°
+    // of reach each way — comfortable margin on both cities. This same zoom
+    // is held through every drag so overlays churn across a constant window.
+    private val REGION_ZOOM = 7.5
+
+    // MapLibre's world is 512 dp-wide at zoom 0; used to derive viewport
+    // bounds for the framing assertion.
+    private val TILE_DP = 512.0
 
     private var baselineHeapMb = 0.0
     private var peakHeapMb = 0.0
@@ -71,7 +87,15 @@ class OverlayMemoryPressureTest : MapVisualTest() {
                     CountryUtils.setTestCountryCode(null)
                     CacheManager.airspaceCache.resetBaseUrlForTesting()
                     PGSpotCache.resetBaseUrlForTesting()
-                    givenAppIsLaunchedOnMap(lat = BOULDER.latitude, lon = BOULDER.longitude, countryCode = null)
+                    // Initial condition: Denver centred, zoomed out to REGION_ZOOM
+                    // so Boulder AND Colorado Springs are both framed (verified
+                    // below). NOT the old Boulder @ z12 city-block view.
+                    givenAppIsLaunchedOnMap(
+                        lat = DENVER.latitude,
+                        lon = DENVER.longitude,
+                        countryCode = null,
+                        zoom = REGION_ZOOM,
+                    )
                     baselineHeapMb = usedHeapMb()
                     peakHeapMb = baselineHeapMb
                     PerformanceDebugger.logHeapUsage("BASELINE")
@@ -85,6 +109,13 @@ class OverlayMemoryPressureTest : MapVisualTest() {
                     if (!waitForCountryLoaded("US", 180_000)) throw AssertionError("US never downloaded")
                     if (!waitForBasemapTiles(60_000)) throw AssertionError("Colorado tiles never loaded")
                     samplePeak()
+                    // Enforce the initial condition: both cities must be inside
+                    // the current viewport at this zoom before churn begins.
+                    assertCitiesFramed(
+                        DENVER, REGION_ZOOM,
+                        mapOf("Boulder" to BOULDER, "Colorado Springs" to COLORADO_SPRINGS),
+                        "initial framing",
+                    )
                     validateDownloadedAndCached("US", "Colorado", DENVER)
                     validateOverlayBudgetAndInventory("US", "Colorado", DENVER)
                     assertOverlaysRendered("Colorado")
@@ -358,6 +389,57 @@ class OverlayMemoryPressureTest : MapVisualTest() {
     private fun dispatch(action: MapAction) {
         composeTestRule.runOnUiThread {
             ViewModelProvider(composeTestRule.activity)[MapStore::class.java].dispatch(action)
+        }
+    }
+
+    /**
+     * Assert every [cities] entry falls inside the map viewport when the
+     * camera is at [center] / [zoom]. Derives the visible lat/lon window
+     * from the live map_view size (px → dp) and MapLibre's 512-dp world via
+     * the Web-Mercator projection, then checks each city is within it. This
+     * turns "both cities are framed" into an enforced initial condition
+     * rather than an eyeballed screenshot.
+     */
+    private fun assertCitiesFramed(
+        center: GeoPoint,
+        zoom: Double,
+        cities: Map<String, GeoPoint>,
+        label: String,
+    ) {
+        val node = composeTestRule.onNodeWithTag("map_view").fetchSemanticsNode()
+        val density = composeTestRule.activity.resources.displayMetrics.density
+        val wDp = node.size.width / density
+        val hDp = node.size.height / density
+        val world = TILE_DP * Math.pow(2.0, zoom)
+
+        fun latToY(lat: Double): Double =
+            (1.0 - asinh(tan(Math.toRadians(lat))) / Math.PI) / 2.0 * world
+        fun yToLat(y: Double): Double =
+            Math.toDegrees(atan(sinh(Math.PI * (1.0 - 2.0 * y / world))))
+
+        val cy = latToY(center.latitude)
+        val topLat = yToLat(cy - hDp / 2.0)
+        val botLat = yToLat(cy + hDp / 2.0)
+        val cx = (center.longitude + 180.0) / 360.0 * world
+        val leftLon = (cx - wDp / 2.0) / world * 360.0 - 180.0
+        val rightLon = (cx + wDp / 2.0) / world * 360.0 - 180.0
+
+        ReportGenerator.logStep(
+            "AND",
+            "$label: viewport lat[%.3f..%.3f] lon[%.3f..%.3f] @ z%.1f (%dx%d dp)"
+                .format(botLat, topLat, leftLon, rightLon, zoom, wDp.toInt(), hDp.toInt()),
+            "INFO",
+        )
+        cities.forEach { (name, p) ->
+            val framed = p.latitude in botLat..topLat && p.longitude in leftLon..rightLon
+            ReportGenerator.logStep(
+                "AND",
+                "$label: $name (%.4f, %.4f) framed=$framed".format(p.latitude, p.longitude),
+                if (framed) "PASS" else "FAIL",
+            )
+            if (!framed) throw AssertionError(
+                "$label: $name not framed — viewport lat[$botLat..$topLat] lon[$leftLon..$rightLon] @ zoom $zoom"
+            )
         }
     }
 

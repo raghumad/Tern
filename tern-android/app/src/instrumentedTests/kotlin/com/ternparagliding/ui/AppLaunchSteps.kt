@@ -21,9 +21,10 @@ import androidx.compose.ui.test.junit4.ComposeTestRule
 fun MapVisualTest.givenAppIsLaunchedOnMap(
     lat: Double = 40.0150,
     lon: Double = -105.2705,
-    countryCode: String? = null
+    countryCode: String? = null,
+    zoom: Double = 12.0
 ) {
-    step("GIVEN", "scenario App Launch to Map ($lat, $lon, $countryCode)", true) {
+    step("GIVEN", "scenario App Launch to Map ($lat, $lon, $countryCode) @ z$zoom", true) {
         val activity = composeTestRule.activity
         // Initialize CacheManager
         com.ternparagliding.utils.CacheManager.initialize(activity.applicationContext)
@@ -36,9 +37,9 @@ fun MapVisualTest.givenAppIsLaunchedOnMap(
         com.ternparagliding.utils.MapTestHelper.injectMockLocation(composeTestRule, lat, lon)
 
         // [DETERMINISTIC SYNC] Explicitly move the map to the injected location.
-        // This bypasses the unreliable "auto-center on first fix" which might have 
+        // This bypasses the unreliable "auto-center on first fix" which might have
         // already fired for the default Boulder location.
-        zoomTo(lat, lon, 12.0)
+        zoomTo(lat, lon, zoom)
 
         // Wait for Map
         composeTestRule.onNodeWithTag("map_view").assertExists()
