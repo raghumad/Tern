@@ -51,15 +51,19 @@ fun AirspaceOverlay(
 
     var candidates by remember { mutableStateOf<List<AirspaceCandidate>>(emptyList()) }
     var lastQueryCenter by remember { mutableStateOf<GeoPoint?>(null) }
+    var lastQueriedCountries by remember { mutableStateOf<Set<String>>(emptySet()) }
 
-    // Re-query when pilot moves far enough from last query point.
-    LaunchedEffect(center) {
+    // Re-query when the pilot moves far enough OR a country's data finishes
+    // downloading (state.airspaceCountries changes via CountryPreloadMiddleware) —
+    // the latter has the same centre, so it must bypass the distance guard or the
+    // freshly-downloaded airspace would not appear until the next pan.
+    LaunchedEffect(center, state.airspaceCountries) {
         val moved = lastQueryCenter?.let { prev ->
-            val distMeters = prev.distanceToAsDouble(center)
-            distMeters / 1000.0
+            prev.distanceToAsDouble(center) / 1000.0
         } ?: Double.MAX_VALUE
+        val countriesChanged = state.airspaceCountries != lastQueriedCountries
 
-        if (moved < REQUERY_DISTANCE_KM) return@LaunchedEffect
+        if (moved < REQUERY_DISTANCE_KM && !countriesChanged) return@LaunchedEffect
 
         val newCandidates = withContext(Dispatchers.IO) {
             queryAndScore(context, airspaceCache, prioritizer, center)
@@ -67,6 +71,7 @@ fun AirspaceOverlay(
 
         candidates = newCandidates
         lastQueryCenter = center
+        lastQueriedCountries = state.airspaceCountries
         Log.d(TAG, "Airspace query: ${newCandidates.size} candidates @ ${center.latitude},${center.longitude}")
     }
 

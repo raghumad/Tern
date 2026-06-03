@@ -614,6 +614,49 @@ open class MapVisualTest {
             ?: throw AssertionError("hardware screenshot returned null")
     }
 
+    /** Mean luminance of [rect] in [shot]. Terrain tiles are bright (~150);
+     *  the unfetched "black tile" state is near zero, and a translucent overlay
+     *  on black is still dark — so this cleanly tells whether the raster
+     *  basemap has actually painted. */
+    fun meanLuminance(shot: android.graphics.Bitmap, rect: android.graphics.Rect): Double {
+        var sum = 0.0
+        var n = 0
+        for (y in rect.top until rect.bottom step 10) {
+            for (x in rect.left until rect.right step 10) {
+                val p = shot.getPixel(x, y)
+                sum += 0.3 * android.graphics.Color.red(p) +
+                    0.59 * android.graphics.Color.green(p) +
+                    0.11 * android.graphics.Color.blue(p)
+                n++
+            }
+        }
+        return if (n == 0) 0.0 else sum / n
+    }
+
+    /**
+     * Blocks until the raster basemap tiles have actually painted (not the
+     * black "tiles not fetched yet" state). Required before measuring memory
+     * pressure: the decoded-tile cache is a major heap consumer, so a black
+     * map under-reports real memory use. Polls the central map region's mean
+     * luminance. Returns true once loaded; on timeout returns false (caller
+     * decides whether that's fatal).
+     */
+    fun waitForBasemapTiles(timeoutMillis: Long = 60000, minLuminance: Double = 70.0): Boolean {
+        val start = System.currentTimeMillis()
+        var lum = 0.0
+        while (System.currentTimeMillis() - start < timeoutMillis) {
+            val shot = captureScreenBitmap()
+            lum = meanLuminance(shot, centralBox(shot))
+            if (lum >= minLuminance) {
+                Log.i("MapVisualTest", "basemap tiles loaded (lum=$lum) after ${System.currentTimeMillis() - start}ms")
+                return true
+            }
+            Thread.sleep(1500)
+        }
+        Log.w("MapVisualTest", "basemap tiles NOT loaded after ${timeoutMillis}ms (lum=$lum)")
+        return false
+    }
+
     /** The central 60% box of [shot] — where [zoomTo] places the map centre. */
     fun centralBox(shot: android.graphics.Bitmap): android.graphics.Rect =
         android.graphics.Rect(

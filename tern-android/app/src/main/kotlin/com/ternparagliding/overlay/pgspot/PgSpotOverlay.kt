@@ -62,14 +62,20 @@ fun PgSpotOverlay(
     val prioritizer = remember { OverlayPrioritizer() }
 
     var lastQueryCenter by remember { mutableStateOf<GeoPoint?>(null) }
+    var lastQueriedCountries by remember { mutableStateOf<Set<String>>(emptySet()) }
 
-    // Re-query when the pilot moves far enough from the last query point.
-    LaunchedEffect(center) {
+    // Re-query when the pilot moves far enough OR a country's data finishes
+    // downloading. PG spots and airspace are downloaded together by
+    // UniversalCountryCacheManager, so state.airspaceCountries doubles as the
+    // "a country just loaded" signal; it must bypass the distance guard (same
+    // centre) or freshly-downloaded spots wouldn't appear until the next pan.
+    LaunchedEffect(center, state.airspaceCountries) {
         val moved = lastQueryCenter?.let { prev ->
             prev.distanceToAsDouble(center) / 1000.0
         } ?: Double.MAX_VALUE
+        val countriesChanged = state.airspaceCountries != lastQueriedCountries
 
-        if (moved < REQUERY_DISTANCE_KM) return@LaunchedEffect
+        if (moved < REQUERY_DISTANCE_KM && !countriesChanged) return@LaunchedEffect
 
         val features = withContext(Dispatchers.IO) {
             queryAndScore(context, pgSpotCache, prioritizer, center)
@@ -77,6 +83,7 @@ fun PgSpotOverlay(
 
         store.dispatch(MapAction.UpdatePgSpotGeoJson(overlayFeaturesToGeoJson(features)))
         lastQueryCenter = center
+        lastQueriedCountries = state.airspaceCountries
         Log.d(TAG, "PG-spot query: ${features.size} spots @ ${center.latitude},${center.longitude}")
     }
 

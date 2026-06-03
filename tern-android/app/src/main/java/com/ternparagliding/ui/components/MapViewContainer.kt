@@ -120,6 +120,10 @@ fun MapViewContainer(
         store.addMiddleware(com.ternparagliding.redux.MapMiddleware(context.applicationContext))
         store.addMiddleware(com.ternparagliding.redux.RoutePlanningMiddleware(context.applicationContext))
         store.addMiddleware(com.ternparagliding.redux.WeatherMiddleware())
+        // Download airspace/PG-spot data for the country under the map centre
+        // (and adjacent ones near borders) as the pilot moves — without this
+        // the overlay caches are never populated in production.
+        store.addMiddleware(com.ternparagliding.redux.CountryPreloadMiddleware(context.applicationContext))
     }
 
     // Persist routes to the offline-first spatial RouteCache whenever they

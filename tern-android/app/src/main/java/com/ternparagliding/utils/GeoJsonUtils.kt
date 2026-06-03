@@ -85,10 +85,23 @@ object GeoJsonUtils {
                     if (response.isSuccessful) {
                         val body = response.body
                         if (body != null) {
-                            val isNd = url.contains("ndgeojson") || url.contains("_asp.geojson")
-                            if (isNd) {
+                            // Detect the format by CONTENT, not the URL. The real
+                            // airspace endpoint serves files named *_asp.geojson that
+                            // are standard FeatureCollections, while our test mock and
+                            // some sources serve newline-delimited GeoJSON. Guessing
+                            // from the URL (the old `url.contains("_asp.geojson")`)
+                            // forced real FeatureCollections through the line parser,
+                            // so every line failed and zero airspaces were ever cached.
+                            val stream = java.io.BufferedInputStream(body.byteStream())
+                            stream.mark(2048)
+                            val head = ByteArray(1024)
+                            val headLen = stream.read(head).coerceAtLeast(0)
+                            stream.reset()
+                            val headStr = String(head, 0, headLen, Charsets.UTF_8)
+                            val isFeatureCollection = headStr.contains("FeatureCollection")
+                            if (!isFeatureCollection) {
                                 // NDGeoJSON: process line by line
-                                body.byteStream().bufferedReader().useLines { lines ->
+                                stream.bufferedReader().useLines { lines ->
                                     for (line in lines) {
                                         if (!isActive) break
                                         if (line.isNotBlank()) {
@@ -104,7 +117,7 @@ object GeoJsonUtils {
                                 }
                             } else {
                                 // Standard GeoJSON FeatureCollection
-                                val parser = mapper.factory.createParser(body.byteStream())
+                                val parser = mapper.factory.createParser(stream)
                                 var inFeaturesArray = false
                                 while (!parser.isClosed && isActive) {
                                     val token = parser.nextToken()

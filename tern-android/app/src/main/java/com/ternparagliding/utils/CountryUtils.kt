@@ -29,6 +29,14 @@ object CountryUtils {
         testCountryCode = code?.uppercase()
     }
 
+    /**
+     * True when a test has pinned the country code via [setTestCountryCode].
+     * Production wiring (CountryPreloadMiddleware) checks this to avoid firing
+     * real network downloads for the synthetic "TEST" country during
+     * instrumented tests that inject their own cache data.
+     */
+    fun isTestMode(): Boolean = testCountryCode != null
+
     fun getCountryCodeFromCoordinates(
         context: Context,
         latitude: Double,

@@ -34,6 +34,17 @@ object CacheManager {
     }
 
     /**
+     * Drives location-based country airspace/PG-spot downloads + adjacent
+     * preloading + LRU eviction. Single app-lifetime instance; fed by
+     * [com.ternparagliding.redux.CountryPreloadMiddleware] from map-centre
+     * changes. Without this, nothing ever populates the overlay caches.
+     */
+    val countryCacheManager: UniversalCountryCacheManager by lazy {
+        ensureInitialized()
+        UniversalCountryCacheManager(appContext)
+    }
+
+    /**
      * Initialize with application context
      * Must be called once during app startup
      */
