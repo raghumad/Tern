@@ -50,8 +50,10 @@ class WaypointInteractionUXTest : MapVisualTest() {
                 }
 
                 `when`("I reposition 'Turnpoint 1' via Redux dispatch (physical drag not available)") {
-                    // Select the waypoint, simulate drag via Redux
-                    store.dispatch(MapAction.SelectWaypoint(route.id, wp2.id))
+                    // Mirror the real drag gesture: StartWaypointDrag sets
+                    // isDragging=true (without it, UpdateWaypointDrag is a no-op),
+                    // UpdateWaypointDrag moves the waypoint, EndWaypointDrag releases.
+                    store.dispatch(MapAction.StartWaypointDrag(route.id, wp2.id))
                     composeTestRule.waitForIdle()
 
                     store.dispatch(MapAction.UpdateWaypointDrag(endLat, endLon))
@@ -73,7 +75,15 @@ class WaypointInteractionUXTest : MapVisualTest() {
                 }
 
                 and("the route is persisted to the cache") {
+                    // Persistence is async (RoutePersistence observes state.routes
+                    // and writes on Dispatchers.IO), so poll for the dragged
+                    // position to land in the cache rather than reading immediately.
                     val cache = com.ternparagliding.utils.CacheManager.routeCache
+                    composeTestRule.waitUntil(timeoutMillis = 5000) {
+                        cache.getCachedRoute(route.id)?.waypoints?.any {
+                            it.label == "Turnpoint 1" && kotlin.math.abs(it.lat - endLat) < 0.0001
+                        } == true
+                    }
                     val cachedRoute = cache.getCachedRoute(route.id)
                     assert(cachedRoute != null) { "Route not found in cache after drag!" }
                     val cachedWp = cachedRoute!!.waypoints.find { it.label == "Turnpoint 1" }

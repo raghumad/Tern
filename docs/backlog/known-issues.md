@@ -15,6 +15,39 @@ May 2026 are archived in
 Issues that need systematic fixing. Not blocking mezulla work but tracked
 so they don't get forgotten.
 
+### Product test-failure clusters — prioritized queue (2026-06)
+
+From a full instrumented run on real hardware (74 tests: 32 pass, 33 fail,
+9 skip). ~13 failures are harness/args (cycle + BLE tests need `pairUri` via
+their Gradle tasks — not product bugs). The ~20 real product failures
+cluster as below; tackle in this order. (Run gives stale parser numbers —
+read the `connected` XML, not `managedDevice`.)
+
+1. **Route planning** — `AviationRoutePlanningTest` ×3. Import doesn't
+   recenter the map (expected ~39.74,-105.24, stayed at default), plus a 5 s
+   timeout and an assertExists. Headline feature; at least the import bug is
+   real.
+2. **Route building & management** — `RouteManagement` ×3 (reorder/create/
+   share), `WaypointInteractionUX` drag ("route not found in cache after
+   drag" — likely real), `MapInteraction.testLongPressNearWaypointSelectsIt`.
+   Some may be gesture-test fragility (dead `MapTestHelper` path).
+3. **FAI / competition tasks** — `FAITaskUITest` ×3 (scroll-to-node on
+   'Start Speed Section' / 'r3000m'), `ChamonixCompetitionTest`,
+   `MonarcaCompetitionTest`. Likely one shared root cause (FAI editor labels
+   / panel).
+4. **Settings** — `SettingsScreen.testUnitPreferences` ('Units' not found).
+   Small, self-contained.
+5. **Overlay tap/select** — `DenseClusterDeclutteringTest` ×2,
+   `PGSpotInteractionTest`. Mostly the GPU-marker-isn't-a-Compose-node +
+   auto-download race below — folds into the infra track, not standalone.
+6. **Weather** *(deferred)* — `WeatherUX` ×2 (15 s timeouts),
+   `RouteDetailPanelWeather` (permission infra). Parked behind a larger
+   weather redesign; tackle last, once the rest is healthy.
+
+Also hollow `@Liar` passes (gutted assertions, go green without verifying):
+`DynamicMarkerTest.testPGSpotMarkerSwitchesToWindGauge`,
+`SettingsScreenTest.testLayerToggles`, and 4 others — see `@Liar` grep.
+
 ### Airspaces and PG spots never render in test screenshots
 
 Every instrumented test screenshot shows an empty map — no airspace

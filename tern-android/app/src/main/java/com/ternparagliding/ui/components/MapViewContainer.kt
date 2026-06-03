@@ -122,6 +122,15 @@ fun MapViewContainer(
         store.addMiddleware(com.ternparagliding.redux.WeatherMiddleware())
     }
 
+    // Persist routes to the offline-first spatial RouteCache whenever they
+    // change, so a pilot's plans survive restarts and can resurface nearby.
+    LaunchedEffect(store) {
+        com.ternparagliding.redux.RoutePersistence.observe(
+            store,
+            com.ternparagliding.utils.CacheManager.routeCache,
+        )
+    }
+
     // MapViewModel still owns overlay lifecycle — disabled for M1 but kept
     // so that M2-M5 can migrate one manager at a time.
     val mapViewModel: MapViewModel = viewModel()
@@ -308,7 +317,10 @@ fun MapViewContainer(
             // Route overlay
             val visibleRoutes = state.routes.filter { it.isVisible }
             if (visibleRoutes.isNotEmpty()) {
-                com.ternparagliding.overlay.route.RouteLayer(visibleRoutes)
+                com.ternparagliding.overlay.route.RouteLayer(
+                    routes = visibleRoutes,
+                    selectedWaypointId = state.selectedWaypoint?.let { "${it.routeId}:${it.waypointId}" },
+                )
             }
 
             // Airspace overlay
@@ -342,6 +354,10 @@ fun MapViewContainer(
                 nerdFont = nerdFont,
             )
         }
+
+        // Surface preplanned routes from the offline cache when the pilot is
+        // near them (feeds state.routes; RouteLayer above renders them).
+        com.ternparagliding.overlay.route.RouteProximityOverlay(store = store)
 
         // Screen-edge chips pointing to buddies who are off the map view —
         // essential on wide XC where peers sit tens of km outside the frame.

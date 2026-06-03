@@ -64,6 +64,7 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
     is MapAction.AddRoute,
     is MapAction.RemoveRoute,
     is MapAction.UpdateRoute,
+    is MapAction.SurfaceNearbyRoutes,
     is MapAction.ClearAllRoutes -> handleRouteActions(state, action)
 
     // Waypoint Management
@@ -437,6 +438,21 @@ private fun handleRouteActions(state: MapState, action: MapAction): MapState = w
         state.copy(routes = newRoutes, selectedWaypoint = updatedSelection)
     }
     is MapAction.ClearAllRoutes -> state.copy(routes = emptyList(), selectedRouteId = null, selectedWaypoint = null)
+    // Merge nearby preplanned routes (from the spatial RouteCache) into the
+    // active set, skipping any already present. Existing/edited routes win;
+    // selection is untouched. Capped at MAX_ROUTES like AddRoute.
+    is MapAction.SurfaceNearbyRoutes -> {
+        val existingIds = state.routes.map { it.id }.toSet()
+        val toAdd = action.routes.filter { it.id !in existingIds }
+        if (toAdd.isEmpty()) state
+        else {
+            val merged = state.routes + toAdd
+            val limited = if (merged.size > RouteConstants.MAX_ROUTES) {
+                merged.sortedByDescending { it.createdAt }.take(RouteConstants.MAX_ROUTES)
+            } else merged
+            state.copy(routes = limited)
+        }
+    }
     else -> state
 }
 

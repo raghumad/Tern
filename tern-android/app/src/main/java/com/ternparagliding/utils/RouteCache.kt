@@ -171,6 +171,11 @@ class RouteCache(
             val properties = feature.feature["properties"] as? Map<*, *>
             val routeName = properties?.get("routeName") as? String ?: "Reconstructed Route"
             val isVisible = properties?.get("isVisible") as? Boolean ?: true
+            // Use the route id stored in the feature, not the [routeId] param:
+            // SpatialDiskCache uppercases the region key, so queryNearbyRoutes
+            // passes an uppercased id. The stored property preserves the
+            // original case so a round-tripped route keeps its identity.
+            val realRouteId = properties?.get("routeId") as? String ?: routeId
             
             val waypointsList = properties?.get("waypoints") as? List<*>
             
@@ -204,15 +209,15 @@ class RouteCache(
                                 alt = alt,
                                 openTime = openTime,
                                 closeTime = closeTime,
-                                routeId = routeId
+                                routeId = realRouteId
                             )
                         } else null
                     } else null
                 }
-                
+
                 if (waypoints.isNotEmpty()) {
                     return Route(
-                        id = routeId,
+                        id = realRouteId,
                         name = routeName,
                         waypoints = waypoints,
                         isVisible = isVisible

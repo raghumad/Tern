@@ -57,3 +57,9 @@ Epic 03 (Spedmo) and Epic 04 (onboarding).
   the app doesn't transmit it yet).
 - Peer-state reset at scenario start (stale identity-only peers linger in
   test runs — cosmetic).
+- **Consistent map-marker iconography.** Markers are converging on a single
+  language — peers use Nerd Font glyphs (`MezullaIcons`), hazards use
+  amber/red halos, PG spots use the Tern bird badge. Idea: give
+  **route waypoints** a glyph too — `nf-md-routes` — for a consistent look
+  (same icon-bitmap pattern as `PgSpotLayer`/`PeerLayer`, since glyph
+  `textField` doesn't render on Tern's raster styles).

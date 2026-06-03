@@ -60,6 +60,20 @@ class RoutePlanningMiddleware(
                     store.dispatch(WeatherActions.FetchWeatherForRoute(action.routeId))
                 }
             }
+            // Explicit deletion clears the persisted route(s). Route *writes*
+            // are handled by RoutePersistence (an observer), not here — a
+            // middleware can't see post-edit state. But deletes carry their
+            // id in the action, so they're safe to handle inline.
+            is MapAction.RemoveRoute -> {
+                coroutineScope.launch {
+                    CacheManager.routeCache.clearCacheForRoute(action.routeId)
+                }
+            }
+            is MapAction.ClearAllRoutes -> {
+                coroutineScope.launch {
+                    CacheManager.routeCache.clearCache()
+                }
+            }
         }
     }
 

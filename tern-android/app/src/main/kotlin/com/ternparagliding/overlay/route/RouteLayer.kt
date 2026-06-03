@@ -1,85 +1,171 @@
 package com.ternparagliding.overlay.route
 
+import android.graphics.Bitmap
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.ternparagliding.model.LocationType
 import com.ternparagliding.model.Route
 import org.maplibre.compose.expressions.ast.Expression
+import org.maplibre.compose.expressions.dsl.case
 import org.maplibre.compose.expressions.dsl.const
 import org.maplibre.compose.expressions.dsl.feature
-import org.maplibre.compose.expressions.dsl.format
 import org.maplibre.compose.expressions.dsl.image
-import org.maplibre.compose.expressions.dsl.offset
-import org.maplibre.compose.expressions.dsl.span
+import org.maplibre.compose.expressions.dsl.step
+import org.maplibre.compose.expressions.dsl.switch
+import org.maplibre.compose.expressions.dsl.zoom
+import org.maplibre.compose.expressions.value.ColorValue
 import org.maplibre.compose.expressions.value.LineCap
 import org.maplibre.compose.expressions.value.LineJoin
 import org.maplibre.compose.expressions.value.StringValue
-import org.maplibre.compose.expressions.value.SymbolAnchor
 import org.maplibre.compose.sources.GeoJsonData
 import org.maplibre.compose.sources.rememberGeoJsonSource
 
-// Tern cockpit palette -- route line is neon cyan, labels are white on charcoal.
+// Tern cockpit palette -- route line is neon cyan over a dark casing.
 private val ROUTE_LINE_COLOR = Color(0xFF00E5FF)
-private val LABEL_TEXT_COLOR = Color.White
-private val LABEL_HALO_COLOR = Color(0xFF121212)
+private val ROUTE_CASING_COLOR = Color(0xCC0A1417)
+
+/** Above this zoom, waypoint markers show the detailed (name + radius) tier. */
+private const val ZOOM_DETAIL = 11.0
+
+/** One rasterised marker per waypoint, keyed for the data-driven SymbolLayer. */
+private data class WpSpec(
+    val key: String,
+    val type: LocationType,
+    val seq: Int,
+    val name: String,
+    val radiusM: Double,
+)
 
 /**
- * Renders the active route on a MapLibre map.
+ * Renders routes on a MapLibre map, cylinder-centric:
+ *  - **FAI cylinder** fill + ring per waypoint (role-coloured) — the
+ *    waypoint's identity on the ground.
+ *  - **Route line** (neon cyan) over a dark casing.
+ *  - **Leg-distance pills** on the line at each leg midpoint ("25 km").
+ *  - **Waypoint markers** — small role-coloured centre + short code, growing
+ *    to name + radius when zoomed in (icon bitmaps, since glyph `textField`
+ *    doesn't render on Tern's raster styles).
  *
- * - **LineLayer** draws the route polyline (always visible -- not
- *   budgeted, because it's one object and it's navigation).
- * - **SymbolLayer** draws waypoint markers with name + type labels.
- *   Waypoint markers participate in the overlay budget via
- *   [RouteWaypointCandidate], but the visual layer itself is always
- *   present -- the budget controls *which* waypoints are in the
- *   GeoJSON source, not whether the layer exists.
- *
- * Call this inside the `MaplibreMap { ... }` content lambda.
+ * Call inside the `MaplibreMap { ... }` content lambda.
  */
 @Suppress("UNCHECKED_CAST")
 @Composable
-fun RouteLayer(routes: List<Route>) {
-    val lineGeoJson = remember(routes) {
-        GeoJsonData.Features(RouteGeoJson.routeLines(routes))
-    }
-    val pointGeoJson = remember(routes) {
-        GeoJsonData.Features(RouteGeoJson.waypointPoints(routes))
-    }
+fun RouteLayer(routes: List<Route>, selectedWaypointId: String? = null) {
+    val visible = routes.filter { it.isVisible }
 
-    val lineSource = rememberGeoJsonSource(data = lineGeoJson)
-    val pointSource = rememberGeoJsonSource(data = pointGeoJson)
-
-    // Route polyline -- always visible, not budgeted.
-    org.maplibre.compose.layers.LineLayer(
-        id = "route-line",
-        source = lineSource,
-        color = const(ROUTE_LINE_COLOR),
-        width = const(4.dp),
-        cap = const(LineCap.Round),
-        join = const(LineJoin.Round),
+    val lineSource = rememberGeoJsonSource(
+        data = remember(routes) { GeoJsonData.Features(RouteGeoJson.routeLines(routes)) },
+    )
+    val cylinderSource = rememberGeoJsonSource(
+        data = remember(routes) { GeoJsonData.Features(RouteGeoJson.routeCylinders(routes)) },
+    )
+    val legSource = rememberGeoJsonSource(
+        data = remember(routes) { GeoJsonData.Features(RouteGeoJson.legMidpoints(routes)) },
+    )
+    val pointSource = rememberGeoJsonSource(
+        data = remember(routes) { GeoJsonData.Features(RouteGeoJson.waypointPoints(routes)) },
     )
 
-    // Waypoint markers with labels.
-    org.maplibre.compose.layers.SymbolLayer(
-        id = "route-waypoints",
-        source = pointSource,
-        textField = format(
-            span(feature.get("name") as Expression<StringValue>),
-            span("\n"),
-            span(feature.get("type") as Expression<StringValue>),
-        ),
-        textSize = const(12.sp),
-        textColor = const(LABEL_TEXT_COLOR),
-        textHaloColor = const(LABEL_HALO_COLOR),
-        textHaloWidth = const(1.5.dp),
-        textAnchor = const(SymbolAnchor.Top),
-        textOffset = offset(0.sp, 1.2.sp),
-        iconImage = image("marker-15"),
-        iconSize = const(1.5f),
-        iconColor = const(ROUTE_LINE_COLOR),
-        iconAllowOverlap = const(true),
-        textAllowOverlap = const(false),
+    val typeExpr = feature.get("type") as Expression<StringValue>
+    val cylinderFill = remember { cylinderColorExpr(typeExpr, 0.12f) }
+    val cylinderRing = remember { cylinderColorExpr(typeExpr, 0.9f) }
+
+    // ── FAI cylinders (drawn first, beneath everything) ──────────────────
+    org.maplibre.compose.layers.FillLayer(
+        id = "route-cylinder-fill",
+        source = cylinderSource,
+        color = cylinderFill,
+    )
+    org.maplibre.compose.layers.LineLayer(
+        id = "route-cylinder-ring",
+        source = cylinderSource,
+        color = cylinderRing,
+        width = const(2.dp),
+    )
+
+    // ── Route line: dark casing then neon line ───────────────────────────
+    org.maplibre.compose.layers.LineLayer(
+        id = "route-line-casing", source = lineSource,
+        color = const(ROUTE_CASING_COLOR), width = const(4.5.dp),
+        cap = const(LineCap.Round), join = const(LineJoin.Round),
+    )
+    org.maplibre.compose.layers.LineLayer(
+        id = "route-line", source = lineSource,
+        color = const(ROUTE_LINE_COLOR), width = const(2.5.dp),
+        cap = const(LineCap.Round), join = const(LineJoin.Round),
+    )
+
+    // ── Leg-distance pills on the line ───────────────────────────────────
+    val legLabels = remember(routes) {
+        RouteGeoJson.legMidpoints(routes).features
+            .mapNotNull { (it.properties?.get("label") as? kotlinx.serialization.json.JsonPrimitive)?.content }
+            .filter { it.isNotBlank() }.distinct()
+    }
+    if (legLabels.isNotEmpty()) {
+        val labelExpr = feature.get("label") as Expression<StringValue>
+        val legIcon = remember(legLabels) {
+            val transparent = image(Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888).asImageBitmap())
+            val cases = legLabels.map { case(it, image(renderLegPillBitmap(it).asImageBitmap())) }.toTypedArray()
+            switch(labelExpr, *cases, fallback = transparent)
+        }
+        org.maplibre.compose.layers.SymbolLayer(
+            id = "route-leg-pills", source = legSource,
+            iconImage = legIcon, iconAllowOverlap = const(false),
+        )
+    }
+
+    // ── Waypoint markers (zoom-adaptive, cylinder-centric) ───────────────
+    val specs = remember(routes) {
+        visible.flatMap { route ->
+            var tp = 0
+            route.waypoints.mapIndexed { i, wp ->
+                val seq = if (wp.type == LocationType.TURNPOINT) ++tp else i + 1
+                WpSpec("${route.id}:${wp.id}", wp.type, seq, wp.label ?: "WP ${i + 1}", wp.radius ?: 0.0)
+            }
+        }
+    }
+    if (specs.isNotEmpty()) {
+        val markerKeyExpr = feature.get("markerKey") as Expression<StringValue>
+        val iconImage = remember(specs, selectedWaypointId) {
+            val transparent = image(Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888).asImageBitmap())
+            val compact = specs.map { s ->
+                case(s.key, image(renderWaypointBitmap(s.type, s.seq, s.name, selected = s.key == selectedWaypointId, detailed = false).asImageBitmap()))
+            }.toTypedArray()
+            val detailed = specs.map { s ->
+                case(s.key, image(renderWaypointBitmap(s.type, s.seq, s.name, selected = s.key == selectedWaypointId, detailed = true, radiusM = s.radiusM).asImageBitmap()))
+            }.toTypedArray()
+            step(
+                zoom(),
+                switch(markerKeyExpr, *compact, fallback = transparent),
+                ZOOM_DETAIL to switch(markerKeyExpr, *detailed, fallback = transparent),
+            )
+        }
+        org.maplibre.compose.layers.SymbolLayer(
+            id = "route-waypoints",
+            source = pointSource,
+            iconImage = iconImage,
+            iconSize = const(1f),
+            iconAllowOverlap = const(true), // waypoints are navigation — never hide
+        )
+    }
+}
+
+/** switch(type → role colour at [alpha]) for the cylinder fill/ring. */
+private fun cylinderColorExpr(
+    typeExpr: Expression<StringValue>,
+    alpha: Float,
+): Expression<ColorValue> {
+    fun c(type: LocationType) = const(Color(cylinderColor(type)).copy(alpha = alpha))
+    return switch(
+        typeExpr,
+        case("LAUNCH", c(LocationType.LAUNCH)),
+        case("SSS", c(LocationType.SSS)),
+        case("ESS", c(LocationType.ESS)),
+        case("GOAL", c(LocationType.GOAL)),
+        case("LANDING", c(LocationType.LANDING)),
+        fallback = c(LocationType.TURNPOINT),
     )
 }

@@ -78,6 +78,8 @@ sealed class MapAction : TernAction {
     data class AddRoute(val route: Route) : MapAction()
     data class RemoveRoute(val routeId: String) : MapAction()
     data class UpdateRoute(val route: Route) : MapAction()
+    /** Merge nearby preplanned routes (from the spatial RouteCache) into the active set. */
+    data class SurfaceNearbyRoutes(val routes: List<Route>) : MapAction()
     object ClearAllRoutes : MapAction()
 
     // Waypoint actions (for multi-waypoint routes)

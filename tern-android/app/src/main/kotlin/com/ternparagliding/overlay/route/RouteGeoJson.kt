@@ -9,7 +9,9 @@ import org.maplibre.spatialk.geojson.Feature
 import org.maplibre.spatialk.geojson.FeatureCollection
 import org.maplibre.spatialk.geojson.LineString
 import org.maplibre.spatialk.geojson.Point
+import org.maplibre.spatialk.geojson.Polygon
 import org.maplibre.spatialk.geojson.Position
+import kotlin.math.cos
 
 /**
  * Pure functions that convert [Route] model objects into GeoJSON
@@ -51,8 +53,10 @@ object RouteGeoJson {
         val features = routes
             .filter { it.isVisible }
             .flatMap { route ->
+                var tpSeq = 0
                 route.waypoints.mapIndexed { index, wp ->
-                    waypointFeature(wp, index, route.id)
+                    val seq = if (wp.type == LocationType.TURNPOINT) ++tpSeq else index + 1
+                    waypointFeature(wp, index, route.id, seq)
                 }
             }
         return FeatureCollection(features)
@@ -60,11 +64,14 @@ object RouteGeoJson {
 
     /**
      * Converts one [Waypoint] into a GeoJSON [Feature] with properties.
+     * `markerKey` is unique per waypoint so the SymbolLayer can map each to
+     * its rasterised bitmap; `seq` is the turnpoint number (for the code).
      */
     internal fun waypointFeature(
         wp: Waypoint,
         index: Int,
         routeId: String,
+        seq: Int = index + 1,
     ): Feature<Point, JsonObject> {
         val displayName = wp.label ?: "WP ${index + 1}"
         val typeName = wp.type.name
@@ -77,9 +84,91 @@ object RouteGeoJson {
                     "label" to JsonPrimitive("$displayName\n$typeName"),
                     "waypointId" to JsonPrimitive(wp.id),
                     "routeId" to JsonPrimitive(routeId),
+                    "markerKey" to JsonPrimitive("$routeId:${wp.id}"),
+                    "seq" to JsonPrimitive(seq),
+                    "radius" to JsonPrimitive(wp.radius ?: 0.0),
                 )
             ),
         )
+    }
+
+    /**
+     * Builds [Polygon] footprints (FAI cylinders) for every waypoint that has
+     * a radius — the ring IS the waypoint's identity on the map. Properties:
+     *   - `type`: [LocationType] name (drives the role colour)
+     *   - `radius`: metres
+     */
+    fun routeCylinders(routes: List<Route>): FeatureCollection<Polygon, JsonObject> {
+        val features = routes
+            .filter { it.isVisible }
+            .flatMap { route ->
+                route.waypoints.mapNotNull { wp ->
+                    val r = wp.radius ?: return@mapNotNull null
+                    if (r <= 0.0) return@mapNotNull null
+                    Feature(
+                        Polygon(listOf(circlePositions(wp.lat, wp.lon, r))),
+                        JsonObject(
+                            mapOf(
+                                "type" to JsonPrimitive(wp.type.name),
+                                "radius" to JsonPrimitive(r),
+                            )
+                        ),
+                    )
+                }
+            }
+        return FeatureCollection(features)
+    }
+
+    /**
+     * One [Point] at each leg's midpoint, carrying the leg distance — so the
+     * "25 km" pill sits on the line (glanceable, no tap). Properties:
+     *   - `legKm`: leg distance in km
+     *   - `label`: formatted ("25 km" / "850 m")
+     */
+    fun legMidpoints(routes: List<Route>): FeatureCollection<Point, JsonObject> {
+        val features = routes
+            .filter { it.isVisible && it.waypoints.size >= 2 }
+            .flatMap { route ->
+                val legs = route.legDistances
+                route.waypoints.zipWithNext().mapIndexed { i, (a, b) ->
+                    val midLat = (a.lat + b.lat) / 2.0
+                    val midLon = (a.lon + b.lon) / 2.0
+                    val km = legs.getOrNull(i) ?: 0.0
+                    Feature(
+                        Point(Position(midLon, midLat)),
+                        JsonObject(
+                            mapOf(
+                                "legKm" to JsonPrimitive(km),
+                                "label" to JsonPrimitive(formatKm(km)),
+                            )
+                        ),
+                    )
+                }
+            }
+        return FeatureCollection(features)
+    }
+
+    /** Formats a leg distance: "850 m" under 1 km, else "25.3 km". */
+    internal fun formatKm(km: Double): String =
+        if (km < 1.0) "${(km * 1000).toInt()} m" else "%.1f km".format(km)
+
+    /** Closed ring of [segments] positions approximating a circle of [radiusMeters]. */
+    private fun circlePositions(
+        centerLat: Double,
+        centerLon: Double,
+        radiusMeters: Double,
+        segments: Int = 64,
+    ): List<Position> {
+        val mPerDegLat = 111_320.0
+        val mPerDegLon = mPerDegLat * cos(Math.toRadians(centerLat))
+        val ring = ArrayList<Position>(segments + 1)
+        for (i in 0..segments) {
+            val a = 2.0 * Math.PI * i / segments
+            val dLat = radiusMeters * cos(a) / mPerDegLat
+            val dLon = radiusMeters * Math.sin(a) / mPerDegLon
+            ring.add(Position(centerLon + dLon, centerLat + dLat))
+        }
+        return ring
     }
 
     /**
