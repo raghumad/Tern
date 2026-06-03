@@ -18,7 +18,12 @@ import com.ternparagliding.sim.replay.ReplayState
 import com.ternparagliding.sim.swarm.PilotId
 import com.ternparagliding.sim.swarm.Scenario
 import com.ternparagliding.sim.swarm.SwarmPlayback
+import com.ternparagliding.utils.CacheManager
+import com.ternparagliding.utils.CountryUtils
 import com.ternparagliding.utils.MapVisualTest
+import com.ternparagliding.utils.PGSpotCache
+import com.ternparagliding.utils.PerformanceDebugger
+import com.ternparagliding.utils.ReportGenerator
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -71,6 +76,31 @@ abstract class MezullaPeerCycleTest : MapVisualTest() {
     private val hudFrameSaved = java.util.concurrent.atomic.AtomicBoolean(false)
     private val offscreenFrameSaved = java.util.concurrent.atomic.AtomicBoolean(false)
 
+    // ── Exploratory overlay+memory probe (opt-in via -e probeOverlays true) ──
+    // When on, the cycle additionally loads REAL airspace + PG spots for the
+    // scenario's region and samples heap + overlay inventory along the flight,
+    // emitting a memory/overlay scorecard at the end. It also downgrades the
+    // peer-visibility asserts to logged observations: this is a data-gathering
+    // run to understand in-flight memory pressure, not a pass/fail gate.
+    private var probe = false
+    private var baselineHeapMb = 0.0
+    private var peakHeapMb = 0.0
+    private val heapSamples = mutableListOf<Double>()
+    private val airspaceSamples = mutableListOf<Int>()
+    private val pgSamples = mutableListOf<Int>()
+    private val probeMiles = 200.0 / 1.60934 // overlay query radius (~200 km)
+
+    private fun usedHeapMb(): Double {
+        val rt = Runtime.getRuntime()
+        return (rt.totalMemory() - rt.freeMemory()) / (1024.0 * 1024.0)
+    }
+
+    private fun sampleHeap() {
+        val u = usedHeapMb()
+        if (u > peakHeapMb) peakHeapMb = u
+        heapSamples += u
+    }
+
     companion object {
         private const val DEFAULT_SPEED_MULTIPLIER = 256
         private const val BUDGET_HEADROOM_MS = 10_000L
@@ -109,6 +139,9 @@ abstract class MezullaPeerCycleTest : MapVisualTest() {
 
         private fun speedMultiplierArg(): Int =
             arg("speedMultiplier")?.toIntOrNull() ?: DEFAULT_SPEED_MULTIPLIER
+
+        private fun probeOverlaysArg(): Boolean =
+            arg("probeOverlays")?.toBoolean() ?: false
 
         private fun pairUriArg(): String =
             arg("pairUri")?.takeIf { it.isNotBlank() }
@@ -150,6 +183,7 @@ abstract class MezullaPeerCycleTest : MapVisualTest() {
         val pairUri = pairUriArg()
         val expectedNode = extractNodeFromUri(pairUri)
         val speedMultiplier = speedMultiplierArg()
+        probe = probeOverlaysArg()
         val expectedPeers = peerNodeNumbers.size
         Log.i(tag, "${scenario.name}: pairUri=$pairUri node=$expectedNode speed=${speedMultiplier}x peers=$expectedPeers")
 
@@ -203,6 +237,11 @@ abstract class MezullaPeerCycleTest : MapVisualTest() {
                 composeTestRule.runOnUiThread {
                     store.dispatch(MapAction.UpdateUserLocation(here))
                     store.dispatch(MapAction.UpdateMapMovement(rotation = lastHeadingDeg.toFloat(), center = centre, zoom = zoom))
+                    // GPS-style centre on the pilot's true position. In a real
+                    // flight ReduxLocationService dispatches UpdateCenter from
+                    // the GPS fix, which is what drives country-preload; mirror
+                    // that here so overlays load + churn along the track.
+                    if (probe) store.dispatch(MapAction.UpdateCenter(here))
                 }
                 return true
             }
@@ -213,6 +252,15 @@ abstract class MezullaPeerCycleTest : MapVisualTest() {
                 }
                 composeTestRule.runOnUiThread {
                     store = ViewModelProvider(activity)[MapStore::class.java]
+                }
+                if (probe) {
+                    // Opt this run into REAL data: clear the harness's "TEST"
+                    // country pin and the mock-server base URLs so the airspace +
+                    // PG-spot CDNs are hit for the scenario's region as we fly.
+                    CountryUtils.setTestCountryCode(null)
+                    CacheManager.airspaceCache.resetBaseUrlForTesting()
+                    PGSpotCache.resetBaseUrlForTesting()
+                    Log.i(tag, "[PROBE] real overlays enabled for region=${scenario.region}")
                 }
             }
 
@@ -313,6 +361,25 @@ abstract class MezullaPeerCycleTest : MapVisualTest() {
                     Log.i(tag, "Peer render primed=$primed")
                 }
 
+                if (probe) {
+                    // Give the region's airspace + PG spots time to download as
+                    // we orbit the launch, then record the baseline heap.
+                    val cc = scenario.region.uppercase()
+                    val cdl = System.currentTimeMillis() + 180_000
+                    while (System.currentTimeMillis() < cdl) {
+                        if (store.state.value.airspaceCountries.any { it.equals(cc, true) } &&
+                            store.state.value.pgSpotGeoJson != null) break
+                        followDut(); Thread.sleep(2000)
+                    }
+                    baselineHeapMb = usedHeapMb(); peakHeapMb = baselineHeapMb
+                    val here0 = dutAt(runner?.currentVirtualTime ?: playback.swarmStart)
+                    val air0 = if (here0 != null) runCatching {
+                        CacheManager.airspaceCache.queryNearbyFeatures(cc, here0, probeMiles, 5000).size
+                    }.getOrDefault(0) else 0
+                    Log.i(tag, "[PROBE] baseline heap=${"%.1f".format(baselineHeapMb)}MB, loaded=${store.state.value.airspaceCountries}, airspace≈$air0")
+                    ReportGenerator.logStep("AND", "[PROBE] $cc overlays loaded; baseline heap=${"%.1f".format(baselineHeapMb)}MB; airspace cached near pilot=$air0", "INFO")
+                }
+
                 val swarmSeconds = Duration.between(playback.swarmStart, playback.swarmEnd).seconds.coerceAtLeast(1)
                 val budgetMs = swarmSeconds * 1000L / speedMultiplier + BUDGET_HEADROOM_MS
                 val deadline = System.currentTimeMillis() + budgetMs
@@ -336,10 +403,24 @@ abstract class MezullaPeerCycleTest : MapVisualTest() {
                         .fetchSemanticsNodes().size
                     if (offscreenChips > 0) offscreenChipSamples++
 
+                    if (probe) {
+                        sampleHeap()
+                        val here = dutAt(runner?.currentVirtualTime ?: playback.swarmStart)
+                        if (here != null) {
+                            val cc = scenario.region.uppercase()
+                            airspaceSamples += runCatching {
+                                CacheManager.airspaceCache.queryNearbyFeatures(cc, here, probeMiles, 5000).size
+                            }.getOrDefault(0)
+                            pgSamples += runCatching {
+                                CacheManager.pgSpotCache.queryNearbyPGSpots(cc, here, probeMiles, 5000).size
+                            }.getOrDefault(0)
+                        }
+                    }
+
                     val (bitmap, peerVisible) = grabPeerGreen()
                     bitmap ?: throw AssertionError("uiAutomation.takeScreenshot returned null")
                     samples++
-                    assert(!com.ternparagliding.utils.VisualValidator.isBlank(bitmap)) {
+                    if (!probe) assert(!com.ternparagliding.utils.VisualValidator.isBlank(bitmap)) {
                         "Sample $samples is blank — rendering failed mid-flight"
                     }
                     if (peerVisible) peerVisibleSamples++
@@ -367,27 +448,84 @@ abstract class MezullaPeerCycleTest : MapVisualTest() {
                 }
 
                 Log.i(tag, "Flight complete: $samples samples, maxPeers=$maxPeersSeen, green=$peerVisibleSamples, offscreen=$offscreenChipSamples, accounted=$accountedSamples")
-                assert(samples > 0) { "No samples taken — budget too small?" }
-                assert(maxPeersSeen >= expectedPeers) {
-                    "Expected $expectedPeers buddies in state at some point, but saw at most $maxPeersSeen"
-                }
-                assert(peerVisibleSamples >= MIN_GREEN_SAMPLES) {
-                    "Peer HUD rendered on the map in only $peerVisibleSamples samples (< $MIN_GREEN_SAMPLES) — render gap"
-                }
-                // Once primed, a buddy should be accounted for (on-map or edge
-                // chip) in the large majority of samples — never silently lost.
-                assert(accountedSamples * 2 > samples) {
-                    "Buddies were accounted for in only $accountedSamples/$samples samples"
+                if (probe) {
+                    emitProbeScorecard(samples, maxPeersSeen, expectedPeers, peerVisibleSamples, accountedSamples)
+                } else {
+                    assert(samples > 0) { "No samples taken — budget too small?" }
+                    assert(maxPeersSeen >= expectedPeers) {
+                        "Expected $expectedPeers buddies in state at some point, but saw at most $maxPeersSeen"
+                    }
+                    assert(peerVisibleSamples >= MIN_GREEN_SAMPLES) {
+                        "Peer HUD rendered on the map in only $peerVisibleSamples samples (< $MIN_GREEN_SAMPLES) — render gap"
+                    }
+                    // Once primed, a buddy should be accounted for (on-map or edge
+                    // chip) in the large majority of samples — never silently lost.
+                    assert(accountedSamples * 2 > samples) {
+                        "Buddies were accounted for in only $accountedSamples/$samples samples"
+                    }
                 }
             }
 
             and("the runner stops cleanly", takeScreenshot = false) {
                 runBlocking { runner?.stop() }
                 val terminal = runner?.state?.value
-                assert(terminal is ReplayState.Finished || terminal is ReplayState.Failed) {
+                if (!probe) assert(terminal is ReplayState.Finished || terminal is ReplayState.Failed) {
                     "Expected terminal state after stop, got $terminal"
                 }
             }
         }
+    }
+
+    /**
+     * Emit the exploratory in-flight memory + overlay scorecard. Pure data —
+     * no assertions. Captures the final rendered overlay pixel counts, the
+     * heap trajectory, and the airspace/PG inventory range seen along the
+     * track, plus the peer-visibility figures as advisory context.
+     */
+    private fun emitProbeScorecard(
+        samples: Int,
+        maxPeersSeen: Int,
+        expectedPeers: Int,
+        peerVisibleSamples: Int,
+        accountedSamples: Int,
+    ) {
+        val finalHeap = usedHeapMb()
+        if (finalHeap > peakHeapMb) peakHeapMb = finalHeap
+        val retained = finalHeap - baselineHeapMb
+        val airMin = airspaceSamples.minOrNull() ?: 0
+        val airMax = airspaceSamples.maxOrNull() ?: 0
+        val airAvg = if (airspaceSamples.isNotEmpty()) airspaceSamples.average() else 0.0
+        val pgMin = pgSamples.minOrNull() ?: 0
+        val pgMax = pgSamples.maxOrNull() ?: 0
+        val pgAvg = if (pgSamples.isNotEmpty()) pgSamples.average() else 0.0
+
+        // Final rendered-overlay pixel snapshot.
+        val blue: Int
+        val teal: Int
+        try {
+            val shot = captureScreenBitmap()
+            val rect = centralBox(shot)
+            blue = blueDominantPixels(shot, rect, minBlue = 50)
+            teal = tealDominantPixels(shot, rect)
+        } catch (e: Throwable) {
+            Log.w(tag, "[PROBE] final render snapshot failed: ${e.message}")
+            return
+        }
+
+        val b = PerformanceDebugger.DEFAULT_BUDGET
+        val line = "[PROBE] ${scenario.location} @64x — " +
+            "heap baseline=${"%.1f".format(baselineHeapMb)} peak=${"%.1f".format(peakHeapMb)} " +
+            "final=${"%.1f".format(finalHeap)} retained=${"%.1f".format(retained)}MB (peak budget ${b.maxPeakHeapMb}); " +
+            "airspace near pilot min/avg/max=$airMin/${"%.0f".format(airAvg)}/$airMax; " +
+            "PG spots min/avg/max=$pgMin/${"%.0f".format(pgAvg)}/$pgMax; " +
+            "final render blue-px=$blue teal-px=$teal; " +
+            "peers max=$maxPeersSeen/$expectedPeers, HUD-visible=$peerVisibleSamples/$samples, accounted=$accountedSamples/$samples; " +
+            "heap-samples=${heapSamples.size}"
+        Log.i(tag, line)
+        ReportGenerator.logStep("THEN", line, "INFO")
+        // Full heap trajectory to logcat for offline analysis.
+        Log.i(tag, "[PROBE] heap trajectory MB: " + heapSamples.joinToString(",") { "%.1f".format(it) })
+        Log.i(tag, "[PROBE] airspace trajectory: " + airspaceSamples.joinToString(","))
+        Log.i(tag, "[PROBE] pg trajectory: " + pgSamples.joinToString(","))
     }
 }

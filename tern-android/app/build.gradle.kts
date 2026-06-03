@@ -1156,6 +1156,10 @@ fun configureHardwareCycleTest(
 
         // Bump logcat ring buffer so investigations don't lose history mid-run.
         runAdb(listOf("adb", "-s", deviceSerial, "shell", "logcat", "-G", "16M"))
+        // The replay runner feeds the DUT's own track as mock GPS, which needs
+        // the MOCK_LOCATION appop. A fresh APK install resets it, so (re)grant
+        // it every run rather than relying on a manual Developer-Options toggle.
+        runAdb(listOf("adb", "-s", deviceSerial, "shell", "appops", "set", "com.ternparagliding", "android:mock_location", "allow"))
         // Keep the screen on for the duration of the test. Without this,
         // the device sleeps mid-test, screen recording / screenshots
         // come back BLANK, and visual-assert tests fail spuriously.
@@ -1223,6 +1227,10 @@ fun configureHardwareCycleTest(
             append("-e class '$classFilter' ")
             if (pairUri.isNotBlank()) append("-e pairUri '$pairUri' ")
             append("-e speedMultiplier '$speedMultiplier' ")
+            // Exploratory overlay+memory probe (real airspace/PG + heap scorecard,
+            // no pass/fail). Opt in with -PprobeOverlays=true.
+            if ((project.findProperty("probeOverlays") as? String) == "true")
+                append("-e probeOverlays true ")
             append("com.ternparagliding.test/androidx.test.runner.AndroidJUnitRunner")
         }
         val amArgs = listOf("adb", "-s", deviceSerial, "shell", amCmd)
