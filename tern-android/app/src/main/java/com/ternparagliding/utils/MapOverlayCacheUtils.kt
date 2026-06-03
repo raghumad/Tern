@@ -120,7 +120,13 @@ object MapOverlayCacheUtils {
     data class HilbertIndexEntry @JsonCreator constructor(
         @JsonProperty("hilbertIndex") val hilbertIndex: Long,
         @JsonProperty("byteOffset") val byteOffset: Int,
-        @JsonProperty("byteLength") val byteLength: Int
+        @JsonProperty("byteLength") val byteLength: Int,
+        // Feature centroid, carried on the index so a radius query can filter
+        // in-memory without touching the memory-mapped feature buffer. NaN on
+        // legacy indices written before this field existed — queryNearby then
+        // falls back to peekCentroid for those.
+        @JsonProperty("centroidLat") val centroidLat: Double = Double.NaN,
+        @JsonProperty("centroidLon") val centroidLon: Double = Double.NaN
     )
 
     /**
@@ -438,7 +444,10 @@ object MapOverlayCacheUtils {
             // But wait, for random access via memory map, we usually want to point to the data?
             // Actually, if we point to the length prefix, we can read length then data.
             // Let's point to the start of the record (length prefix).
-            val entry = HilbertIndexEntry(feature.hilbertIndex, currentOffset, 4 + length)
+            val entry = HilbertIndexEntry(
+                feature.hilbertIndex, currentOffset, 4 + length,
+                feature.centroid.latitude, feature.centroid.longitude,
+            )
             indexEntries.add(entry)
         }
 

@@ -306,9 +306,22 @@ class SpatialDiskCache(
      * @param limit Maximum number of features to hydrate (Budget-aware)
      * @return List of hydrated OverlayFeatures
      */
+    /** Great-circle distance in metres. Inlined (no GeoPoint allocation) so the
+     *  per-entry radius filter in [queryNearby] stays allocation-free in the hot
+     *  path — it runs over every cached feature on each overlay requery. */
+    private fun haversineMeters(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+        val r = 6_371_000.0
+        val dLat = Math.toRadians(lat2 - lat1)
+        val dLon = Math.toRadians(lon2 - lon1)
+        val a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2)
+        return 2 * r * Math.asin(Math.min(1.0, Math.sqrt(a)))
+    }
+
     fun queryNearby(
-        regionIdRaw: String, 
-        center: GeoPoint, 
+        regionIdRaw: String,
+        center: GeoPoint,
         maxDistanceMiles: Double,
         limit: Int = 1000 // Default generous limit for non-budgeted calls
     ): List<OverlayFeature> {
@@ -338,11 +351,23 @@ class SpatialDiskCache(
             // reads below stay largely sequential on disk.
             val withinRadius = spatialIndex.entries.mapNotNull { entry ->
                 if (entry.byteLength <= 4) return@mapNotNull null
-                val centroid = synchronized(mappedBuffer) {
-                    mappedBuffer.position(entry.byteOffset)
-                    MapOverlayCacheUtils.peekCentroid(mappedBuffer)
-                } ?: return@mapNotNull null
-                val distanceMeters = center.distanceToAsDouble(centroid)
+                // Prefer the centroid carried on the index (no buffer read, no
+                // allocation). Legacy indices lack it — fall back to peeking the
+                // mapped buffer for those.
+                val lat: Double
+                val lon: Double
+                if (!entry.centroidLat.isNaN() && !entry.centroidLon.isNaN()) {
+                    lat = entry.centroidLat
+                    lon = entry.centroidLon
+                } else {
+                    val c = synchronized(mappedBuffer) {
+                        mappedBuffer.position(entry.byteOffset)
+                        MapOverlayCacheUtils.peekCentroid(mappedBuffer)
+                    } ?: return@mapNotNull null
+                    lat = c.latitude
+                    lon = c.longitude
+                }
+                val distanceMeters = haversineMeters(center.latitude, center.longitude, lat, lon)
                 if (distanceMeters <= maxDistanceMeters) entry to distanceMeters else null
             }
                 .sortedBy { it.second }
