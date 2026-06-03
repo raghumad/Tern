@@ -85,21 +85,28 @@ object GeoJsonUtils {
                     if (response.isSuccessful) {
                         val body = response.body
                         if (body != null) {
-                            // Detect the format by CONTENT, not the URL. The real
-                            // airspace endpoint serves files named *_asp.geojson that
-                            // are standard FeatureCollections, while our test mock and
-                            // some sources serve newline-delimited GeoJSON. Guessing
-                            // from the URL (the old `url.contains("_asp.geojson")`)
-                            // forced real FeatureCollections through the line parser,
-                            // so every line failed and zero airspaces were ever cached.
+                            // Choose the parser by CONTENT, not the URL. The real
+                            // airspace endpoint serves *_asp.geojson files that are
+                            // standard FeatureCollections, while the test mock and some
+                            // sources serve newline-delimited GeoJSON. Guessing from the
+                            // URL (the old `url.contains("_asp.geojson")`) forced real
+                            // FeatureCollections through the line parser, so every line
+                            // failed and zero airspaces were ever cached. We sniff the
+                            // first 1 KB and reuse the SAME detector PGSpotCache uses
+                            // (isNdGeoJson), so both overlay caches auto-handle both
+                            // formats identically. Unknown formats fall through to the
+                            // FeatureCollection parser and, finding no features, return
+                            // false — the caller clears the region and degrades to "no
+                            // data for this country" rather than crashing.
                             val stream = java.io.BufferedInputStream(body.byteStream())
                             stream.mark(2048)
                             val head = ByteArray(1024)
                             val headLen = stream.read(head).coerceAtLeast(0)
                             stream.reset()
                             val headStr = String(head, 0, headLen, Charsets.UTF_8)
-                            val isFeatureCollection = headStr.contains("FeatureCollection")
-                            if (!isFeatureCollection) {
+                            val isNd = isNdGeoJson(headStr)
+                            Log.i("GeoJsonUtils", "format=${if (isNd) "NDGEOJSON" else "FEATURE_COLLECTION"} (auto-detected) for $url")
+                            if (isNd) {
                                 // NDGeoJSON: process line by line
                                 stream.bufferedReader().useLines { lines ->
                                     for (line in lines) {
