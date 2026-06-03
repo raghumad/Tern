@@ -604,6 +604,77 @@ open class MapVisualTest {
     }
 
     /**
+     * Captures the live screen (the MapLibre surface is GPU-drawn, so it is
+     * only visible to a hardware screenshot, not the Compose semantics tree).
+     */
+    fun captureScreenBitmap(): android.graphics.Bitmap {
+        composeTestRule.waitForIdle()
+        Thread.sleep(500) // let the GPU compose a frame
+        return InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
+            ?: throw AssertionError("hardware screenshot returned null")
+    }
+
+    /** The central 60% box of [shot] — where [zoomTo] places the map centre. */
+    fun centralBox(shot: android.graphics.Bitmap): android.graphics.Rect =
+        android.graphics.Rect(
+            shot.width / 5, shot.height / 5,
+            shot.width * 4 / 5, shot.height * 4 / 5,
+        )
+
+    /**
+     * Counts pixels in [rect] of [shot] where blue clearly dominates red and
+     * green — the signature of the translucent airspace fill + line (Class
+     * A–E render BLUE in [AirspaceLayer]). We can't match an exact ARGB the
+     * way [thenExpectHazardColorOnMap] does, because the fill is drawn at
+     * opacity < 1 by a MapLibre expression and so blends with the basemap;
+     * but a blue-dominant pixel is robust across any (tan/green/black)
+     * basemap a paragliding map shows.
+     */
+    fun blueDominantPixels(
+        shot: android.graphics.Bitmap,
+        rect: android.graphics.Rect,
+        margin: Int = 45,
+        minBlue: Int = 80,
+    ): Int {
+        var n = 0
+        for (y in rect.top until rect.bottom step 2) {
+            for (x in rect.left until rect.right step 2) {
+                val p = shot.getPixel(x, y)
+                val r = android.graphics.Color.red(p)
+                val g = android.graphics.Color.green(p)
+                val b = android.graphics.Color.blue(p)
+                if (b >= minBlue && b - r >= margin && b - g >= margin) n++
+            }
+        }
+        return n
+    }
+
+    /**
+     * Counts teal/cyan-dominant pixels in [rect] — the signature of the
+     * Tern-bird PG-spot badge ([PG_SPOT_TEAL] ≈ rgb(0,188,212)). Like
+     * [blueDominantPixels], this survives GPU texture sampling that an exact
+     * ARGB match would miss: a teal pixel has high green AND blue with low red.
+     */
+    fun tealDominantPixels(
+        shot: android.graphics.Bitmap,
+        rect: android.graphics.Rect,
+        margin: Int = 55,
+        minGB: Int = 120,
+    ): Int {
+        var n = 0
+        for (y in rect.top until rect.bottom step 2) {
+            for (x in rect.left until rect.right step 2) {
+                val p = shot.getPixel(x, y)
+                val r = android.graphics.Color.red(p)
+                val g = android.graphics.Color.green(p)
+                val b = android.graphics.Color.blue(p)
+                if (g >= minGB && b >= minGB && g - r >= margin && b - r >= margin) n++
+            }
+        }
+        return n
+    }
+
+    /**
      * Asserts a hazard colour signature is present in the central region of
      * the map. Hazard halos render as a MapLibre `SymbolLayer` (GPU-drawn),
      * not Compose nodes, so we scan screen pixels rather than locate a node.

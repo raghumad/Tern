@@ -38,15 +38,26 @@ fun overlayFeaturesToGeoJson(
 ): FeatureCollection<Geometry, JsonObject> {
     val geoJsonFeatures = features.map { overlay ->
         val point = Point(overlay.centroid.longitude, overlay.centroid.latitude)
-        val name = overlay.getStringProperty("name") ?: overlay.getStringProperty("label") ?: ""
-        val siteType = overlay.getStringProperty("siteType") ?: ""
-        val props = JsonObject(
+        // The cache stores the full GeoJSON feature, so the human fields live
+        // under nested `properties` (e.g. properties.name) — NOT at the top
+        // level that `getStringProperty` reads. Look nested first, then fall
+        // back to flat, mirroring AirspaceGeoJson.resolveAirspaceClass. Without
+        // this every PG-spot name resolves to "" and PgSpotLayer renders
+        // nothing (names.isEmpty() bail-out).
+        val raw = overlay.feature
+        @Suppress("UNCHECKED_CAST")
+        val props = raw["properties"] as? Map<String, Any> ?: emptyMap()
+        fun prop(key: String): String? =
+            (props[key] as? String) ?: (raw[key] as? String)
+        val name = prop("name") ?: prop("label") ?: ""
+        val siteType = prop("siteType") ?: ""
+        val geoProps = JsonObject(
             buildMap {
                 put("name", JsonPrimitive(name))
                 if (siteType.isNotEmpty()) put("siteType", JsonPrimitive(siteType))
             }
         )
-        Feature<Geometry, JsonObject>(point, props)
+        Feature<Geometry, JsonObject>(point, geoProps)
     }
     return FeatureCollection(geoJsonFeatures)
 }
