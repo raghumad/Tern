@@ -1,90 +1,133 @@
 package com.ternparagliding.ui
-import com.ternparagliding.model.LocationType
 
+import androidx.lifecycle.ViewModelProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.ternparagliding.model.LocationType
 import com.ternparagliding.model.Route
-import com.ternparagliding.model.Waypoint
+import com.ternparagliding.redux.MapAction
+import com.ternparagliding.redux.MapStore
 import com.ternparagliding.utils.CacheManager
 import com.ternparagliding.utils.RouteCache
+import com.ternparagliding.utils.RouteIOManager
 import com.ternparagliding.utils.MapVisualTest
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
-import java.util.UUID
 
+/**
+ * Persistence proven against a REAL competition task — SRS Skywalk Edition
+ * 2026, Task 1 (Airtribune id 6873): a real .xctsk fixture imported through
+ * the real parser, saved through the real app path (dispatch AddRoute → the
+ * RoutePersistence observer → RouteCache), then retrieved offline.
+ *
+ * No synthetic waypoints, no direct cacheRoute(), no vacuous "no-stutter"
+ * assertion — every step exercises what the app actually does.
+ */
 @RunWith(AndroidJUnit4::class)
 class RoutePersistenceTest : MapVisualTest() {
 
     private lateinit var routeCache: RouteCache
-    private lateinit var testRoute: Route
 
     @Before
     fun initCache() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        // Initialize CacheManager with context (required for RouteCache)
-        com.ternparagliding.utils.ReportGenerator.logStep("SETUP", "Initializing CacheManager and RouteCache")
         CacheManager.initialize(context)
         routeCache = CacheManager.routeCache
-        
-        // Ensure clean state
-        com.ternparagliding.utils.ReportGenerator.logStep("SETUP", "Clearing all caches")
         routeCache.clearCache()
     }
 
+    private fun loadRealTask(): Route {
+        // Real fixture authored from the published SRS-2026-2 Task 1 (.wpt + task table).
+        val xctsk = InstrumentationRegistry.getInstrumentation().context.assets
+            .open("tasks/srs-2026-2-task1.xctsk").readBytes().decodeToString()
+        return RouteIOManager.parseXctskContent(xctsk)
+            ?: throw AssertionError("failed to parse the real SRS task .xctsk")
+    }
+
     @Test
-    fun testRoutePersistence() = scenario("Route Persistence") {
-        story("As a pilot who meticulously plans flights at home, I want my routes to be reliably saved to disk so that they are immediately available when I arrive at the launch site, even without an internet connection.") {
-            val routeId = UUID.randomUUID().toString()
-            
-            given("I have carefully crafted a flight plan for my next adventure") {
-                testRoute = Route(
-                    id = routeId,
-                    name = "Test Persistence Route",
-                    waypoints = listOf(
-                        Waypoint(lat = 40.0, lon = -105.0, type = LocationType.LAUNCH, label = "Launch"),
-                        Waypoint(lat = 40.1, lon = -105.1, type = LocationType.TURNPOINT, label = "Turn 1"),
-                        Waypoint(lat = 40.2, lon = -105.2, type = LocationType.LANDING, label = "Goal")
-                    )
-                )
+    fun testRoutePersistence() = scenario("Real competition task persists offline") {
+        story("As a pilot who imports a published competition task at home, I want it saved to disk and available at launch with no internet.") {
+            lateinit var task: Route
+
+            given("I import the real SRS Skywalk 2026 Task 1 from its .xctsk file") {
+                task = loadRealTask()
+
+                // The import must reflect the real task (this also guards the
+                // official-XCTSK parsing: goal = last turnpoint, top-level SSS gate).
+                assertEquals("turnpoint count", 9, task.waypoints.size)
+                assertEquals("turnpoints (TP1..TP5)", 5, task.waypoints.count { it.type == LocationType.TURNPOINT })
+
+                val to = task.waypoints.first()
+                assertEquals(LocationType.LAUNCH, to.type)
+                assertEquals("D18", to.label)
+                assertEquals(45.795589, to.lat, 1e-5)
+                assertEquals(11.668911, to.lon, 1e-5)
+
+                val sss = task.waypoints.first { it.type == LocationType.SSS }
+                assertEquals("A02", sss.label)
+                assertEquals(5500.0, sss.radius!!, 0.5)
+                assertEquals("SSS start gate", "13:15", sss.openTime)
+
+                val ess = task.waypoints.first { it.type == LocationType.ESS }
+                assertEquals("B52", ess.label)
+                assertEquals(45.778967, ess.lat, 1e-5)
+
+                val goal = task.waypoints.last()
+                assertEquals("goal = last turnpoint", LocationType.GOAL, goal.type)
+                assertEquals(400.0, goal.radius!!, 0.5)
+                assertEquals("goal deadline", "18:00", goal.closeTime)
             }
 
-            `when`("I save this mission to the persistent storage (cache)") {
-                com.ternparagliding.utils.ReportGenerator.logStep("ACTION", "Caching route: ${testRoute.name}")
-                routeCache.cacheRoute(testRoute)
+            `when`("I add the task in the app (the real save path: AddRoute → RoutePersistence → cache)") {
+                val store = ViewModelProvider(composeTestRule.activity)[MapStore::class.java]
+                composeTestRule.runOnUiThread { store.dispatch(MapAction.AddRoute(task)) }
+                // Persistence is async (observer on Dispatchers.IO) — poll for it.
+                composeTestRule.waitUntil(timeoutMillis = 8000) {
+                    routeCache.getCachedRoute(task.id) != null
+                }
             }
 
-            this.then("my route should be immediately retrievable from the offline database") {
-                assertTrue("Route should be marked as cached", routeCache.isCached(testRoute.id))
-                
-                val cachedRoute = routeCache.getCachedRoute(testRoute.id)
-                assertNotNull("Cached route should not be null", cachedRoute)
-                assertEquals("Route name should match", testRoute.name, cachedRoute?.name)
-                assertEquals("Waypoint count should match", testRoute.waypoints.size, cachedRoute?.waypoints?.size)
-                assertEquals("First waypoint label should match", "Launch", cachedRoute?.waypoints?.first()?.label)
+            this.then("the task is retrievable offline with its coordinates intact") {
+                val cached = routeCache.getCachedRoute(task.id)
+                assertNotNull("route not persisted via the app path", cached)
+                assertEquals(9, cached!!.waypoints.size)
+
+                // Spot-check geometry survived the disk round-trip.
+                val b21 = cached.waypoints.first { it.label == "B21" }
+                assertEquals(45.705817, b21.lat, 1e-4)
+                assertEquals(11.564150, b21.lon, 1e-4)
+                assertEquals(5000.0, b21.radius!!, 0.5)
+                assertEquals(LocationType.GOAL, cached.waypoints.last().type)
             }
 
-            and("the underlying FlexBuffer and index files must exist on the device storage") {
+            and("the FlexBuffer + index files exist on device storage") {
                 val context = InstrumentationRegistry.getInstrumentation().targetContext
                 val cacheDir = File(context.cacheDir, "route_cache")
-                val flexFile = File(cacheDir, "${testRoute.id.uppercase()}_route.flex")
-                val idxFile = File(cacheDir, "${testRoute.id.uppercase()}_route.idx")
-
+                val flexFile = File(cacheDir, "${task.id.uppercase()}_route.flex")
+                val idxFile = File(cacheDir, "${task.id.uppercase()}_route.idx")
                 assertTrue("FlexBuffer file should exist", flexFile.exists())
                 assertTrue("Index file should exist", idxFile.exists())
                 assertTrue("FlexBuffer file should not be empty", flexFile.length() > 0)
             }
-            
-            and("my entire collection of offline missions should include this new flight plan") {
-                val allRoutes = routeCache.getAllCachedRoutes()
-                assertTrue("All routes should contain the new route", allRoutes.any { it.id.equals(testRoute.id, ignoreCase = true) })
+
+            and("the offline route collection includes this task") {
+                val all = routeCache.getAllCachedRoutes()
+                assertTrue(all.any { it.id.equals(task.id, ignoreCase = true) })
             }
 
-            and("The database operations are performed without blocking the main thread or causing visual stutters") {
-                com.ternparagliding.utils.ReportGenerator.assertLogDoesNotContain("PerformanceDebugger", "STATE_UPDATE_STORM")
-                com.ternparagliding.utils.ReportGenerator.assertLogDoesNotContain("PerformanceDebugger", "VISUAL_DISCONTINUITY")
+            and("the imported real task is shown on the map, auto-framed", takeScreenshot = true) {
+                // Visual evidence in the report: select the (already-added) task
+                // so it auto-frames; the real SRS race renders end-to-end.
+                val store = ViewModelProvider(composeTestRule.activity)[MapStore::class.java]
+                composeTestRule.runOnUiThread { store.dispatch(MapAction.SelectRoute(task.id)) }
+                composeTestRule.waitForIdle()
+                // Auto-fit + give the ONLINE basemap tiles time to fetch for a
+                // fresh region (Bassano, IT) so the report screenshot isn't a
+                // black base. Route overlays render immediately regardless.
+                Thread.sleep(6000)
             }
         }
     }

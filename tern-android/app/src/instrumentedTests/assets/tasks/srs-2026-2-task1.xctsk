@@ -1,0 +1,18 @@
+{
+  "taskType": "CLASSIC",
+  "version": 1,
+  "earthModel": "WGS84",
+  "turnpoints": [
+    { "type": "TAKEOFF", "radius": 400, "waypoint": { "name": "D18", "description": "RUBBIO ALT TO", "lat": 45.795589, "lon": 11.668911, "altSmoothed": 837 } },
+    { "type": "SSS", "radius": 5500, "waypoint": { "name": "A02", "description": "GARDEN LANDING", "lat": 45.805683, "lon": 11.786550, "altSmoothed": 156 } },
+    { "radius": 2000, "waypoint": { "name": "A02", "description": "GARDEN LANDING", "lat": 45.805683, "lon": 11.786550, "altSmoothed": 156 } },
+    { "radius": 1000, "waypoint": { "name": "A04", "description": "RIVIT LANDING", "lat": 45.765117, "lon": 11.477150, "altSmoothed": 230 } },
+    { "radius": 5000, "waypoint": { "name": "B21", "description": "BREGANZE", "lat": 45.705817, "lon": 11.564150, "altSmoothed": 110 } },
+    { "radius": 1500, "waypoint": { "name": "B50", "description": "BASSANO GEN GIAN", "lat": 45.769283, "lon": 11.738283, "altSmoothed": 134 } },
+    { "radius": 1500, "waypoint": { "name": "B57", "description": "LAVERDA", "lat": 45.766033, "lon": 11.592417, "altSmoothed": 230 } },
+    { "type": "ESS", "radius": 2000, "waypoint": { "name": "B52", "description": "MUSSOLENTE", "lat": 45.778967, "lon": 11.801217, "altSmoothed": 117 } },
+    { "radius": 400, "waypoint": { "name": "A02", "description": "GARDEN LANDING", "lat": 45.805683, "lon": 11.786550, "altSmoothed": 156 } }
+  ],
+  "sss": { "type": "RACE", "direction": "EXIT", "timeGates": ["13:15:00"] },
+  "goal": { "type": "CYLINDER", "deadline": "18:00:00" }
+}

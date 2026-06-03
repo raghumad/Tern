@@ -202,15 +202,18 @@ open class MapVisualTest {
      */
     fun showRouteOnMap(route: Route) {
         ReportGenerator.logStep("TEST", "Showing route: ${route.name}")
-        
-        composeTestRule.runOnUiThread {
-            val activity = composeTestRule.activity
-            val store = ViewModelProvider(activity)[MapStore::class.java]
-            store.dispatch(MapAction.AddRoute(route))
-            store.dispatch(MapAction.SelectRoute(route.id))
-        }
-        
+
+        val activity = composeTestRule.activity
+        val store = ViewModelProvider(activity)[MapStore::class.java]
+        // Add and select in SEPARATE batches: MapStore runs middleware before
+        // the reducer with pre-batch state, so SelectRoute's auto-fit
+        // (zoomToRoute) only sees the route if AddRoute already committed.
+        composeTestRule.runOnUiThread { store.dispatch(MapAction.AddRoute(route)) }
         composeTestRule.waitForIdle()
+        composeTestRule.runOnUiThread { store.dispatch(MapAction.SelectRoute(route.id)) }
+        composeTestRule.waitForIdle()
+        // Selecting auto-frames the route's bounding box; let the camera settle.
+        Thread.sleep(1500)
     }
 
     /**

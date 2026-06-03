@@ -261,76 +261,70 @@ object RouteIOManager {
             val json = JSONObject(content)
             val turnpoints = json.getJSONArray("turnpoints")
             val waypoints = mutableListOf<Waypoint>()
-            
+
             for (i in 0 until turnpoints.length()) {
                 val tp = turnpoints.getJSONObject(i)
                 val typeStr = tp.optString("type", "TURNPOINT")
                 val radius = tp.optDouble("radius", RouteConstants.FAI_DEFAULT_RADIUS_METERS)
-                
+
                 val wpObj = tp.getJSONObject("waypoint")
                 val lat = wpObj.getDouble("lat")
                 val lon = wpObj.getDouble("lon")
                 val name = wpObj.optString("name", "WP$i")
                 val alt = if (wpObj.has("altSmoothed")) wpObj.getDouble("altSmoothed") else null
-                
-                var type = when(typeStr) {
+
+                val type = when (typeStr) {
                     "TAKEOFF" -> LocationType.LAUNCH
                     "SSS" -> LocationType.SSS
                     "ESS" -> LocationType.ESS
                     "GOAL" -> LocationType.GOAL
                     else -> LocationType.TURNPOINT
                 }
-                
+
+                // Per-turnpoint start gate (our own export uses "sss".gates).
                 var openTime: String? = null
-            val sssObj = tp.optJSONObject("sss")
-            if (sssObj != null) {
-                val gates = sssObj.optJSONArray("gates")
+                tp.optJSONObject("sss")?.optJSONArray("gates")?.let { gates ->
+                    if (gates.length() > 0) openTime = hhmm(gates.getString(0))
+                }
+
+                waypoints.add(Waypoint(lat = lat, lon = lon, type = type, label = name, radius = radius, alt = alt, openTime = openTime))
+            }
+
+            // Official XCTSK marks the goal implicitly as the LAST turnpoint
+            // (no per-turnpoint type "GOAL"). If nothing is flagged GOAL,
+            // promote the last turnpoint so goal styling/deadline apply.
+            if (waypoints.isNotEmpty() && waypoints.none { it.type == LocationType.GOAL }) {
+                val last = waypoints.lastIndex
+                waypoints[last] = waypoints[last].copy(type = LocationType.GOAL)
+            }
+
+            // Official XCTSK puts the start gate in a TOP-LEVEL "sss".timeGates
+            // (our own export uses a per-turnpoint "sss".gates, handled above).
+            json.optJSONObject("sss")?.let { sss ->
+                val gates = sss.optJSONArray("timeGates") ?: sss.optJSONArray("gates")
                 if (gates != null && gates.length() > 0) {
-                    val firstGate = gates.getString(0)
-                    // Parse HH:mm from HH:mm:ssZ or HH:mm:ss
-                    if (firstGate.length >= 5) {
-                        openTime = firstGate.substring(0, 5)
+                    val idx = waypoints.indexOfFirst { it.type == LocationType.SSS }
+                    if (idx >= 0 && waypoints[idx].openTime == null) {
+                        waypoints[idx] = waypoints[idx].copy(openTime = hhmm(gates.getString(0)))
                     }
                 }
             }
-            
-            waypoints.add(Waypoint(
-                lat = lat, 
-                lon = lon, 
-                type = type, 
-                label = name, 
-                radius = radius,
-                alt = alt,
-                openTime = openTime
-            ))
+
+            // Goal deadline (top-level "goal".deadline) → the GOAL waypoint.
+            json.optJSONObject("goal")?.optString("deadline")?.takeIf { it.isNotEmpty() }?.let { deadline ->
+                val idx = waypoints.indexOfFirst { it.type == LocationType.GOAL }
+                if (idx >= 0) waypoints[idx] = waypoints[idx].copy(closeTime = hhmm(deadline))
             }
-            
-            // Goal deadline
-            val goalJson = json.optJSONObject("goal")
-            if (goalJson != null) {
-                val deadline = goalJson.optString("deadline")
-                if (deadline.isNotEmpty()) {
-                    val goalWp = waypoints.find { it.type == LocationType.GOAL }
-                    if (goalWp != null) {
-                        // Parse HH:mm from HH:mm:ssZ
-                        val time = deadline.substring(0, 5)
-                        // We need to replace the waypoint in the list (immutable data class)
-                        val index = waypoints.indexOf(goalWp)
-                        waypoints[index] = goalWp.copy(closeTime = time)
-                    }
-                }
-            }
-            
-            Route(
-                id = UUID.randomUUID().toString(),
-                name = "Imported XCTSK",
-                waypoints = waypoints
-            )
+
+            Route(id = UUID.randomUUID().toString(), name = "Imported XCTSK", waypoints = waypoints)
         } catch (e: Exception) {
             e.printStackTrace()
             null
         }
     }
+
+    /** "13:15:00Z" / "13:15:00" → "13:15". */
+    private fun hhmm(s: String): String = if (s.length >= 5) s.substring(0, 5) else s
 
     private fun generateXctskCompressed(route: Route): String {
         // XCTSK Compressed (QR Code) - Matches iOS saveXCTSKqr

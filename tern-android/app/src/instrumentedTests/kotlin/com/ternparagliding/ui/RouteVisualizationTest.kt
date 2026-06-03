@@ -31,8 +31,6 @@ class RouteVisualizationTest : MapVisualTest() {
     fun pilot_sees_full_task_with_cylinders_markers_and_legs() {
         scenario("A competition task is fully visualised on the map") {
             story("As a competition pilot, I want to see my whole task — start/turnpoint/goal cylinders, waypoint codes, and leg distances — at a glance on the map.") {
-                val cLat = 39.99
-                val cLon = -105.29
                 val store = ViewModelProvider(composeTestRule.activity)[MapStore::class.java]
 
                 val task = Route(
@@ -48,12 +46,16 @@ class RouteVisualizationTest : MapVisualTest() {
                     ),
                 )
 
-                given("a race task is loaded and the map is framed on it") {
-                    composeTestRule.runOnUiThread {
-                        store.dispatch(MapAction.AddRoute(task))
-                        store.dispatch(MapAction.SelectRoute(task.id))
-                    }
-                    zoomTo(cLat, cLon, 12.0)
+                given("a race task is loaded, then selected — which auto-frames the whole route") {
+                    composeTestRule.runOnUiThread { store.dispatch(MapAction.AddRoute(task)) }
+                    composeTestRule.waitForIdle()
+                    // Selecting a route is the default trigger to fit its whole
+                    // bounding box on screen (RoutePlanningMiddleware.zoomToRoute
+                    // → UpdateBoundingBox → camera animateTo(bbox)). Dispatched in
+                    // its own batch so the middleware sees the just-added route.
+                    composeTestRule.runOnUiThread { store.dispatch(MapAction.SelectRoute(task.id)) }
+                    composeTestRule.waitForIdle()
+                    Thread.sleep(2500) // let the bbox camera animation settle
                 }
 
                 then("the task renders: cylinders + waypoint markers + route line are on the map", takeScreenshot = true) {

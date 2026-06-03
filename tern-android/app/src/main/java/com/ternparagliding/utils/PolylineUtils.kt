@@ -40,7 +40,11 @@ object PolylineUtils {
             v = v.inv()
         }
         while (v >= 0x20) {
-            result.append(((v and 0x1f) or 0x20 + 63).toChar())
+            // Parens matter: `+` binds tighter than the infix `or`, so the
+            // continuation bit (0x20) and offset (63) must be grouped
+            // explicitly — ((chunk | 0x20) + 63), per the Google-polyline /
+            // iOS algorithm. Without them lat/lon encode corrupt.
+            result.append((((v and 0x1f) or 0x20) + 63).toChar())
             v = v shr 5
         }
         result.append((v + 63).toChar())

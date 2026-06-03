@@ -46,15 +46,17 @@ competition tests (Chamonix/Monarca/Bir Billing), `AviationRoutePlanning` ×4,
 
 ## Feature set by theme
 
-### Theme 1 — Make routes visible  *(in progress)*
-- [ ] Type-specific waypoint markers as icon bitmaps (LAUNCH / SSS / TURNPOINT
-      / ESS / GOAL / LANDING), name label baked in — same icon-bitmap pattern
-      as `PeerLayer`/`PgSpotLayer`/`HazardLayer` (no glyph/sprite dependency).
-- [ ] FAI radius cylinders drawn around turnpoints (circle polygons from
-      centre + `radius` m), semi-transparent fill + ring.
-- [ ] Selection highlight — selected route line brighter/thicker; selected
-      waypoint enlarged/glow.
-- [x] Route line + dark casing (done).
+### Theme 1 — Make routes visible  *(DONE — baseline fd8ecd3)*
+- [x] Cylinder-centric waypoint markers as icon bitmaps (role colour + short
+      code; name + drawn radius glyph at the detailed zoom tier).
+- [x] FAI radius cylinders (role-coloured fill + ring) — the waypoint identity.
+- [x] Leg-distance pills on the line at each leg midpoint ("25 km"), glanceable.
+- [x] Zoom-adaptive labels (code → code+name+radius).
+- [x] Selection highlight (enlarged centre + halo).
+- [x] Route line + dark casing (thinner line).
+- Honest, pixel-verified BDD tests (RouteVisualizationTest, RouteProximityTest)
+  on the managed device. Design: cylinder-centric, no-tap/glanceable — richer
+  than legacy varios because the phone allows zoom-adaptive density.
 
 ### Theme 2 — Map-based editing
 - [ ] Tap a waypoint on the map → select → edit.
