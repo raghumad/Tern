@@ -116,6 +116,12 @@ class OverlayMemoryPressureTest : MapVisualTest() {
                         mapOf("Boulder" to BOULDER, "Colorado Springs" to COLORADO_SPRINGS),
                         "initial framing",
                     )
+                    // Both framed cities must carry airspace — not just Denver.
+                    // Colorado Springs (R-2601 restricted, AIRBURST MOA, etc.)
+                    // is ~100 km south; before the spatial-query fix the Hilbert
+                    // window silently dropped it from the in-radius results.
+                    assertAirspaceNear("US", "Denver", DENVER)
+                    assertAirspaceNear("US", "Colorado Springs", COLORADO_SPRINGS)
                     validateDownloadedAndCached("US", "Colorado", DENVER)
                     validateOverlayBudgetAndInventory("US", "Colorado", DENVER)
                     assertOverlaysRendered("Colorado")
@@ -144,6 +150,19 @@ class OverlayMemoryPressureTest : MapVisualTest() {
                     slowDrag(DENVER, DC, steps = 12, zoom = REGION_ZOOM)
                     waitForBasemapTiles()
                     samplePeak()
+                }
+
+                and(
+                    "over Washington DC the same US cache still serves airspace — no re-download",
+                    takeScreenshot = true,
+                ) {
+                    panTo(DC, REGION_ZOOM)
+                    waitForBasemapTiles(); samplePeak()
+                    // DC is in the already-downloaded US file (DCA/IAD/BWI Class B,
+                    // P-56 prohibited, restricted areas) but has no PG sites, so we
+                    // validate airspace only here.
+                    assertAirspaceNear("US", "Washington DC", DC)
+                    assertAirspaceRendered("Washington DC")
                 }
 
                 and("crossing the Alps France → Switzerland → Italy downloads each country at its border", takeScreenshot = true) {
@@ -320,6 +339,38 @@ class OverlayMemoryPressureTest : MapVisualTest() {
         if (!gcOk) throw AssertionError("GC over budget: pause=${gcPause}ms events=$gcEvents")
         // Leak sanity: retained must be bounded (≤4 resident country caches), not unbounded growth.
         if (retained > 120.0) throw AssertionError("retained heap grew ${retained}MB — possible leak")
+    }
+
+    private val nearMiles = 50.0 / 1.60934 // ~50 km "in this metro" radius
+
+    /** Airspace-only cache check for a specific locality (e.g. a city that has
+     *  airspace but no PG sites). Proves the spatial query returns features
+     *  actually near [center], not just somewhere in the country file. */
+    private fun assertAirspaceNear(cc: String, label: String, center: GeoPoint) {
+        val count = if (CacheManager.airspaceCache.isCached(cc))
+            CacheManager.airspaceCache.queryNearbyFeatures(cc, center, nearMiles, 5000).size else 0
+        ReportGenerator.logStep(
+            "AND",
+            "$label: airspace cached within ${nearMiles.toInt()}mi of (%.3f, %.3f) = $count feature(s)"
+                .format(center.latitude, center.longitude),
+            if (count >= 1) "PASS" else "FAIL",
+        )
+        if (count < 1) throw AssertionError(
+            "$label: no airspace cached near (${center.latitude}, ${center.longitude})"
+        )
+    }
+
+    /** Airspace-only render check (blue fill pixels) for places with no PG spots. */
+    private fun assertAirspaceRendered(where: String) {
+        val shot = captureScreenBitmap()
+        val rect = centralBox(shot)
+        val blue = blueDominantPixels(shot, rect, minBlue = 50)
+        ReportGenerator.logStep(
+            "AND",
+            "$where airspace render: blue-px=$blue, tile-luminance=${meanLuminance(shot, rect).toInt()}",
+            if (blue >= 30) "PASS" else "FAIL",
+        )
+        if (blue < 30) throw AssertionError("$where: airspace not rendered (blue=$blue)")
     }
 
     private fun assertOverlaysRendered(where: String) {

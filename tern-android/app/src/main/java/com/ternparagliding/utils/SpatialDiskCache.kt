@@ -322,61 +322,48 @@ class SpatialDiskCache(
             val spatialIndex = getSpatialIndex(regionId) ?: return emptyList()
             val mappedBuffer = getMemoryMappedBuffer(regionId) ?: return emptyList()
 
-            // Compute Hilbert center index
-            val centerIndex = MapOverlayCacheUtils.computeHilbertIndex(center, spatialIndex.bits)
-
-            // Calculate range
             val maxDistanceMeters = maxDistanceMiles * 1609.34
-            val range = (maxDistanceMeters / 1000.0 * 1000.0).toLong().coerceAtLeast(1000)
 
-            // Find relevant indices from Hilbert curve (approximate spatial proximity)
-            val relevantEntries = spatialIndex.findNearbyIndices(centerIndex, range)
-
-            // OPTIMIZATION: If too many entries, sort them by actual distance using peekCentroid
-            // before full hydration to keep JVM heap clean.
-            val processedEntries = if (relevantEntries.size > limit) {
-                relevantEntries.mapNotNull { entry ->
-                    synchronized(mappedBuffer) {
-                        mappedBuffer.position(entry.byteOffset)
-                        val centroid = MapOverlayCacheUtils.peekCentroid(mappedBuffer)
-                        if (centroid != null) {
-                            entry to center.distanceToAsDouble(centroid)
-                        } else null
-                    }
-                }.sortedBy { it.second }
-                 .take(limit)
-                 .map { it.first }
-            } else {
-                relevantEntries
+            // Filter by ACTUAL great-circle distance to each feature's
+            // centroid — NOT by a Hilbert-index window. The Hilbert curve is
+            // a 1-D ordering: its quadrant jumps put spatially-close features
+            // (e.g. Colorado Springs, ~100 km from Denver) arbitrarily far
+            // apart in index space, so the old `[centerIndex ± range]` filter
+            // silently dropped them before any distance check ran — whole
+            // chunks of in-range airspace went missing. We peek just the
+            // centroid (cheap, no full hydration) for every entry, keep those
+            // inside the radius, sort by distance and cap at `limit`, then
+            // hydrate only the survivors. The Hilbert WRITE order still pays
+            // off here: survivors are stored contiguously, so the hydration
+            // reads below stay largely sequential on disk.
+            val withinRadius = spatialIndex.entries.mapNotNull { entry ->
+                if (entry.byteLength <= 4) return@mapNotNull null
+                val centroid = synchronized(mappedBuffer) {
+                    mappedBuffer.position(entry.byteOffset)
+                    MapOverlayCacheUtils.peekCentroid(mappedBuffer)
+                } ?: return@mapNotNull null
+                val distanceMeters = center.distanceToAsDouble(centroid)
+                if (distanceMeters <= maxDistanceMeters) entry to distanceMeters else null
             }
+                .sortedBy { it.second }
+                .take(limit)
 
-            // Hydrate only the thinned/relevant features
-            val nearbyFeatures = processedEntries.mapNotNull { entry ->
+            // Hydrate only the in-radius, budgeted survivors.
+            val nearbyFeatures = withinRadius.mapNotNull { (entry, _) ->
                 try {
-                    if (entry.byteLength <= 4) return@mapNotNull null
-
                     val featureBytes = ByteArray(entry.byteLength)
                     synchronized(mappedBuffer) {
                         mappedBuffer.position(entry.byteOffset)
                         mappedBuffer.get(featureBytes, 0, entry.byteLength)
                     }
-
-                    val overlayFeature = MapOverlayCacheUtils.deserializeSingleFlexBufferFeature(java.nio.ByteBuffer.wrap(featureBytes))
-                    
-                    // Final distance validation (if not already sorted/filtered)
-                    val distanceMeters = center.distanceToAsDouble(overlayFeature?.centroid ?: GeoPoint(0.0, 0.0))
-                    if (overlayFeature != null && distanceMeters <= maxDistanceMeters) {
-                        overlayFeature
-                    } else {
-                        null
-                    }
+                    MapOverlayCacheUtils.deserializeSingleFlexBufferFeature(java.nio.ByteBuffer.wrap(featureBytes))
                 } catch (e: Exception) {
                     Log.w(TAG, "Error reading feature at offset ${entry.byteOffset}: ${e.message}")
                     null
                 }
             }
 
-            return if (nearbyFeatures.size > limit) nearbyFeatures.take(limit) else nearbyFeatures
+            return nearbyFeatures
 
         } catch (e: Exception) {
             Log.e(TAG, "Error querying nearby features for $cacheName/$regionId", e)
