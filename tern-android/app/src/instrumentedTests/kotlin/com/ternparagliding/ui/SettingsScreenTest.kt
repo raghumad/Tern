@@ -1,14 +1,9 @@
 package com.ternparagliding.ui
 
 import androidx.activity.ComponentActivity
-import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertIsOn
-import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.onNodeWithContentDescription
-import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performClick
+import com.google.common.truth.Truth.assertThat
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.lifecycle.ViewModelProvider
 import com.ternparagliding.utils.MapVisualTest
@@ -33,24 +28,50 @@ class SettingsScreenTest : MapVisualTest() {
                 given("I have opened the pre-flight settings panel") {
                     composeTestRule.onNodeWithContentDescription("Settings").performClick()
                     composeTestRule.waitForIdle()
+                    // The Units section sits below Mezulla + Map Layers in the
+                    // settings LazyColumn, so scroll it into view first (offscreen
+                    // lazy items aren't composed — that's the blanket-run flake).
+                    composeTestRule.onNodeWithTag("settings_list")
+                        .performScrollToNode(hasText("Units"))
                     composeTestRule.onNodeWithText("Units").assertIsDisplayed()
+                }
+
+                and("Distance defaults to km and Speed to knots") {
+                    // Honest baseline: the defaults are the *selected* choices, so
+                    // the clicks below genuinely change the selection.
+                    composeTestRule.onNodeWithTag("settings_list").performScrollToNode(hasTestTag("btn_Distance_km"))
+                    composeTestRule.onNodeWithTag("btn_Distance_km").assertIsSelected()
+                    composeTestRule.onNodeWithTag("btn_Distance_mi").assertIsNotSelected()
+                    assertThat(store.state.value.settingsState.distanceUnit).isEqualTo("km")
+                    assertThat(store.state.value.settingsState.speedUnit).isEqualTo("kn")
                 }
 
                 `when`("I switch the Distance units to miles (mi)") {
                     ReportGenerator.logStep("ACTION", "Clicking on 'mi' button")
+                    composeTestRule.onNodeWithTag("settings_list").performScrollToNode(hasTestTag("btn_Distance_mi"))
                     composeTestRule.onNodeWithTag("btn_Distance_mi").performClick()
+                    composeTestRule.waitForIdle()
                 }
 
-                then("the 'mi' button exists after click") {
-                    composeTestRule.onNodeWithTag("btn_Distance_mi").assertExists()
+                then("'mi' becomes the selected distance unit, in both the UI and the app's preferences") {
+                    // Pilot-visible: the 'mi' button is now highlighted (selected),
+                    // 'km' is not — and the underlying preference that drives every
+                    // distance readout in the app actually changed.
+                    composeTestRule.onNodeWithTag("btn_Distance_mi").assertIsSelected()
+                    composeTestRule.onNodeWithTag("btn_Distance_km").assertIsNotSelected()
+                    assertThat(store.state.value.settingsState.distanceUnit).isEqualTo("mi")
                 }
 
                 `when`("I switch the Speed units to kilometers per hour (kph)") {
+                    composeTestRule.onNodeWithTag("settings_list").performScrollToNode(hasTestTag("btn_Speed_kph"))
                     composeTestRule.onNodeWithTag("btn_Speed_kph").performClick()
+                    composeTestRule.waitForIdle()
                 }
 
-                then("the 'kph' button exists after click") {
-                    composeTestRule.onNodeWithTag("btn_Speed_kph").assertExists()
+                then("'kph' becomes the selected speed unit, in both the UI and the app's preferences") {
+                    composeTestRule.onNodeWithTag("btn_Speed_kph").assertIsSelected()
+                    composeTestRule.onNodeWithTag("btn_Speed_kn").assertIsNotSelected()
+                    assertThat(store.state.value.settingsState.speedUnit).isEqualTo("kph")
                 }
             }
         }
@@ -70,11 +91,14 @@ class SettingsScreenTest : MapVisualTest() {
                 given("I am reviewing my map overlay settings") {
                     composeTestRule.onNodeWithContentDescription("Settings").performClick()
                     composeTestRule.waitForIdle()
+                    composeTestRule.onNodeWithTag("settings_list")
+                        .performScrollToNode(hasText("Map Layers"))
                     composeTestRule.onNodeWithText("Map Layers").assertIsDisplayed()
                 }
 
                 then("I should see that specialized aviation layers like Airspaces are active by default") {
                     ReportGenerator.logStep("VERIFY", "Checking Airspaces toggle is ON")
+                    composeTestRule.onNodeWithTag("settings_list").performScrollToNode(hasTestTag("toggle_Airspaces"))
                     composeTestRule.onNodeWithTag("toggle_Airspaces").assertIsOn()
                 }
 

@@ -123,8 +123,14 @@ honest *as* it's fixed.
   panel-collapse hiding controls, list shows "N WPs" not labels, and a
   synthetic Compose swipe that can't reach the MapLibre surface — now a real
   UiAutomator swipe). New honest helper: `MapVisualTest.assertMapFramedRoute`.
-- **Next:** FAI editor (#3) → Settings units (#4) → overlay tap/select (#5)
-  → weather (#6, last).
+- **✅ Settings units cluster #4 done (2026-06).** `testUnitPreferences` was
+  passing dishonestly (clicked a unit, asserted the button still existed) and
+  flaked in the blanket run (Units scrolled offscreen in the settings
+  `LazyColumn`). Now scrolls into view and verifies the selection genuinely
+  changed — the highlight (`assertIsSelected`) *and* the `settingsState`
+  preference. Small **product** win: the unit picker's colour-only selection
+  is now exposed to the semantics tree (screen-reader + test visible).
+- **Next:** FAI editor (#3) → overlay tap/select (#5) → weather (#6, last).
 
 ### Phase 3 — Stability hardening
 

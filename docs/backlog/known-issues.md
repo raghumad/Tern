@@ -52,8 +52,19 @@ read the `connected` XML, not `managedDevice`.)
    'Start Speed Section' / 'r3000m'), `ChamonixCompetitionTest`,
    `MonarcaCompetitionTest`. Likely one shared root cause (FAI editor labels
    / panel).
-4. **Settings** — `SettingsScreen.testUnitPreferences` ('Units' not found).
-   Small, self-contained.
+4. **Settings** — `SettingsScreen.testUnitPreferences`. **✅ RESOLVED
+   (Phase 2, 2026-06).** The reported "'Units' not found" was a blanket-run
+   flake — the Units section sits below Mezulla + Map Layers in the settings
+   `LazyColumn`, so it was simply scrolled offscreen (lazy items offscreen
+   aren't composed); the test now scrolls to it. The deeper issue was
+   **honesty**: the test clicked a unit button then asserted the button still
+   *existed* (tautological). It now verifies the selection actually changed —
+   both the pilot-visible highlight (`assertIsSelected`) and the underlying
+   `settingsState` preference that drives every readout in the app. Required a
+   small **product** change: the unit picker's colour-only selection was
+   invisible to the semantics tree (and to screen readers), so
+   `SettingsPickerRow` now exposes `selected` semantics. `testLayerToggles`
+   hardened with the same scroll-to-node. Both green; unit suite 375/0.
 5. **Overlay tap/select** — `DenseClusterDeclutteringTest` ×2,
    `PGSpotInteractionTest`. Mostly the GPU-marker-isn't-a-Compose-node +
    auto-download race below — folds into the infra track, not standalone.

@@ -40,6 +40,8 @@ import androidx.compose.material.icons.filled.BluetoothSearching
 import androidx.compose.material.icons.filled.LinkOff
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import com.ternparagliding.mezulla.demo.AravisDemoReplay
 import com.ternparagliding.mezulla.pairing.PairingOrchestrator
 import com.ternparagliding.mezulla.pairing.PairingState
@@ -56,7 +58,7 @@ fun SettingsSheet(
     val settingsState = state.settingsState
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        LazyColumn(modifier = Modifier.padding(horizontal = 16.dp)) {
+        LazyColumn(modifier = Modifier.padding(horizontal = 16.dp).testTag("settings_list")) {
 
             // Mezulla section — shows paired board or "scan with phone camera" hint.
             // Pairing happens via the phone's native camera scanning the board's QR,
@@ -279,16 +281,21 @@ private fun SettingsPickerRow(
         Text(label, modifier = Modifier.weight(1f), fontSize = 16.sp)
         Row {
             items.forEachIndexed { index, item ->
+                val isSelected = item == selectedItem
                 OutlinedButton(
                     onClick = { onItemSelected(item) },
                     colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = if (item == selectedItem) MaterialTheme.colorScheme.primary else Color.Transparent,
-                        contentColor = if (item == selectedItem) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary
+                        containerColor = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
+                        contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary
                     ),
                     modifier = Modifier
                         .height(36.dp)
                         .padding(horizontal = 2.dp)
                         .testTag("btn_${label}_$item")
+                        // Expose the highlighted choice to the semantics tree so
+                        // it's announced by screen readers and assertable in tests
+                        // (the colour-only selection was invisible to both).
+                        .semantics { selected = isSelected }
                 ) {
                     Text(item, fontSize = 12.sp)
                 }
