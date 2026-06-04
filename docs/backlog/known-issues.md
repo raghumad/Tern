@@ -57,6 +57,18 @@ Tests that call `givenAppIsLaunchedOnMap(countryCode = "us")` reset
 the country code but the download + cache + index pipeline takes too
 long, or never triggers, or times out silently.
 
+> **Note (2026-06):** this section now covers *only* the test-harness
+> injection race. A separate **production** bug was found and fixed in the
+> same investigation — `SpatialDiskCache.queryNearby` used a Hilbert-index
+> *window* prefilter that, because the Hilbert curve is not linear in
+> spatial distance, silently dropped ~half of in-range features
+> (Denver 29→60, Annecy 108→241) on real devices, not just in tests. Now
+> replaced with a true haversine distance filter over `centroidLat/Lon`
+> carried on the index (commit `fb9e9a4`). Airspace `icaoClass` was also
+> off-by-one (Class B rendering as A, SUA 7/8 dropped) — fixed to
+> 0-indexed in `AirspaceGeoJson.resolveAirspaceClass` (commit `95a1609`).
+> Both were validated on the three real-board buddy flights below.
+
 The test infrastructure needs a reliable way to inject pre-built
 airspace/PGSpot FlexBuffer data into the cache before the test runs
 so the overlay has something to render. `TestCacheInjector` exists
@@ -101,6 +113,21 @@ lack GPU-backed screen capture. Files are empty/missing. Options:
 use a non-ATD image (heavier), use FrameCaptureHelper (screenshot
 stitching), or accept video-only-on-real-device. (Real-hardware cycle
 tests record fine via `screenrecord` on the physical phone.)
+
+### Airspace/overlay polish (2026-06, minor)
+
+Small, non-blocking items surfaced during the overlay-revival work. Not
+safety issues.
+
+- **`type=4` airspace mislabelled "MILITARY".** In OpenAIP, `type=4` is
+  **CTR** (control zone), not military. Affects the label/color only —
+  geometry and the (now-correct) `icaoClass` are unaffected. One-line fix
+  in the type→label map.
+- **Mt Herman PG spot invisible at region zoom — NOT a bug.** Confirmed
+  `inCache=2`, `inRenderedInventory=true`; it disappears purely because of
+  MapLibre `SymbolLayer` `iconAllowOverlap=false` collision-declutter at
+  low zoom (a denser nearby marker wins). Expected behaviour, no safety
+  impact. Documented here so it isn't re-investigated as a cache miss.
 
 ### MapTestHelper gesture methods dead
 
