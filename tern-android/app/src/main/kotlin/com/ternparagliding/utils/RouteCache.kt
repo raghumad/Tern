@@ -272,7 +272,7 @@ class RouteCache(
 
         // Compute centroid of the LineString for indexing
         @Suppress("UNCHECKED_CAST")
-        val centroid = MapOverlayCacheUtils.computeCentroid(featureData["geometry"] as Map<String, Any>) 
+        val centroid = OverlayGeoJsonParser.computeCentroid(featureData["geometry"] as Map<String, Any>) 
             ?: GeoPoint(route.waypoints[0].lat, route.waypoints[0].lon) // Fallback to first point
 
         val hilbertIndex = MapOverlayCacheUtils.computeHilbertIndex(centroid, HILBERT_BITS_PRECISION)

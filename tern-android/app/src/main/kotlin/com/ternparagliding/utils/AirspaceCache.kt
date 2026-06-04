@@ -74,7 +74,7 @@ class AirspaceCache(context: Context) {
 
             val success = diskCache.cacheFeaturesStream(countryCode) { appendFeature ->
                 GeoJsonUtils.streamGeoJsonFeatures(url) { featureMap ->
-                    val feature = MapOverlayCacheUtils.parseFeature(featureMap, "airspace")
+                    val feature = OverlayGeoJsonParser.parseFeature(featureMap, "airspace")
                     if (feature != null && validateOverlayFeature(feature, countryCode)) {
                         appendFeature(feature)
                     }

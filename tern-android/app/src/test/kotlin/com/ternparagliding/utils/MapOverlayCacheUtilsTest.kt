@@ -32,7 +32,7 @@ class MapOverlayCacheUtilsTest {
             }
         """.trimIndent()
 
-        val features = MapOverlayCacheUtils.parseNdGeoJsonToFeatures(geoJson)
+        val features = OverlayGeoJsonParser.parseNdGeoJsonToFeatures(geoJson)
         assertThat(features).isEmpty()
     }
 
@@ -43,7 +43,7 @@ class MapOverlayCacheUtilsTest {
             {"type":"Feature","properties":{},"geometry":{"type":"Polygon","coordinates":[[[-123.0,38.0],[-123.0,38.1],[-123.1,38.1],[-123.1,38.0],[-123.0,38.0]]]}}
         """.trimIndent()
 
-        val features = MapOverlayCacheUtils.parseNdGeoJsonToFeatures(ndGeoJson)
+        val features = OverlayGeoJsonParser.parseNdGeoJsonToFeatures(ndGeoJson)
         assertThat(features).hasSize(2)
     }
 
@@ -65,7 +65,7 @@ class MapOverlayCacheUtilsTest {
         // This is expected to return empty list or handle it without crashing
         // Current implementation expects Map, so it might throw or return empty
         try {
-            val features = MapOverlayCacheUtils.parseGeoJsonToFeatures(jsonArray, "pgspot")
+            val features = OverlayGeoJsonParser.parseGeoJsonToFeatures(jsonArray, "pgspot")
             // If it supports array, it should have 1 feature. If not, it should be empty.
             // We want to know what it DOES.
             println("Features from array: ${features.size}")

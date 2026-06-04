@@ -127,9 +127,9 @@ class PGSpotCache(context: Context) {
 
                 // Use dynamic parsing to support both standard GeoJSON and NDGeoJSON
                 val features = if (GeoJsonUtils.isNdGeoJson(geoJsonString)) {
-                    MapOverlayCacheUtils.parseNdGeoJsonToFeatures(geoJsonString, "pgspot")
+                    OverlayGeoJsonParser.parseNdGeoJsonToFeatures(geoJsonString, "pgspot")
                 } else {
-                    MapOverlayCacheUtils.parseGeoJsonToFeatures(geoJsonString, "pgspot")
+                    OverlayGeoJsonParser.parseGeoJsonToFeatures(geoJsonString, "pgspot")
                 }
                 Log.d(TAG, "Parsed ${features.size} PG spots for $countryCode")
 
@@ -235,9 +235,9 @@ class PGSpotCache(context: Context) {
 
             // Parse features to find which countries have new/modified data
             val features = if (GeoJsonUtils.isNdGeoJson(geoJsonString)) {
-                MapOverlayCacheUtils.parseNdGeoJsonToFeatures(geoJsonString, "pgspot")
+                OverlayGeoJsonParser.parseNdGeoJsonToFeatures(geoJsonString, "pgspot")
             } else {
-                MapOverlayCacheUtils.parseGeoJsonToFeatures(geoJsonString, "pgspot")
+                OverlayGeoJsonParser.parseGeoJsonToFeatures(geoJsonString, "pgspot")
             }
 
             if (features.isEmpty()) {
