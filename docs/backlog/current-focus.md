@@ -91,15 +91,19 @@ trustworthy. Original plan below for reference.
   converters → a `GeoJsonPropertyResolver`; break the `utils/` junk-drawer
   (22 files, 6.9k lines) into domain packages.
 
-### Phase 1 — Trustworthy harness
+### Phase 1 — Trustworthy harness — ✅ DONE (2026-06)
 
-- Test flag to suppress `UniversalCountryCacheManager` auto-download during
-  instrumented tests, so injected TEST data is the single source (kills the
-  overlay-render race documented in known-issues.md).
-- Rebuild the 6 gesture helpers on MapLibre projection
-  (`cameraState.projection.screenLocationFromPosition` /
-  `positionFromScreenLocation` — now available) so gesture tests are real,
-  not tautological Redux dispatches.
+- ~~Test flag to suppress auto-download~~ **Already gated** — the overlay-
+  render race was found to be already fixed: `CountryPreloadMiddleware` bails
+  on `isTestMode()` before any download, and the only other download path
+  (`checkForUpdates`) has no production caller. Marked RESOLVED in
+  known-issues and locked with `Phase1HarnessTest.autoDownloadSuppressedInTestMode`.
+- ~~Rebuild gesture helpers on MapLibre projection~~ **Done.** `MapViewContainer`
+  exposes the live lat/lon→screen projection via `MapProjectionTestHook`;
+  `MapTestHelper` gained `clickGeoPoint`/`longPressGeoPoint`/`dragGeoPoint`
+  that drive real Compose touches on the `map_view` node (resolution runs on
+  the UI thread — `pixelForLatLng` requires it). Validated by `Phase1HarnessTest`
+  (3 green on emulator) + an `AppLaunchTest` smoke; unit suite 375/0.
 
 ### Phase 2 — Fix the real broken workflows
 
