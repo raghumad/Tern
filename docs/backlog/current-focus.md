@@ -52,9 +52,21 @@ those.**
 
 Sequenced phases (do in order):
 
-### Phase 0 — Structural cleanup (full pass)
+### Phase 0 — Structural cleanup (full pass) — ✅ DONE (2026-06)
 
 Clear the bench so stabilization happens on a tidy, honest codebase.
+**Completed 2026-06** (9 commits, clean build + unit suite 375/0 throughout):
+0a deleted the dead OSMDroid rendering code (GeoJsonUtils 927→301, the last
+OSMDroid View dependency); 0b moved 64 `.kt` files from the `java/` to the
+`kotlin/` source root; 0c split the four god-files (MapReducers→Map/Route/
+Weather reducers; RouteDetailPanel→panel + RouteDetailsContent +
+RoutePlannerTabs; UniversalCountryCacheManager→ +CountryAccessTracker;
+MapOverlayCacheUtils→ +OverlayGeoJsonParser); 0d reorganized `utils/` into
+`cache`/`geo`/`diagnostics`/`io` subpackages and deduped the GeoJSON
+nested-property accessors. **Deferred with rationale:** a shared cache base
+class — the three caches diverge materially (RouteCache is routeId-keyed),
+so a forced base would be leaky; revisit after Phase 1 makes the harness
+trustworthy. Original plan below for reference.
 
 - **0a. Delete verified dead code.** `spike/MapLibreSpike.kt` (unreferenced
   POC); the 6 OSMDroid gesture methods in `MapTestHelper.kt` (0 live refs —
