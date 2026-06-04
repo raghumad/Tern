@@ -96,15 +96,23 @@ verifying the restored PG-spot layer:
    (`isCached=true`) but gone by query time. This is a flaky race that
    makes on-map overlay-render assertions unreliable.
 
-   The fix is harness-level: suppress `UniversalCountryCacheManager`
-   auto-download during instrumented tests (e.g. a test flag), so injected
-   data is the single source. Until then, overlay-render tests should
-   verify the *renderer* directly (see `PgSpotRenderTest` /
-   `HazardRenderTest` montages) and SKIP the on-map assertion when the
-   overlay received 0 features (see `PgSpotLegibilityTest`), rather than
-   assert against a clobbered cache. `ResourceAuditTest` dodges this
-   because it injects *weather* via Redux (not the spatial cache), so
-   nothing downloads over it.
+   **RESOLVED (2026-06, Phase 1).** The auto-download race is gated. The
+   only live map-movement download path is `CountryPreloadMiddleware`, which
+   bails on `CountryUtils.isTestMode()` *before* touching the cache manager
+   (commit `b9f35c7` added the gate; the other `downloadAndCache` path,
+   `PGSpotCache.checkForUpdates`, has no production caller). Since every
+   instrumented test pins a country code (`setTestCountryCode("TEST")` in
+   `MapVisualTest.@Before`), `isTestMode()` is true and no download fires —
+   injected data is the single source. Locked by
+   `Phase1HarnessTest.autoDownloadSuppressedInTestMode`. Probe/real runs
+   that *want* downloads clear the pin (`setTestCountryCode(null)`), which is
+   the intended escape hatch.
+
+   Note the *separate* "integrity size floor" authoring rule still applies —
+   inject a realistic cluster (a single feature serialises below the
+   100 B/.flex floor and reads back as not-cached). And `ResourceAuditTest`
+   injects *weather* via Redux (not the spatial cache), so it never touched
+   this path anyway.
 
 ### screenrecord doesn't work on ATD managed device images
 

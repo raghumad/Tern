@@ -170,6 +170,25 @@ fun MapViewContainer(
         )
     )
 
+    // Test hook: expose lat/lon -> screen-pixel projection so instrumented
+    // gesture helpers can tap/drag at geographic coordinates. Inert in
+    // production (only test code reads it). The resolver closes over the live
+    // cameraState, so each call reflects the current camera.
+    val projectionDensity = androidx.compose.ui.platform.LocalDensity.current
+    androidx.compose.runtime.DisposableEffect(cameraState, projectionDensity) {
+        com.ternparagliding.utils.MapProjectionTestHook.setResolver { lat, lon ->
+            val proj = runCatching { cameraState.projection }.getOrNull()
+                ?: return@setResolver null
+            val dp = proj.screenLocationFromPosition(
+                Position(longitude = lon, latitude = lat)
+            )
+            with(projectionDensity) {
+                androidx.compose.ui.geometry.Offset(dp.x.toPx(), dp.y.toPx())
+            }
+        }
+        onDispose { com.ternparagliding.utils.MapProjectionTestHook.setResolver(null) }
+    }
+
     // ── Redux → MapLibre (programmatic camera moves) ────────────────────
     // When something external (GPS first fix, route zoom, bounding box)
     // updates Redux's center/zoom, push that into the MapLibre camera.

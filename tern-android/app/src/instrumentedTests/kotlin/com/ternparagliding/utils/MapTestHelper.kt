@@ -1,20 +1,78 @@
 package com.ternparagliding.utils
 
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.test.click
+import androidx.compose.ui.test.longClick
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipe
+import androidx.compose.ui.test.junit4.AndroidComposeTestRule
 import androidx.test.platform.app.InstrumentationRegistry
 
 /**
  * Test helpers for map-backed instrumented tests.
  *
- * M8: the OSMDroid-based gesture helpers (clickOnGeoPoint, longPressOnGeoPoint,
- * pressAndHoldGeoPoint/moveHold/releaseHold, swipeMap, findMapView,
- * getScreenCoordinates, MockLocationProvider) were removed when the app
- * migrated from OSMDroid to MapLibre — they projected via `MapView.projection`,
- * which no longer exists. Real gesture testing now goes through MapLibre's
- * `cameraState.projection` (see OffScreenPeerIndicators); until those helpers
- * are rebuilt, gesture tests dispatch via Redux. Only the OSMDroid-free
- * helpers below remain.
+ * Gesture helpers (Phase 1, 2026-06): the OSMDroid versions were deleted in the
+ * MapLibre migration. The rebuilt [clickGeoPoint]/[longPressGeoPoint]/
+ * [dragGeoPoint] convert a lat/lon to a screen pixel via the live MapLibre
+ * projection (exposed by MapViewContainer through [MapProjectionTestHook]) and
+ * drive a real Compose touch on the `map_view` node — so gesture tests exercise
+ * the actual map instead of dispatching Redux actions tautologically.
  */
 object MapTestHelper {
+
+    private const val MAP_TAG = "map_view"
+
+    /**
+     * Resolve a geographic point to a screen pixel via the live MapLibre
+     * projection, waiting up to [timeoutMillis] for the map to compose and the
+     * projection to become ready.
+     */
+    fun screenPxForGeoPoint(
+        rule: AndroidComposeTestRule<*, *>,
+        lat: Double,
+        lon: Double,
+        timeoutMillis: Long = 5000,
+    ): Offset {
+        var px: Offset? = null
+        rule.waitUntil(timeoutMillis) {
+            // MapLibre's projection (pixelForLatLng) must run on the UI thread.
+            InstrumentationRegistry.getInstrumentation().runOnMainSync {
+                px = MapProjectionTestHook.screenPxFor(lat, lon)
+            }
+            px != null
+        }
+        return px ?: error("MapProjectionTestHook not ready for ($lat, $lon)")
+    }
+
+    /** Single-tap the map at a geographic point. */
+    fun clickGeoPoint(rule: AndroidComposeTestRule<*, *>, lat: Double, lon: Double) {
+        val px = screenPxForGeoPoint(rule, lat, lon)
+        ReportGenerator.logStep("ACTION", "Click at ($lat, $lon) -> px(${px.x}, ${px.y})")
+        rule.onNodeWithTag(MAP_TAG).performTouchInput { click(px) }
+    }
+
+    /** Long-press the map at a geographic point (e.g. waypoint creation). */
+    fun longPressGeoPoint(rule: AndroidComposeTestRule<*, *>, lat: Double, lon: Double) {
+        val px = screenPxForGeoPoint(rule, lat, lon)
+        ReportGenerator.logStep("ACTION", "Long-press at ($lat, $lon) -> px(${px.x}, ${px.y})")
+        rule.onNodeWithTag(MAP_TAG).performTouchInput { longClick(px) }
+    }
+
+    /** Drag across the map from one geographic point to another. */
+    fun dragGeoPoint(
+        rule: AndroidComposeTestRule<*, *>,
+        fromLat: Double,
+        fromLon: Double,
+        toLat: Double,
+        toLon: Double,
+        durationMillis: Long = 500,
+    ) {
+        val from = screenPxForGeoPoint(rule, fromLat, fromLon)
+        val to = screenPxForGeoPoint(rule, toLat, toLon)
+        ReportGenerator.logStep("ACTION", "Drag ($fromLat,$fromLon)->($toLat,$toLon)")
+        rule.onNodeWithTag(MAP_TAG).performTouchInput { swipe(from, to, durationMillis) }
+    }
 
     fun waitForMapTiles(timeoutMillis: Long = 3000) {
         try {
