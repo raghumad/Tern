@@ -1,5 +1,6 @@
 package com.ternparagliding.overlay.airspace
 
+import com.ternparagliding.overlay.nestedProperties
 import com.ternparagliding.utils.cache.MapOverlayCacheUtils.OverlayFeature
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -61,8 +62,7 @@ object AirspaceGeoJson {
      */
     fun resolveAirspaceClass(feature: OverlayFeature): String {
         val raw = feature.feature
-        @Suppress("UNCHECKED_CAST")
-        val props = raw["properties"] as? Map<String, Any> ?: emptyMap()
+        val props = raw.nestedProperties()
 
         // Try string keys first (most common in clean data).
         val stringClass = props["class"] as? String
@@ -121,8 +121,7 @@ object AirspaceGeoJson {
      */
     private fun buildProperties(candidate: AirspaceCandidate): JsonObject {
         val raw = candidate.feature.feature
-        @Suppress("UNCHECKED_CAST")
-        val props = raw["properties"] as? Map<String, Any> ?: emptyMap()
+        val props = raw.nestedProperties()
         val name = props["name"] as? String
             ?: props["Name"] as? String
             ?: candidate.feature.id

@@ -1,5 +1,6 @@
 package com.ternparagliding.overlay.pgspot
 
+import com.ternparagliding.overlay.nestedOrFlatString
 import com.ternparagliding.overlay.priority.OverlayCandidate
 import com.ternparagliding.overlay.priority.OverlayKind
 import com.ternparagliding.overlay.priority.Position
@@ -45,12 +46,8 @@ fun overlayFeaturesToGeoJson(
         // this every PG-spot name resolves to "" and PgSpotLayer renders
         // nothing (names.isEmpty() bail-out).
         val raw = overlay.feature
-        @Suppress("UNCHECKED_CAST")
-        val props = raw["properties"] as? Map<String, Any> ?: emptyMap()
-        fun prop(key: String): String? =
-            (props[key] as? String) ?: (raw[key] as? String)
-        val name = prop("name") ?: prop("label") ?: ""
-        val siteType = prop("siteType") ?: ""
+        val name = raw.nestedOrFlatString("name") ?: raw.nestedOrFlatString("label") ?: ""
+        val siteType = raw.nestedOrFlatString("siteType") ?: ""
         val geoProps = JsonObject(
             buildMap {
                 put("name", JsonPrimitive(name))
