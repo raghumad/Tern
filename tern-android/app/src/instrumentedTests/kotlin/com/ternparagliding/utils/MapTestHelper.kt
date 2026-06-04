@@ -1,222 +1,20 @@
 package com.ternparagliding.utils
 
-import android.app.Activity
-import android.view.View
-import android.view.ViewGroup
 import androidx.test.platform.app.InstrumentationRegistry
-import androidx.test.uiautomator.UiDevice
-import org.osmdroid.util.GeoPoint
-import org.osmdroid.views.MapView
 
-import android.os.SystemClock
-import android.view.MotionEvent
-import com.ternparagliding.ui.components.MapViewModel
-
-class MockLocationProvider(private val lat: Double, private val lon: Double) : org.osmdroid.views.overlay.mylocation.IMyLocationProvider {
-    private var consumer: org.osmdroid.views.overlay.mylocation.IMyLocationConsumer? = null
-
-    override fun startLocationProvider(myLocationConsumer: org.osmdroid.views.overlay.mylocation.IMyLocationConsumer?): Boolean {
-        consumer = myLocationConsumer
-        val location = android.location.Location("mock").apply {
-            latitude = lat
-            longitude = lon
-            altitude = 1600.0
-            time = System.currentTimeMillis()
-            accuracy = 1.0f
-            elapsedRealtimeNanos = android.os.SystemClock.elapsedRealtimeNanos()
-        }
-        // Deliver location immediately
-        consumer?.onLocationChanged(location, this)
-        return true
-    }
-
-    override fun stopLocationProvider() {
-        consumer = null
-    }
-
-    override fun getLastKnownLocation(): android.location.Location {
-        return android.location.Location("mock").apply {
-            latitude = lat
-            longitude = lon
-            altitude = 1600.0
-            time = System.currentTimeMillis()
-            accuracy = 1.0f
-            elapsedRealtimeNanos = android.os.SystemClock.elapsedRealtimeNanos()
-        }
-    }
-
-    override fun destroy() {}
-}
-
+/**
+ * Test helpers for map-backed instrumented tests.
+ *
+ * M8: the OSMDroid-based gesture helpers (clickOnGeoPoint, longPressOnGeoPoint,
+ * pressAndHoldGeoPoint/moveHold/releaseHold, swipeMap, findMapView,
+ * getScreenCoordinates, MockLocationProvider) were removed when the app
+ * migrated from OSMDroid to MapLibre — they projected via `MapView.projection`,
+ * which no longer exists. Real gesture testing now goes through MapLibre's
+ * `cameraState.projection` (see OffScreenPeerIndicators); until those helpers
+ * are rebuilt, gesture tests dispatch via Redux. Only the OSMDroid-free
+ * helpers below remain.
+ */
 object MapTestHelper {
-
-    fun getScreenCoordinates(activity: Activity, lat: Double, lon: Double): Pair<Float, Float> {
-        var x = 0f
-        var y = 0f
-        val instrumentation = InstrumentationRegistry.getInstrumentation()
-        instrumentation.runOnMainSync {
-            val mapView = findMapView(activity.window.decorView) ?: throw IllegalStateException("MapView not found")
-            val point = android.graphics.Point()
-            mapView.projection.toPixels(GeoPoint(lat, lon), point)
-            x = point.x.toFloat()
-            y = point.y.toFloat()
-        }
-        return Pair(x, y)
-    }
-
-    fun clickOnGeoPoint(activity: Activity, lat: Double, lon: Double) {
-        var screenX = 0
-        var screenY = 0
-        val instrumentation = InstrumentationRegistry.getInstrumentation()
-        
-        instrumentation.runOnMainSync {
-            val mapView = findMapView(activity.window.decorView) ?: throw IllegalStateException("MapView not found")
-            val point = android.graphics.Point()
-            mapView.projection.toPixels(GeoPoint(lat, lon), point)
-            
-            // Convert local coordinates to screen coordinates
-            val locationOnScreen = IntArray(2)
-            mapView.getLocationOnScreen(locationOnScreen)
-            screenX = locationOnScreen[0] + point.x
-            screenY = locationOnScreen[1] + point.y
-        }
-        
-        val device = UiDevice.getInstance(instrumentation)
-        ReportGenerator.logStep("ACTION", "Click on GeoPoint: $lat, $lon (Screen: $screenX, $screenY)")
-        device.click(screenX, screenY)
-    }
-
-    fun longPressOnGeoPoint(activity: Activity, lat: Double, lon: Double) {
-        var screenX = 0f
-        var screenY = 0f
-        val instrumentation = InstrumentationRegistry.getInstrumentation()
-        
-        instrumentation.runOnMainSync {
-            val mapView = findMapView(activity.window.decorView) ?: throw IllegalStateException("MapView not found")
-            val point = android.graphics.Point()
-            mapView.projection.toPixels(GeoPoint(lat, lon), point)
-            
-            val locationOnScreen = IntArray(2)
-            mapView.getLocationOnScreen(locationOnScreen)
-            screenX = (locationOnScreen[0] + point.x).toFloat()
-            screenY = (locationOnScreen[1] + point.y).toFloat()
-        }
-        
-        ReportGenerator.logStep("ACTION", "Long press at lat=$lat, lon=$lon -> screen x=$screenX, y=$screenY")
-        
-        val device = UiDevice.getInstance(instrumentation)
-        device.swipe(screenX.toInt(), screenY.toInt(), screenX.toInt(), screenY.toInt(), 300) 
-        
-        ReportGenerator.logStep("DEBUG", "Performed long press via UiDevice swipe")
-    }
-
-    /**
-     * Starts a press and hold interaction. 
-     * Returns the down event which must be used for subsequent move/release calls.
-     */
-    fun pressAndHoldGeoPoint(activity: Activity, lat: Double, lon: Double): MotionEvent {
-        var screenX = 0f
-        var screenY = 0f
-        val instrumentation = InstrumentationRegistry.getInstrumentation()
-        var downEvent: MotionEvent? = null
-
-        instrumentation.runOnMainSync {
-            val mapView = findMapView(activity.window.decorView) ?: throw IllegalStateException("MapView not found")
-            val point = android.graphics.Point()
-            mapView.projection.toPixels(GeoPoint(lat, lon), point)
-            
-            val locationOnScreen = IntArray(2)
-            mapView.getLocationOnScreen(locationOnScreen)
-            screenX = (locationOnScreen[0] + point.x).toFloat()
-            screenY = (locationOnScreen[1] + point.y).toFloat()
-
-            val downTime = SystemClock.uptimeMillis()
-            val eventTime = SystemClock.uptimeMillis()
-            downEvent = MotionEvent.obtain(downTime, eventTime, MotionEvent.ACTION_DOWN, screenX, screenY, 0)
-            mapView.dispatchTouchEvent(downEvent)
-        }
-        
-        ReportGenerator.logStep("ACTION", "INITIATED PRESS-HOLD at lat=$lat, lon=$lon")
-        return downEvent!!
-    }
-
-    fun moveHold(activity: Activity, originalEvent: MotionEvent, lat: Double, lon: Double) {
-        val instrumentation = InstrumentationRegistry.getInstrumentation()
-        instrumentation.runOnMainSync {
-            val mapView = findMapView(activity.window.decorView) ?: throw IllegalStateException("MapView not found")
-            val point = android.graphics.Point()
-            mapView.projection.toPixels(GeoPoint(lat, lon), point)
-            
-            val locationOnScreen = IntArray(2)
-            mapView.getLocationOnScreen(locationOnScreen)
-            val screenX = (locationOnScreen[0] + point.x).toFloat()
-            val screenY = (locationOnScreen[1] + point.y).toFloat()
-
-            val moveEvent = MotionEvent.obtain(
-                originalEvent.downTime, 
-                SystemClock.uptimeMillis(), 
-                MotionEvent.ACTION_MOVE, 
-                screenX, 
-                screenY, 
-                0
-            )
-            mapView.dispatchTouchEvent(moveEvent)
-            moveEvent.recycle()
-        }
-        ReportGenerator.logStep("ACTION", "MOVED HOLD to lat=$lat, lon=$lon")
-    }
-
-    fun releaseHold(activity: Activity, originalEvent: MotionEvent) {
-        val instrumentation = InstrumentationRegistry.getInstrumentation()
-        instrumentation.runOnMainSync {
-            val mapView = findMapView(activity.window.decorView) ?: throw IllegalStateException("MapView not found")
-            val releaseEvent = MotionEvent.obtain(
-                originalEvent.downTime, 
-                SystemClock.uptimeMillis(), 
-                MotionEvent.ACTION_UP, 
-                originalEvent.x, 
-                originalEvent.y, 
-                0
-            )
-            mapView.dispatchTouchEvent(releaseEvent)
-            releaseEvent.recycle()
-            originalEvent.recycle()
-        }
-        ReportGenerator.logStep("ACTION", "RELEASED HOLD")
-    }
-
-    fun swipeMap(activity: Activity, startLat: Double, startLon: Double, endLat: Double, endLon: Double, steps: Int = 50) {
-        var startX = 0
-        var startY = 0
-        var endX = 0
-        var endY = 0
-        val instrumentation = InstrumentationRegistry.getInstrumentation()
-        
-        instrumentation.runOnMainSync {
-            val mapView = findMapView(activity.window.decorView) ?: throw IllegalStateException("MapView not found")
-            
-            val locationOnScreen = IntArray(2)
-            mapView.getLocationOnScreen(locationOnScreen)
-
-            val startPoint = android.graphics.Point()
-            mapView.projection.toPixels(GeoPoint(startLat, startLon), startPoint)
-            startX = locationOnScreen[0] + startPoint.x
-            startY = locationOnScreen[1] + startPoint.y
-
-            val endPoint = android.graphics.Point()
-            mapView.projection.toPixels(GeoPoint(endLat, endLon), endPoint)
-            endX = locationOnScreen[0] + endPoint.x
-            endY = locationOnScreen[1] + endPoint.y
-        }
-        
-        ReportGenerator.logStep("ACTION", "Swipe from ($startLat, $startLon) to ($endLat, $endLon)")
-        
-        val device = UiDevice.getInstance(instrumentation)
-        device.swipe(startX, startY, endX, endY, steps)
-        
-        // Wait for any map kinetic scrolling to settle
-        waitForMapTiles(1000)
-    }
 
     fun waitForMapTiles(timeoutMillis: Long = 3000) {
         try {
@@ -248,7 +46,7 @@ object MapTestHelper {
                 try {
                     locationManager.removeTestProvider(android.location.LocationManager.GPS_PROVIDER)
                 } catch (e: Exception) { /* Ignore */ }
-                
+
                 try {
                     locationManager.removeTestProvider(android.location.LocationManager.NETWORK_PROVIDER)
                 } catch (e: Exception) { /* Ignore */ }
@@ -318,7 +116,7 @@ object MapTestHelper {
                     // Fused provider might not exist or be mockable on all devices
                     android.util.Log.w("MapTestHelper", "Could not mock fused provider: ${e.message}")
                 }
-            
+
             val mockLocationGps = android.location.Location(android.location.LocationManager.GPS_PROVIDER).apply {
                 latitude = lat
                 longitude = lon
@@ -357,21 +155,5 @@ object MapTestHelper {
              // Provider might already exist or be unmockable
              println("Warning: Error setting mock provider: ${e.message}")
         }
-    }
-
-    fun findMapView(view: View): MapView? {
-        if (view is MapView) {
-            return view
-        }
-        if (view is ViewGroup) {
-            for (i in 0 until view.childCount) {
-                val child = view.getChildAt(i)
-                val result = findMapView(child)
-                if (result != null) {
-                    return result
-                }
-            }
-        }
-        return null
     }
 }
