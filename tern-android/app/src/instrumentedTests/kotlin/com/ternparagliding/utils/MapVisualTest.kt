@@ -336,6 +336,53 @@ open class MapVisualTest {
     }
 
     /**
+     * Asserts that the map has framed the given [route] — i.e. the camera
+     * centre lands inside the route's bounding box. This is the honest,
+     * product-faithful check for "import/select recentred the map onto the
+     * route": the app fits the whole route's extent (so the pilot sees launch
+     * → goal), so the centre is the extent's centroid, NOT any single
+     * waypoint. Polls because the Redux centre is updated only after the
+     * MapLibre fit animation settles.
+     */
+    fun assertMapFramedRoute(route: Route, timeoutMillis: Long = 8000) {
+        val ext = route.extent
+            ?: throw AssertionError("Route '${route.name}' has no extent (no waypoints) to frame")
+        val startTime = System.currentTimeMillis()
+        var last: GeoPoint? = null
+        while (System.currentTimeMillis() - startTime < timeoutMillis) {
+            composeTestRule.runOnUiThread {
+                try {
+                    val store = ViewModelProvider(composeTestRule.activity)[MapStore::class.java]
+                    last = store.state.value.center
+                } catch (e: Exception) {}
+            }
+            val c = last
+            if (c != null &&
+                c.latitude in ext.minLat..ext.maxLat &&
+                c.longitude in ext.minLon..ext.maxLon
+            ) {
+                ReportGenerator.logStep(
+                    "ASSERT",
+                    "Map framed route '${route.name}': centre (${c.latitude}, ${c.longitude}) within extent",
+                    "PASS",
+                )
+                return
+            }
+            Thread.sleep(200)
+        }
+        ReportGenerator.logStep(
+            "ASSERT",
+            "Map did NOT frame route '${route.name}'. Centre $last not within " +
+                "lat[${ext.minLat}..${ext.maxLat}] lon[${ext.minLon}..${ext.maxLon}]",
+            "FAIL",
+        )
+        throw AssertionError(
+            "Map did not frame route '${route.name}'. Centre $last not within " +
+                "lat[${ext.minLat}..${ext.maxLat}] lon[${ext.minLon}..${ext.maxLon}]"
+        )
+    }
+
+    /**
      * Asserts that the map zoom level is within the expected range.
      *
      * M8: Rewritten to use MapStore state instead of OSMDroid MapView.

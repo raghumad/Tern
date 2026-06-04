@@ -23,14 +23,31 @@ their Gradle tasks — not product bugs). The ~20 real product failures
 cluster as below; tackle in this order. (Run gives stale parser numbers —
 read the `connected` XML, not `managedDevice`.)
 
-1. **Route planning** — `AviationRoutePlanningTest` ×3. Import doesn't
-   recenter the map (expected ~39.74,-105.24, stayed at default), plus a 5 s
-   timeout and an assertExists. Headline feature; at least the import bug is
-   real.
+1. **Route planning** — `AviationRoutePlanningTest` ×3. **✅ RESOLVED
+   (Phase 2, 2026-06).** One was a **real product bug**: a programmatically
+   auto-framed route (import/select fits the route's bbox) moved the MapLibre
+   camera but never synced `MapState.center` back to Redux — the GESTURE→Redux
+   feedback path deliberately skips programmatic moves — so the
+   application-level centre went stale at its pre-frame value.
+   `MapViewContainer` now syncs the settled camera target/zoom into Redux
+   right after `animateTo(bbox)`. The other two failures were dishonest
+   assertions (expected the launch waypoint instead of the bbox centroid the
+   app actually frames; `assertExists` on text that legitimately matches >1
+   node). Tests rewritten honestly + new `MapVisualTest.assertMapFramedRoute`.
 2. **Route building & management** — `RouteManagement` ×3 (reorder/create/
-   share), `WaypointInteractionUX` drag ("route not found in cache after
-   drag" — likely real), `MapInteraction.testLongPressNearWaypointSelectsIt`.
-   Some may be gesture-test fragility (dead `MapTestHelper` path).
+   share), `MapInteraction.testLongPressNearWaypointSelectsIt` /
+   `testMapSwipeAlongTrajectory`. **✅ RESOLVED (Phase 2, 2026-06).** One
+   **real product gap**: `EditWaypointScreen` never rendered the waypoint's
+   label, so a pilot couldn't tell which point they were editing — now shown
+   under the header. The rest was test debt: RFC-005 auto-minimize collapses
+   the panel on select, so the waypoint list / Share control were off-screen
+   (tests now expand first); the route list summarises by "N WPs" not by
+   waypoint labels (assert the count); and the swipe test injected a synthetic
+   Compose touch that never reaches the MapLibre `AndroidView` surface —
+   rewritten to a real **UiAutomator** system swipe (the honest way to drive a
+   gesture on a GPU surface). `WaypointInteractionUX` drag was already passing
+   — the "route not found in cache after drag" note was **stale**. All 12
+   route-cluster tests now green on emulator; unit suite 375/0.
 3. **FAI / competition tasks** — `FAITaskUITest` ×3 (scroll-to-node on
    'Start Speed Section' / 'r3000m'), `ChamonixCompetitionTest`,
    `MonarcaCompetitionTest`. Likely one shared root cause (FAI editor labels

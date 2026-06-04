@@ -128,7 +128,15 @@ class RouteManagementTest : MapVisualTest() {
                 store.dispatch(MapAction.SelectRoute(route.id))
                 given("I have a flight task with 'Start' as point 1 and 'End' as point 2") {
                     com.ternparagliding.utils.ReportGenerator.logStep("SETUP", "Ensuring Route Detail Panel is visible")
-                    // In the real activity, selecting a route should show the panel
+                    // RFC 005 Strategic Auto-Minimize collapses the panel when a
+                    // route is selected/auto-framed. Let that settle, then expand
+                    // so the waypoint list (the subject of this test) is on screen.
+                    composeTestRule.waitForIdle()
+                    Thread.sleep(800)
+                    store.dispatch(MapAction.SetRoutePanelExpanded(true))
+                    composeTestRule.waitUntil(timeoutMillis = 5000) {
+                        composeTestRule.onAllNodesWithText("1. Start").fetchSemanticsNodes().isNotEmpty()
+                    }
                     composeTestRule.onNodeWithText("1. Start").assertIsDisplayed()
                     composeTestRule.onNodeWithText("2. End").assertIsDisplayed()
                 }
@@ -184,10 +192,12 @@ class RouteManagementTest : MapVisualTest() {
                     composeTestRule.onNodeWithText("Front Range Task").assertIsDisplayed()
                 }
 
-                then("the route 'Front Range Task' with both waypoints is visible in the UI") {
+                then("the route 'Front Range Task' is listed with its two waypoints") {
                     composeTestRule.onNodeWithText("Front Range Task").assertIsDisplayed()
-                    composeTestRule.onNodeWithText("Boulder", substring = true).assertExists()
-                    composeTestRule.onNodeWithText("Longmont", substring = true).assertExists()
+                    // The route list summarises each route by waypoint count
+                    // ("N WPs"), not by individual labels — assert the count the
+                    // card actually renders, which confirms both waypoints landed.
+                    composeTestRule.onNodeWithText("2 WPs", substring = true).assertExists()
                 }
             }
         }
@@ -207,6 +217,14 @@ class RouteManagementTest : MapVisualTest() {
                 given("I have selected my 'Share Test Route' in the task manager") {
                     composeTestRule.waitUntil(timeoutMillis = 5000) {
                         composeTestRule.onAllNodesWithTag("RouteDetailPanel").fetchSemanticsNodes().isNotEmpty()
+                    }
+                    // RFC 005 may auto-minimize the panel on select; expand it so
+                    // the Share control is on screen and reachable.
+                    composeTestRule.waitForIdle()
+                    Thread.sleep(800)
+                    store.dispatch(MapAction.SetRoutePanelExpanded(true))
+                    composeTestRule.waitUntil(timeoutMillis = 5000) {
+                        composeTestRule.onAllNodesWithContentDescription("Share Route").fetchSemanticsNodes().isNotEmpty()
                     }
                 }
 

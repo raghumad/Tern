@@ -189,23 +189,43 @@ class MapInteractionTest : MapVisualTest() {
                     composeTestRule.waitForIdle()
                 }
 
+                var swipeResultLat = 40.0150
                 `when`("I swipe the map downwards to look further along my flight path") {
                     ReportGenerator.logStep("ACTION", "Swiping map to scout landing area")
-                    composeTestRule.onNodeWithTag("map_view").performTouchInput {
-                        // Swipe from top to bottom to move map viewport "up" (reveal North)
-                        swipeDown(durationMillis = 500)
+                    // Drive a REAL system-level swipe via UiAutomator rather than
+                    // Compose's performTouchInput. The MapLibre map is an
+                    // AndroidView with its own touch listener on the underlying
+                    // surface; synthetic Compose touches injected through the
+                    // semantics node don't reach MapLibre's gesture detector, so
+                    // the camera never moves. UiDevice.swipe injects touch at the
+                    // OS level, which the surface actually receives. We then poll
+                    // the genuine GESTURE→Redux feedback (never faking the centre).
+                    val device = androidx.test.uiautomator.UiDevice.getInstance(
+                        androidx.test.platform.app.InstrumentationRegistry.getInstrumentation()
+                    )
+                    val w = device.displayWidth
+                    val h = device.displayHeight
+                    // Vertical drag down the centre of the upper half — clear of
+                    // bottom panels and top status bar. Finger moves down → map
+                    // pans down → North is revealed → centre latitude increases.
+                    val x = w / 2
+                    val yStart = (h * 0.30).toInt()
+                    val yEnd = (h * 0.70).toInt()
+                    val deadline = System.currentTimeMillis() + 15000
+                    while (swipeResultLat <= 40.0150 && System.currentTimeMillis() < deadline) {
+                        device.swipe(x, yStart, x, yEnd, 50) // ~50 steps ≈ slow, deliberate pan
+                        composeTestRule.waitForIdle()
+                        val pollUntil = System.currentTimeMillis() + 2500
+                        while (System.currentTimeMillis() < pollUntil) {
+                            composeTestRule.runOnUiThread { swipeResultLat = store.state.value.center!!.latitude }
+                            if (swipeResultLat > 40.0150) break
+                            Thread.sleep(200)
+                        }
                     }
-                    composeTestRule.waitForIdle()
                 }
                 then("the map viewport has moved north") {
                     composeTestRule.onNodeWithTag("map_view").assertExists()
-
-                    // The Redux center should have moved north after the swipe gesture.
-                    // This IS reading Redux, but in this case the gesture->Redux feedback
-                    // loop is what we are testing -- the gesture fires on MapLibre, which
-                    // syncs the camera position back to Redux via GESTURE source.
-                    val newCenter = store.state.value.center!!
-                    assert(newCenter.latitude > 40.0150) { "Expected map to move North, but latitude is ${newCenter.latitude}" }
+                    assert(swipeResultLat > 40.0150) { "Expected map to move North, but latitude is $swipeResultLat" }
                 }
                 and("no performance violations during the pan") {
                     ReportGenerator.assertLogDoesNotContain("PerformanceDebugger", "STATE_UPDATE_STORM")

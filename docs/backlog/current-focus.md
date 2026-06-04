@@ -105,12 +105,26 @@ trustworthy. Original plan below for reference.
   the UI thread — `pixelForLatLng` requires it). Validated by `Phase1HarnessTest`
   (3 green on emulator) + an `AppLaunchTest` smoke; unit suite 375/0.
 
-### Phase 2 — Fix the real broken workflows
+### Phase 2 — Fix the real broken workflows — IN PROGRESS
 
 Now that honest assertions are possible, fix the product-failure clusters
 from [known-issues.md](known-issues.md), converting each dishonest test to
-honest *as* it's fixed: route-planning import-recenter → waypoint-drag
-cache loss → FAI editor → Settings units → overlay tap/select.
+honest *as* it's fixed.
+
+- **✅ Route clusters #1 + #2 done (2026-06).** 12/12 route-cluster tests
+  green (was 6/12). Two **real product bugs** fixed along the way:
+  (a) auto-framing a route moved the MapLibre camera but never synced
+  `MapState.center` back to Redux (programmatic moves are skipped by the
+  GESTURE→Redux feedback), leaving the app-level centre stale —
+  `MapViewContainer` now syncs the settled camera after `animateTo(bbox)`;
+  (b) `EditWaypointScreen` never showed the waypoint label, so you couldn't
+  tell which point you were editing. The remaining failures were dishonest/
+  stale tests (wrong expected coords, `assertExists` on >1 node, RFC-005
+  panel-collapse hiding controls, list shows "N WPs" not labels, and a
+  synthetic Compose swipe that can't reach the MapLibre surface — now a real
+  UiAutomator swipe). New honest helper: `MapVisualTest.assertMapFramedRoute`.
+- **Next:** FAI editor (#3) → Settings units (#4) → overlay tap/select (#5)
+  → weather (#6, last).
 
 ### Phase 3 — Stability hardening
 

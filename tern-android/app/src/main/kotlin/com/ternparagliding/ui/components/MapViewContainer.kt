@@ -231,8 +231,22 @@ fun MapViewContainer(
                         Position(box.maxLon, box.maxLat),
                     )
                     cameraState.animateTo(bbox)
-                    // Clear pending so it doesn't re-trigger
-                    store.dispatch(MapAction.UpdateBoundingBox(null))
+                    // animateTo() suspends until the fit settles. Sync the
+                    // resulting camera target/zoom back into Redux so the
+                    // application-level center/zoom track what's actually
+                    // framed (e.g. after a route auto-fit). The MapLibre →
+                    // Redux snapshot path below only fires for GESTURE moves,
+                    // so without this an auto-framed route leaves state.center
+                    // stale at its pre-frame value. UpdateMapMovement also
+                    // clears pendingBoundingBox, so it won't re-trigger.
+                    val settled = cameraState.position
+                    store.dispatch(
+                        MapAction.UpdateMapMovement(
+                            rotation = settled.bearing.toFloat(),
+                            center = GeoPoint(settled.target.latitude, settled.target.longitude),
+                            zoom = settled.zoom,
+                        )
+                    )
                 }
             }
     }

@@ -85,6 +85,16 @@ fun EditWaypointScreen(
             fontWeight = FontWeight.Bold
         )
 
+        // Which waypoint is being edited — show its label so the pilot (and
+        // gesture tests) can confirm the right point was selected.
+        waypoint.label?.takeIf { it.isNotBlank() }?.let { label ->
+            Text(
+                text = label,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+
         // Waypoint coordinates (read-only)
         Card(
             modifier = Modifier.fillMaxWidth()

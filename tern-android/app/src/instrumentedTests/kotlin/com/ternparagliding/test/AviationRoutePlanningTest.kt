@@ -52,6 +52,14 @@ class AviationRoutePlanningTest : MapVisualTest() {
                 }
 
                 then("a route should be created and the RouteDetailPanel should appear", takeScreenshot = true) {
+                    // Creating a waypoint by long-press auto-selects it, which
+                    // opens the Edit Waypoint screen (RouteDetailPanel is hidden
+                    // while it's up). Wait for creation, then dismiss the editor
+                    // to return to the route view before asserting the panel.
+                    composeTestRule.waitUntil(timeoutMillis = 8000) {
+                        composeTestRule.onAllNodesWithText("Edit Waypoint").fetchSemanticsNodes().isNotEmpty()
+                    }
+                    dismissWaypointEditor()
                     composeTestRule.waitUntil(timeoutMillis = 5000) {
                         composeTestRule.onAllNodesWithTag("RouteDetailPanel").fetchSemanticsNodes().isNotEmpty()
                     }
@@ -62,6 +70,9 @@ class AviationRoutePlanningTest : MapVisualTest() {
                     longPressOnMap(39.7420, -105.5136)
                     composeTestRule.waitForIdle()
                     Thread.sleep(1000)
+                    // Adding a waypoint re-selects it (Edit Waypoint screen);
+                    // dismiss so the route HUD is on screen for the next checks.
+                    dismissWaypointEditor()
                 }
 
                 then("the HUD should show distance and FAI points for the route", takeScreenshot = true) {
@@ -80,6 +91,17 @@ class AviationRoutePlanningTest : MapVisualTest() {
                         val store = androidx.lifecycle.ViewModelProvider(activity)[com.ternparagliding.redux.MapStore::class.java]
                         val route = store.state.value.routes.first()
                         store.dispatch(MapAction.UpdateWaypoint(route.id, route.waypoints.last().id, lat = 39.8617, lon = -104.6731))
+                    }
+                    composeTestRule.waitForIdle()
+                    // UpdateWaypoint kicks off RoutePlanningMiddleware's async
+                    // corridor sync, which recomputes airspace collision (false
+                    // in test mode — no airspace data) and would clobber our
+                    // injected value. Let it settle, THEN force the Class B
+                    // collision state we want the HUD to render.
+                    Thread.sleep(1500)
+                    composeTestRule.runOnUiThread {
+                        val activity = composeTestRule.activity
+                        val store = androidx.lifecycle.ViewModelProvider(activity)[com.ternparagliding.redux.MapStore::class.java]
                         store.dispatch(MapAction.SetAirspaceCollision(true))
                     }
                     composeTestRule.waitForIdle()
@@ -113,13 +135,18 @@ class AviationRoutePlanningTest : MapVisualTest() {
                         )
                     )
                     showRouteOnMap(mockRoute)
-                    assertMapLocation(39.7429, -105.2393)
+                    // Importing a task frames the WHOLE route (launch → goal),
+                    // so the map centres on the route's bounding-box centroid,
+                    // not on the launch waypoint. Assert the route is framed.
+                    assertMapFramedRoute(mockRoute)
                 }
 
                 then("the RouteDetailPanel should display the task name and distance", takeScreenshot = true) {
                     composeTestRule.onNodeWithTag("RouteDetailPanel").assertIsDisplayed()
                     composeTestRule.onNodeWithText("Airtribune Practice Task").assertIsDisplayed()
-                    composeTestRule.onNodeWithText("km", substring = true).assertExists()
+                    // Distance ("… km") appears in both the HUD and the panel
+                    // header, so >1 node matches — assert at least one exists.
+                    composeTestRule.onAllNodesWithText("km", substring = true).onFirst().assertExists()
                 }
 
                 and("the HUD should show the offline secured shield") {
@@ -177,7 +204,10 @@ class AviationRoutePlanningTest : MapVisualTest() {
 
                 then("the route panel header should show STORM RISK badge", takeScreenshot = true) {
                     composeTestRule.onNodeWithTag("RouteDetailPanel").assertIsDisplayed()
-                    composeTestRule.onNodeWithText("STORM RISK", substring = true).assertExists()
+                    // STORM RISK shows in both the panel header badge and a
+                    // waypoint row, so there are >1 matching nodes — assert at
+                    // least one is present rather than requiring exactly one.
+                    composeTestRule.onAllNodesWithText("STORM RISK", substring = true).onFirst().assertExists()
                 }
 
                 `when`("I expand the panel and remove the storm-risk waypoint") {
@@ -258,6 +288,17 @@ class AviationRoutePlanningTest : MapVisualTest() {
     }
 
     // --- Helpers ---
+
+    /** Close the Edit Waypoint screen by deselecting the waypoint, returning
+     *  to the route + HUD view. */
+    private fun dismissWaypointEditor() {
+        composeTestRule.runOnUiThread {
+            val activity = composeTestRule.activity
+            val store = androidx.lifecycle.ViewModelProvider(activity)[com.ternparagliding.redux.MapStore::class.java]
+            store.dispatch(MapAction.DeselectWaypoint)
+        }
+        composeTestRule.waitForIdle()
+    }
 
     private fun longPressOnMap(lat: Double, lon: Double) {
         composeTestRule.runOnUiThread {
