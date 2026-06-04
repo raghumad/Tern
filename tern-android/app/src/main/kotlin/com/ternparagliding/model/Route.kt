@@ -53,7 +53,7 @@ data class Route(
     val isVisible: Boolean = true
 ) {
     init {
-        com.ternparagliding.utils.trackAllocation("Route", 128L + waypoints.size * 64L)
+        com.ternparagliding.utils.diagnostics.trackAllocation("Route", 128L + waypoints.size * 64L)
     }
 
     // Computed properties derived from waypoints

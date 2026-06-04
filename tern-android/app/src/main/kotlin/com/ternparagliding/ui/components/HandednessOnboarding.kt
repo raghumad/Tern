@@ -13,7 +13,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ternparagliding.redux.Handedness
 import com.ternparagliding.redux.MapAction
 import com.ternparagliding.redux.MapStore
-import com.ternparagliding.utils.HandednessDetectionService
+import com.ternparagliding.utils.diagnostics.HandednessDetectionService
 import kotlinx.coroutines.launch
 
 /**

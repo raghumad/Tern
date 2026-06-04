@@ -1,4 +1,6 @@
 package com.ternparagliding.utils
+import com.ternparagliding.utils.cache.AirspaceCache
+import com.ternparagliding.utils.cache.GeoJsonUtils
 
 import android.content.Context
 import io.mockk.coEvery

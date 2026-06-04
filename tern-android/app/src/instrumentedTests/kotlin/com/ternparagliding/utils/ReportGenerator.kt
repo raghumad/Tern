@@ -1,4 +1,8 @@
 package com.ternparagliding.utils
+import com.ternparagliding.utils.cache.AirspaceCache
+import com.ternparagliding.utils.cache.GeoJsonUtils
+import com.ternparagliding.utils.cache.MapOverlayCacheUtils
+import com.ternparagliding.utils.diagnostics.PerformanceDebugger
 
 import android.graphics.Bitmap
 import androidx.test.platform.app.InstrumentationRegistry

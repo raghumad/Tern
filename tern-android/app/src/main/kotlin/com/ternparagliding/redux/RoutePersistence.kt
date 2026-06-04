@@ -2,7 +2,7 @@ package com.ternparagliding.redux
 
 import android.util.Log
 import com.ternparagliding.model.Route
-import com.ternparagliding.utils.RouteCache
+import com.ternparagliding.utils.cache.RouteCache
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map

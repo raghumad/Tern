@@ -1,13 +1,13 @@
 package com.ternparagliding.redux
 
 import android.content.Context
-import com.ternparagliding.utils.CacheManager
-import com.ternparagliding.utils.CountryUtils
+import com.ternparagliding.utils.cache.CacheManager
+import com.ternparagliding.utils.geo.CountryUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.osmdroid.util.GeoPoint
-import com.ternparagliding.utils.SpatialSafetyUtils
+import com.ternparagliding.utils.geo.SpatialSafetyUtils
 import android.util.Log
 
 /**

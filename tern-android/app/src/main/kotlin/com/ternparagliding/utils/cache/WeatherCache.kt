@@ -1,11 +1,16 @@
-package com.ternparagliding.utils
+package com.ternparagliding.utils.cache
+import com.ternparagliding.utils.geo.CountryUtils
+import com.ternparagliding.utils.io.ForecastPeriod
+import com.ternparagliding.utils.io.WeatherData
+import com.ternparagliding.utils.io.WeatherForecast
+import com.ternparagliding.utils.io.WindData
 
 import android.content.Context
 import android.util.Log
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 
-import com.ternparagliding.utils.MapOverlayCacheUtils.OverlayFeature
+import com.ternparagliding.utils.cache.MapOverlayCacheUtils.OverlayFeature
 import org.osmdroid.util.GeoPoint
 import java.util.concurrent.TimeUnit
 

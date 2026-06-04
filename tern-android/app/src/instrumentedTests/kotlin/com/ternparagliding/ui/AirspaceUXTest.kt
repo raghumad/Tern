@@ -58,7 +58,7 @@ class AirspaceUXTest : MapVisualTest() {
                     val airspaceFeature = createTestAirspace("Boulder CTR", lat, lon, halfDeg = 0.012)
                     com.ternparagliding.utils.TestCacheInjector.injectAirspaces(
                         context,
-                        com.ternparagliding.utils.CacheManager.airspaceCache,
+                        com.ternparagliding.utils.cache.CacheManager.airspaceCache,
                         "US",
                         listOf(airspaceFeature),
                     )
@@ -109,7 +109,7 @@ class AirspaceUXTest : MapVisualTest() {
         lat: Double,
         lon: Double,
         halfDeg: Double = 0.01,
-    ): com.ternparagliding.utils.MapOverlayCacheUtils.OverlayFeature {
+    ): com.ternparagliding.utils.cache.MapOverlayCacheUtils.OverlayFeature {
         val featureMap = mapOf(
             "type" to "Feature",
             "properties" to mapOf("name" to name, "class" to "D"),
@@ -127,10 +127,10 @@ class AirspaceUXTest : MapVisualTest() {
             )
         )
         val centroid = GeoPoint(lat, lon)
-        return com.ternparagliding.utils.MapOverlayCacheUtils.OverlayFeature(
+        return com.ternparagliding.utils.cache.MapOverlayCacheUtils.OverlayFeature(
             feature = featureMap,
             centroid = centroid,
-            hilbertIndex = com.ternparagliding.utils.MapOverlayCacheUtils.computeHilbertIndex(centroid, 16),
+            hilbertIndex = com.ternparagliding.utils.cache.MapOverlayCacheUtils.computeHilbertIndex(centroid, 16),
             overlayType = "airspace",
         )
     }

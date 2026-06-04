@@ -164,15 +164,15 @@ data class OverlayState(
 data class WeatherDialogState(
     val pgSpotId: String,
     val spotName: String,
-    val forecast: com.ternparagliding.utils.WeatherForecast?
+    val forecast: com.ternparagliding.utils.io.WeatherForecast?
 )
 
 /**
  * Weather state for dynamic PG spot weather overlays
  */
 data class WeatherState(
-    val spotWeathers: Map<String, com.ternparagliding.utils.WeatherForecast> = emptyMap(),
-    val waypointWeathers: Map<String, com.ternparagliding.utils.WeatherForecast> = emptyMap(),
+    val spotWeathers: Map<String, com.ternparagliding.utils.io.WeatherForecast> = emptyMap(),
+    val waypointWeathers: Map<String, com.ternparagliding.utils.io.WeatherForecast> = emptyMap(),
     val waypointEtas: Map<String, Long> = emptyMap(),
     val fetchingSpots: Set<String> = emptySet(),
     val errors: Map<String, Throwable> = emptyMap(),
@@ -218,6 +218,6 @@ data class UserPreferencesState(
  * State for smart waypoint suggestions (nearby PG spots)
  */
 data class SmartSuggestionState(
-    val nearbyPGSpot: com.ternparagliding.utils.MapOverlayCacheUtils.OverlayFeature? = null,
+    val nearbyPGSpot: com.ternparagliding.utils.cache.MapOverlayCacheUtils.OverlayFeature? = null,
     val pendingWaypointCreation: GeoPoint? = null
 )

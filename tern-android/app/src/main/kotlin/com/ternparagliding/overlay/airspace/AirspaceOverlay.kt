@@ -12,7 +12,7 @@ import androidx.compose.ui.platform.LocalContext
 import com.ternparagliding.overlay.priority.OverlayPrioritizer
 import com.ternparagliding.overlay.priority.Position
 import com.ternparagliding.redux.MapStore
-import com.ternparagliding.utils.CacheManager
+import com.ternparagliding.utils.cache.CacheManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.maplibre.compose.camera.CameraState
@@ -85,7 +85,7 @@ fun AirspaceOverlay(
  */
 private fun queryAndScore(
     context: android.content.Context,
-    cache: com.ternparagliding.utils.AirspaceCache,
+    cache: com.ternparagliding.utils.cache.AirspaceCache,
     prioritizer: OverlayPrioritizer,
     center: GeoPoint,
 ): List<AirspaceCandidate> {
@@ -94,7 +94,7 @@ private fun queryAndScore(
     // pilot is in. The UniversalCountryCacheManager handles
     // multi-country queries at a higher level — this composable
     // works with whatever data the cache already holds.
-    val countryCode = com.ternparagliding.utils.CountryUtils.getCountryCodeFromCoordinates(
+    val countryCode = com.ternparagliding.utils.geo.CountryUtils.getCountryCodeFromCoordinates(
         context, center.latitude, center.longitude,
     ) ?: return emptyList()
 

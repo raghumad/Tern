@@ -1,4 +1,6 @@
 package com.ternparagliding.utils
+import com.ternparagliding.utils.cache.MapOverlayCacheUtils
+import com.ternparagliding.utils.cache.OverlayGeoJsonParser
 
 import com.google.common.truth.Truth.assertThat
 import org.junit.jupiter.api.Test

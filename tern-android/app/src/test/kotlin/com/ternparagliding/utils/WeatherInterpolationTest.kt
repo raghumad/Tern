@@ -1,4 +1,8 @@
 package com.ternparagliding.utils
+import com.ternparagliding.utils.cache.WeatherCache
+import com.ternparagliding.utils.io.ForecastPeriod
+import com.ternparagliding.utils.io.WeatherData
+import com.ternparagliding.utils.io.WindData
 
 import org.junit.Assert.assertEquals
 import org.junit.Test

@@ -1,8 +1,8 @@
-package com.ternparagliding.utils
+package com.ternparagliding.utils.cache
 
 import android.content.Context
 import android.util.Log
-import com.ternparagliding.utils.MapOverlayCacheUtils.OverlayFeature
+import com.ternparagliding.utils.cache.MapOverlayCacheUtils.OverlayFeature
 import org.osmdroid.util.GeoPoint
 import java.util.concurrent.ConcurrentHashMap
 

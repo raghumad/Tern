@@ -1,4 +1,6 @@
 package com.ternparagliding.utils
+import com.ternparagliding.utils.diagnostics.PerformanceDebugger
+import com.ternparagliding.utils.geo.CountryUtils
 
 import org.junit.rules.TestRule
 import org.junit.runner.Description
@@ -66,7 +68,7 @@ open class BddTest : BaseUITest() {
 
             try {
                 kotlinx.coroutines.runBlocking {
-                    val report = com.ternparagliding.utils.PerformanceDebugger.getPerformanceReport()
+                    val report = com.ternparagliding.utils.diagnostics.PerformanceDebugger.getPerformanceReport()
                     println("=== PERFORMANCE REPORT ===")
                     println(report)
                     println("==========================")
@@ -89,12 +91,12 @@ open class BddTest : BaseUITest() {
     @org.junit.After
     fun generateReport() {
         // Reset CountryUtils mock
-        com.ternparagliding.utils.CountryUtils.setTestCountryCode(null)
+        com.ternparagliding.utils.geo.CountryUtils.setTestCountryCode(null)
 
         // Print Performance Report
         try {
             kotlinx.coroutines.runBlocking {
-                val report = com.ternparagliding.utils.PerformanceDebugger.getPerformanceReport()
+                val report = com.ternparagliding.utils.diagnostics.PerformanceDebugger.getPerformanceReport()
                 println("=== PERFORMANCE REPORT (FINAL) ===")
                 println(report)
                 println("==================================")

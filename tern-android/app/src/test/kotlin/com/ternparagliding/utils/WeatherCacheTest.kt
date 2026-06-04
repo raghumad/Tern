@@ -1,8 +1,10 @@
 package com.ternparagliding.utils
+import com.ternparagliding.utils.cache.WeatherCache
+import com.ternparagliding.utils.geo.CountryUtils
 
 import android.content.Context
 import android.util.Log
-import com.ternparagliding.utils.WeatherForecast
+import com.ternparagliding.utils.io.WeatherForecast
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic

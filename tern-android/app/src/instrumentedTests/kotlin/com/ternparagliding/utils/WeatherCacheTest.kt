@@ -1,8 +1,10 @@
 package com.ternparagliding.utils
+import com.ternparagliding.utils.cache.CacheManager
+import com.ternparagliding.utils.cache.WeatherCache
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import com.ternparagliding.utils.WeatherForecast
+import com.ternparagliding.utils.io.WeatherForecast
 import com.ternparagliding.utils.MapVisualTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue

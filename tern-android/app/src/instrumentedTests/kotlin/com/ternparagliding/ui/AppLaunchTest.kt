@@ -21,7 +21,7 @@ class AppLaunchTest : MapVisualTest() {
     fun testAppLaunchToMap_PacificOcean() {
         // Remote location in Pacific Ocean
         // Ensure no country is mocked BEFORE activity launch to prevent false positive data loading
-        com.ternparagliding.utils.CountryUtils.setTestCountryCode(null)
+        com.ternparagliding.utils.geo.CountryUtils.setTestCountryCode(null)
         
         launchAppToMap(0.0, -160.0, "Pacific Ocean", expectData = false)
     }
@@ -29,9 +29,9 @@ class AppLaunchTest : MapVisualTest() {
     private fun launchAppToMap(lat: Double, lon: Double, locationName: String? = null, expectData: Boolean = true) {
         // Ensure country code is set correctly for the given location BEFORE scenario starts
         if (expectData) {
-             com.ternparagliding.utils.CountryUtils.setTestCountryCode("us")
+             com.ternparagliding.utils.geo.CountryUtils.setTestCountryCode("us")
         } else {
-             com.ternparagliding.utils.CountryUtils.setTestCountryCode(null)
+             com.ternparagliding.utils.geo.CountryUtils.setTestCountryCode(null)
         }
         
         scenario("App Launch to Map (${locationName ?: "Custom Location"})") {
@@ -52,11 +52,11 @@ class AppLaunchTest : MapVisualTest() {
                     // Inject PG Spot
                     val pgSpotFeature = createTestPGSpot("Test Launch", lat, lon)
                     val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
-                    com.ternparagliding.utils.TestCacheInjector.injectPGSpots(context, com.ternparagliding.utils.CacheManager.pgSpotCache, "US", listOf(pgSpotFeature))
+                    com.ternparagliding.utils.TestCacheInjector.injectPGSpots(context, com.ternparagliding.utils.cache.CacheManager.pgSpotCache, "US", listOf(pgSpotFeature))
 
                     // Inject Airspace
                     val airspaceFeature = createTestAirspace("Test Airspace", lat, lon)
-                    com.ternparagliding.utils.TestCacheInjector.injectAirspaces(context, com.ternparagliding.utils.CacheManager.airspaceCache, "US", listOf(airspaceFeature))
+                    com.ternparagliding.utils.TestCacheInjector.injectAirspaces(context, com.ternparagliding.utils.cache.CacheManager.airspaceCache, "US", listOf(airspaceFeature))
                 }
 
                 // Move location slightly to trigger reload
@@ -90,7 +90,7 @@ class AppLaunchTest : MapVisualTest() {
     // Helper methods for creating test features
 
 
-    private fun createTestPGSpot(name: String, lat: Double, lon: Double): com.ternparagliding.utils.MapOverlayCacheUtils.OverlayFeature {
+    private fun createTestPGSpot(name: String, lat: Double, lon: Double): com.ternparagliding.utils.cache.MapOverlayCacheUtils.OverlayFeature {
         val featureMap = mapOf(
             "type" to "Feature",
             "properties" to mapOf("name" to name, "siteType" to "Launch"),
@@ -100,15 +100,15 @@ class AppLaunchTest : MapVisualTest() {
             )
         )
         val centroid = org.osmdroid.util.GeoPoint(lat, lon)
-        return com.ternparagliding.utils.MapOverlayCacheUtils.OverlayFeature(
+        return com.ternparagliding.utils.cache.MapOverlayCacheUtils.OverlayFeature(
             feature = featureMap,
             centroid = centroid,
-            hilbertIndex = com.ternparagliding.utils.MapOverlayCacheUtils.computeHilbertIndex(centroid, 16),
+            hilbertIndex = com.ternparagliding.utils.cache.MapOverlayCacheUtils.computeHilbertIndex(centroid, 16),
             overlayType = "pgspot"
         )
     }
 
-    private fun createTestAirspace(name: String, lat: Double, lon: Double): com.ternparagliding.utils.MapOverlayCacheUtils.OverlayFeature {
+    private fun createTestAirspace(name: String, lat: Double, lon: Double): com.ternparagliding.utils.cache.MapOverlayCacheUtils.OverlayFeature {
          val featureMap = mapOf(
             "type" to "Feature",
             "properties" to mapOf("name" to name, "class" to "D"),
@@ -124,10 +124,10 @@ class AppLaunchTest : MapVisualTest() {
             )
         )
         val centroid = org.osmdroid.util.GeoPoint(lat, lon)
-        return com.ternparagliding.utils.MapOverlayCacheUtils.OverlayFeature(
+        return com.ternparagliding.utils.cache.MapOverlayCacheUtils.OverlayFeature(
             feature = featureMap,
             centroid = centroid,
-            hilbertIndex = com.ternparagliding.utils.MapOverlayCacheUtils.computeHilbertIndex(centroid, 16),
+            hilbertIndex = com.ternparagliding.utils.cache.MapOverlayCacheUtils.computeHilbertIndex(centroid, 16),
             overlayType = "airspace"
         )
     }

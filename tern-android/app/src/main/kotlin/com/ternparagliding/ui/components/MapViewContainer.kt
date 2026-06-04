@@ -131,7 +131,7 @@ fun MapViewContainer(
     LaunchedEffect(store) {
         com.ternparagliding.redux.RoutePersistence.observe(
             store,
-            com.ternparagliding.utils.CacheManager.routeCache,
+            com.ternparagliding.utils.cache.CacheManager.routeCache,
         )
     }
 

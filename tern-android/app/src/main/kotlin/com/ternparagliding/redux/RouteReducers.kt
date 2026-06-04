@@ -130,7 +130,7 @@ private fun findNearbyWaypoint(
     geoPoint: GeoPoint,
     toleranceDegrees: Double
 ): Pair<com.ternparagliding.model.Route, com.ternparagliding.model.Waypoint>? {
-    val targetHilbertIndex = com.ternparagliding.utils.MapOverlayCacheUtils.computeHilbertIndex(geoPoint, 16)
+    val targetHilbertIndex = com.ternparagliding.utils.cache.MapOverlayCacheUtils.computeHilbertIndex(geoPoint, 16)
 
     routes.forEach { route ->
         route.waypoints.forEach { waypoint ->

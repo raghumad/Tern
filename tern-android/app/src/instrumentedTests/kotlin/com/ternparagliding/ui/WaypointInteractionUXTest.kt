@@ -78,7 +78,7 @@ class WaypointInteractionUXTest : MapVisualTest() {
                     // Persistence is async (RoutePersistence observes state.routes
                     // and writes on Dispatchers.IO), so poll for the dragged
                     // position to land in the cache rather than reading immediately.
-                    val cache = com.ternparagliding.utils.CacheManager.routeCache
+                    val cache = com.ternparagliding.utils.cache.CacheManager.routeCache
                     composeTestRule.waitUntil(timeoutMillis = 5000) {
                         cache.getCachedRoute(route.id)?.waypoints?.any {
                             it.label == "Turnpoint 1" && kotlin.math.abs(it.lat - endLat) < 0.0001

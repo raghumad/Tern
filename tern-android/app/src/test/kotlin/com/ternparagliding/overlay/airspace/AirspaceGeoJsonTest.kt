@@ -3,7 +3,7 @@ package com.ternparagliding.overlay.airspace
 import com.ternparagliding.overlay.priority.OverlayKind
 import com.ternparagliding.overlay.priority.Position
 import com.ternparagliding.overlay.priority.distanceDecay
-import com.ternparagliding.utils.MapOverlayCacheUtils.OverlayFeature
+import com.ternparagliding.utils.cache.MapOverlayCacheUtils.OverlayFeature
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull

@@ -1,10 +1,12 @@
-package com.ternparagliding.utils
+package com.ternparagliding.utils.geo
+import com.ternparagliding.utils.cache.SpatialDiskCache
 
 import android.content.Context
 import android.util.Log
 import android.util.Xml
 import com.ternparagliding.network.HttpClientProvider
-import com.ternparagliding.utils.MapOverlayCacheUtils.OverlayFeature
+import com.ternparagliding.utils.cache.MapOverlayCacheUtils
+import com.ternparagliding.utils.cache.MapOverlayCacheUtils.OverlayFeature
 import okhttp3.Request
 import org.osmdroid.util.GeoPoint
 import org.xmlpull.v1.XmlPullParser

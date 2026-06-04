@@ -1,4 +1,4 @@
-package com.ternparagliding.utils
+package com.ternparagliding.utils.diagnostics
 
 /**
  * Represents the current memory pressure level of the Android device

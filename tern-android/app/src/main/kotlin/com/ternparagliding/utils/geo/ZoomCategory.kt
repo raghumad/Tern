@@ -1,4 +1,4 @@
-package com.ternparagliding.utils
+package com.ternparagliding.utils.geo
 
 /**
  * Single source of truth for map zoom categories.

@@ -1,4 +1,4 @@
-package com.ternparagliding.utils
+package com.ternparagliding.utils.cache
 import com.ternparagliding.model.LocationType
 
 import android.content.Context

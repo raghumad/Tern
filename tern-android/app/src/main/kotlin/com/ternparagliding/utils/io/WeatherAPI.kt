@@ -1,4 +1,4 @@
-package com.ternparagliding.utils
+package com.ternparagliding.utils.io
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue

@@ -11,7 +11,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.*
 import com.ternparagliding.utils.MapVisualTest
-import com.ternparagliding.utils.CacheManager
+import com.ternparagliding.utils.cache.CacheManager
 import com.ternparagliding.utils.MapTestHelper
 import com.ternparagliding.utils.ReportGenerator
 import com.ternparagliding.TernParaglidingActivity

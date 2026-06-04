@@ -57,7 +57,7 @@ import androidx.compose.ui.window.Dialog
 import com.ternparagliding.redux.MapAction
 import com.ternparagliding.redux.MapStore
 import com.ternparagliding.redux.WeatherActions
-import com.ternparagliding.utils.RouteIOManager
+import com.ternparagliding.utils.io.RouteIOManager
 import androidx.compose.runtime.LaunchedEffect
 import java.time.Instant
 import java.time.ZoneId

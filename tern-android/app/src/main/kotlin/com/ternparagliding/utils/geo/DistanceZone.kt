@@ -1,4 +1,5 @@
-package com.ternparagliding.utils
+package com.ternparagliding.utils.geo
+import com.ternparagliding.utils.diagnostics.MemoryPressureLevel
 
 /**
  * Distance-based zones for intelligent overlay management

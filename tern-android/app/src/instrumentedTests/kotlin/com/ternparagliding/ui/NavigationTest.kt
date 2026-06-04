@@ -3,7 +3,7 @@ package com.ternparagliding.ui
 import androidx.compose.ui.test.*
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.ternparagliding.utils.MapVisualTest
-import com.ternparagliding.utils.CacheManager
+import com.ternparagliding.utils.cache.CacheManager
 import org.junit.Test
 import org.junit.runner.RunWith
 

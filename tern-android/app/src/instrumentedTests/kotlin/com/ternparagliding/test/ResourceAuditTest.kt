@@ -3,6 +3,10 @@ package com.ternparagliding.test
 import androidx.compose.ui.test.*
 import com.ternparagliding.model.*
 import com.ternparagliding.utils.*
+import com.ternparagliding.utils.cache.*
+import com.ternparagliding.utils.geo.*
+import com.ternparagliding.utils.diagnostics.*
+import com.ternparagliding.utils.io.*
 import com.ternparagliding.redux.*
 import org.junit.Test
 import org.osmdroid.util.GeoPoint

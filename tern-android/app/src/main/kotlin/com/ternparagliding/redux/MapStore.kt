@@ -148,10 +148,10 @@ class MapStore : ViewModel() {
         if (!com.ternparagliding.BuildConfig.DEBUG) return
         if (actionTypes != null) {
             actionTypes.forEach { (type, count) ->
-                com.ternparagliding.utils.PerformanceDebugger.recordStateUpdate(count, type)
+                com.ternparagliding.utils.diagnostics.PerformanceDebugger.recordStateUpdate(count, type)
             }
         } else {
-            com.ternparagliding.utils.PerformanceDebugger.recordStateUpdate(actionCount)
+            com.ternparagliding.utils.diagnostics.PerformanceDebugger.recordStateUpdate(actionCount)
         }
     }
 

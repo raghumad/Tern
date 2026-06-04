@@ -1,4 +1,4 @@
-package com.ternparagliding.utils
+package com.ternparagliding.utils.cache
 
 import com.fasterxml.jackson.annotation.JsonCreator
 import com.fasterxml.jackson.annotation.JsonProperty

@@ -1,6 +1,6 @@
 package com.ternparagliding.overlay.airspace
 
-import com.ternparagliding.utils.MapOverlayCacheUtils.OverlayFeature
+import com.ternparagliding.utils.cache.MapOverlayCacheUtils.OverlayFeature
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import org.maplibre.spatialk.geojson.Feature

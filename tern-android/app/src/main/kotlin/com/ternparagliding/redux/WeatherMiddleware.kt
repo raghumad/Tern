@@ -1,13 +1,13 @@
 package com.ternparagliding.redux
 
 import android.util.Log
-import com.ternparagliding.utils.CacheManager
-import com.ternparagliding.utils.OpenMeteoWeatherAPI
-import com.ternparagliding.utils.WeatherAPI
-import com.ternparagliding.utils.WeatherCache
-import com.ternparagliding.utils.WeatherForecast
+import com.ternparagliding.utils.cache.CacheManager
+import com.ternparagliding.utils.io.OpenMeteoWeatherAPI
+import com.ternparagliding.utils.io.WeatherAPI
+import com.ternparagliding.utils.cache.WeatherCache
+import com.ternparagliding.utils.io.WeatherForecast
 import com.ternparagliding.model.TrajectoryAnalyzer
-import com.ternparagliding.utils.WeatherData
+import com.ternparagliding.utils.io.WeatherData
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -53,8 +53,8 @@ class WeatherMiddleware(
                     org.osmdroid.util.GeoPoint(action.latitude, action.longitude).distanceToAsDouble(it) / 1000.0
                 } ?: Double.MAX_VALUE
 
-                val zone = com.ternparagliding.utils.DistanceZone.fromDistanceKm(distanceKm)
-                if (zone != com.ternparagliding.utils.DistanceZone.CORE && zone != com.ternparagliding.utils.DistanceZone.NEAR) {
+                val zone = com.ternparagliding.utils.geo.DistanceZone.fromDistanceKm(distanceKm)
+                if (zone != com.ternparagliding.utils.geo.DistanceZone.CORE && zone != com.ternparagliding.utils.geo.DistanceZone.NEAR) {
                     // Skip API fetch for distant spots to optimize performance/API costs
                     return@launch
                 }
@@ -77,7 +77,7 @@ class WeatherMiddleware(
         coroutineScope.launch {
             try {
                 val results = mutableMapOf<String, WeatherForecast>()
-                val cacheMisses = mutableListOf<com.ternparagliding.utils.LocationRequest>()
+                val cacheMisses = mutableListOf<com.ternparagliding.utils.io.LocationRequest>()
 
                 // Cache PASS
                 action.spots.forEach { (id, lat, lon) ->
@@ -85,7 +85,7 @@ class WeatherMiddleware(
                     if (cached != null) {
                         results[id] = cached
                     } else {
-                        cacheMisses.add(com.ternparagliding.utils.LocationRequest(id, lat, lon))
+                        cacheMisses.add(com.ternparagliding.utils.io.LocationRequest(id, lat, lon))
                     }
                 }
 
@@ -100,8 +100,8 @@ class WeatherMiddleware(
                         } else {
                             0.0 // Allow fetch if we don't have a reference location yet (cold start)
                         }
-                        val zone = com.ternparagliding.utils.DistanceZone.fromDistanceKm(distanceKm)
-                        zone == com.ternparagliding.utils.DistanceZone.CORE || zone == com.ternparagliding.utils.DistanceZone.NEAR
+                        val zone = com.ternparagliding.utils.geo.DistanceZone.fromDistanceKm(distanceKm)
+                        zone == com.ternparagliding.utils.geo.DistanceZone.CORE || zone == com.ternparagliding.utils.geo.DistanceZone.NEAR
                     }
 
                     if (filteredMisses.isNotEmpty()) {
@@ -154,7 +154,7 @@ class WeatherMiddleware(
             if (cacheMissWaypoints.isNotEmpty()) {
                 try {
                     val locations = cacheMissWaypoints.map { wp ->
-                        com.ternparagliding.utils.LocationRequest(wp.id, wp.lat, wp.lon)
+                        com.ternparagliding.utils.io.LocationRequest(wp.id, wp.lat, wp.lon)
                     }
                     val batchResult = weatherAPI.fetchBatchForecast(locations)
 

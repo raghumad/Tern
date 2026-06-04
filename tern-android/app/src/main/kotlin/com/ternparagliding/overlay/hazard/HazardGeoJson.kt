@@ -1,7 +1,7 @@
 package com.ternparagliding.overlay.hazard
 
 import com.ternparagliding.model.Route
-import com.ternparagliding.utils.WeatherForecast
+import com.ternparagliding.utils.io.WeatherForecast
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import org.maplibre.spatialk.geojson.Feature

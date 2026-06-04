@@ -1,4 +1,4 @@
-package com.ternparagliding.utils
+package com.ternparagliding.utils.geo
 
 import android.content.Context
 import android.location.Address

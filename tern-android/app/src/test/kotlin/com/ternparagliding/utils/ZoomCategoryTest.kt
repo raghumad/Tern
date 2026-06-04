@@ -1,4 +1,5 @@
 package com.ternparagliding.utils
+import com.ternparagliding.utils.geo.ZoomCategory
 
 import org.junit.Assert.assertEquals
 import org.junit.Test

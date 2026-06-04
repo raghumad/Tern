@@ -143,9 +143,9 @@ class WeatherUXTest : MapVisualTest() {
             val now = System.currentTimeMillis() / 1000
             val fiveHoursAgo = now - (5 * 3600)
             
-            val staleForecast = com.ternparagliding.utils.WeatherForecast(
-                current = com.ternparagliding.utils.WeatherData(
-                    wind = com.ternparagliding.utils.WindData(10.0, 180.0, 0.0),
+            val staleForecast = com.ternparagliding.utils.io.WeatherForecast(
+                current = com.ternparagliding.utils.io.WeatherData(
+                    wind = com.ternparagliding.utils.io.WindData(10.0, 180.0, 0.0),
                     temperature = 20.0,
                     humidity = 50.0,
                     visibility = 10.0,

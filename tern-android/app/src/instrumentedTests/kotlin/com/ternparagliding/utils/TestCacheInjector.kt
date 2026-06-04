@@ -1,4 +1,8 @@
 package com.ternparagliding.utils
+import com.ternparagliding.utils.cache.AirspaceCache
+import com.ternparagliding.utils.cache.MapOverlayCacheUtils
+import com.ternparagliding.utils.cache.PGSpotCache
+import com.ternparagliding.utils.cache.SpatialDiskCache
 
 import android.content.Context
 import java.io.File

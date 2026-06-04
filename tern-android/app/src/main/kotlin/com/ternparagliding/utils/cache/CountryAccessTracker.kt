@@ -1,4 +1,6 @@
-package com.ternparagliding.utils
+package com.ternparagliding.utils.cache
+import com.ternparagliding.utils.diagnostics.PerformanceDebugger
+import com.ternparagliding.utils.diagnostics.recordStateUpdate
 
 import android.util.Log
 

@@ -7,9 +7,9 @@ import com.ternparagliding.model.LocationType
 import com.ternparagliding.model.Route
 import com.ternparagliding.redux.MapAction
 import com.ternparagliding.redux.MapStore
-import com.ternparagliding.utils.CacheManager
-import com.ternparagliding.utils.RouteCache
-import com.ternparagliding.utils.RouteIOManager
+import com.ternparagliding.utils.cache.CacheManager
+import com.ternparagliding.utils.cache.RouteCache
+import com.ternparagliding.utils.io.RouteIOManager
 import com.ternparagliding.utils.MapVisualTest
 import org.junit.Assert.*
 import org.junit.Before

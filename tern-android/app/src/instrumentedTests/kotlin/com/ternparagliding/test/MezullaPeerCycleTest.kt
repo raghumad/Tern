@@ -18,11 +18,11 @@ import com.ternparagliding.sim.replay.ReplayState
 import com.ternparagliding.sim.swarm.PilotId
 import com.ternparagliding.sim.swarm.Scenario
 import com.ternparagliding.sim.swarm.SwarmPlayback
-import com.ternparagliding.utils.CacheManager
-import com.ternparagliding.utils.CountryUtils
+import com.ternparagliding.utils.cache.CacheManager
+import com.ternparagliding.utils.geo.CountryUtils
 import com.ternparagliding.utils.MapVisualTest
-import com.ternparagliding.utils.PGSpotCache
-import com.ternparagliding.utils.PerformanceDebugger
+import com.ternparagliding.utils.cache.PGSpotCache
+import com.ternparagliding.utils.diagnostics.PerformanceDebugger
 import com.ternparagliding.utils.ReportGenerator
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

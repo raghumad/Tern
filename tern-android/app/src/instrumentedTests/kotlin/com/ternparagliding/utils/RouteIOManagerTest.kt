@@ -1,4 +1,5 @@
 package com.ternparagliding.utils
+import com.ternparagliding.utils.io.RouteIOManager
 import com.ternparagliding.model.LocationType
 
 import androidx.test.ext.junit.runners.AndroidJUnit4

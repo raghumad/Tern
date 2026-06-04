@@ -1,4 +1,5 @@
 package com.ternparagliding.utils
+import com.ternparagliding.utils.cache.MapOverlayCacheUtils
 
 import org.junit.Test
 import org.junit.Assert.*

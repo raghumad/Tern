@@ -35,7 +35,7 @@ import androidx.compose.ui.unit.sp
 import com.ternparagliding.model.Route
 import com.ternparagliding.redux.MapAction
 import com.ternparagliding.redux.MapStore
-import com.ternparagliding.utils.RouteIOManager
+import com.ternparagliding.utils.io.RouteIOManager
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter

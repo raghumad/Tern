@@ -1,7 +1,8 @@
-package com.ternparagliding.utils
+package com.ternparagliding.utils.geo
+import com.ternparagliding.utils.io.WeatherForecast
 
 import org.osmdroid.util.GeoPoint
-import com.ternparagliding.utils.MapOverlayCacheUtils.OverlayFeature
+import com.ternparagliding.utils.cache.MapOverlayCacheUtils.OverlayFeature
 
 /**
  * Aviation-Grade Spatial Safety Utility

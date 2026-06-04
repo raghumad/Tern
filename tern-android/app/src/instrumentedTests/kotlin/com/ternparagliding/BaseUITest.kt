@@ -73,7 +73,7 @@ abstract class BaseUITest {
     @org.junit.Before
     fun setup() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        com.ternparagliding.utils.CacheManager.initialize(context)
+        com.ternparagliding.utils.cache.CacheManager.initialize(context)
     }
 
     @After

@@ -153,9 +153,9 @@ class AviationRoutePlanningTest : MapVisualTest() {
                     )
                     showRouteOnMap(route)
                     // Inject thunderstorm weather for Stormy Peak waypoint
-                    val stormForecast = com.ternparagliding.utils.WeatherForecast(
-                        current = com.ternparagliding.utils.WeatherData(
-                            wind = com.ternparagliding.utils.WindData(20.0, 270.0, 35.0),
+                    val stormForecast = com.ternparagliding.utils.io.WeatherForecast(
+                        current = com.ternparagliding.utils.io.WeatherData(
+                            wind = com.ternparagliding.utils.io.WindData(20.0, 270.0, 35.0),
                             temperature = 15.0, humidity = 90.0, visibility = 5.0,
                             pressure = 1005.0, cloudCover = 95.0,
                             timestamp = System.currentTimeMillis(),
@@ -218,9 +218,9 @@ class AviationRoutePlanningTest : MapVisualTest() {
                     showRouteOnMap(longRoute)
                     // Inject weather and ETA data for the goal waypoint
                     val goalWpId = longRoute.waypoints[2].id
-                    val goalForecast = com.ternparagliding.utils.WeatherForecast(
-                        current = com.ternparagliding.utils.WeatherData(
-                            wind = com.ternparagliding.utils.WindData(12.0, 225.0, 18.0),
+                    val goalForecast = com.ternparagliding.utils.io.WeatherForecast(
+                        current = com.ternparagliding.utils.io.WeatherData(
+                            wind = com.ternparagliding.utils.io.WindData(12.0, 225.0, 18.0),
                             temperature = 22.0, humidity = 45.0, visibility = 15.0,
                             pressure = 1015.0, cloudCover = 30.0,
                             timestamp = System.currentTimeMillis()

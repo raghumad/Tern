@@ -1,4 +1,8 @@
 package com.ternparagliding.utils
+import com.ternparagliding.utils.cache.CacheManager
+import com.ternparagliding.utils.cache.UniversalCountryCacheManager
+import com.ternparagliding.utils.diagnostics.PerformanceDebugger
+import com.ternparagliding.utils.geo.CountryUtils
 
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -87,7 +91,7 @@ open class MapVisualTest {
         // ReduxLocationService in the Compose tree, not by an OSMDroid
         // IMyLocationProvider. The test still sets a country code to
         // prevent real data downloads during test runs.
-        com.ternparagliding.utils.CountryUtils.setTestCountryCode("TEST")
+        com.ternparagliding.utils.geo.CountryUtils.setTestCountryCode("TEST")
     }
 
 
@@ -96,11 +100,11 @@ open class MapVisualTest {
         val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
         
         // 1. ISOLATION: Set test country code BEFORE anything else to prevent real US data downloads
-        com.ternparagliding.utils.CountryUtils.setTestCountryCode("TEST")
+        com.ternparagliding.utils.geo.CountryUtils.setTestCountryCode("TEST")
         
-        com.ternparagliding.utils.CacheManager.initialize(context)
+        com.ternparagliding.utils.cache.CacheManager.initialize(context)
         // 2. HYGIENE: Clear all caches immediately to ensure no state leakage from previous runs
-        com.ternparagliding.utils.CacheManager.clearAllCaches()
+        com.ternparagliding.utils.cache.CacheManager.clearAllCaches()
 
         // M8: MAP_MOVE_DEBOUNCE_MS was removed from MapViewModel when
         // OSMDroid was replaced by MapLibre. MapLibre camera updates flow
@@ -122,8 +126,8 @@ open class MapVisualTest {
         VideoHelper.startRecording(testNameRule.methodName.replace(" ", "_"))
 
         // 2. Proactively clear disk caches and performance metrics
-        com.ternparagliding.utils.CacheManager.clearAllCaches()
-        com.ternparagliding.utils.PerformanceDebugger.clearMetrics()
+        com.ternparagliding.utils.cache.CacheManager.clearAllCaches()
+        com.ternparagliding.utils.diagnostics.PerformanceDebugger.clearMetrics()
         Log.d("MapVisualTest", "Proactively cleared all caches and performance metrics")
 
         // M8: MAP_MOVE_DEBOUNCE_MS removed (see note above).
@@ -157,7 +161,7 @@ open class MapVisualTest {
         }
         
         // Final cache clear
-        com.ternparagliding.utils.CacheManager.clearAllCaches()
+        com.ternparagliding.utils.cache.CacheManager.clearAllCaches()
 
         try {
             val className = this.javaClass.simpleName
@@ -431,7 +435,7 @@ open class MapVisualTest {
         Log.i("MapVisualTest", "Waiting for Physical Cache Readiness (.idx / .flex) for Country: $countryCode")
         
         while (System.currentTimeMillis() - startTime < timeoutMillis) {
-            val isReady = com.ternparagliding.utils.CacheManager.airspaceCache.isCached(countryCode)
+            val isReady = com.ternparagliding.utils.cache.CacheManager.airspaceCache.isCached(countryCode)
             if (isReady) {
                 Log.i("MapVisualTest", "Cache successfully indexed for $countryCode!")
                 return

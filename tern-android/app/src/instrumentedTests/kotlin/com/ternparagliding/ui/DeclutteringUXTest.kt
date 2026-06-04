@@ -45,7 +45,7 @@ class DeclutteringUXTest : MapVisualTest() {
                     val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
                     val airspaceFeature = createTestAirspace("Test CTR", lat, lon)
                     com.ternparagliding.utils.TestCacheInjector.injectAirspaces(
-                        context, com.ternparagliding.utils.CacheManager.airspaceCache, "US", listOf(airspaceFeature))
+                        context, com.ternparagliding.utils.cache.CacheManager.airspaceCache, "US", listOf(airspaceFeature))
                     composeTestRule.runOnUiThread {
                         val store = ViewModelProvider(composeTestRule.activity)[MapStore::class.java]
                         store.dispatch(com.ternparagliding.redux.MapAction.AddAirspaceCountry("US"))
@@ -84,7 +84,7 @@ class DeclutteringUXTest : MapVisualTest() {
                 val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
                 val airspaceFeature = createTestAirspace("Test CTR Full", lat, lon)
                 com.ternparagliding.utils.TestCacheInjector.injectAirspaces(
-                    context, com.ternparagliding.utils.CacheManager.airspaceCache, "US", listOf(airspaceFeature))
+                    context, com.ternparagliding.utils.cache.CacheManager.airspaceCache, "US", listOf(airspaceFeature))
                 composeTestRule.runOnUiThread {
                     val store = ViewModelProvider(composeTestRule.activity)[MapStore::class.java]
                     store.dispatch(com.ternparagliding.redux.MapAction.AddAirspaceCountry("US"))
@@ -114,7 +114,7 @@ class DeclutteringUXTest : MapVisualTest() {
 
     // --- Test data helpers ---
 
-    private fun createTestAirspace(name: String, lat: Double, lon: Double): com.ternparagliding.utils.MapOverlayCacheUtils.OverlayFeature {
+    private fun createTestAirspace(name: String, lat: Double, lon: Double): com.ternparagliding.utils.cache.MapOverlayCacheUtils.OverlayFeature {
         val featureMap = mapOf(
             "type" to "Feature",
             "properties" to mapOf("name" to name, "class" to "D"),
@@ -130,10 +130,10 @@ class DeclutteringUXTest : MapVisualTest() {
             )
         )
         val centroid = org.osmdroid.util.GeoPoint(lat, lon)
-        return com.ternparagliding.utils.MapOverlayCacheUtils.OverlayFeature(
+        return com.ternparagliding.utils.cache.MapOverlayCacheUtils.OverlayFeature(
             feature = featureMap,
             centroid = centroid,
-            hilbertIndex = com.ternparagliding.utils.MapOverlayCacheUtils.computeHilbertIndex(centroid, 16),
+            hilbertIndex = com.ternparagliding.utils.cache.MapOverlayCacheUtils.computeHilbertIndex(centroid, 16),
             overlayType = "airspace"
         )
     }

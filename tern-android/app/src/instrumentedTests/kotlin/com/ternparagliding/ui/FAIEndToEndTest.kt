@@ -7,7 +7,7 @@ import com.ternparagliding.model.Waypoint
 import com.ternparagliding.redux.MapAction
 import com.ternparagliding.redux.MapStore
 import com.ternparagliding.utils.MapVisualTest
-import com.ternparagliding.utils.RouteIOManager
+import com.ternparagliding.utils.io.RouteIOManager
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith

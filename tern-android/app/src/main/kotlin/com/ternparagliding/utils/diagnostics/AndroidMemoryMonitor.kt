@@ -1,5 +1,5 @@
 @file:Suppress("DEPRECATION")
-package com.ternparagliding.utils
+package com.ternparagliding.utils.diagnostics
 import android.app.ActivityManager
 import android.content.ComponentCallbacks2
 import android.content.Context

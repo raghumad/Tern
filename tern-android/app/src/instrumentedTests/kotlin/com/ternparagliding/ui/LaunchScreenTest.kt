@@ -3,7 +3,7 @@ package com.ternparagliding.ui
 import androidx.compose.ui.test.*
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.ternparagliding.utils.MapVisualTest
-import com.ternparagliding.utils.CacheManager
+import com.ternparagliding.utils.cache.CacheManager
 import com.ternparagliding.utils.ReportGenerator
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -19,12 +19,12 @@ class LaunchScreenTest : MapVisualTest() {
             story("As a pilot arriving at a remote takeoff location, I expect the app to launch quickly and reliably, immediately showing me the local map and airspaces so I can begin my pre-flight checks without delay.") {
                 // Initialize CacheManager
                 val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
-                com.ternparagliding.utils.CacheManager.initialize(context)
+                com.ternparagliding.utils.cache.CacheManager.initialize(context)
 
                 given("I am at a new flying site (London, UK) and need to see the local terrain") {
                     // Clear existing cache to force download
-                    com.ternparagliding.utils.CacheManager.pgSpotCache.clearCache()
-                    com.ternparagliding.utils.CacheManager.airspaceCache.clearCache()
+                    com.ternparagliding.utils.cache.CacheManager.pgSpotCache.clearCache()
+                    com.ternparagliding.utils.cache.CacheManager.airspaceCache.clearCache()
                     
                     // Force CountryUtils to return "gb" (United Kingdom) - Smaller dataset (4.6MB vs 23MB for US)
                     // This prevents OOM/Timeouts on Emulator while still using Real URLs

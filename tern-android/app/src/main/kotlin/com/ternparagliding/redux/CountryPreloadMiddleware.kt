@@ -2,11 +2,11 @@ package com.ternparagliding.redux
 
 import android.content.Context
 import android.util.Log
-import com.ternparagliding.utils.CacheManager
-import com.ternparagliding.utils.CountryUtils
+import com.ternparagliding.utils.cache.CacheManager
+import com.ternparagliding.utils.geo.CountryUtils
 
 /**
- * Drives the (previously orphaned) [com.ternparagliding.utils.UniversalCountryCacheManager]
+ * Drives the (previously orphaned) [com.ternparagliding.utils.cache.UniversalCountryCacheManager]
  * from map movement, so airspace + PG-spot data actually downloads as the
  * pilot moves the map across regions and borders.
  *

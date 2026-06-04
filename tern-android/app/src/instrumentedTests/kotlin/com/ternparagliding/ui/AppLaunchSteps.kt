@@ -27,10 +27,10 @@ fun MapVisualTest.givenAppIsLaunchedOnMap(
     step("GIVEN", "scenario App Launch to Map ($lat, $lon, $countryCode) @ z$zoom", true) {
         val activity = composeTestRule.activity
         // Initialize CacheManager
-        com.ternparagliding.utils.CacheManager.initialize(activity.applicationContext)
+        com.ternparagliding.utils.cache.CacheManager.initialize(activity.applicationContext)
         
         // Mock Country Code
-        com.ternparagliding.utils.CountryUtils.setTestCountryCode(countryCode)
+        com.ternparagliding.utils.geo.CountryUtils.setTestCountryCode(countryCode)
         
         // Permissions & Location
         com.ternparagliding.utils.MapTestHelper.grantLocationPermissions()

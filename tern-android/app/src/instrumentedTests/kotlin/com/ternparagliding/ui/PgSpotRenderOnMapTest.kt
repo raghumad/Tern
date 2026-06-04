@@ -3,8 +3,8 @@ package com.ternparagliding.ui
 import androidx.compose.ui.test.*
 import androidx.test.platform.app.InstrumentationRegistry
 import com.ternparagliding.overlay.pgspot.PG_SPOT_TEAL
-import com.ternparagliding.utils.CacheManager
-import com.ternparagliding.utils.MapOverlayCacheUtils
+import com.ternparagliding.utils.cache.CacheManager
+import com.ternparagliding.utils.cache.MapOverlayCacheUtils
 import com.ternparagliding.utils.MapVisualTest
 import com.ternparagliding.utils.ReportGenerator
 import com.ternparagliding.utils.TestCacheInjector

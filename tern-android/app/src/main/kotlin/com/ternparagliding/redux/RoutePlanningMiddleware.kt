@@ -2,15 +2,15 @@ package com.ternparagliding.redux
 
 import android.content.Context
 import android.util.Log
-import com.ternparagliding.utils.ThermalHotspotService
+import com.ternparagliding.utils.geo.ThermalHotspotService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import org.osmdroid.util.GeoPoint
-import com.ternparagliding.utils.SpatialSafetyUtils
-import com.ternparagliding.utils.CacheManager
-import com.ternparagliding.utils.CountryUtils
+import com.ternparagliding.utils.geo.SpatialSafetyUtils
+import com.ternparagliding.utils.cache.CacheManager
+import com.ternparagliding.utils.geo.CountryUtils
 
 /**
  * Middleware handling side-effects for Route Planning.

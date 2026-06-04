@@ -8,11 +8,11 @@ import com.ternparagliding.model.Waypoint
 import com.ternparagliding.overlay.pgspot.PG_SPOT_TEAL
 import com.ternparagliding.redux.MapAction
 import com.ternparagliding.redux.MapStore
-import com.ternparagliding.utils.CacheManager
-import com.ternparagliding.utils.CountryUtils
+import com.ternparagliding.utils.cache.CacheManager
+import com.ternparagliding.utils.geo.CountryUtils
 import com.ternparagliding.utils.MapVisualTest
-import com.ternparagliding.utils.PerformanceDebugger
-import com.ternparagliding.utils.PGSpotCache
+import com.ternparagliding.utils.diagnostics.PerformanceDebugger
+import com.ternparagliding.utils.cache.PGSpotCache
 import com.ternparagliding.utils.ReportGenerator
 import com.ternparagliding.utils.VisualValidator
 import com.ternparagliding.utils.WeatherTestHelper

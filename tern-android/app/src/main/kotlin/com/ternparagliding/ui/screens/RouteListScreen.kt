@@ -51,7 +51,7 @@ import com.ternparagliding.R
 import com.ternparagliding.redux.MapAction
 import com.ternparagliding.redux.MapStore
 import com.ternparagliding.model.Route
-import com.ternparagliding.utils.RouteIOManager
+import com.ternparagliding.utils.io.RouteIOManager
 import java.time.Instant
 import kotlin.math.atan2
 import kotlin.math.cos

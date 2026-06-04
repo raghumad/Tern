@@ -1,4 +1,7 @@
 package com.ternparagliding.utils
+import com.ternparagliding.utils.cache.CacheManager
+import com.ternparagliding.utils.cache.PGSpotCache
+import com.ternparagliding.utils.io.OpenMeteoWeatherAPI
 
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer

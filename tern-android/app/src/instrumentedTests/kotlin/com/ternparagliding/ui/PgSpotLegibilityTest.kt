@@ -2,9 +2,9 @@ package com.ternparagliding.ui
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import com.ternparagliding.utils.CacheManager
-import com.ternparagliding.utils.CountryUtils
-import com.ternparagliding.utils.MapOverlayCacheUtils
+import com.ternparagliding.utils.cache.CacheManager
+import com.ternparagliding.utils.geo.CountryUtils
+import com.ternparagliding.utils.cache.MapOverlayCacheUtils
 import com.ternparagliding.utils.MapVisualTest
 import com.ternparagliding.utils.TestCacheInjector
 import androidx.lifecycle.ViewModelProvider

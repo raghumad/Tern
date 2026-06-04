@@ -1,4 +1,4 @@
-package com.ternparagliding.utils
+package com.ternparagliding.utils.geo
 
 import com.ternparagliding.model.Waypoint
 import kotlin.math.roundToInt

@@ -1,4 +1,5 @@
-package com.ternparagliding.utils
+package com.ternparagliding.utils.io
+import com.ternparagliding.utils.geo.PolylineUtils
 
 import android.content.Context
 import android.content.Intent

@@ -11,9 +11,9 @@ import com.ternparagliding.redux.OverlayState
 import com.ternparagliding.redux.WeatherState
 import com.ternparagliding.ui.components.RouteDetailPanel
 import com.ternparagliding.utils.BddTest
-import com.ternparagliding.utils.WeatherData
-import com.ternparagliding.utils.WeatherForecast
-import com.ternparagliding.utils.WindData
+import com.ternparagliding.utils.io.WeatherData
+import com.ternparagliding.utils.io.WeatherForecast
+import com.ternparagliding.utils.io.WindData
 import org.junit.Test
 import org.junit.runner.RunWith
 import androidx.compose.ui.test.junit4.createComposeRule

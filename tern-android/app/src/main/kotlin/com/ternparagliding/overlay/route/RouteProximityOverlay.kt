@@ -10,7 +10,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import com.ternparagliding.redux.MapAction
 import com.ternparagliding.redux.MapStore
-import com.ternparagliding.utils.CacheManager
+import com.ternparagliding.utils.cache.CacheManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.osmdroid.util.GeoPoint
@@ -24,7 +24,7 @@ private const val REQUERY_DISTANCE_KM = 5.0
 private const val QUERY_RADIUS_KM = 100.0
 
 /**
- * Surfaces preplanned routes from the offline spatial [com.ternparagliding.utils.RouteCache]
+ * Surfaces preplanned routes from the offline spatial [com.ternparagliding.utils.cache.RouteCache]
  * when the pilot is near them — the "fly to Europe and your routes there show
  * up" behavior. Mirrors `AirspaceOverlay`'s query pattern: read pilot center
  * from Redux, query the cache by centroid proximity on IO, and merge results

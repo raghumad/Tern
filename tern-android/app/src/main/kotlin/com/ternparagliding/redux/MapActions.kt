@@ -105,7 +105,7 @@ sealed class MapAction : TernAction {
     object DeselectRoute : MapAction()
 
     // Smart Suggestion actions
-    data class SetSmartSuggestion(val nearbyPGSpot: com.ternparagliding.utils.MapOverlayCacheUtils.OverlayFeature?, val pendingWaypointCreation: GeoPoint?) : MapAction()
+    data class SetSmartSuggestion(val nearbyPGSpot: com.ternparagliding.utils.cache.MapOverlayCacheUtils.OverlayFeature?, val pendingWaypointCreation: GeoPoint?) : MapAction()
     data class CheckSmartSuggestion(val geoPoint: GeoPoint) : MapAction()
     object ClearSmartSuggestion : MapAction()
 
@@ -150,18 +150,18 @@ sealed class OverlayActions {
 sealed class WeatherActions : TernAction {
     // Weather data fetching and caching for PG Spots
     data class FetchWeatherForPGSpot(val pgSpotId: String, val latitude: Double, val longitude: Double) : WeatherActions()
-    data class WeatherFetched(val pgSpotId: String, val forecast: com.ternparagliding.utils.WeatherForecast?) : WeatherActions()
+    data class WeatherFetched(val pgSpotId: String, val forecast: com.ternparagliding.utils.io.WeatherForecast?) : WeatherActions()
     data class WeatherFetchError(val pgSpotId: String, val error: Throwable) : WeatherActions()
     
     // Batch weather actions for performance optimization (Phase 7.3)
     data class FetchWeatherForSpots(val spots: List<Triple<String, Double, Double>>) : WeatherActions()
-    data class SpotsWeatherFetched(val forecasts: Map<String, com.ternparagliding.utils.WeatherForecast>) : WeatherActions()
+    data class SpotsWeatherFetched(val forecasts: Map<String, com.ternparagliding.utils.io.WeatherForecast>) : WeatherActions()
 
     // Weather data fetching for Routes/Waypoints
     data class FetchWeatherForRoute(val routeId: String) : WeatherActions()
     data class RouteWeatherFetched(
         val routeId: String, 
-        val waypointForecasts: Map<String, com.ternparagliding.utils.WeatherForecast>,
+        val waypointForecasts: Map<String, com.ternparagliding.utils.io.WeatherForecast>,
         val etas: Map<String, Long> = emptyMap()
     ) : WeatherActions()
 
@@ -170,7 +170,7 @@ sealed class WeatherActions : TernAction {
     data class SetWeatherDetailsEnabled(val enabled: Boolean) : WeatherActions()
 
     // UI controls for weather details
-    data class ShowWeatherDetails(val pgSpotId: String, val spotName: String, val forecast: com.ternparagliding.utils.WeatherForecast?) : WeatherActions()
+    data class ShowWeatherDetails(val pgSpotId: String, val spotName: String, val forecast: com.ternparagliding.utils.io.WeatherForecast?) : WeatherActions()
     data object DismissWeatherDetails : WeatherActions()
 
     // Cache management

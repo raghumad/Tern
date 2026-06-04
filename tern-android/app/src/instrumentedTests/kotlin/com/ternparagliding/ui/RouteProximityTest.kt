@@ -7,7 +7,7 @@ import com.ternparagliding.model.LocationType
 import com.ternparagliding.model.Route
 import com.ternparagliding.model.Waypoint
 import com.ternparagliding.redux.MapStore
-import com.ternparagliding.utils.CacheManager
+import com.ternparagliding.utils.cache.CacheManager
 import com.ternparagliding.utils.MapVisualTest
 import com.ternparagliding.utils.VisualValidator
 import org.junit.Test

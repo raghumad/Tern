@@ -1,5 +1,5 @@
 @file:Suppress("UNCHECKED_CAST")
-package com.ternparagliding.utils
+package com.ternparagliding.utils.diagnostics
 
 import android.util.Log
 import kotlinx.coroutines.*

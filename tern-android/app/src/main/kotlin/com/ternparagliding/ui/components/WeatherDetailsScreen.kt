@@ -24,9 +24,9 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.ternparagliding.utils.ForecastPeriod
-import com.ternparagliding.utils.WeatherData
-import com.ternparagliding.utils.WeatherForecast
+import com.ternparagliding.utils.io.ForecastPeriod
+import com.ternparagliding.utils.io.WeatherData
+import com.ternparagliding.utils.io.WeatherForecast
 import androidx.compose.ui.semantics.semantics
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -124,12 +124,12 @@ private fun WeatherContent(forecast: WeatherForecast, targetTimestamp: Long?) {
         }
 
         // Compute Skew-T data before branching so it's available in outer scope
-        val interpolated: com.ternparagliding.utils.WeatherData? = if (targetTimestamp != null && forecast.hourly.isNotEmpty()) {
+        val interpolated: com.ternparagliding.utils.io.WeatherData? = if (targetTimestamp != null && forecast.hourly.isNotEmpty()) {
             val startPeriod = forecast.hourly.lastOrNull { it.startTime <= targetTimestamp }
                 ?: forecast.hourly.first()
             val endPeriod = forecast.hourly.firstOrNull { it.startTime > targetTimestamp }
                 ?: forecast.hourly.last()
-            com.ternparagliding.utils.WeatherCache.interpolateWeather(startPeriod, endPeriod, targetTimestamp)
+            com.ternparagliding.utils.cache.WeatherCache.interpolateWeather(startPeriod, endPeriod, targetTimestamp)
         } else null
 
         // Current Conditions
@@ -383,7 +383,7 @@ private fun WeatherDetail(label: String, value: String, modifier: Modifier = Mod
  * Inversion Layer is detected from Open-Meteo 850hPa vs 925hPa temperature data.
  */
 @Composable
-private fun SkewTPlaceholderCard(weatherData: com.ternparagliding.utils.WeatherData? = null) {
+private fun SkewTPlaceholderCard(weatherData: com.ternparagliding.utils.io.WeatherData? = null) {
     val cloudBaseText = weatherData?.let { computeCloudBaseFt(it) } ?: "—"
     val inversionText = weatherData?.let { detectInversionLayer(it) } ?: "—"
 
@@ -463,7 +463,7 @@ private fun SkewTPlaceholderCard(weatherData: com.ternparagliding.utils.WeatherD
  * Computes estimated cloud base in feet AGL using the LCL approximation.
  * Formula: Td = T - ((100 - RH) / 5); H = 125 * (T - Td) meters; convert to ft.
  */
-private fun computeCloudBaseFt(weather: com.ternparagliding.utils.WeatherData): String {
+private fun computeCloudBaseFt(weather: com.ternparagliding.utils.io.WeatherData): String {
     val t = weather.temperature
     val rh = weather.humidity.coerceIn(1.0, 100.0)
     val dewPoint = t - ((100.0 - rh) / 5.0)
@@ -478,7 +478,7 @@ private fun computeCloudBaseFt(weather: com.ternparagliding.utils.WeatherData): 
  * the temperature at 925hPa (lower altitude), indicating a warmer layer aloft.
  * Returns null-safe "No data" when pressure-level data is unavailable.
  */
-private fun detectInversionLayer(weather: com.ternparagliding.utils.WeatherData): String {
+private fun detectInversionLayer(weather: com.ternparagliding.utils.io.WeatherData): String {
     val t850 = weather.temp850hPa
     val t925 = weather.temp925hPa
     return when {

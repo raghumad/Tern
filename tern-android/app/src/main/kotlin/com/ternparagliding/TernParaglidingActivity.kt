@@ -20,7 +20,7 @@ import com.ternparagliding.mezulla.pairing.TernPairLink
 import com.ternparagliding.redux.MapStore
 import com.ternparagliding.ui.screens.TernMapScreen
 import com.ternparagliding.ui.theme.TernTheme
-import com.ternparagliding.utils.CacheManager
+import com.ternparagliding.utils.cache.CacheManager
 import org.osmdroid.config.Configuration
 
 class TernParaglidingActivity : ComponentActivity() {

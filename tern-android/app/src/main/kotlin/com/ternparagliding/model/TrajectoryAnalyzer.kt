@@ -1,6 +1,6 @@
 package com.ternparagliding.model
 
-import com.ternparagliding.utils.trackAllocation
+import com.ternparagliding.utils.diagnostics.trackAllocation
 import kotlin.math.*
 
 /**

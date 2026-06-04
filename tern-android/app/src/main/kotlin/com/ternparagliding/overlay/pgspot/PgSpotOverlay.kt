@@ -13,7 +13,7 @@ import com.ternparagliding.overlay.priority.OverlayPrioritizer
 import com.ternparagliding.overlay.priority.Position
 import com.ternparagliding.redux.MapAction
 import com.ternparagliding.redux.MapStore
-import com.ternparagliding.utils.CacheManager
+import com.ternparagliding.utils.cache.CacheManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.maplibre.compose.camera.CameraState
@@ -34,7 +34,7 @@ private const val QUERY_RADIUS_KM = 200.0
 
 /**
  * Composable bridge: reads pilot position from Redux, queries
- * [com.ternparagliding.utils.PGSpotCache] via Hilbert spatial index,
+ * [com.ternparagliding.utils.cache.PGSpotCache] via Hilbert spatial index,
  * scores through [OverlayPrioritizer], converts to GeoJSON, and feeds
  * the result to [PgSpotLayer] for GPU rendering.
  *
@@ -96,11 +96,11 @@ fun PgSpotOverlay(
  */
 private fun queryAndScore(
     context: android.content.Context,
-    cache: com.ternparagliding.utils.PGSpotCache,
+    cache: com.ternparagliding.utils.cache.PGSpotCache,
     prioritizer: OverlayPrioritizer,
     center: GeoPoint,
-): List<com.ternparagliding.utils.MapOverlayCacheUtils.OverlayFeature> {
-    val countryCode = com.ternparagliding.utils.CountryUtils.getCountryCodeFromCoordinates(
+): List<com.ternparagliding.utils.cache.MapOverlayCacheUtils.OverlayFeature> {
+    val countryCode = com.ternparagliding.utils.geo.CountryUtils.getCountryCodeFromCoordinates(
         context, center.latitude, center.longitude,
     ) ?: return emptyList()
 

@@ -1,10 +1,12 @@
-package com.ternparagliding.utils
+package com.ternparagliding.utils.cache
+import com.ternparagliding.utils.diagnostics.trackAllocation
+import com.ternparagliding.utils.diagnostics.trackDeallocation
 
 import android.content.Context
 import android.util.Log
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.ternparagliding.utils.MapOverlayCacheUtils.OverlayFeature
+import com.ternparagliding.utils.cache.MapOverlayCacheUtils.OverlayFeature
 import org.osmdroid.util.GeoPoint
 import java.io.*
 import java.nio.MappedByteBuffer

@@ -1,8 +1,10 @@
-package com.ternparagliding.utils
+package com.ternparagliding.utils.cache
+import com.ternparagliding.utils.diagnostics.PerformanceDebugger
+import com.ternparagliding.utils.geo.CountryUtils
 
 import android.content.Context
 import android.util.Log
-import com.ternparagliding.utils.CacheManager
+import com.ternparagliding.utils.cache.CacheManager
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -383,7 +385,7 @@ class UniversalCountryCacheManager(
         center: GeoPoint,
         radiusKm: Double,
         limit: Int = 1000
-    ): List<com.ternparagliding.utils.MapOverlayCacheUtils.OverlayFeature> = coroutineScope {
+    ): List<com.ternparagliding.utils.cache.MapOverlayCacheUtils.OverlayFeature> = coroutineScope {
         val normalizedCenter = center.normalizePrecision()
         
         // Dynamically resolve nearby countries from coordinates (Stateless Principle)
@@ -434,8 +436,8 @@ class UniversalCountryCacheManager(
         countryCode: String,
         radiusKm: Double,
         limit: Int
-    ): List<com.ternparagliding.utils.MapOverlayCacheUtils.OverlayFeature> {
-        val features = mutableListOf<com.ternparagliding.utils.MapOverlayCacheUtils.OverlayFeature>()
+    ): List<com.ternparagliding.utils.cache.MapOverlayCacheUtils.OverlayFeature> {
+        val features = mutableListOf<com.ternparagliding.utils.cache.MapOverlayCacheUtils.OverlayFeature>()
         
         try {
             // 1. Query Airspaces

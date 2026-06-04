@@ -6,10 +6,10 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.ternparagliding.redux.WeatherActions
 import com.ternparagliding.ui.components.WindGaugeMarker
-import com.ternparagliding.utils.ViewToBitmap
-import com.ternparagliding.utils.WeatherData
-import com.ternparagliding.utils.WeatherForecast
-import com.ternparagliding.utils.WindData
+import com.ternparagliding.utils.io.ViewToBitmap
+import com.ternparagliding.utils.io.WeatherData
+import com.ternparagliding.utils.io.WeatherForecast
+import com.ternparagliding.utils.io.WindData
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
@@ -31,7 +31,7 @@ class DynamicMarkerTest : com.ternparagliding.utils.MapVisualTest() {
     companion object {
         init {
             // Set test country at class loading time to catch early activity startup
-            com.ternparagliding.utils.CountryUtils.setTestCountryCode("TEST")
+            com.ternparagliding.utils.geo.CountryUtils.setTestCountryCode("TEST")
         }
     }
 
@@ -187,14 +187,14 @@ class DynamicMarkerTest : com.ternparagliding.utils.MapVisualTest() {
 
                 given("a PG spot is cached and a Mock Weather Server is running") {
                     // Set test country early - this will trigger a TEST download which we redirect
-                    com.ternparagliding.utils.CountryUtils.setTestCountryCode("TEST")
+                    com.ternparagliding.utils.geo.CountryUtils.setTestCountryCode("TEST")
 
                     val context = composeTestRule.activity
                     val point = org.osmdroid.util.GeoPoint(lat, lon)
                     val featureMap = mapOf("id" to pgSpotId, "name" to "Boulder Launch")
-                    val hIndex = com.ternparagliding.utils.MapOverlayCacheUtils.computeHilbertIndex(point, 16)
+                    val hIndex = com.ternparagliding.utils.cache.MapOverlayCacheUtils.computeHilbertIndex(point, 16)
 
-                    val feature = com.ternparagliding.utils.MapOverlayCacheUtils.OverlayFeature(
+                    val feature = com.ternparagliding.utils.cache.MapOverlayCacheUtils.OverlayFeature(
                         internalId = pgSpotId,
                         feature = featureMap,
                         centroid = point,
@@ -204,13 +204,13 @@ class DynamicMarkerTest : com.ternparagliding.utils.MapVisualTest() {
 
                     val mockUrl = com.ternparagliding.utils.WeatherTestHelper.startServer()
                     // Redirect PG spot downloads to mock server
-                    com.ternparagliding.utils.PGSpotCache.setBaseUrlForTesting(mockUrl)
+                    com.ternparagliding.utils.cache.PGSpotCache.setBaseUrlForTesting(mockUrl)
                     com.ternparagliding.utils.WeatherTestHelper.setDispatcher(speed = 18.0, direction = 270.0)
 
                     // Pre-inject the cache to ensure the spot 9876 doesnt leak from real US data
                     com.ternparagliding.utils.TestCacheInjector.injectPGSpots(
                         context,
-                        com.ternparagliding.utils.CacheManager.pgSpotCache,
+                        com.ternparagliding.utils.cache.CacheManager.pgSpotCache,
                         "TEST",
                         listOf(feature)
                     )
@@ -227,8 +227,8 @@ class DynamicMarkerTest : com.ternparagliding.utils.MapVisualTest() {
                     // Wind gauge is a MapLibre SymbolLayer bitmap -- cannot be asserted via Compose.
                     // Screenshot is the evidence. Cleanup below.
                     com.ternparagliding.utils.WeatherTestHelper.stopServer()
-                    com.ternparagliding.utils.PGSpotCache.resetBaseUrlForTesting()
-                    com.ternparagliding.utils.CountryUtils.setTestCountryCode(null)
+                    com.ternparagliding.utils.cache.PGSpotCache.resetBaseUrlForTesting()
+                    com.ternparagliding.utils.geo.CountryUtils.setTestCountryCode(null)
                 }
             }
         }
