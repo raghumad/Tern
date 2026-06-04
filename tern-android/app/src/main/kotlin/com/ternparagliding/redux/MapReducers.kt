@@ -1,15 +1,11 @@
 package com.ternparagliding.redux
 
-
-import android.util.Log
-import org.osmdroid.util.GeoPoint
-import com.ternparagliding.model.LocationType
-import com.ternparagliding.model.Waypoint
-
-// Route management constants imported from Constants.kt
-
 /**
- * Redux reducers for map functionality - organized by functional groups
+ * Redux reducers for map functionality - organized by functional groups.
+ *
+ * Route/waypoint/editing/selection/long-press/smart-suggestion handlers live
+ * in RouteReducers.kt; weather handlers live in WeatherReducers.kt (Phase 0c
+ * god-file split). All three share the `redux` package.
  */
 fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
     // Permission & Location Management
@@ -52,22 +48,19 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
     is MapAction.SetSettingsOverlayEnabled,
     is MapAction.SetUnitPreference -> handleSettingsActions(state, action)
 
-    // Sensor & Flight Data
-
-
     // User Preferences & Layout
     is MapAction.SetHandedness,
     is MapAction.UpdateHandednessSource,
     is MapAction.UpdateUserPreferences -> handleUserPreferencesActions(state, action)
 
-    // Route Management
+    // Route Management (RouteReducers.kt)
     is MapAction.AddRoute,
     is MapAction.RemoveRoute,
     is MapAction.UpdateRoute,
     is MapAction.SurfaceNearbyRoutes,
     is MapAction.ClearAllRoutes -> handleRouteActions(state, action)
 
-    // Waypoint Management
+    // Waypoint Management (RouteReducers.kt)
     is MapAction.AddWaypointToRoute,
     is MapAction.RemoveWaypoint,
     is MapAction.UpdateWaypoint,
@@ -77,7 +70,7 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
     is MapAction.UpdateWaypointTimeGates,
     is MapAction.ReorderWaypoint -> handleWaypointActions(state, action)
 
-    // Interactive Editing
+    // Interactive Editing (RouteReducers.kt)
     is MapAction.SelectWaypoint,
     MapAction.DeselectWaypoint,
     is MapAction.StartWaypointDrag,
@@ -85,21 +78,21 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
     MapAction.EndWaypointDrag,
     MapAction.CancelWaypointDrag -> handleInteractiveEditingActions(state, action)
 
-    // Route Selection
+    // Route Selection (RouteReducers.kt)
     is MapAction.SelectRoute,
     MapAction.DeselectRoute -> handleRouteSelectionActions(state, action)
 
-    // Smart Suggestion
+    // Smart Suggestion (RouteReducers.kt)
     is MapAction.SetSmartSuggestion,
     is MapAction.CheckSmartSuggestion,
     MapAction.ClearSmartSuggestion -> handleSmartSuggestionActions(state, action)
 
-    // Map Interaction
+    // Map Interaction (RouteReducers.kt)
     is MapAction.LongPressMap -> handleLongPressMap(state, action)
 
     // New: Airspace Collision
     is MapAction.SetAirspaceCollision -> state.copy(hasAirspaceCollision = action.hasCollision)
-    
+
     // Zoom to Route (Signalling action for Middleware)
     is MapAction.ZoomToRoute -> state
 
@@ -118,156 +111,6 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
 
     // M3: PG spot GeoJSON for MapLibre rendering
     is MapAction.UpdatePgSpotGeoJson -> state.copy(pgSpotGeoJson = action.geoJson)
-}
-
-// Route Planning Constants
-private const val DEFAULT_ROUTE_NAME_PREFIX = "Route"
-private const val WAYPOINT_LABEL_PREFIX = "WP"
-private const val WAYPOINT_LABEL_SEPARATOR = "-"
-private const val FIRST_ROUTE_INDEX = 1
-
-/**
- * Handle long press map action (Waypoint Creation / Smart Select)
- */
-private fun handleLongPressMap(state: MapState, action: MapAction.LongPressMap): MapState {
-    // 1. Smart Select: Check for nearby waypoints
-    val nearbyResult = findNearbyWaypoint(state.routes, action.geoPoint, 0.05)
-    if (nearbyResult != null) {
-        val (route, waypoint) = nearbyResult
-        return state.copy(
-            selectedRouteId = route.id,
-            selectedWaypoint = WaypointSelection(route.id, waypoint.id)
-        )
-    }
-
-    // 2. Create New Waypoint/Route
-    if (state.routes.isEmpty()) {
-        // Create first route
-        val newRoute = createFirstRoute(action.geoPoint, 1, action.type, action.label)
-        return state.copy(
-            routes = state.routes + newRoute,
-            selectedRouteId = newRoute.id,
-            selectedWaypoint = WaypointSelection(newRoute.id, newRoute.waypoints.first().id)
-        )
-    } else {
-        val selectedRouteId = state.selectedRouteId
-        if (selectedRouteId != null) {
-            // Add to selected route
-            val selectedRoute = state.routes.find { it.id == selectedRouteId }
-            if (selectedRoute != null) {
-                val (updatedRoutes, newWaypointId) = addWaypointToRouteState(state.routes, selectedRoute, action.geoPoint, action.type, action.label)
-                return state.copy(
-                    routes = updatedRoutes,
-                    selectedWaypoint = WaypointSelection(selectedRouteId, newWaypointId),
-                    isRoutePanelExpanded = false // Strategic Auto-Minimize
-                )
-            }
-        }
-        
-        // No route selected or selected route not found -> Create new route
-        val newRouteIndex = state.routes.size + 1
-        val newRoute = createFirstRoute(action.geoPoint, newRouteIndex, action.type, action.label)
-        return state.copy(
-            routes = state.routes + newRoute,
-            selectedRouteId = newRoute.id,
-            selectedWaypoint = WaypointSelection(newRoute.id, newRoute.waypoints.first().id),
-            isRoutePanelExpanded = false // Strategic Auto-Minimize
-        )
-    }
-}
-
-/**
- * Helper: Add waypoint to a route and return updated routes list + new waypoint ID
- */
-private fun addWaypointToRouteState(
-    routes: List<com.ternparagliding.model.Route>,
-    targetRoute: com.ternparagliding.model.Route,
-    geoPoint: GeoPoint,
-    type: LocationType = LocationType.TURNPOINT,
-    label: String? = null
-): Pair<List<com.ternparagliding.model.Route>, String> {
-    val waypointNumber = targetRoute.waypoints.size + 1
-    val routeIndex = routes.indexOf(targetRoute) + 1
-    val finalLabel = label ?: "$WAYPOINT_LABEL_PREFIX$routeIndex$WAYPOINT_LABEL_SEPARATOR$waypointNumber"
-    val newWaypointId = java.util.UUID.randomUUID().toString()
-
-    val updatedRoutes = routes.map { route ->
-        if (route.id == targetRoute.id) {
-            route.addWaypoint(
-                lat = geoPoint.latitude,
-                lon = geoPoint.longitude,
-                type = type,
-                label = finalLabel,
-                id = newWaypointId
-            )
-        } else route
-    }
-    return Pair(updatedRoutes, newWaypointId)
-}
-
-/**
- * Helper: Create the first route with a single waypoint
- */
-private fun createFirstRoute(
-    geoPoint: GeoPoint,
-    routeIndex: Int,
-    type: LocationType = LocationType.TURNPOINT,
-    label: String? = null
-): com.ternparagliding.model.Route {
-    val waypointLabel = label ?: "$WAYPOINT_LABEL_PREFIX$routeIndex$WAYPOINT_LABEL_SEPARATOR$FIRST_ROUTE_INDEX"
-    val routeName = "$DEFAULT_ROUTE_NAME_PREFIX $routeIndex"
-
-    return com.ternparagliding.model.Route(
-        name = routeName,
-        waypoints = listOf(
-            com.ternparagliding.model.Waypoint(
-                lat = geoPoint.latitude,
-                lon = geoPoint.longitude,
-                type = type,
-                label = waypointLabel
-            )
-        )
-    )
-}
-
-/**
- * Helper: Find existing waypoint within tolerance distance
- */
-private fun findNearbyWaypoint(
-    routes: List<com.ternparagliding.model.Route>,
-    geoPoint: GeoPoint,
-    toleranceDegrees: Double
-): Pair<com.ternparagliding.model.Route, com.ternparagliding.model.Waypoint>? {
-    val targetHilbertIndex = com.ternparagliding.utils.MapOverlayCacheUtils.computeHilbertIndex(geoPoint, 16)
-
-    routes.forEach { route ->
-        route.waypoints.forEach { waypoint ->
-            val dLat = waypoint.lat - geoPoint.latitude
-            val dLon = waypoint.lon - geoPoint.longitude
-            val distanceDegrees = kotlin.math.sqrt(dLat * dLat + dLon * dLon)
-
-            if (distanceDegrees <= toleranceDegrees) {
-                return Pair(route, waypoint)
-            }
-        }
-    }
-    return null
-}
-
-/**
- * Handle smart suggestion actions
- */
-private fun handleSmartSuggestionActions(state: MapState, action: MapAction): MapState = when (action) {
-    is MapAction.SetSmartSuggestion -> state.copy(smartSuggestionState = SmartSuggestionState(
-        nearbyPGSpot = action.nearbyPGSpot,
-        pendingWaypointCreation = action.pendingWaypointCreation
-    ))
-    MapAction.ClearSmartSuggestion -> state.copy(smartSuggestionState = SmartSuggestionState(
-        nearbyPGSpot = null,
-        pendingWaypointCreation = null
-    ))
-    is MapAction.CheckSmartSuggestion -> state
-    else -> state
 }
 
 /**
@@ -388,16 +231,6 @@ private fun handleSettingsActions(state: MapState, action: MapAction): MapState 
 }
 
 /**
- * Handle sensor and flight data actions
- */
-
-
-/**
- * Handle flight session actions
- */
-
-
-/**
  * Handle user preferences and layout actions
  */
 private fun handleUserPreferencesActions(state: MapState, action: MapAction): MapState = when (action) {
@@ -411,353 +244,6 @@ private fun handleUserPreferencesActions(state: MapState, action: MapAction): Ma
     ))
     is MapAction.UpdateUserPreferences -> state.copy(userPreferences = action.preferences)
     else -> state
-}
-
-/**
- * Handle route management actions
- */
-private fun handleRouteActions(state: MapState, action: MapAction): MapState = when (action) {
-    is MapAction.AddRoute -> {
-        val newRoutes = state.routes + action.route
-        val limitedRoutes = if (newRoutes.size > RouteConstants.MAX_ROUTES) {
-            newRoutes.sortedByDescending { it.createdAt }.take(RouteConstants.MAX_ROUTES)
-        } else newRoutes
-
-        val updatedSelection = updateSelectionAfterRouteChange(state.selectedWaypoint, limitedRoutes, action.route.id)
-        state.copy(routes = limitedRoutes, selectedWaypoint = updatedSelection)
-    }
-    is MapAction.RemoveRoute -> {
-        val newRoutes = state.routes.filter { it.id != action.routeId }
-        val updatedSelection = state.selectedWaypoint?.takeIf { it.routeId != action.routeId }
-        val updatedSelectedRouteId = state.selectedRouteId?.takeIf { it != action.routeId }
-        state.copy(routes = newRoutes, selectedWaypoint = updatedSelection, selectedRouteId = updatedSelectedRouteId)
-    }
-    is MapAction.UpdateRoute -> {
-        val newRoutes = state.routes.map { if (it.id == action.route.id) action.route else it }
-        val updatedSelection = updateSelectionAfterRouteChange(state.selectedWaypoint, newRoutes, action.route.id)
-        state.copy(routes = newRoutes, selectedWaypoint = updatedSelection)
-    }
-    is MapAction.ClearAllRoutes -> state.copy(routes = emptyList(), selectedRouteId = null, selectedWaypoint = null)
-    // Merge nearby preplanned routes (from the spatial RouteCache) into the
-    // active set, skipping any already present. Existing/edited routes win;
-    // selection is untouched. Capped at MAX_ROUTES like AddRoute.
-    is MapAction.SurfaceNearbyRoutes -> {
-        val existingIds = state.routes.map { it.id }.toSet()
-        val toAdd = action.routes.filter { it.id !in existingIds }
-        if (toAdd.isEmpty()) state
-        else {
-            val merged = state.routes + toAdd
-            val limited = if (merged.size > RouteConstants.MAX_ROUTES) {
-                merged.sortedByDescending { it.createdAt }.take(RouteConstants.MAX_ROUTES)
-            } else merged
-            state.copy(routes = limited)
-        }
-    }
-    else -> state
-}
-
-/**
- * Handle waypoint management actions
- */
-private fun handleWaypointActions(state: MapState, action: MapAction): MapState = when (action) {
-    is MapAction.AddWaypointToRoute -> {
-        val newRoutes = state.routes.map { route ->
-            if (route.id == action.routeId) {
-                route.addWaypoint(action.lat, action.lon, action.type, action.label, action.id)
-            } else route
-        }
-        state.copy(routes = newRoutes)
-    }
-    is MapAction.RemoveWaypoint -> {
-        val newRoutes = state.routes.map { route ->
-            if (route.id == action.routeId) route.removeWaypoint(action.waypointId) else route
-        }
-        val updatedSelection = state.selectedWaypoint?.takeIf {
-            !(it.routeId == action.routeId && it.waypointId == action.waypointId)
-        }
-        state.copy(routes = newRoutes, selectedWaypoint = updatedSelection)
-    }
-    is MapAction.UpdateWaypoint -> {
-        val newRoutes = state.routes.map { route ->
-            if (route.id == action.routeId) {
-                route.updateWaypoint(action.waypointId, action.lat, action.lon, action.type)
-            } else route
-        }
-        state.copy(routes = newRoutes)
-    }
-    is MapAction.UpdateWaypointType -> {
-        val newRoutes = state.routes.map { route ->
-            if (route.id == action.routeId) {
-                route.updateWaypoint(action.waypointId, null, null, action.type)
-            } else route
-        }
-        state.copy(routes = newRoutes)
-    }
-    is MapAction.UpdateWaypointRadius -> {
-        val newRoutes = state.routes.map { route ->
-            if (route.id == action.routeId) {
-                route.updateWaypoint(action.waypointId, radius = action.radius)
-            } else route
-        }
-        state.copy(routes = newRoutes)
-    }
-    is MapAction.UpdateWaypointAltitude -> {
-        val newRoutes = state.routes.map { route ->
-            if (route.id == action.routeId) {
-                route.updateWaypoint(action.waypointId, alt = action.alt)
-            } else route
-        }
-        state.copy(routes = newRoutes)
-    }
-    is MapAction.UpdateWaypointTimeGates -> {
-        val newRoutes = state.routes.map { route ->
-            if (route.id == action.routeId) {
-                route.updateWaypoint(action.waypointId, openTime = action.openTime, closeTime = action.closeTime)
-            } else route
-        }
-        state.copy(routes = newRoutes)
-    }
-    is MapAction.ReorderWaypoint -> {
-        val newRoutes = state.routes.map { route ->
-            if (route.id == action.routeId) {
-                route.reorderWaypoint(action.fromIndex, action.toIndex)
-            } else route
-        }
-        state.copy(routes = newRoutes)
-    }
-    else -> state
-}
-
-/**
- * Handle interactive editing actions
- */
-private fun handleInteractiveEditingActions(state: MapState, action: MapAction): MapState = when (action) {
-    is MapAction.SelectWaypoint -> state.copy(selectedWaypoint = WaypointSelection(
-        routeId = action.routeId,
-        waypointId = action.waypointId,
-        isDragging = false
-    ))
-    MapAction.DeselectWaypoint -> state.copy(selectedWaypoint = null)
-    is MapAction.StartWaypointDrag -> {
-        val route = state.routes.find { it.id == action.routeId }
-        val waypoint = route?.waypoints?.find { it.id == action.waypointId }
-        
-        state.copy(selectedWaypoint = WaypointSelection(
-            routeId = action.routeId,
-            waypointId = action.waypointId,
-            isDragging = true,
-            originalLat = waypoint?.lat,
-            originalLon = waypoint?.lon
-        ))
-    }
-    is MapAction.UpdateWaypointDrag -> {
-        val currentSelection = state.selectedWaypoint
-        if (currentSelection?.isDragging == true) {
-            val newRoutes = state.routes.map { route ->
-                if (route.id == currentSelection.routeId) {
-                    route.updateWaypoint(currentSelection.waypointId, action.lat, action.lon)
-                } else route
-            }
-            state.copy(routes = newRoutes)
-        } else state
-    }
-    MapAction.EndWaypointDrag -> {
-        val currentSelection = state.selectedWaypoint
-        if (currentSelection?.isDragging == true) {
-            state.copy(selectedWaypoint = currentSelection.copy(isDragging = false))
-        } else state
-    }
-    MapAction.CancelWaypointDrag -> {
-        val currentSelection = state.selectedWaypoint
-        if (currentSelection?.isDragging == true && currentSelection.originalLat != null && currentSelection.originalLon != null) {
-            // Restore waypoint to original position
-            val newRoutes = state.routes.map { route ->
-                if (route.id == currentSelection.routeId) {
-                    route.updateWaypoint(currentSelection.waypointId, currentSelection.originalLat, currentSelection.originalLon)
-                } else route
-            }
-            state.copy(
-                routes = newRoutes,
-                selectedWaypoint = currentSelection.copy(isDragging = false)
-            )
-        } else state
-    }
-    else -> state
-}
-
-/**
- * Handle route selection actions
- */
-private fun handleRouteSelectionActions(state: MapState, action: MapAction): MapState = when (action) {
-    is MapAction.SelectRoute -> {
-        // [RFC 005] Strategic Auto-Minimize: If zooming out to strategic level (< 11.0), 
-        // collapse the panel by default to show the whole route.
-        val shouldExpand = state.zoom >= 11.0
-        state.copy(
-            selectedRouteId = action.routeId,
-            selectedWaypoint = if (action.routeId == null) null else state.selectedWaypoint,
-            isRoutePanelExpanded = if (action.routeId != null) shouldExpand else state.isRoutePanelExpanded
-        )
-    }
-    MapAction.DeselectRoute -> state.copy(selectedRouteId = null, selectedWaypoint = null)
-    else -> state
-}
-
-/**
- * Update waypoint selection after route changes
- */
-private fun updateSelectionAfterRouteChange(
-    currentSelection: WaypointSelection?,
-    routes: List<com.ternparagliding.model.Route>,
-    changedRouteId: String
-): WaypointSelection? {
-    if (currentSelection == null) return null
-
-    val route = routes.find { it.id == changedRouteId } ?: return null
-    val waypointExists = route.waypoints.any { it.id == currentSelection.waypointId }
-
-    return if (waypointExists) currentSelection else null
-}
-
-/**
- * Weather reducers for aviation weather functionality
- */
-fun weatherReducer(state: MapState, action: WeatherActions): MapState = when (action) {
-    // Weather data fetching and caching
-    is WeatherActions.FetchWeatherForPGSpot -> {
-        val newFetchingSpots = state.weatherState.fetchingSpots + action.pgSpotId
-        val newWeatherState = state.weatherState.copy(fetchingSpots = newFetchingSpots)
-        state.copy(weatherState = newWeatherState)
-    }
-
-    is WeatherActions.WeatherFetched -> {
-        val newSpotWeathers = if (action.forecast != null) {
-            state.weatherState.spotWeathers + (action.pgSpotId to action.forecast)
-        } else {
-            state.weatherState.spotWeathers // Keep existing data if null returned
-        }
-        val newFetchingSpots = state.weatherState.fetchingSpots - action.pgSpotId
-        val newWeatherState = state.weatherState.copy(
-            spotWeathers = newSpotWeathers,
-            fetchingSpots = newFetchingSpots,
-            errors = state.weatherState.errors - action.pgSpotId // Clear any previous errors
-        )
-        state.copy(weatherState = newWeatherState)
-    }
-
-    is WeatherActions.FetchWeatherForSpots -> {
-        val newFetchingSpots = state.weatherState.fetchingSpots + action.spots.map { it.first }
-        val newWeatherState = state.weatherState.copy(fetchingSpots = newFetchingSpots)
-        state.copy(weatherState = newWeatherState)
-    }
-
-    is WeatherActions.SpotsWeatherFetched -> {
-        val newSpotWeathers = state.weatherState.spotWeathers + action.forecasts
-        val newFetchingSpots = state.weatherState.fetchingSpots - action.forecasts.keys
-        val newWeatherState = state.weatherState.copy(
-            spotWeathers = newSpotWeathers,
-            fetchingSpots = newFetchingSpots,
-            errors = state.weatherState.errors - action.forecasts.keys
-        )
-        state.copy(weatherState = newWeatherState)
-    }
-
-    // Route Waypoint Weather
-    is WeatherActions.FetchWeatherForRoute -> {
-        // We could track fetching state per route here if needed, 
-        // but for now, we'll just let the middleware handle it silently.
-        state
-    }
-
-    is WeatherActions.RouteWeatherFetched -> {
-        val newWaypointWeathers = state.weatherState.waypointWeathers + action.waypointForecasts
-        val newWaypointEtas = state.weatherState.waypointEtas + action.etas
-        val newWeatherState = state.weatherState.copy(
-            waypointWeathers = newWaypointWeathers,
-            waypointEtas = newWaypointEtas
-        )
-        state.copy(weatherState = newWeatherState)
-    }
-
-    is WeatherActions.WeatherFetchError -> {
-        val newFetchingSpots = state.weatherState.fetchingSpots - action.pgSpotId
-        val newErrors = state.weatherState.errors + (action.pgSpotId to action.error)
-        val newWeatherState = state.weatherState.copy(
-            fetchingSpots = newFetchingSpots,
-            errors = newErrors
-        )
-        state.copy(weatherState = newWeatherState)
-    }
-
-    // Weather display controls
-    is WeatherActions.SetWeatherGaugeEnabled -> {
-        val newWeatherState = state.weatherState.copy(showWeatherGauges = action.enabled)
-        state.copy(weatherState = newWeatherState)
-    }
-
-    is WeatherActions.SetWeatherDetailsEnabled -> {
-        val newWeatherState = state.weatherState.copy(showWeatherDetails = action.enabled)
-        state.copy(weatherState = newWeatherState)
-    }
-
-    // Cache management
-    is WeatherActions.ClearWeatherCache -> {
-        Log.d("WeatherReducers", "Clearing weather cache from Redux state")
-        val newWeatherState = state.weatherState.copy(
-            spotWeathers = emptyMap(),
-            errors = emptyMap(),
-            cacheSize = 0,
-            cacheHits = 0,
-            cacheMisses = 0,
-            lastCacheCleanup = System.currentTimeMillis()
-        )
-        state.copy(weatherState = newWeatherState)
-    }
-
-    is WeatherActions.WeatherCacheCleared -> {
-        Log.d("WeatherReducers", "Weather cache cleared - ${action.freedEntries} entries freed")
-        val newWeatherState = state.weatherState.copy(
-            cacheSize = state.weatherState.cacheSize - action.freedEntries,
-            lastCacheCleanup = System.currentTimeMillis()
-        )
-        state.copy(weatherState = newWeatherState)
-    }
-
-    // UI controls for weather details
-    is WeatherActions.ShowWeatherDetails -> {
-        val newWeatherState = state.weatherState.copy(
-            showingWeatherDialog = WeatherDialogState(
-                pgSpotId = action.pgSpotId,
-                spotName = action.spotName,
-                forecast = action.forecast
-            )
-        )
-        state.copy(weatherState = newWeatherState)
-    }
-
-    is WeatherActions.DismissWeatherDetails -> {
-        val newWeatherState = state.weatherState.copy(showingWeatherDialog = null)
-        state.copy(weatherState = newWeatherState)
-    }
-
-    // API availability monitoring
-    is WeatherActions.WeatherAPIStatus -> {
-        val newWeatherState = state.weatherState.copy(
-            weatherAPIOnline = action.apiAvailable,
-            lastAPIStatusCheck = System.currentTimeMillis()
-        )
-        state.copy(weatherState = newWeatherState)
-    }
-
-    // Test actions
-    is WeatherActions.RequestWeatherUpdate -> state // No-op for testing
-    is WeatherActions.WeatherDataLoaded -> state // No-op for testing
-    is WeatherActions.WeatherError -> state // No-op for testing
-    
-    // New: Storm Risk
-    is WeatherActions.SetStormRisk -> state.copy(
-        weatherState = state.weatherState.copy(hasStormRisk = action.hasRisk)
-    )
 }
 
 /**
