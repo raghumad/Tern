@@ -14,12 +14,17 @@ import com.ternparagliding.utils.geo.CountryUtils
  * overlay caches were never populated in production — the overlays only ever
  * showed data in tests that injected it.
  *
- * Hooked to [MapAction.UpdateCenter] (map-centre changes), which covers both
- * dragging the map and the GPS first-fix recenter. The manager itself throttles
- * to ≥0.5 km moves, dedups in-flight downloads, caps cached countries (LRU),
- * and preloads adjacent countries near borders — so this middleware only needs
- * to forward the centre. We read the centre from the action payload, so the
- * store's pre-batch stale-state behaviour for middleware doesn't matter here.
+ * Hooked to BOTH map-centre actions: [MapAction.UpdateCenter] (programmatic
+ * moves — GPS first-fix recenter, route framing) AND
+ * [MapAction.UpdateMapMovement] (the gesture→Redux feedback dispatched when the
+ * pilot *drags* the map). The latter is essential: dragging never produces an
+ * UpdateCenter, so keying only on UpdateCenter meant panning across a border
+ * (e.g. US → France) never triggered a download and the new country's overlays
+ * never appeared. The manager itself throttles to ≥0.5 km moves, dedups
+ * in-flight downloads, caps cached countries (LRU), and preloads adjacent
+ * countries near borders — so this middleware only needs to forward the centre.
+ * We read the centre from the action payload, so the store's pre-batch
+ * stale-state behaviour for middleware doesn't matter here.
  *
  * No-ops under test (a pinned test country code) so injected-data instrumented
  * tests don't fire real "TEST"-country network downloads.
@@ -34,7 +39,13 @@ class CountryPreloadMiddleware(
     override suspend fun process(action: TernAction, store: MapStore) {
         if (CountryUtils.isTestMode()) return
 
-        val center = (action as? MapAction.UpdateCenter)?.center ?: return
+        // Both programmatic centre changes AND finger-drag camera feedback —
+        // dragging dispatches UpdateMapMovement, not UpdateCenter.
+        val center = when (action) {
+            is MapAction.UpdateCenter -> action.center
+            is MapAction.UpdateMapMovement -> action.center
+            else -> null
+        } ?: return
 
         ensureCountryLoadedListener(store)
         try {
