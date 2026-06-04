@@ -31,11 +31,18 @@ object AirspaceGeoJson {
     fun toFeatureCollection(
         candidates: List<AirspaceCandidate>,
     ): FeatureCollection<Geometry, JsonObject> {
+        // Test seam (pure JVM): report the thread this potentially-expensive
+        // build runs on. Inert in production (no observer set). Lets
+        // AirspaceRenderPerfTest assert the build happens off the main thread.
+        AirspaceBuildProbe.observer?.invoke(Thread.currentThread().name)
         val features = candidates.mapNotNull { candidate ->
             toFeature(candidate)
         }
         return FeatureCollection(features)
     }
+
+    /** Empty collection — the initial value while the first off-thread build runs. */
+    fun empty(): FeatureCollection<Geometry, JsonObject> = FeatureCollection(emptyList())
 
     /**
      * Convert a single cached [OverlayFeature] + resolved airspace

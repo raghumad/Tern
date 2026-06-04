@@ -150,6 +150,35 @@ use a non-ATD image (heavier), use FrameCaptureHelper (screenshot
 stitching), or accept video-only-on-real-device. (Real-hardware cycle
 tests record fine via `screenrecord` on the physical phone.)
 
+### Airspace render froze the map on dense regions — ✅ RESOLVED (2026-06)
+
+Field report (Pixel 10 Pro): "airspaces render very slowly." Investigated with
+on-device logcat + a deterministic instrumented benchmark on the Ulefone.
+
+**Root cause:** `AirspaceLayer` built the MapLibre `FeatureCollection` inside
+`remember { AirspaceGeoJson.toFeatureCollection(candidates) }` — i.e. **during
+Compose composition, on the main thread**. For a dense set (~80 polygons) that
+per-vertex parse measured **~370 ms on the UI thread** (vs ~150 ms for the IO
+cache query, which was already off-thread). Manifested worst at ~800 km scale:
+the query radius is a fixed 200 km and re-query fires on >2 km centre movement,
+so at a wide zoom *every* pan crosses the threshold and rebuilds → a ~370 ms
+freeze per pan.
+
+**Fix:** `AirspaceOverlay` now builds the `FeatureCollection` in
+`withContext(Dispatchers.Default)` (alongside the IO query) and passes the
+finished collection to `AirspaceLayer`, which just hands it to the GPU source —
+no per-vertex work on the UI thread.
+
+**Tests** (`AirspaceRenderPerfTest`): `airspaceGeoJsonBuildCostOnMainThread`
+benchmarks/guards the build (logs the ~370 ms, asserts every candidate →
+feature); `airspaceBuildRunsOffMainThread` is the contract gate — it went RED
+(`build threads: [main]`) before and GREEN (`[DefaultDispatcher-worker-N]`)
+after. A pure-JVM `AirspaceBuildProbe` seam reports the build thread.
+Test-authoring note: under the Compose test rule a raw `Thread.sleep` does NOT
+advance recomposition (the reactive build stays starved until a sync point), so
+the wait loop must pump `composeTestRule.waitForIdle()`. `AirspaceUXTest`
+(on-map blue-pixel render) still passes; unit suite 375/0.
+
 ### Airspace/overlay polish (2026-06, minor)
 
 Small, non-blocking items surfaced during the overlay-revival work. Not

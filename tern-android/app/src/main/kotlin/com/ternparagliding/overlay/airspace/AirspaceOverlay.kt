@@ -49,7 +49,7 @@ fun AirspaceOverlay(
     val airspaceCache = remember { CacheManager.airspaceCache }
     val prioritizer = remember { OverlayPrioritizer() }
 
-    var candidates by remember { mutableStateOf<List<AirspaceCandidate>>(emptyList()) }
+    var featureCollection by remember { mutableStateOf(AirspaceGeoJson.empty()) }
     var lastQueryCenter by remember { mutableStateOf<GeoPoint?>(null) }
     var lastQueriedCountries by remember { mutableStateOf<Set<String>>(emptySet()) }
 
@@ -65,17 +65,26 @@ fun AirspaceOverlay(
 
         if (moved < REQUERY_DISTANCE_KM && !countriesChanged) return@LaunchedEffect
 
+        // Query (disk) AND build the GeoJSON entirely off the main thread.
+        // Building the FeatureCollection here — not in AirspaceLayer's
+        // composition — keeps the per-vertex parse of a dense set (~370 ms for
+        // ~80 polygons) off the UI thread, so the map never freezes while
+        // airspaces load. AirspaceLayer just hands the finished collection to
+        // the GPU source.
         val newCandidates = withContext(Dispatchers.IO) {
             queryAndScore(context, airspaceCache, prioritizer, center)
         }
+        Log.d(TAG, "Airspace query: ${newCandidates.size} candidates @ ${center.latitude},${center.longitude}")
+        val built = withContext(Dispatchers.Default) {
+            AirspaceGeoJson.toFeatureCollection(newCandidates)
+        }
 
-        candidates = newCandidates
+        featureCollection = built
         lastQueryCenter = center
         lastQueriedCountries = state.airspaceCountries
-        Log.d(TAG, "Airspace query: ${newCandidates.size} candidates @ ${center.latitude},${center.longitude}")
     }
 
-    AirspaceLayer(candidates = candidates)
+    AirspaceLayer(featureCollection = featureCollection)
 }
 
 /**

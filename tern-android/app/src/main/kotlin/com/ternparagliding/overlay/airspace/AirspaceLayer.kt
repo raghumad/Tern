@@ -1,9 +1,11 @@
 package com.ternparagliding.overlay.airspace
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import kotlinx.serialization.json.JsonObject
+import org.maplibre.spatialk.geojson.FeatureCollection
+import org.maplibre.spatialk.geojson.Geometry
 import org.maplibre.compose.expressions.ast.Expression
 import org.maplibre.compose.expressions.dsl.case
 import org.maplibre.compose.expressions.dsl.const
@@ -25,14 +27,13 @@ import org.maplibre.compose.expressions.dsl.feature as featureDsl
  */
 @Composable
 fun AirspaceLayer(
-    candidates: List<AirspaceCandidate>,
+    featureCollection: FeatureCollection<Geometry, JsonObject>,
 ) {
-    if (candidates.isEmpty()) return
+    if (featureCollection.features.isEmpty()) return
 
-    val featureCollection = remember(candidates) {
-        AirspaceGeoJson.toFeatureCollection(candidates)
-    }
-
+    // The FeatureCollection is built off the main thread by AirspaceOverlay —
+    // here we only hand it to the GPU source (no per-vertex work on the UI
+    // thread, which froze the map for ~370 ms on dense sets).
     val source = rememberGeoJsonSource(
         data = GeoJsonData.Features(featureCollection),
     )
