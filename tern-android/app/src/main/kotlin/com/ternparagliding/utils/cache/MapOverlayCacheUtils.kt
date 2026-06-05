@@ -190,6 +190,183 @@ object MapOverlayCacheUtils {
         return d
     }
 
+    // ──────────────────────────────────────────────────────────────────────
+    // Hilbert-range spatial query (restores O(log N + k) querying; see
+    // docs/design/hilbert-spatial-query-restore.md). A radius query box is
+    // covered by a small set of Hilbert intervals — NOT one window, which was
+    // the old single-window bug that silently dropped features across curve
+    // folds. We binary-search the sorted index for each interval, then
+    // haversine-refine to the exact radius.
+    // ──────────────────────────────────────────────────────────────────────
+
+    private const val MAX_CELLS_PER_AXIS = 8
+
+    /**
+     * Hilbert intervals (inclusive, coalesced, ascending) whose union contains
+     * every point inside the lat/lon box `center ± radius`, for a `bits`-deep
+     * global Hilbert curve.
+     *
+     * Completeness: every point in the box lies in some level-`L` cell, and a
+     * level-`L` cell maps to exactly one contiguous interval
+     * `[hL << 2·(bits−L), (hL+1) << 2·(bits−L))` (Hilbert self-similarity). So
+     * covering the box with cells covers it with intervals — no fold can drop a
+     * point. We pick the finest `L` keeping ≤ [MAX_CELLS_PER_AXIS] cells/axis.
+     */
+    fun hilbertCoveringIntervals(
+        center: GeoPoint,
+        radiusMeters: Double,
+        bits: Int,
+        maxCellsPerAxis: Int = MAX_CELLS_PER_AXIS,
+    ): List<LongRange> {
+        val gridMax = (1L shl bits) - 1
+        val dLat = radiusMeters / 111_320.0
+        val cosLat = Math.cos(Math.toRadians(center.latitude)).coerceAtLeast(1e-6)
+        val dLon = radiusMeters / (111_320.0 * cosLat)
+
+        val latMin = (center.latitude - dLat).coerceIn(-90.0, 90.0)
+        val latMax = (center.latitude + dLat).coerceIn(-90.0, 90.0)
+        val lonMin = center.longitude - dLon
+        val lonMax = center.longitude + dLon
+
+        // Split across the antimeridian so a wrap can't drop the far side.
+        val lonRanges: List<Pair<Double, Double>> = when {
+            lonMax - lonMin >= 360.0 -> listOf(-180.0 to 180.0)
+            lonMin < -180.0 -> listOf(-180.0 to lonMax, (lonMin + 360.0) to 180.0)
+            lonMax > 180.0 -> listOf(lonMin to 180.0, -180.0 to (lonMax - 360.0))
+            else -> listOf(lonMin to lonMax)
+        }
+
+        fun gx(lon: Double) = (((lon + 180.0) / 360.0) * gridMax).toLong().coerceIn(0, gridMax)
+        fun gy(lat: Double) = (((lat + 90.0) / 180.0) * gridMax).toLong().coerceIn(0, gridMax)
+        val yMin = gy(latMin)
+        val yMax = gy(latMax)
+
+        val intervals = ArrayList<LongRange>()
+        for ((loA, loB) in lonRanges) {
+            val xMin = gx(loA)
+            val xMax = gx(loB)
+            // Finest level with a bounded cell count on both axes.
+            var level = bits
+            while (level > 0) {
+                val shift = bits - level
+                val cx = (xMax shr shift) - (xMin shr shift) + 1
+                val cy = (yMax shr shift) - (yMin shr shift) + 1
+                if (cx <= maxCellsPerAxis && cy <= maxCellsPerAxis) break
+                level--
+            }
+            val shift = bits - level
+            var xl = xMin shr shift
+            val xl1 = xMax shr shift
+            val yl1 = yMax shr shift
+            while (xl <= xl1) {
+                var yl = yMin shr shift
+                while (yl <= yl1) {
+                    val hL = hilbertXYToIndex(level, xl, yl)
+                    val lo = hL shl (2 * shift)
+                    val hi = ((hL + 1) shl (2 * shift)) - 1
+                    intervals.add(lo..hi)
+                    yl++
+                }
+                xl++
+            }
+        }
+        if (intervals.isEmpty()) return emptyList()
+        intervals.sortBy { it.first }
+        val merged = ArrayList<LongRange>()
+        for (iv in intervals) {
+            val last = merged.lastOrNull()
+            if (last != null && iv.first <= last.last + 1) {
+                merged[merged.size - 1] = last.first..maxOf(last.last, iv.last)
+            } else {
+                merged.add(iv)
+            }
+        }
+        return merged
+    }
+
+    /** First index in [entries] (sorted by hilbertIndex asc) with value ≥ [target]. */
+    private fun lowerBound(entries: List<HilbertIndexEntry>, target: Long): Int {
+        var lo = 0
+        var hi = entries.size
+        while (lo < hi) {
+            val mid = (lo + hi) ushr 1
+            if (entries[mid].hilbertIndex < target) lo = mid + 1 else hi = mid
+        }
+        return lo
+    }
+
+    /** First index in [entries] (sorted by hilbertIndex asc) with value > [target]. */
+    private fun upperBound(entries: List<HilbertIndexEntry>, target: Long): Int {
+        var lo = 0
+        var hi = entries.size
+        while (lo < hi) {
+            val mid = (lo + hi) ushr 1
+            if (entries[mid].hilbertIndex <= target) lo = mid + 1 else hi = mid
+        }
+        return lo
+    }
+
+    private fun haversineMeters(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+        val r = 6_371_000.0
+        val dLat = Math.toRadians(lat2 - lat1)
+        val dLon = Math.toRadians(lon2 - lon1)
+        val a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2)
+        return 2 * r * Math.asin(Math.min(1.0, Math.sqrt(a)))
+    }
+
+    /**
+     * Spatial query over a Hilbert-sorted index: interval cover → binary search
+     * → haversine refine. Returns [HilbertIndexEntry]s within [radiusMeters] of
+     * [center], nearest first, capped at [limit]. Pure (uses the centroid
+     * carried on each entry); the disk cache calls this then hydrates the
+     * survivors. [centroidFallback] supplies a centroid for legacy entries whose
+     * `centroidLat/Lon` are NaN (peeked from the feature buffer).
+     *
+     * Precondition: [sortedEntries] is ascending by `hilbertIndex` (the cache
+     * writes it that way).
+     */
+    fun queryHilbertRange(
+        sortedEntries: List<HilbertIndexEntry>,
+        bits: Int,
+        center: GeoPoint,
+        radiusMeters: Double,
+        limit: Int,
+        centroidFallback: ((HilbertIndexEntry) -> GeoPoint?)? = null,
+    ): List<HilbertIndexEntry> {
+        if (sortedEntries.isEmpty()) return emptyList()
+        val intervals = hilbertCoveringIntervals(center, radiusMeters, bits)
+        val survivors = ArrayList<Pair<HilbertIndexEntry, Double>>()
+        for (iv in intervals) {
+            var i = lowerBound(sortedEntries, iv.first)
+            val end = upperBound(sortedEntries, iv.last)
+            while (i < end) {
+                val entry = sortedEntries[i]
+                i++
+                if (entry.byteLength <= 4) continue
+                val lat: Double
+                val lon: Double
+                if (!entry.centroidLat.isNaN() && !entry.centroidLon.isNaN()) {
+                    lat = entry.centroidLat
+                    lon = entry.centroidLon
+                } else {
+                    val c = centroidFallback?.invoke(entry) ?: continue
+                    lat = c.latitude
+                    lon = c.longitude
+                }
+                val d = haversineMeters(center.latitude, center.longitude, lat, lon)
+                if (d <= radiusMeters) survivors.add(entry to d)
+            }
+        }
+        survivors.sortBy { it.second }
+        return if (survivors.size > limit) {
+            survivors.asSequence().take(limit).map { it.first }.toList()
+        } else {
+            survivors.map { it.first }
+        }
+    }
+
     /**
      * Compute Hilbert index for a GeoPoint relative to a center point (for overlay ordering)
      * @param point The GeoPoint to index
