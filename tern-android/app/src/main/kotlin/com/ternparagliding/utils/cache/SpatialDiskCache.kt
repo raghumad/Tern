@@ -513,6 +513,11 @@ class SpatialDiskCache(
             memoryMappedBuffers.clear()
             regionBounds.clear()
             saveCacheIndex()
+            // Persist the empty bounds too: deleteRecursively above usually removes
+            // the sidecar, but if it ever fails to, a leftover region_bounds file
+            // would reload a STALE bbox at next init and the v2 filter would wrongly
+            // exclude a region. Writing empty makes the cleared state authoritative.
+            saveRegionBounds()
             Log.d(TAG, "Cleared all $cacheName cache")
         } catch (e: Exception) {
             Log.e(TAG, "Error clearing all $cacheName cache", e)

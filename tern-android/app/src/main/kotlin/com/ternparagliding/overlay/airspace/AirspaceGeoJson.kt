@@ -38,6 +38,7 @@ object AirspaceGeoJson {
         val features = candidates.mapNotNull { candidate ->
             toFeature(candidate)
         }
+        AirspaceBuildProbe.recordBuild(features.size)
         return FeatureCollection(features)
     }
 
