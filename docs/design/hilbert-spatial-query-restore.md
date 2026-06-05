@@ -204,6 +204,71 @@ re-downloads. Benefits airspace + PG-spot + weather immediately.
    `validateCacheIntegrity`; old JSON caches re-download once (all five caches).
 6. Same oracle/integrity tests must still pass.
 
+---
+
+## Cache format v2 (Step 2, expanded — device-driven)
+
+Field RCA on real caches showed the costs are: (a) `queryAllCachedNearby`
+loading/querying **all** cached countries on a cold pan (8 × ~400 KB JSON index
+parse), and (b) the stream writer leaving index centroids **NaN**, forcing a
+buffer peek per candidate. v2 fixes both and adds Hilbert-ordered features for
+sequential survivor reads. Re-download on version bump is accepted.
+
+### `.idx` v2 — binary, header + sorted records
+
+```
+magic        : 4 bytes  "TSI2"
+version      : int32    (= CACHE_SCHEMA_VERSION)
+bits         : int32    (16)
+count        : int32
+writtenAtMs  : int64    (self-describing freshness; lifetime still per cache type)
+minLat,minLon,maxLat,maxLon : 4 × float64   ← country DATA bbox
+─ records (count × 32 B, ascending by hilbertIndex) ─
+hilbertIndex : int64 | byteOffset : int32 | byteLength : int32 | clat : float64 | clon : float64
+```
+
+- Header is fixed-size → read the **bbox + count cheaply** without parsing all
+  records (the key to skipping irrelevant countries).
+- Records carry `clat/clon` (populated, no more NaN) → in-memory haversine
+  refine, no buffer peek.
+- Sorted by `hilbertIndex` → `queryHilbertRange` binary-searches directly.
+
+### `.flex` v2 — features in Hilbert order
+
+Both write paths (`cacheFeatures`, `cacheFeaturesStream`) emit features sorted
+by `hilbertIndex`, so a query's survivors (a contiguous Hilbert interval) are a
+**contiguous byte range** → sequential `mmap` reads. The stream path buffers
+serialized feature bytes (≈ the .flex size, ~31 MB for US — fine on IO), sorts,
+then writes.
+
+### Query changes
+
+- `getRegionBbox(regionId)`: read just the v2 header (≈ 80 B). Cheap.
+- `queryAllCachedNearby`: build the query bbox (center ± radius); for each
+  cached country, skip unless its header bbox intersects → **query only the
+  relevant country/countries** (DC → US only; Annecy → FR/CH/IT only). No
+  network, no geocode, no scan-all.
+- `queryNearby`: unchanged algorithm; now hits the populated-centroid fast path.
+
+### Migration
+
+`CACHE_SCHEMA_VERSION` bump; `validateCacheIntegrity` checks the `TSI2` magic.
+Old JSON `.idx` → invalid → that country re-downloads once (all five caches).
+Per-type lifetimes (airspace ~90 d, weather hours, route permanent) unchanged.
+
+### Tests
+
+`queryHilbertRange` oracle still gates correctness (unchanged). Add: binary idx
+round-trip (write→read identity), header-bbox read, `queryAllCachedNearby` bbox
+skip (irrelevant countries not loaded), Hilbert-order flex monotonic offsets.
+On-device: DC loads only US; cold pan no longer parses 8 indexes.
+
+### Out of scope (separate investigation)
+
+Storing features as **vector tiles (MVT)** so MapLibre renders without the
+per-query `toFeatureCollection` build — a larger tiling change; v2 already
+attacks cold-load + fetch tail latency.
+
 ## 12. Why not just keep the O(N) scan?
 
 Warm, the scan is only a few ms over a few-thousand features — but the **cold

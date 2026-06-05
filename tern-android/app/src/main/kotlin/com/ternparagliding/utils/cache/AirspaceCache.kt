@@ -14,11 +14,23 @@ class AirspaceCache(context: Context) {
     companion object {
         const val AIRSPACE_CACHE_HOURS = 2160 // 3 months (90 days)
         private const val TAG = "AirspaceCache"
+
+        /**
+         * Bump to invalidate on-disk airspace caches once (forces re-download in
+         * the current format). v2 added per-region bounds + populated index
+         * centroids. Safe — airspace data is re-downloadable; only the airspace
+         * dir is cleared, never routes.
+         */
+        const val CACHE_SCHEMA_VERSION = 2
     }
 
     // Delegate storage and indexing to generic SpatialDiskCache
     private val diskCache = SpatialDiskCache(context, "airspace", AIRSPACE_CACHE_HOURS)
     private val downloadInProgress = ConcurrentHashMap<String, Boolean>()
+
+    init {
+        diskCache.clearIfSchemaChanged(CACHE_SCHEMA_VERSION)
+    }
 
     /**
      * Check if cached airspace data exists and is fresh for country
@@ -117,9 +129,28 @@ class AirspaceCache(context: Context) {
     fun queryAllCachedNearby(center: GeoPoint, maxDistanceMiles: Double, limit: Int = 1000): List<OverlayFeature> {
         val countries = diskCache.cacheIndex.keys.toList()
         if (countries.isEmpty()) return emptyList()
-        return countries.flatMap { country ->
-            diskCache.queryNearby(country, center, maxDistanceMiles, limit)
+        // Skip countries whose data bbox is nowhere near the centre, WITHOUT
+        // loading their index. So DC queries only US, Annecy only FR/CH/IT, etc.
+        // A country with unknown bounds (legacy, pre-v2) is queried conservatively.
+        val queryBounds = MapOverlayCacheUtils.RegionBounds.ofRadius(center, maxDistanceMiles * 1609.34)
+        val canFilter = !queryBounds.crossesAntimeridian()
+        val t0 = System.currentTimeMillis()
+        val queried = ArrayList<String>()
+        val result = countries.flatMap { country ->
+            val bounds = diskCache.getRegionBounds(country)
+            if (canFilter && bounds != null && !bounds.intersects(queryBounds)) {
+                emptyList()
+            } else {
+                queried.add(country)
+                diskCache.queryNearby(country, center, maxDistanceMiles, limit)
+            }
         }
+        Log.d(
+            TAG,
+            "queryAllCachedNearby @ ${center.latitude},${center.longitude}: queried=$queried " +
+                "(of ${countries.size} cached) total=${result.size} in ${System.currentTimeMillis() - t0}ms",
+        )
+        return result
     }
 
     /**

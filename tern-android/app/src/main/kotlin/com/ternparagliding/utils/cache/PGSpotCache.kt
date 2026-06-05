@@ -37,6 +37,10 @@ class PGSpotCache(context: Context) {
         private const val TAG = "PGSpotCache"
         private const val USER_AGENT = "Tern-Paragliding-App/1.0"
 
+        /** Bump to invalidate on-disk PG-spot caches once (v2: region bounds +
+         *  populated index centroids). Re-downloadable; only the pgspots dir is cleared. */
+        const val CACHE_SCHEMA_VERSION = 2
+
         // Base URL for API - moved to companion for global test redirection
         @Volatile
         var baseUrl = "https://www.paraglidingearth.com/api/geojson"
@@ -57,6 +61,10 @@ class PGSpotCache(context: Context) {
     private val diskCache = SpatialDiskCache(context, "pgspots", PG_SPOT_CACHE_HOURS)
     private val downloadInProgress = ConcurrentHashMap<String, Boolean>()
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+    init {
+        diskCache.clearIfSchemaChanged(CACHE_SCHEMA_VERSION)
+    }
 
     /**
      * Check if cached PG spot data exists and is fresh for country
@@ -183,8 +191,16 @@ class PGSpotCache(context: Context) {
     fun queryAllCachedNearby(center: GeoPoint, maxDistanceMiles: Double, limit: Int = 1000): List<OverlayFeature> {
         val countries = diskCache.cacheIndex.keys.toList()
         if (countries.isEmpty()) return emptyList()
+        // Skip far-away countries by data bbox, without loading their index.
+        val queryBounds = MapOverlayCacheUtils.RegionBounds.ofRadius(center, maxDistanceMiles * 1609.34)
+        val canFilter = !queryBounds.crossesAntimeridian()
         return countries.flatMap { country ->
-            diskCache.queryNearby(country, center, maxDistanceMiles, limit)
+            val bounds = diskCache.getRegionBounds(country)
+            if (canFilter && bounds != null && !bounds.intersects(queryBounds)) {
+                emptyList()
+            } else {
+                diskCache.queryNearby(country, center, maxDistanceMiles, limit)
+            }
         }
     }
 

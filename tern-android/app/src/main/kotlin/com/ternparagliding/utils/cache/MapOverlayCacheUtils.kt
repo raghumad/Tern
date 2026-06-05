@@ -126,6 +126,41 @@ object MapOverlayCacheUtils {
     )
 
     /**
+     * Geographic bounding box of a cached region's data. Persisted in a small
+     * sidecar so [queryAllCachedNearby]-style callers can skip a country whose
+     * data is nowhere near the query — without loading (cold-parsing) its index.
+     */
+    data class RegionBounds @JsonCreator constructor(
+        @JsonProperty("minLat") val minLat: Double,
+        @JsonProperty("minLon") val minLon: Double,
+        @JsonProperty("maxLat") val maxLat: Double,
+        @JsonProperty("maxLon") val maxLon: Double,
+    ) {
+        /** Standard AABB overlap (lat/lon). */
+        fun intersects(o: RegionBounds): Boolean =
+            minLat <= o.maxLat && maxLat >= o.minLat && minLon <= o.maxLon && maxLon >= o.minLon
+
+        /** True if this (query) box wraps past ±180° — callers then skip the
+         *  bbox filter and query everything, so a wrap can't wrongly exclude a region. */
+        fun crossesAntimeridian(): Boolean = minLon < -180.0 || maxLon > 180.0
+
+        companion object {
+            /** The lat/lon box covering [center] ± [radiusMeters] (matches the query disc's bbox). */
+            fun ofRadius(center: GeoPoint, radiusMeters: Double): RegionBounds {
+                val dLat = radiusMeters / 111_320.0
+                val cosLat = Math.cos(Math.toRadians(center.latitude)).coerceAtLeast(1e-6)
+                val dLon = radiusMeters / (111_320.0 * cosLat)
+                return RegionBounds(
+                    minLat = (center.latitude - dLat).coerceIn(-90.0, 90.0),
+                    minLon = center.longitude - dLon, // not clamped: caller compares conservatively
+                    maxLat = (center.latitude + dLat).coerceIn(-90.0, 90.0),
+                    maxLon = center.longitude + dLon,
+                )
+            }
+        }
+    }
+
+    /**
      * Spatial index for efficient Hilbert-based queries
      */
     @Suppress("EXPERIMENTAL_TYPE_INFERENCE")

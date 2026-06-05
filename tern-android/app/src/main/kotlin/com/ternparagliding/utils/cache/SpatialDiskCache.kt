@@ -40,6 +40,12 @@ class SpatialDiskCache(
     private val cacheIndexFile = File(cacheDir, "cache_index")
     internal val cacheIndex = ConcurrentHashMap<String, Long>() // regionId -> timestamp
     private val spatialIndexCache = ConcurrentHashMap<String, MapOverlayCacheUtils.SpatialIndex>() // regionId -> spatial index
+
+    // regionId -> data bounding box, so callers can skip far-away regions without
+    // cold-parsing their index. Persisted in a small sidecar next to cache_index.
+    private val regionBoundsFile = File(cacheDir, "region_bounds")
+    private val regionBounds = ConcurrentHashMap<String, MapOverlayCacheUtils.RegionBounds>()
+    private val schemaVersionFile = File(cacheDir, "schema_version")
     
     // LRU Cache for memory mapped buffers to prevent OOM
     private val MAX_OPEN_BUFFERS = 5
@@ -60,7 +66,59 @@ class SpatialDiskCache(
     init {
         cacheDir.mkdirs()
         loadCacheIndex()
+        loadRegionBounds()
     }
+
+    /**
+     * Drop this cache's on-disk data if it was written by an older schema (e.g.
+     * before per-region bounds + populated centroids), forcing a one-time
+     * re-download. Safe per cache type: each lives in its own dir, so clearing
+     * airspace/PG-spot does NOT touch routes (user data) or weather/hotspots.
+     * Callers that hold re-downloadable data invoke this; routes must not.
+     */
+    fun clearIfSchemaChanged(currentVersion: Int) {
+        val stored = try {
+            if (schemaVersionFile.exists()) schemaVersionFile.readText().trim().toIntOrNull() else null
+        } catch (e: Exception) {
+            null
+        }
+        if (stored != currentVersion) {
+            Log.i(TAG, "Cache schema $stored != $currentVersion for $cacheName — clearing for re-download")
+            clearAll()
+            try {
+                schemaVersionFile.writeText(currentVersion.toString())
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not write schema version for $cacheName: ${e.message}")
+            }
+        }
+    }
+
+    private fun loadRegionBounds() {
+        try {
+            if (regionBoundsFile.exists()) {
+                val type = objectMapper.typeFactory.constructMapType(
+                    HashMap::class.java, String::class.java, MapOverlayCacheUtils.RegionBounds::class.java,
+                )
+                val loaded: Map<String, MapOverlayCacheUtils.RegionBounds> =
+                    objectMapper.readValue(regionBoundsFile, type)
+                regionBounds.putAll(loaded)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not load region_bounds for $cacheName: ${e.message}")
+        }
+    }
+
+    private fun saveRegionBounds() {
+        try {
+            objectMapper.writeValue(regionBoundsFile, HashMap(regionBounds))
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not save region_bounds for $cacheName: ${e.message}")
+        }
+    }
+
+    /** Cached data bbox for a region, or null if unknown (legacy / not yet computed). */
+    fun getRegionBounds(regionIdRaw: String): MapOverlayCacheUtils.RegionBounds? =
+        regionBounds[regionIdRaw.uppercase()]
 
     // ... (existing code)
 
@@ -191,6 +249,19 @@ class SpatialDiskCache(
             cacheIndex[regionId] = System.currentTimeMillis()
             saveCacheIndex()
 
+            // Record the region's data bbox (v2) for cheap far-away skipping.
+            var minLat = Double.MAX_VALUE; var minLon = Double.MAX_VALUE
+            var maxLat = -Double.MAX_VALUE; var maxLon = -Double.MAX_VALUE
+            features.forEach { f ->
+                val la = f.centroid.latitude; val lo = f.centroid.longitude
+                if (la < minLat) minLat = la; if (la > maxLat) maxLat = la
+                if (lo < minLon) minLon = lo; if (lo > maxLon) maxLon = lo
+            }
+            if (minLat <= maxLat) {
+                regionBounds[regionId] = MapOverlayCacheUtils.RegionBounds(minLat, minLon, maxLat, maxLon)
+                saveRegionBounds()
+            }
+
             Log.d(TAG, "Cached ${features.size} features for $cacheName/$regionId")
 
         } catch (e: Exception) {
@@ -207,7 +278,10 @@ class SpatialDiskCache(
             val flexCacheFile = File(cacheDir, "${regionId}_$cacheName.flex")
             val indexEntries = mutableListOf<MapOverlayCacheUtils.HilbertIndexEntry>()
             var processedCount = 0
-            
+            // Track the region's data bounding box as features stream in (free).
+            var minLat = Double.MAX_VALUE; var minLon = Double.MAX_VALUE
+            var maxLat = -Double.MAX_VALUE; var maxLon = -Double.MAX_VALUE
+
             FileOutputStream(flexCacheFile).use { fos ->
                 var currentOffset = 0
                 val builder = com.google.flatbuffers.FlexBuffersBuilder(1024)
@@ -241,7 +315,17 @@ class SpatialDiskCache(
                     buffer.get(data)
                     fos.write(data)
                     
-                    indexEntries.add(MapOverlayCacheUtils.HilbertIndexEntry(feature.hilbertIndex, currentOffset, 4 + length))
+                    // Carry the centroid on the index entry (v2): a radius query
+                    // then refines in-memory without peeking the mapped buffer.
+                    val cLat = feature.centroid.latitude
+                    val cLon = feature.centroid.longitude
+                    indexEntries.add(
+                        MapOverlayCacheUtils.HilbertIndexEntry(feature.hilbertIndex, currentOffset, 4 + length, cLat, cLon),
+                    )
+                    if (cLat < minLat) minLat = cLat
+                    if (cLat > maxLat) maxLat = cLat
+                    if (cLon < minLon) minLon = cLon
+                    if (cLon > maxLon) maxLon = cLon
                     currentOffset += 4 + length
                     processedCount++
                 }
@@ -265,6 +349,11 @@ class SpatialDiskCache(
 
             cacheIndex[regionId] = System.currentTimeMillis()
             saveCacheIndex()
+
+            if (minLat <= maxLat) {
+                regionBounds[regionId] = MapOverlayCacheUtils.RegionBounds(minLat, minLon, maxLat, maxLon)
+                saveRegionBounds()
+            }
 
             Log.d(TAG, "Successfully stream cached $processedCount features for $cacheName/$regionId")
             return true
@@ -402,8 +491,10 @@ class SpatialDiskCache(
             cacheIndex.remove(regionId)
             spatialIndexCache.remove(regionId)
             memoryMappedBuffers.remove(regionId)
+            regionBounds.remove(regionId)
             saveCacheIndex()
-            
+            saveRegionBounds()
+
             Log.d(TAG, "Cleared cache for $cacheName/$regionId")
         } catch (e: Exception) {
             Log.e(TAG, "Error clearing cache for $cacheName/$regionId", e)
@@ -420,6 +511,7 @@ class SpatialDiskCache(
             cacheIndex.clear()
             spatialIndexCache.clear()
             memoryMappedBuffers.clear()
+            regionBounds.clear()
             saveCacheIndex()
             Log.d(TAG, "Cleared all $cacheName cache")
         } catch (e: Exception) {
