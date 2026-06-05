@@ -1,6 +1,9 @@
 # Design: Restore the Hilbert-range spatial query (+ binary index)
 
-**Status:** Proposed (Phase B). Author: 2026-06-04.
+**Status:** Implemented. Step 1 (Hilbert-range query) = c3201c7; v2 step 1
+(per-region bbox + populated centroids) = 62ff638; v2 step 2 (binary TSI2 index
+with bbox-in-header + Hilbert-ordered .flex, dual-format read) = this change.
+Author: 2026-06-04.
 **Scope:** the shared `SpatialDiskCache` + `MapOverlayCacheUtils`. No change to
 overlay composables, download pipeline, or the (already off-thread) GeoJSON build.
 

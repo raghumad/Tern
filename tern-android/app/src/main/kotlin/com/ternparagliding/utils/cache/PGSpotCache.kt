@@ -38,8 +38,9 @@ class PGSpotCache(context: Context) {
         private const val USER_AGENT = "Tern-Paragliding-App/1.0"
 
         /** Bump to invalidate on-disk PG-spot caches once (v2: region bounds +
-         *  populated index centroids). Re-downloadable; only the pgspots dir is cleared. */
-        const val CACHE_SCHEMA_VERSION = 2
+         *  populated index centroids; v3: binary TSI2 index + Hilbert-ordered
+         *  .flex). Re-downloadable; only the pgspots dir is cleared. */
+        const val CACHE_SCHEMA_VERSION = 3
 
         // Base URL for API - moved to companion for global test redirection
         @Volatile

@@ -41,10 +41,11 @@ class SpatialDiskCache(
     internal val cacheIndex = ConcurrentHashMap<String, Long>() // regionId -> timestamp
     private val spatialIndexCache = ConcurrentHashMap<String, MapOverlayCacheUtils.SpatialIndex>() // regionId -> spatial index
 
-    // regionId -> data bounding box, so callers can skip far-away regions without
-    // cold-parsing their index. Persisted in a small sidecar next to cache_index.
-    private val regionBoundsFile = File(cacheDir, "region_bounds")
-    private val regionBounds = ConcurrentHashMap<String, MapOverlayCacheUtils.RegionBounds>()
+    // regionId -> parsed binary .idx header (data bbox + count), cached so a
+    // caller can skip far-away regions by bbox without parsing the whole index.
+    // v2: the bbox lives IN the .idx header (derived from the records at write
+    // time), so it can never desync from the data — no separate sidecar.
+    private val regionHeaders = ConcurrentHashMap<String, MapOverlayCacheUtils.IndexHeader>()
     private val schemaVersionFile = File(cacheDir, "schema_version")
     
     // LRU Cache for memory mapped buffers to prevent OOM
@@ -66,7 +67,6 @@ class SpatialDiskCache(
     init {
         cacheDir.mkdirs()
         loadCacheIndex()
-        loadRegionBounds()
     }
 
     /**
@@ -93,32 +93,34 @@ class SpatialDiskCache(
         }
     }
 
-    private fun loadRegionBounds() {
-        try {
-            if (regionBoundsFile.exists()) {
-                val type = objectMapper.typeFactory.constructMapType(
-                    HashMap::class.java, String::class.java, MapOverlayCacheUtils.RegionBounds::class.java,
-                )
-                val loaded: Map<String, MapOverlayCacheUtils.RegionBounds> =
-                    objectMapper.readValue(regionBoundsFile, type)
-                regionBounds.putAll(loaded)
+    /**
+     * Read just the binary `.idx` header (data bbox + count, ~56 B) for a
+     * region, cached. Returns null for a missing index or a legacy JSON `.idx`
+     * (which has no header bbox — such a region is queried conservatively).
+     */
+    private fun readHeader(regionIdRaw: String): MapOverlayCacheUtils.IndexHeader? {
+        val regionId = regionIdRaw.uppercase()
+        regionHeaders[regionId]?.let { return it }
+        return try {
+            val indexFile = File(cacheDir, "${regionId}_$cacheName.idx")
+            if (!indexFile.exists()) return null
+            RandomAccessFile(indexFile, "r").use { raf ->
+                val n = minOf(MapOverlayCacheUtils.INDEX_HEADER_BYTES.toLong(), raf.length()).toInt()
+                if (n < 4) return null
+                val head = ByteArray(n)
+                raf.readFully(head)
+                val header = MapOverlayCacheUtils.readIndexHeader(head) ?: return null
+                regionHeaders[regionId] = header
+                header
             }
         } catch (e: Exception) {
-            Log.w(TAG, "Could not load region_bounds for $cacheName: ${e.message}")
+            null
         }
     }
 
-    private fun saveRegionBounds() {
-        try {
-            objectMapper.writeValue(regionBoundsFile, HashMap(regionBounds))
-        } catch (e: Exception) {
-            Log.w(TAG, "Could not save region_bounds for $cacheName: ${e.message}")
-        }
-    }
-
-    /** Cached data bbox for a region, or null if unknown (legacy / not yet computed). */
+    /** Cached data bbox for a region, or null if unknown (legacy JSON index / not cached). */
     fun getRegionBounds(regionIdRaw: String): MapOverlayCacheUtils.RegionBounds? =
-        regionBounds[regionIdRaw.uppercase()]
+        readHeader(regionIdRaw)?.bounds
 
     // ... (existing code)
 
@@ -128,16 +130,22 @@ class SpatialDiskCache(
 
         return try {
             val indexFile = File(cacheDir, "${regionId}_$cacheName.idx")
-            if (indexFile.exists()) {
-                val indexData = indexFile.readBytes()
-                val indexJson = String(indexData, Charsets.UTF_8)
-                val spatialIndex = objectMapper.readValue(indexJson, MapOverlayCacheUtils.SpatialIndex::class.java)
-                spatialIndexCache[regionId] = spatialIndex
-                trackAllocation("SpatialIndex:$cacheName", indexData.size.toLong())
-                spatialIndex
+            if (!indexFile.exists()) return null
+            val indexData = indexFile.readBytes()
+            val spatialIndex = if (MapOverlayCacheUtils.isBinaryIndex(indexData)) {
+                MapOverlayCacheUtils.readIndexHeader(indexData)?.let { regionHeaders[regionId] = it }
+                MapOverlayCacheUtils.deserializeIndexBinary(indexData)
             } else {
-                null
-            }
+                // Legacy JSON index (e.g. a route not yet re-written): read it
+                // directly — no header bbox, lazily upgraded to binary on next write.
+                objectMapper.readValue(
+                    String(indexData, Charsets.UTF_8),
+                    MapOverlayCacheUtils.SpatialIndex::class.java,
+                )
+            } ?: return null
+            spatialIndexCache[regionId] = spatialIndex
+            trackAllocation("SpatialIndex:$cacheName", indexData.size.toLong())
+            spatialIndex
         } catch (e: Exception) {
             Log.e(TAG, "Error loading spatial index for $cacheName/$regionId", e)
             null
@@ -198,12 +206,23 @@ class SpatialDiskCache(
             return false
         }
 
-        // Try to load spatial index to verify it's not corrupted
+        // Try to load spatial index to verify it's not corrupted (accept either
+        // the binary TSI2 format or a legacy JSON index — the latter stays
+        // readable so a format bump never strands user data like routes).
         try {
             val indexData = indexFile.readBytes()
-            val indexJson = String(indexData, Charsets.UTF_8)
-            val spatialIndex = objectMapper.readValue(indexJson, MapOverlayCacheUtils.SpatialIndex::class.java)
-
+            if (MapOverlayCacheUtils.isBinaryIndex(indexData)) {
+                val header = MapOverlayCacheUtils.readIndexHeader(indexData)
+                if (header == null || header.bits <= 0 || header.count <= 0) {
+                    Log.w(TAG, "Binary spatial index corrupted for $cacheName/$regionId")
+                    return false
+                }
+                return true
+            }
+            val spatialIndex = objectMapper.readValue(
+                String(indexData, Charsets.UTF_8),
+                MapOverlayCacheUtils.SpatialIndex::class.java,
+            )
             if (spatialIndex.bits <= 0 || spatialIndex.entries.isEmpty()) {
                 Log.w(TAG, "Spatial index corrupted for $cacheName/$regionId")
                 return false
@@ -233,14 +252,20 @@ class SpatialDiskCache(
             val flexCacheFile = File(cacheDir, "${regionId}_$cacheName.flex")
             flexCacheFile.writeBytes(flexBuffersData)
 
-            // Save spatial index metadata
+            // Save the spatial index in the binary TSI2 format. createSpatialIndex
+            // AndSerialize already emitted the .flex in Hilbert order with matching
+            // offsets, and serializeIndexBinary derives the header bbox from the
+            // records — so the bbox can never disagree with the data.
             val indexFile = File(cacheDir, "${regionId}_$cacheName.idx")
-            val indexData = objectMapper.writeValueAsBytes(spatialIndex)
+            val indexData = MapOverlayCacheUtils.serializeIndexBinary(
+                spatialIndex.entries, spatialIndex.bits, System.currentTimeMillis(),
+            )
             indexFile.writeBytes(indexData)
 
             // Update in-memory caches
             spatialIndexCache[regionId] = spatialIndex
-            
+            MapOverlayCacheUtils.readIndexHeader(indexData)?.let { regionHeaders[regionId] = it }
+
             // Re-create memory map
             memoryMappedBuffers.remove(regionId) // Clear old buffer
             createMemoryMappedBuffer(regionId, flexCacheFile)
@@ -248,19 +273,6 @@ class SpatialDiskCache(
             // Update timestamp
             cacheIndex[regionId] = System.currentTimeMillis()
             saveCacheIndex()
-
-            // Record the region's data bbox (v2) for cheap far-away skipping.
-            var minLat = Double.MAX_VALUE; var minLon = Double.MAX_VALUE
-            var maxLat = -Double.MAX_VALUE; var maxLon = -Double.MAX_VALUE
-            features.forEach { f ->
-                val la = f.centroid.latitude; val lo = f.centroid.longitude
-                if (la < minLat) minLat = la; if (la > maxLat) maxLat = la
-                if (lo < minLon) minLon = lo; if (lo > maxLon) maxLon = lo
-            }
-            if (minLat <= maxLat) {
-                regionBounds[regionId] = MapOverlayCacheUtils.RegionBounds(minLat, minLon, maxLat, maxLon)
-                saveRegionBounds()
-            }
 
             Log.d(TAG, "Cached ${features.size} features for $cacheName/$regionId")
 
@@ -276,86 +288,82 @@ class SpatialDiskCache(
         val regionId = regionIdRaw.uppercase()
         try {
             val flexCacheFile = File(cacheDir, "${regionId}_$cacheName.flex")
-            val indexEntries = mutableListOf<MapOverlayCacheUtils.HilbertIndexEntry>()
-            var processedCount = 0
-            // Track the region's data bounding box as features stream in (free).
-            var minLat = Double.MAX_VALUE; var minLon = Double.MAX_VALUE
-            var maxLat = -Double.MAX_VALUE; var maxLon = -Double.MAX_VALUE
 
+            // v2: buffer each feature's serialized bytes (+ hilbert/centroid), then
+            // write the .flex in Hilbert order so a query's survivors (a contiguous
+            // Hilbert interval) land in a contiguous byte range — sequential mmap
+            // reads. Buffering ~the .flex size in RAM (≈31 MB for US) is acceptable.
+            class Pending(val hilbert: Long, val bytes: ByteArray, val cLat: Double, val cLon: Double)
+            val pending = ArrayList<Pending>()
+            val builder = com.google.flatbuffers.FlexBuffersBuilder(1024)
+
+            val appendFeature: (OverlayFeature) -> Unit = { feature ->
+                builder.clear()
+                val mapStart = builder.startMap()
+
+                val featureMapStart = builder.startMap()
+                MapOverlayCacheUtils.serializeMap(builder, feature.feature)
+                builder.endMap("feature", featureMapStart)
+
+                val centroidMapStart = builder.startMap()
+                builder.putFloat("latitude", feature.centroid.latitude.toFloat())
+                builder.putFloat("longitude", feature.centroid.longitude.toFloat())
+                builder.endMap("centroid", centroidMapStart)
+
+                builder.putInt("hilbertIndex", feature.hilbertIndex)
+                builder.putString("overlayType", feature.overlayType)
+                feature.id?.let { builder.putString("id", it) }
+
+                builder.endMap(null, mapStart)
+                val buffer = builder.finish()
+                val data = ByteArray(buffer.remaining())
+                buffer.get(data)
+                pending.add(Pending(feature.hilbertIndex, data, feature.centroid.latitude, feature.centroid.longitude))
+            }
+
+            val success = streamAction(appendFeature)
+            if (!success || pending.isEmpty()) {
+                return false
+            }
+
+            // Sort by Hilbert index, then write length-prefixed records in that
+            // order, recording matching offsets for the index.
+            pending.sortBy { it.hilbert }
+            val indexEntries = ArrayList<MapOverlayCacheUtils.HilbertIndexEntry>(pending.size)
             FileOutputStream(flexCacheFile).use { fos ->
-                var currentOffset = 0
-                val builder = com.google.flatbuffers.FlexBuffersBuilder(1024)
-                
-                val appendFeature: (OverlayFeature) -> Unit = { feature ->
-                    builder.clear()
-                    val mapStart = builder.startMap()
-                    
-                    val featureMapStart = builder.startMap()
-                    MapOverlayCacheUtils.serializeMap(builder, feature.feature)
-                    builder.endMap("feature", featureMapStart)
-                    
-                    val centroidMapStart = builder.startMap()
-                    builder.putFloat("latitude", feature.centroid.latitude.toFloat())
-                    builder.putFloat("longitude", feature.centroid.longitude.toFloat())
-                    builder.endMap("centroid", centroidMapStart)
-                    
-                    builder.putInt("hilbertIndex", feature.hilbertIndex)
-                    builder.putString("overlayType", feature.overlayType)
-                    feature.id?.let { builder.putString("id", it) }
-                    
-                    builder.endMap(null, mapStart)
-                    val buffer = builder.finish()
-                    
-                    val length = buffer.remaining()
-                    val lengthBytes = java.nio.ByteBuffer.allocate(4).putInt(length).array()
-                    
-                    fos.write(lengthBytes)
-                    
-                    val data = ByteArray(length)
-                    buffer.get(data)
-                    fos.write(data)
-                    
-                    // Carry the centroid on the index entry (v2): a radius query
-                    // then refines in-memory without peeking the mapped buffer.
-                    val cLat = feature.centroid.latitude
-                    val cLon = feature.centroid.longitude
-                    indexEntries.add(
-                        MapOverlayCacheUtils.HilbertIndexEntry(feature.hilbertIndex, currentOffset, 4 + length, cLat, cLon),
-                    )
-                    if (cLat < minLat) minLat = cLat
-                    if (cLat > maxLat) maxLat = cLat
-                    if (cLon < minLon) minLon = cLon
-                    if (cLon > maxLon) maxLon = cLon
-                    currentOffset += 4 + length
-                    processedCount++
-                }
-                
-                val success = streamAction(appendFeature)
-                if (!success || processedCount == 0) {
-                    return false
+                BufferedOutputStream(fos).use { bos ->
+                    var currentOffset = 0
+                    val lenBuf = java.nio.ByteBuffer.allocate(4)
+                    for (p in pending) {
+                        lenBuf.clear()
+                        bos.write(lenBuf.putInt(p.bytes.size).array())
+                        bos.write(p.bytes)
+                        indexEntries.add(
+                            MapOverlayCacheUtils.HilbertIndexEntry(p.hilbert, currentOffset, 4 + p.bytes.size, p.cLat, p.cLon),
+                        )
+                        currentOffset += 4 + p.bytes.size
+                    }
                 }
             }
-            
-            val spatialIndex = MapOverlayCacheUtils.SpatialIndex(indexEntries.sortedBy { it.hilbertIndex })
-            
+
+            val spatialIndex = MapOverlayCacheUtils.SpatialIndex(indexEntries) // already Hilbert-sorted
+
             val indexFile = File(cacheDir, "${regionId}_$cacheName.idx")
-            val indexData = objectMapper.writeValueAsBytes(spatialIndex)
+            val indexData = MapOverlayCacheUtils.serializeIndexBinary(
+                spatialIndex.entries, spatialIndex.bits, System.currentTimeMillis(),
+            )
             indexFile.writeBytes(indexData)
 
             spatialIndexCache[regionId] = spatialIndex
-            
-            memoryMappedBuffers.remove(regionId) 
+            MapOverlayCacheUtils.readIndexHeader(indexData)?.let { regionHeaders[regionId] = it }
+
+            memoryMappedBuffers.remove(regionId)
             createMemoryMappedBuffer(regionId, flexCacheFile)
 
             cacheIndex[regionId] = System.currentTimeMillis()
             saveCacheIndex()
 
-            if (minLat <= maxLat) {
-                regionBounds[regionId] = MapOverlayCacheUtils.RegionBounds(minLat, minLon, maxLat, maxLon)
-                saveRegionBounds()
-            }
-
-            Log.d(TAG, "Successfully stream cached $processedCount features for $cacheName/$regionId")
+            Log.d(TAG, "Successfully stream cached ${pending.size} features for $cacheName/$regionId")
             return true
         } catch (e: Exception) {
             Log.e(TAG, "Error stream caching features for $cacheName/$regionId", e)
@@ -491,9 +499,8 @@ class SpatialDiskCache(
             cacheIndex.remove(regionId)
             spatialIndexCache.remove(regionId)
             memoryMappedBuffers.remove(regionId)
-            regionBounds.remove(regionId)
+            regionHeaders.remove(regionId)
             saveCacheIndex()
-            saveRegionBounds()
 
             Log.d(TAG, "Cleared cache for $cacheName/$regionId")
         } catch (e: Exception) {
@@ -511,13 +518,8 @@ class SpatialDiskCache(
             cacheIndex.clear()
             spatialIndexCache.clear()
             memoryMappedBuffers.clear()
-            regionBounds.clear()
+            regionHeaders.clear()
             saveCacheIndex()
-            // Persist the empty bounds too: deleteRecursively above usually removes
-            // the sidecar, but if it ever fails to, a leftover region_bounds file
-            // would reload a STALE bbox at next init and the v2 filter would wrongly
-            // exclude a region. Writing empty makes the cleared state authoritative.
-            saveRegionBounds()
             Log.d(TAG, "Cleared all $cacheName cache")
         } catch (e: Exception) {
             Log.e(TAG, "Error clearing all $cacheName cache", e)

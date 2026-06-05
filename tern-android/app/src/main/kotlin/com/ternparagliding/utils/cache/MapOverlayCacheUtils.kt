@@ -179,6 +179,110 @@ object MapOverlayCacheUtils {
         }
     }
 
+    // ──────────────────────────────────────────────────────────────────────
+    // Binary index format "TSI2" (cache format v2 step 2; see
+    // docs/design/hilbert-spatial-query-restore.md). Replaces the JSON `.idx`:
+    //  - Fixed-size header carries the region's DATA bbox + count, so a caller
+    //    reads "is this country near the query?" from ~56 bytes WITHOUT parsing
+    //    every record (kills the cold whole-index JSON parse).
+    //  - The bbox is DERIVED from the records' centroids at write time, so it can
+    //    never desync from the data it describes (the failure mode the separate
+    //    region_bounds sidecar had).
+    //  - Records are 32 B, ascending by hilbertIndex → queryHilbertRange
+    //    binary-searches the bytes directly.
+    // Layout: magic(4) version(i32) bits(i32) count(i32) writtenAtMs(i64)
+    //         minLat,minLon,maxLat,maxLon(4×f64)  then count × record
+    // record: hilbert(i64) byteOffset(i32) byteLength(i32) clat(f64) clon(f64)
+    // ──────────────────────────────────────────────────────────────────────
+
+    private val INDEX_MAGIC = byteArrayOf('T'.code.toByte(), 'S'.code.toByte(), 'I'.code.toByte(), '2'.code.toByte())
+    const val INDEX_FORMAT_VERSION = 2
+    const val INDEX_HEADER_BYTES = 4 + 4 + 4 + 4 + 8 + 8 * 4 // = 56
+    const val INDEX_RECORD_BYTES = 8 + 4 + 4 + 8 + 8         // = 32
+
+    /** Parsed [serializeIndexBinary] header — bbox/count/bits without record parse. */
+    data class IndexHeader(
+        val version: Int,
+        val bits: Int,
+        val count: Int,
+        val writtenAtMs: Long,
+        val bounds: RegionBounds?, // null when the data bbox is unknown (NaN-encoded)
+    )
+
+    /** True if [bytes] begins with the TSI2 magic (vs an old JSON `.idx`). */
+    fun isBinaryIndex(bytes: ByteArray): Boolean =
+        bytes.size >= 4 && bytes[0] == INDEX_MAGIC[0] && bytes[1] == INDEX_MAGIC[1] &&
+            bytes[2] == INDEX_MAGIC[2] && bytes[3] == INDEX_MAGIC[3]
+
+    /**
+     * Serialize a Hilbert index to the binary TSI2 format. The data bbox is
+     * computed here from the entries' centroids, so the header can never
+     * disagree with the records. Entries are sorted by hilbertIndex defensively.
+     */
+    fun serializeIndexBinary(entries: List<HilbertIndexEntry>, bits: Int, writtenAtMs: Long): ByteArray {
+        val sorted = entries.sortedBy { it.hilbertIndex }
+        var minLat = Double.NaN; var minLon = Double.NaN; var maxLat = Double.NaN; var maxLon = Double.NaN
+        for (e in sorted) {
+            val la = e.centroidLat; val lo = e.centroidLon
+            if (la.isNaN() || lo.isNaN()) continue
+            if (minLat.isNaN() || la < minLat) minLat = la
+            if (maxLat.isNaN() || la > maxLat) maxLat = la
+            if (minLon.isNaN() || lo < minLon) minLon = lo
+            if (maxLon.isNaN() || lo > maxLon) maxLon = lo
+        }
+        val buf = ByteBuffer.allocate(INDEX_HEADER_BYTES + sorted.size * INDEX_RECORD_BYTES)
+        buf.put(INDEX_MAGIC)
+        buf.putInt(INDEX_FORMAT_VERSION)
+        buf.putInt(bits)
+        buf.putInt(sorted.size)
+        buf.putLong(writtenAtMs)
+        buf.putDouble(minLat); buf.putDouble(minLon); buf.putDouble(maxLat); buf.putDouble(maxLon)
+        for (e in sorted) {
+            buf.putLong(e.hilbertIndex)
+            buf.putInt(e.byteOffset)
+            buf.putInt(e.byteLength)
+            buf.putDouble(e.centroidLat)
+            buf.putDouble(e.centroidLon)
+        }
+        return buf.array()
+    }
+
+    /** Read only the TSI2 header (bbox/count/bits) — cheap, no record parse. Null if not TSI2. */
+    fun readIndexHeader(bytes: ByteArray): IndexHeader? {
+        if (!isBinaryIndex(bytes) || bytes.size < INDEX_HEADER_BYTES) return null
+        val buf = ByteBuffer.wrap(bytes)
+        buf.position(4)
+        val version = buf.int
+        val bits = buf.int
+        val count = buf.int
+        val writtenAt = buf.long
+        val minLat = buf.double; val minLon = buf.double; val maxLat = buf.double; val maxLon = buf.double
+        val bounds = if (minLat.isNaN() || minLon.isNaN() || maxLat.isNaN() || maxLon.isNaN()) {
+            null
+        } else {
+            RegionBounds(minLat, minLon, maxLat, maxLon)
+        }
+        return IndexHeader(version, bits, count, writtenAt, bounds)
+    }
+
+    /** Full deserialize of a TSI2 index to a [SpatialIndex]; null if not TSI2 (caller may JSON-fallback). */
+    fun deserializeIndexBinary(bytes: ByteArray): SpatialIndex? {
+        val header = readIndexHeader(bytes) ?: return null
+        if (bytes.size < INDEX_HEADER_BYTES + header.count * INDEX_RECORD_BYTES) return null
+        val buf = ByteBuffer.wrap(bytes)
+        buf.position(INDEX_HEADER_BYTES)
+        val entries = ArrayList<HilbertIndexEntry>(header.count)
+        repeat(header.count) {
+            val h = buf.long
+            val off = buf.int
+            val len = buf.int
+            val clat = buf.double
+            val clon = buf.double
+            entries.add(HilbertIndexEntry(h, off, len, clat, clon))
+        }
+        return SpatialIndex(entries, header.bits)
+    }
+
     /**
      * Compute Hilbert index for a GeoPoint (global coordinates)
      * @param point The GeoPoint

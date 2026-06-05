@@ -17,11 +17,12 @@ class AirspaceCache(context: Context) {
 
         /**
          * Bump to invalidate on-disk airspace caches once (forces re-download in
-         * the current format). v2 added per-region bounds + populated index
-         * centroids. Safe — airspace data is re-downloadable; only the airspace
-         * dir is cleared, never routes.
+         * the current format). v2 added per-region bounds + populated centroids;
+         * v3 (=3) switched to the binary TSI2 index (bbox in the header, no
+         * sidecar) + Hilbert-ordered .flex. Safe — airspace data is
+         * re-downloadable; only the airspace dir is cleared, never routes.
          */
-        const val CACHE_SCHEMA_VERSION = 2
+        const val CACHE_SCHEMA_VERSION = 3
     }
 
     // Delegate storage and indexing to generic SpatialDiskCache
