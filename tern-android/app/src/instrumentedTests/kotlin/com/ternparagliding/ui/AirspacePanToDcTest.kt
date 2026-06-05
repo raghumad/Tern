@@ -87,12 +87,9 @@ class AirspacePanToDcTest : MapVisualTest() {
                     givenAppIsLaunchedOnMap(lat = PAN_LAT, lon = START_LON, countryCode = null, zoom = WIDE_ZOOM)
 
                     val ctx = InstrumentationRegistry.getInstrumentation().targetContext
-                    // A DENSE 2-D field of Class-D boxes spanning the whole flight
-                    // corridor (lat 38.4/38.9/39.4 x lon -106..-76 every 0.5deg), so the
-                    // query is realistic — real airspace data is dense (the user's device
-                    // showed 50-153 hits everywhere across the US). A sparse 1-per-degree
-                    // collinear chain is pathological and exercised a slow edge in the
-                    // on-disk path; this matches production density instead.
+                    // A 2-D field of Class-D boxes spanning the whole flight corridor
+                    // (lat 38.4/38.9/39.4 x lon -106..-76 every 0.5deg), dense like real
+                    // airspace data so the query is realistic at every pan position.
                     val grid = buildList {
                         for (latOff in listOf(-0.5, 0.0, 0.5)) {
                             var lon = -106.0
@@ -122,12 +119,47 @@ class AirspacePanToDcTest : MapVisualTest() {
                     assertAirspaceAt("start", currentCenter())
                 }
 
+                // Visible-render proof — done here, BEFORE any gesture: the overlay
+                // renders reliably only from a clean programmatic camera (cf.
+                // AirspaceUXTest). After a UiDevice gesture the GPU camera decouples
+                // from programmatic zoom and the off-thread overlay collector is starved
+                // by the test rule, so a render screenshot is only trustworthy pre-pan.
+                // We zoom onto a seeded box over land (central US — no ocean to confound
+                // the blue-pixel check) so the screenshot genuinely shows blue restricted
+                // airspace painted on the map, then zoom back out to run the pan journey.
+                then("restricted airspace actually paints blue on the map", takeScreenshot = true) {
+                    zoomTo(PAN_LAT + 0.2, START_LON, 11.0)
+                    zoomTo(PAN_LAT, START_LON, 11.0)
+                    waitForMapToRender(3000)
+                    assertZoomLevel(11.0, tolerance = 1.5)
+                    val shot = captureScreenBitmap()
+                    val blue = blueDominantPixels(shot, centralBox(shot), minBlue = 50)
+                    ReportGenerator.logStep(
+                        "ASSERT",
+                        "Airspace painted ($PAN_LAT,$START_LON @ z11, over land): blue-dominant pixels=$blue",
+                        if (blue >= 500) "PASS" else "FAIL",
+                    )
+                    if (blue < 500) {
+                        throw AssertionError(
+                            "Airspace did not render: only $blue blue-dominant pixels over a seeded " +
+                                "Class-D box (central US, no water) — the overlay should paint blue here.",
+                        )
+                    }
+                    // Back to the wide pan view to start the journey east.
+                    zoomTo(PAN_LAT, START_LON, WIDE_ZOOM)
+                }
+
                 val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
                 var step = 0
                 var lon = currentCenter().longitude
 
                 // Drag east ~100 mi at a time; after each drag the airspace query must
-                // return data for the new centre — until the centre reaches DC.
+                // return data for the new centre — until the centre reaches DC. (The
+                // overlay's GPU render of that data can't be reliably driven by
+                // gestures under ComposeTestRule — the off-thread snapshot-flow
+                // collector is starved by the harness clock — so visibility is proved
+                // by the programmatic zoom-in at DC below, the way AirspaceUXTest does.
+                // Per-leg screenshots show the pan progression.)
                 while (lon < DC_LON && step < MAX_STEPS) {
                     step++
                     var miles = 0.0
@@ -146,12 +178,12 @@ class AirspacePanToDcTest : MapVisualTest() {
                         )
                     }
 
-                    then("restricted airspace is rendered under the new centre (leg $step)", takeScreenshot = true) {
+                    then("restricted airspace is queryable under the new centre (leg $step)", takeScreenshot = true) {
                         assertAirspaceAt("leg $step @ lon ${"%.1f".format(lon)} (+${"%.0f".format(miles)} mi)", after)
                     }
                 }
 
-                then("the map has reached the Washington DC area", takeScreenshot = true) {
+                then("the map reached Washington DC with airspace queryable the whole way", takeScreenshot = true) {
                     val c = currentCenter()
                     val reached = c.longitude >= DC_LON - 2.0
                     ReportGenerator.logStep(
