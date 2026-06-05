@@ -107,6 +107,22 @@ class AirspaceCache(context: Context) {
     }
 
     /**
+     * Query nearby airspaces across ALL cached countries, without needing to
+     * know (geocode) which country the centre is in. The render path uses this
+     * so it never blocks on a slow network reverse-geocode — whatever airspace
+     * is already on disk near the centre paints immediately (and it naturally
+     * shows both countries' airspace near a border). Country *detection* still
+     * drives the download path, for fetching countries not yet cached.
+     */
+    fun queryAllCachedNearby(center: GeoPoint, maxDistanceMiles: Double, limit: Int = 1000): List<OverlayFeature> {
+        val countries = diskCache.cacheIndex.keys.toList()
+        if (countries.isEmpty()) return emptyList()
+        return countries.flatMap { country ->
+            diskCache.queryNearby(country, center, maxDistanceMiles, limit)
+        }
+    }
+
+    /**
      * Clear cache for a specific region/country
      */
     fun clearCacheForRegion(countryCode: String) {

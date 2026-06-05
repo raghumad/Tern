@@ -8,7 +8,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalContext
 import com.ternparagliding.overlay.priority.OverlayPrioritizer
 import com.ternparagliding.overlay.priority.Position
 import com.ternparagliding.redux.MapAction
@@ -51,7 +50,6 @@ fun PgSpotOverlay(
     store: MapStore,
     cameraState: CameraState,
 ) {
-    val context = LocalContext.current.applicationContext
     val state by store.state.collectAsState()
     val center = state.center ?: return
 
@@ -78,7 +76,7 @@ fun PgSpotOverlay(
         if (moved < REQUERY_DISTANCE_KM && !countriesChanged) return@LaunchedEffect
 
         val features = withContext(Dispatchers.IO) {
-            queryAndScore(context, pgSpotCache, prioritizer, center)
+            queryAndScore(pgSpotCache, prioritizer, center)
         }
 
         store.dispatch(MapAction.UpdatePgSpotGeoJson(overlayFeaturesToGeoJson(features)))
@@ -95,17 +93,15 @@ fun PgSpotOverlay(
  * result through the prioritizer so dense clusters stay within budget.
  */
 private fun queryAndScore(
-    context: android.content.Context,
     cache: com.ternparagliding.utils.cache.PGSpotCache,
     prioritizer: OverlayPrioritizer,
     center: GeoPoint,
 ): List<com.ternparagliding.utils.cache.MapOverlayCacheUtils.OverlayFeature> {
-    val countryCode = com.ternparagliding.utils.geo.CountryUtils.getCountryCodeFromCoordinates(
-        context, center.latitude, center.longitude,
-    ) ?: return emptyList()
-
+    // No reverse-geocode: render PG-spots already cached near the centre (across
+    // all cached countries). The geocode was a slow network call that delayed
+    // the overlay; the data is on disk, so paint it immediately.
     val radiusMiles = QUERY_RADIUS_KM / 1.60934
-    val features = cache.queryNearbyPGSpots(countryCode, center, radiusMiles)
+    val features = cache.queryAllCachedNearby(center, radiusMiles)
 
     val candidates = features.map { PgSpotCandidate(feature = it) }
     val pilotPos = Position(center.latitude, center.longitude)

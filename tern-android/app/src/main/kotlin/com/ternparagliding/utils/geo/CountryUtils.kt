@@ -37,12 +37,34 @@ object CountryUtils {
      */
     fun isTestMode(): Boolean = testCountryCode != null
 
+    /**
+     * Resolved country codes cached by a coarse lat/lon grid (~0.1° ≈ 11 km).
+     * A country code is constant across such a cell (except right at a border),
+     * so this turns the per-pan reverse-geocode — a *blocking network call* that
+     * gated every airspace/PG-spot re-query AND the download path, and competed
+     * with MapLibre tile downloads — into a one-time lookup per area. Only
+     * successful results are cached; transient failures are not, so they retry.
+     * (This app is offline-first; the network Geocoder is the wrong long-term
+     * dependency here, but caching removes the repeated-call latency cheaply.)
+     */
+    private val countryCodeCache = java.util.concurrent.ConcurrentHashMap<Long, String>()
+
+    private fun gridKey(latitude: Double, longitude: Double): Long {
+        val la = Math.round(latitude * 10.0)   // 0.1° cells
+        val lo = Math.round(longitude * 10.0)
+        return (la shl 32) or (lo and 0xFFFFFFFFL)
+    }
+
     fun getCountryCodeFromCoordinates(
         context: Context,
         latitude: Double,
         longitude: Double
     ): String? {
         if (testCountryCode != null) return testCountryCode
+
+        val key = gridKey(latitude, longitude)
+        countryCodeCache[key]?.let { return it }
+
         return try {
             val geocoder = Geocoder(context, Locale.getDefault())
             @Suppress("DEPRECATION")
@@ -50,9 +72,10 @@ object CountryUtils {
                 ?: return null
 
             if (addresses.isNotEmpty()) {
-                val countryCode = addresses[0].countryCode
                 // Convert to lowercase for consistency with OpenAIP format
-                countryCode?.lowercase()
+                val countryCode = addresses[0].countryCode?.lowercase()
+                if (countryCode != null) countryCodeCache[key] = countryCode
+                countryCode
             } else {
                 null
             }

@@ -8,7 +8,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalContext
 import com.ternparagliding.overlay.priority.OverlayPrioritizer
 import com.ternparagliding.overlay.priority.Position
 import com.ternparagliding.redux.MapStore
@@ -42,7 +41,6 @@ fun AirspaceOverlay(
     store: MapStore,
     cameraState: CameraState,
 ) {
-    val context = LocalContext.current.applicationContext
     val state by store.state.collectAsState()
     val center = state.center ?: return
 
@@ -72,7 +70,7 @@ fun AirspaceOverlay(
         // airspaces load. AirspaceLayer just hands the finished collection to
         // the GPU source.
         val newCandidates = withContext(Dispatchers.IO) {
-            queryAndScore(context, airspaceCache, prioritizer, center)
+            queryAndScore(airspaceCache, prioritizer, center)
         }
         Log.d(TAG, "Airspace query: ${newCandidates.size} candidates @ ${center.latitude},${center.longitude}")
         val built = withContext(Dispatchers.Default) {
@@ -88,27 +86,24 @@ fun AirspaceOverlay(
 }
 
 /**
- * Query the spatial cache for all countries that have data near
- * [center], resolve airspace classes, filter out Class G, and
- * run the result through the prioritizer.
+ * Query the spatial cache for airspace near [center] across ALL cached
+ * countries, resolve airspace classes, filter out Class G, and run the result
+ * through the prioritizer.
+ *
+ * Note: deliberately does NOT reverse-geocode the centre to pick a single
+ * country. That geocode is a slow network call that gated every render and made
+ * airspaces appear seconds late when panning. The data is already on disk, so
+ * we paint whatever is cached near the centre immediately (and both countries'
+ * airspace near a border). Country detection still drives the *download* path
+ * (UniversalCountryCacheManager) for fetching not-yet-cached countries.
  */
 private fun queryAndScore(
-    context: android.content.Context,
     cache: com.ternparagliding.utils.cache.AirspaceCache,
     prioritizer: OverlayPrioritizer,
     center: GeoPoint,
 ): List<AirspaceCandidate> {
-    // Determine which country's cache to query. The AirspaceCache
-    // is keyed by country code. For now, query the country the
-    // pilot is in. The UniversalCountryCacheManager handles
-    // multi-country queries at a higher level — this composable
-    // works with whatever data the cache already holds.
-    val countryCode = com.ternparagliding.utils.geo.CountryUtils.getCountryCodeFromCoordinates(
-        context, center.latitude, center.longitude,
-    ) ?: return emptyList()
-
     val radiusMiles = QUERY_RADIUS_KM / 1.60934
-    val features = cache.queryNearbyFeatures(countryCode, center, radiusMiles)
+    val features = cache.queryAllCachedNearby(center, radiusMiles)
 
     val allCandidates = features.mapNotNull { feature ->
         val cls = AirspaceGeoJson.resolveAirspaceClass(feature)

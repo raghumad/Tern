@@ -176,6 +176,19 @@ class PGSpotCache(context: Context) {
     }
 
     /**
+     * Query PG-spots near [center] across ALL cached countries, without
+     * geocoding the centre to a single country. Lets the render path paint
+     * whatever spots are already cached immediately, with no network call.
+     */
+    fun queryAllCachedNearby(center: GeoPoint, maxDistanceMiles: Double, limit: Int = 1000): List<OverlayFeature> {
+        val countries = diskCache.cacheIndex.keys.toList()
+        if (countries.isEmpty()) return emptyList()
+        return countries.flatMap { country ->
+            diskCache.queryNearby(country, center, maxDistanceMiles, limit)
+        }
+    }
+
+    /**
      * Clear cache for a specific region/country
      */
     fun clearCacheForRegion(countryCode: String) {
