@@ -5,13 +5,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import com.ternparagliding.redux.MapAction
 import com.ternparagliding.redux.MapStore
 import com.ternparagliding.utils.cache.CacheManager
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.withContext
 import org.osmdroid.util.GeoPoint
 
@@ -37,23 +38,39 @@ private const val QUERY_RADIUS_KM = 100.0
 @Composable
 fun RouteProximityOverlay(store: MapStore) {
     val state by store.state.collectAsState()
-    val center = state.center ?: return
 
     val routeCache = remember { CacheManager.routeCache }
-    var lastQueryCenter by remember { mutableStateOf<GeoPoint?>(null) }
 
-    LaunchedEffect(center) {
-        val moved = lastQueryCenter?.let { it.distanceToAsDouble(center) / 1000.0 } ?: Double.MAX_VALUE
-        if (moved < REQUERY_DISTANCE_KM) return@LaunchedEffect
+    // Latest Redux state, read inside the long-lived collector without re-keying.
+    val latestState = rememberUpdatedState(state)
 
-        val nearby = withContext(Dispatchers.IO) {
-            routeCache.queryNearbyRoutes(center, QUERY_RADIUS_KM / 1.60934)
-        }
-        lastQueryCenter = center
+    // Conflated snapshot flow rather than LaunchedEffect(center): keying on
+    // `center` cancelled the IO query on every ~30 ms pan tick, so a continuous
+    // drag could finish before any query committed and nearby routes wouldn't
+    // surface until the map settled. conflate() guarantees forward progress —
+    // each query completes, then the collector resumes with the latest centre.
+    // (See AirspaceOverlay for the full rationale.)
+    LaunchedEffect(Unit) {
+        var lastQueryCenter: GeoPoint? = null
 
-        if (nearby.isNotEmpty()) {
-            Log.d(TAG, "Surfacing ${nearby.size} nearby route(s) @ ${center.latitude},${center.longitude}")
-            store.dispatch(MapAction.SurfaceNearbyRoutes(nearby))
-        }
+        snapshotFlow { latestState.value.center }
+            .conflate()
+            .collect { center ->
+                if (center == null) return@collect
+
+                val moved = lastQueryCenter?.let { it.distanceToAsDouble(center) / 1000.0 }
+                    ?: Double.MAX_VALUE
+                if (moved < REQUERY_DISTANCE_KM) return@collect
+
+                val nearby = withContext(Dispatchers.IO) {
+                    routeCache.queryNearbyRoutes(center, QUERY_RADIUS_KM / 1.60934)
+                }
+                lastQueryCenter = center
+
+                if (nearby.isNotEmpty()) {
+                    Log.d(TAG, "Surfacing ${nearby.size} nearby route(s) @ ${center.latitude},${center.longitude}")
+                    store.dispatch(MapAction.SurfaceNearbyRoutes(nearby))
+                }
+            }
     }
 }

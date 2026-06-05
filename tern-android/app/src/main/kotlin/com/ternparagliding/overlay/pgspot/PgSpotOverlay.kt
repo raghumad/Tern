@@ -5,15 +5,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import com.ternparagliding.overlay.priority.OverlayPrioritizer
 import com.ternparagliding.overlay.priority.Position
 import com.ternparagliding.redux.MapAction
 import com.ternparagliding.redux.MapStore
 import com.ternparagliding.utils.cache.CacheManager
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.withContext
 import org.maplibre.compose.camera.CameraState
 import org.osmdroid.util.GeoPoint
@@ -51,7 +52,6 @@ fun PgSpotOverlay(
     cameraState: CameraState,
 ) {
     val state by store.state.collectAsState()
-    val center = state.center ?: return
 
     // Respect the pilot's PG-spots toggle.
     if (!state.overlayState.pgSpots.enabled) return
@@ -59,30 +59,42 @@ fun PgSpotOverlay(
     val pgSpotCache = remember { CacheManager.pgSpotCache }
     val prioritizer = remember { OverlayPrioritizer() }
 
-    var lastQueryCenter by remember { mutableStateOf<GeoPoint?>(null) }
-    var lastQueriedCountries by remember { mutableStateOf<Set<String>>(emptySet()) }
+    // Latest Redux state, read inside the long-lived collector without re-keying
+    // it (which would tear the collector down on every pan).
+    val latestState = rememberUpdatedState(state)
 
-    // Re-query when the pilot moves far enough OR a country's data finishes
-    // downloading. PG spots and airspace are downloaded together by
-    // UniversalCountryCacheManager, so state.airspaceCountries doubles as the
-    // "a country just loaded" signal; it must bypass the distance guard (same
-    // centre) or freshly-downloaded spots wouldn't appear until the next pan.
-    LaunchedEffect(center, state.airspaceCountries) {
-        val moved = lastQueryCenter?.let { prev ->
-            prev.distanceToAsDouble(center) / 1000.0
-        } ?: Double.MAX_VALUE
-        val countriesChanged = state.airspaceCountries != lastQueriedCountries
+    // Single long-lived collector driven by a conflated snapshot flow. Keying a
+    // LaunchedEffect directly on `center` cancelled and relaunched this on every
+    // ~30 ms pan tick, so during a continuous drag (or its inertial glide) the
+    // query never survived to commit and spots starved for the whole gesture.
+    // conflate() collapses intermediate centres to the latest while a query
+    // runs, so each query completes and the collector resumes with the newest
+    // centre — forward progress, spots refresh *during* the drag. Mirrors
+    // AirspaceOverlay. (See its comment for the full rationale.)
+    LaunchedEffect(Unit) {
+        var lastQueryCenter: GeoPoint? = null
+        var lastQueriedCountries: Set<String> = emptySet()
 
-        if (moved < REQUERY_DISTANCE_KM && !countriesChanged) return@LaunchedEffect
+        snapshotFlow { latestState.value.center to latestState.value.airspaceCountries }
+            .conflate()
+            .collect { (center, countries) ->
+                if (center == null) return@collect
 
-        val features = withContext(Dispatchers.IO) {
-            queryAndScore(pgSpotCache, prioritizer, center)
-        }
+                val moved = lastQueryCenter?.let { prev ->
+                    prev.distanceToAsDouble(center) / 1000.0
+                } ?: Double.MAX_VALUE
+                val countriesChanged = countries != lastQueriedCountries
+                if (moved < REQUERY_DISTANCE_KM && !countriesChanged) return@collect
 
-        store.dispatch(MapAction.UpdatePgSpotGeoJson(overlayFeaturesToGeoJson(features)))
-        lastQueryCenter = center
-        lastQueriedCountries = state.airspaceCountries
-        Log.d(TAG, "PG-spot query: ${features.size} spots @ ${center.latitude},${center.longitude}")
+                val features = withContext(Dispatchers.IO) {
+                    queryAndScore(pgSpotCache, prioritizer, center)
+                }
+
+                store.dispatch(MapAction.UpdatePgSpotGeoJson(overlayFeaturesToGeoJson(features)))
+                lastQueryCenter = center
+                lastQueriedCountries = countries
+                Log.d(TAG, "PG-spot query: ${features.size} spots @ ${center.latitude},${center.longitude}")
+            }
     }
 
     PgSpotLayer(featureCollection = state.pgSpotGeoJson ?: EMPTY_PG_SPOT_COLLECTION)

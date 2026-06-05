@@ -7,12 +7,15 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import com.ternparagliding.overlay.priority.OverlayPrioritizer
 import com.ternparagliding.overlay.priority.Position
 import com.ternparagliding.redux.MapStore
 import com.ternparagliding.utils.cache.CacheManager
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.withContext
 import org.maplibre.compose.camera.CameraState
 import org.osmdroid.util.GeoPoint
@@ -42,44 +45,70 @@ fun AirspaceOverlay(
     cameraState: CameraState,
 ) {
     val state by store.state.collectAsState()
-    val center = state.center ?: return
+    if (state.center == null) return
 
     val airspaceCache = remember { CacheManager.airspaceCache }
     val prioritizer = remember { OverlayPrioritizer() }
 
     var featureCollection by remember { mutableStateOf(AirspaceGeoJson.empty()) }
-    var lastQueryCenter by remember { mutableStateOf<GeoPoint?>(null) }
-    var lastQueriedCountries by remember { mutableStateOf<Set<String>>(emptySet()) }
 
-    // Re-query when the pilot moves far enough OR a country's data finishes
-    // downloading (state.airspaceCountries changes via CountryPreloadMiddleware) —
-    // the latter has the same centre, so it must bypass the distance guard or the
-    // freshly-downloaded airspace would not appear until the next pan.
-    LaunchedEffect(center, state.airspaceCountries) {
-        val moved = lastQueryCenter?.let { prev ->
-            prev.distanceToAsDouble(center) / 1000.0
-        } ?: Double.MAX_VALUE
-        val countriesChanged = state.airspaceCountries != lastQueriedCountries
+    // Latest Redux state, read inside the long-lived collector without
+    // re-keying it (which would tear the collector down on every pan).
+    val latestState = rememberUpdatedState(state)
 
-        if (moved < REQUERY_DISTANCE_KM && !countriesChanged) return@LaunchedEffect
+    // Single long-lived collector. The query+build is cancellable work; keying
+    // a LaunchedEffect directly on `center` cancelled and relaunched it on every
+    // ~30 ms pan tick, so during a continuous drag (or its inertial glide) the
+    // ~250 ms query never survived to commit — the overlay starved for the whole
+    // gesture and only caught up once the map fully settled (the "DC is 30 s
+    // late" report). Instead we drive from a conflated snapshot flow: while a
+    // query+build runs, intermediate centres collapse to the latest, and the
+    // collector resumes with that newest centre once the current one commits.
+    // Forward progress is guaranteed — the overlay refreshes every ~250 ms
+    // *during* the drag instead of after it.
+    LaunchedEffect(Unit) {
+        var lastQueryCenter: GeoPoint? = null
+        var lastQueriedCountries: Set<String> = emptySet()
 
-        // Query (disk) AND build the GeoJSON entirely off the main thread.
-        // Building the FeatureCollection here — not in AirspaceLayer's
-        // composition — keeps the per-vertex parse of a dense set (~370 ms for
-        // ~80 polygons) off the UI thread, so the map never freezes while
-        // airspaces load. AirspaceLayer just hands the finished collection to
-        // the GPU source.
-        val newCandidates = withContext(Dispatchers.IO) {
-            queryAndScore(airspaceCache, prioritizer, center)
-        }
-        Log.d(TAG, "Airspace query: ${newCandidates.size} candidates @ ${center.latitude},${center.longitude}")
-        val built = withContext(Dispatchers.Default) {
-            AirspaceGeoJson.toFeatureCollection(newCandidates)
-        }
+        snapshotFlow { latestState.value.center to latestState.value.airspaceCountries }
+            .conflate()
+            .collect { (center, countries) ->
+                if (center == null) return@collect
 
-        featureCollection = built
-        lastQueryCenter = center
-        lastQueriedCountries = state.airspaceCountries
+                val moved = lastQueryCenter?.let { prev ->
+                    prev.distanceToAsDouble(center) / 1000.0
+                } ?: Double.MAX_VALUE
+                val countriesChanged = countries != lastQueriedCountries
+                // Re-query when the pilot moves far enough OR a country's data
+                // finishes downloading (airspaceCountries changes, same centre —
+                // must bypass the distance guard or freshly-downloaded airspace
+                // would not appear until the next pan).
+                if (moved < REQUERY_DISTANCE_KM && !countriesChanged) return@collect
+
+                // Query (disk) AND build the GeoJSON entirely off the main
+                // thread. Building the FeatureCollection here — not in
+                // AirspaceLayer's composition — keeps the per-vertex parse of a
+                // dense set (~370 ms for ~80 polygons) off the UI thread, so the
+                // map never freezes while airspaces load.
+                val tQuery = System.currentTimeMillis()
+                val newCandidates = withContext(Dispatchers.IO) {
+                    queryAndScore(airspaceCache, prioritizer, center)
+                }
+                val tBuild = System.currentTimeMillis()
+                val built = withContext(Dispatchers.Default) {
+                    AirspaceGeoJson.toFeatureCollection(newCandidates)
+                }
+                Log.d(
+                    TAG,
+                    "query+build: ${newCandidates.size} candidates @ " +
+                        "${center.latitude},${center.longitude} " +
+                        "query=${tBuild - tQuery}ms build=${System.currentTimeMillis() - tBuild}ms",
+                )
+
+                featureCollection = built
+                lastQueryCenter = center
+                lastQueriedCountries = countries
+            }
     }
 
     AirspaceLayer(featureCollection = featureCollection)
