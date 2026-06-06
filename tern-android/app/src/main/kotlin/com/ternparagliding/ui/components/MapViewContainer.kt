@@ -29,6 +29,7 @@ import com.ternparagliding.redux.MapAction
 import com.ternparagliding.redux.MapConstants
 import com.ternparagliding.redux.MapStore
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -259,19 +260,47 @@ fun MapViewContainer(
     // mid-animation that overwrite the Redux target with intermediate
     // positions, creating a feedback loop that prevents the camera
     // from ever reaching its destination.
+    //
+    // Robust "Muffling" (Phase 1b):
+    // 1. Spatial Throttling: Ignore moves < 5 pixels (reduces micro-jitter).
+    // 2. Conflation: Automatically drops intermediate moves if the store is
+    //    busy, ensuring only the LATEST position is dispatched.
     LaunchedEffect(cameraState) {
+        var lastDispatchedPos: org.maplibre.spatialk.geojson.Position? = null
+        val pixelThresholdSq = 25.0 // 5px threshold squared
+
         snapshotFlow { cameraState.position to cameraState.moveReason }
             .distinctUntilChanged()
-            .collectLatest { (pos, reason) ->
+            .conflate()
+            .collectLatest { pair ->
+                val pos = pair.first
+                val reason = pair.second
+                
                 if (reason == CameraMoveReason.GESTURE) {
                     val target = pos.target
-                    store.dispatch(
-                        MapAction.UpdateMapMovement(
-                            rotation = pos.bearing.toFloat(),
-                            center = GeoPoint(target.latitude, target.longitude),
-                            zoom = pos.zoom,
+                    
+                    // Spatial Throttling: only dispatch if moved significantly on screen
+                    val shouldDispatch = lastDispatchedPos?.let { last ->
+                        val proj = cameraState.projection
+                        if (proj != null) {
+                            val p1 = proj.screenLocationFromPosition(last)
+                            val p2 = proj.screenLocationFromPosition(target)
+                            val dx = (p1.x - p2.x).value
+                            val dy = (p1.y - p2.y).value
+                            (dx * dx + dy * dy) > pixelThresholdSq
+                        } else true
+                    } ?: true
+
+                    if (shouldDispatch) {
+                        store.dispatch(
+                            MapAction.UpdateMapMovement(
+                                rotation = pos.bearing.toFloat(),
+                                center = GeoPoint(target.latitude, target.longitude),
+                                zoom = pos.zoom,
+                            )
                         )
-                    )
+                        lastDispatchedPos = target
+                    }
                 }
             }
     }

@@ -1,6 +1,5 @@
 package com.ternparagliding.utils.cache
-import com.ternparagliding.utils.diagnostics.PerformanceDebugger
-import com.ternparagliding.utils.diagnostics.recordStateUpdate
+import com.ternparagliding.utils.diagnostics.recordGenericEvent
 
 import android.util.Log
 
@@ -168,9 +167,9 @@ internal class CountryAccessTracker(
         }
 
         try {
-            // Record performance metrics with appropriate delta
-            val stateDelta = if (eventType == CountryEventType.EVICTION) -1 else 1
-            PerformanceDebugger.recordStateUpdate(stateDelta)
+            // Record performance metrics as generic background events
+            // These do not affect the Redux state update storm metrics.
+            recordGenericEvent("Country${eventType.name}")
 
             // Use lazy string evaluation for better performance when logging is disabled
             val logMessage = {

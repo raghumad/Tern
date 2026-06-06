@@ -62,6 +62,11 @@ object CountryUtils {
     ): String? {
         if (testCountryCode != null) return testCountryCode
 
+        val geoPoint = GeoPoint(latitude, longitude)
+        
+        // Phase 1: Try offline Point-in-Polygon geocoder (resident memory, zero-I/O)
+        OfflineGeocoder.getCountryCode(geoPoint)?.let { return it.lowercase() }
+
         val key = gridKey(latitude, longitude)
         countryCodeCache[key]?.let { return it }
 
@@ -129,6 +134,25 @@ object CountryUtils {
         }
 
         val countryCodes = mutableSetOf<String>()
+
+        // Phase 1: Try offline Point-in-Polygon geocoder (Fast, local)
+        // Sample points in a circle around the center to find nearby countries
+        val numPoints = 8
+        for (i in 0 until numPoints) {
+            val angle = 2 * Math.PI * i / numPoints
+            val latOffset = radiusKm / 111.0 * Math.sin(angle)
+            val lonOffset = radiusKm / (111.0 * Math.cos(Math.toRadians(latitude))) * Math.cos(angle)
+
+            val sampleLat = latitude + latOffset
+            val sampleLon = longitude + lonOffset
+            
+            OfflineGeocoder.getCountryCode(GeoPoint(sampleLat, sampleLon))?.let { 
+                countryCodes.add(it.lowercase()) 
+            }
+        }
+
+        // If we found something offline, return it immediately to avoid network calls
+        if (countryCodes.isNotEmpty()) return countryCodes.toList()
 
         try {
             val geocoder = Geocoder(context, Locale.getDefault())

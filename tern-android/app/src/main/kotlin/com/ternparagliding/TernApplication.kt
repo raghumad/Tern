@@ -41,4 +41,10 @@ class TernApplication : Application() {
             pairingOrchestrator.isAlreadyLinked = { nodeId -> mgr.isLinkedTo(nodeId) }
         }
     }
+
+    override fun onCreate() {
+        super.onCreate()
+        // Initialize offline geocoder with resident country boundaries
+        com.ternparagliding.utils.geo.OfflineGeocoder.initialize(this)
+    }
 }

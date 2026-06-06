@@ -24,7 +24,14 @@ class UniversalCountryCacheManager(
 
     private val TAG = "UniversalCountryCache"
     private val mutex = Mutex()
-    private val coroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    
+    // Dedicated dispatcher for country detection to prevent Geocoder-induced 
+    // Dispatchers.IO starvation. Geocoder calls are blocking and can be slow; 
+    // limiting them to 1 concurrent thread ensures that even during rapid 
+    // panning, we don't saturate the global IO pool and starve overlay queries.
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val countryDispatcher = Dispatchers.IO.limitedParallelism(1)
+    private val managerScope = CoroutineScope(countryDispatcher + SupervisorJob())
 
     // Smart country tracking - relying on disk state for persistence
     private var lastLocation: GeoPoint? = null
@@ -33,7 +40,7 @@ class UniversalCountryCacheManager(
     // LRU access tracking + eviction bookkeeping (extracted, Phase 0c). The
     // owner keeps control of the disk-purge coroutine via the eviction callback.
     private val accessTracker = CountryAccessTracker(MAX_CACHED_COUNTRIES) { country ->
-        coroutineScope.launch { removeCountry(country) }
+        managerScope.launch { removeCountry(country) }
     }
     private val downloadingCountries = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
 
@@ -69,11 +76,14 @@ class UniversalCountryCacheManager(
 
         lastLocation = normalizedLocation
 
-        coroutineScope.launch {
+        locationJob?.cancel()
+        locationJob = managerScope.launch {
             try {
                 handleLocationChange(normalizedLocation)
             } catch (e: Exception) {
-                Log.e(TAG, "Error handling location change for $normalizedLocation", e)
+                if (e !is CancellationException) {
+                    Log.e(TAG, "Error handling location change for $normalizedLocation", e)
+                }
             }
         }
     }
@@ -103,7 +113,7 @@ class UniversalCountryCacheManager(
     /**
      * Main location change handler with smart country management
      */
-    private suspend fun handleLocationChange(location: GeoPoint) {
+    private suspend fun handleLocationChange(location: GeoPoint) = kotlinx.coroutines.coroutineScope {
         val newCountry = try {
             getCurrentCountry(location)
         } catch (e: Exception) {
@@ -113,7 +123,7 @@ class UniversalCountryCacheManager(
 
         if (newCountry == null) {
             Log.w(TAG, "Could not determine country for location: $location (likely Geocoder failure)")
-            return
+            return@coroutineScope
         }
 
         var countryCrossed = false
@@ -139,7 +149,8 @@ class UniversalCountryCacheManager(
             }
             
             // Aviation Safety: Continuously check for border proximity
-            coroutineScope.launch {
+            // Launched as a child of this coroutine, so it's cancelled if the parent Job is cancelled.
+            launch {
                 preloadAdjacentCountries(newCountry, location)
             }
         }
@@ -158,7 +169,7 @@ class UniversalCountryCacheManager(
         // Actively cancel children to prevent overlapping UI test suites from writing
         // to the same .flex and .idx files simultaneously, causing silent cache corruption.
         // We do not cancel the entire scope to allow the SupervisorJob to survive.
-        coroutineScope.coroutineContext.cancelChildren()
+        managerScope.coroutineContext.cancelChildren()
         
         lastLocation = null
         currentCountry = null
@@ -177,7 +188,7 @@ class UniversalCountryCacheManager(
         recordBorderTransition(fromCountry ?: "UNKNOWN", toCountry, true)
 
         // For aviation safety: preload adjacent countries BEFORE clearing old ones
-        coroutineScope.launch {
+        managerScope.launch {
             // Ensure current country is cached first
             val isCached = withContext(Dispatchers.IO) {
                 airspaceCache.isCached(toCountry) && pgSpotCache.isCached(toCountry)
@@ -224,7 +235,7 @@ class UniversalCountryCacheManager(
      * Schedule country cleanup with delay for smooth transitions
      */
     private fun scheduleCountryCleanup(country: String, currentLocation: GeoPoint) {
-        coroutineScope.launch {
+        managerScope.launch {
             // Wait before cleanup to allow smooth transition (10 seconds)
             delay(COUNTRY_UNLOAD_DELAY_MS)
 
@@ -309,7 +320,8 @@ class UniversalCountryCacheManager(
      * Get adjacent countries for preloading using spatial geocoding scans
      */
     private suspend fun getAdjacentCountries(currentCountry: String, location: GeoPoint): List<String> {
-        return kotlinx.coroutines.withContext(Dispatchers.IO) {
+        // Use the limited dispatcher for Geocoder scans to prevent IO starvation
+        return withContext(countryDispatcher) {
             try {
                 // Dynamically scan for nearby country codes within 50km
                 val nearbyCodes = CountryUtils.getNearbyCountryCodes(
@@ -385,11 +397,12 @@ class UniversalCountryCacheManager(
         center: GeoPoint,
         radiusKm: Double,
         limit: Int = 1000
-    ): List<com.ternparagliding.utils.cache.MapOverlayCacheUtils.OverlayFeature> = coroutineScope {
+    ): List<com.ternparagliding.utils.cache.MapOverlayCacheUtils.OverlayFeature> = kotlinx.coroutines.coroutineScope {
         val normalizedCenter = center.normalizePrecision()
         
         // Dynamically resolve nearby countries from coordinates (Stateless Principle)
-        val countriesToQuery = withContext(Dispatchers.IO) {
+        // Use the limited dispatcher for Geocoder scans to prevent IO starvation
+        val countriesToQuery = withContext(countryDispatcher) {
             CountryUtils.getNearbyCountryCodes(applicationContext, center.latitude, center.longitude, radiusKm)
                 .map { it.uppercase() }
                 .distinct()
@@ -403,7 +416,7 @@ class UniversalCountryCacheManager(
         Log.d(TAG, "queryMultiCountryArea: Querying ${countriesToQuery.size} nearby countries ($countriesToQuery) at $normalizedCenter")
 
         val deferredResults = countriesToQuery.map { countryCode ->
-            this@UniversalCountryCacheManager.coroutineScope.async(Dispatchers.IO) {
+            async(Dispatchers.IO) {
                 try {
                     val features = queryCountryFeatures(normalizedCenter, countryCode, radiusKm, limit)
                     if (features.isEmpty()) {
@@ -478,7 +491,7 @@ class UniversalCountryCacheManager(
      * Force refresh of country data (used by all overlay managers)
      */
     fun refreshCountryData(location: GeoPoint) {
-        coroutineScope.launch {
+        managerScope.launch {
             handleLocationChange(location)
         }
     }
@@ -505,7 +518,7 @@ class UniversalCountryCacheManager(
      * Clean shutdown of cache manager
      */
     fun shutdown() {
-        coroutineScope.cancel()
+        managerScope.cancel()
         accessTracker.clear()
         currentCountry = null
         lastLocation = null

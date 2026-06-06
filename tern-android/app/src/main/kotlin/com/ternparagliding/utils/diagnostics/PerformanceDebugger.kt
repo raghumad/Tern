@@ -62,7 +62,6 @@ object PerformanceDebugger {
     data class ReduxMetrics(
         val stateUpdateCount: AtomicLong = AtomicLong(0),
         val lastUpdateTime: AtomicLong = AtomicLong(System.currentTimeMillis()),
-        val updateBatchSizes: MutableList<Int> = mutableListOf(),
         val averageUpdatesPerSecond: AtomicLong = AtomicLong(0),
         val actionTypeCounts: ConcurrentHashMap<String, AtomicLong> = ConcurrentHashMap()
     )
@@ -81,9 +80,17 @@ object PerformanceDebugger {
         val estimatedBytes: AtomicLong = AtomicLong(0)
     )
 
+    // Priority 4: Background Events (Isolated from Redux Storm)
+    data class BackgroundMetrics(
+        val eventCount: AtomicLong = AtomicLong(0),
+        val lastEventTime: AtomicLong = AtomicLong(System.currentTimeMillis()),
+        val eventTypeCounts: ConcurrentHashMap<String, AtomicLong> = ConcurrentHashMap()
+    )
+
     private val reduxMetrics = ReduxMetrics()
     private val memoryMetrics = MemoryMetrics()
     private val allocationMetrics = AllocationMetrics()
+    private val backgroundMetrics = BackgroundMetrics()
 
     init {
         if (isEnabled) {
@@ -102,11 +109,15 @@ object PerformanceDebugger {
     fun recordStateUpdate(actionCount: Int = 1, actionType: String? = null) {
         if (!isEnabled) return
 
+        // Action count must be positive for rate calculations; negative counts (e.g. from evictions)
+        // should use recordGenericEvent to avoid polluting Redux frequency metrics.
+        val count = Math.max(0, actionCount)
+        if (count == 0) return
+
         val now = System.currentTimeMillis()
         val lastUpdate = reduxMetrics.lastUpdateTime.get()
 
-        reduxMetrics.stateUpdateCount.incrementAndGet()
-        reduxMetrics.updateBatchSizes.add(actionCount)
+        reduxMetrics.stateUpdateCount.addAndGet(count.toLong())
         
         if (actionType != null) {
             reduxMetrics.actionTypeCounts.computeIfAbsent(actionType) { AtomicLong(0) }.incrementAndGet()
@@ -115,7 +126,7 @@ object PerformanceDebugger {
         // Calculate updates per second (rolling average)
         val timeDiff = now - lastUpdate
         if (timeDiff > 0) {
-            val currentRate = (actionCount * 1000.0 / timeDiff).toLong()
+            val currentRate = (count * 1000.0 / timeDiff).toLong()
             val currentAverage = reduxMetrics.averageUpdatesPerSecond.get()
             // Use exponential moving average with lower alpha (0.1) to be less sensitive to bursts
             val newAverage = (currentAverage * 0.9 + currentRate * 0.1).toLong()
@@ -205,6 +216,19 @@ object PerformanceDebugger {
         Log.i(TAG, "[PERF_HEAP] $tag used=$used total=$total max=$max")
     }
 
+    // ==================== PRIORITY 4: BACKGROUND EVENTS ====================
+
+    /**
+     * Record a generic background event (cache hit, eviction, etc.)
+     * These do NOT affect the Redux state update storm metrics.
+     */
+    fun recordGenericEvent(eventType: String, delta: Long = 1) {
+        if (!isEnabled) return
+        backgroundMetrics.eventCount.addAndGet(delta)
+        backgroundMetrics.eventTypeCounts.computeIfAbsent(eventType) { AtomicLong(0) }.addAndGet(delta)
+        backgroundMetrics.lastEventTime.set(System.currentTimeMillis())
+    }
+
     // ==================== REPORTING & ANALYSIS ====================
 
     /**
@@ -228,6 +252,10 @@ object PerformanceDebugger {
                 "allocations_active" to allocationMetrics.activeAllocations.mapValues { it.value.get() },
                 "allocations_total" to allocationMetrics.totalAllocations.mapValues { it.value.get() },
                 "allocations_estimated_bytes" to allocationMetrics.estimatedBytes.get(),
+
+                // Priority 4: Background Events
+                "background_events" to backgroundMetrics.eventCount.get(),
+                "background_event_types" to backgroundMetrics.eventTypeCounts.mapValues { it.value.get() },
 
                 // Summary
                 "critical_issues" to getCriticalIssues()
@@ -265,6 +293,9 @@ object PerformanceDebugger {
         allocationMetrics.estimatedBytes.set(0)
         
         memoryMetrics.memoryPressureEvents.set(0)
+
+        backgroundMetrics.eventCount.set(0)
+        backgroundMetrics.eventTypeCounts.clear()
         
         Log.i(TAG, "Performance metrics cleared for test isolation")
     }
@@ -323,6 +354,10 @@ object PerformanceDebugger {
 
 fun recordStateUpdate(actionCount: Int = 1, actionType: String? = null) {
     PerformanceDebugger.recordStateUpdate(actionCount, actionType)
+}
+
+fun recordGenericEvent(eventType: String, delta: Long = 1) {
+    PerformanceDebugger.recordGenericEvent(eventType, delta)
 }
 
 fun recordOverlayLifecycle(overlayType: String, isCreation: Boolean) {
