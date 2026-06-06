@@ -3,8 +3,6 @@ package com.ternparagliding.ui.components
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -24,7 +22,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ternparagliding.R
-import com.ternparagliding.redux.GpsStatus
+import com.ternparagliding.ui.theme.AeroNeonCyan
 
 @Composable
 fun WelcomeScreen(
@@ -37,7 +35,7 @@ fun WelcomeScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
+            .background(AeroNeonCyan),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -45,33 +43,31 @@ fun WelcomeScreen(
             verticalArrangement = Arrangement.Center,
             modifier = Modifier.padding(16.dp)
         ) {
-            //large spacer to push content towards center
-            Spacer(modifier = Modifier.height(250.dp))
-
-            // App branding (consistent with current design)
+            // App branding (Bird on top of white text, exactly as requested)
             Box(contentAlignment = Alignment.Center) {
-                Image(
-                    painter = painterResource(id = R.drawable.kjartan_birgisson),
-                    contentDescription = "Kjartan Birgisson",
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier
-                        .width(250.dp)
-                        .padding(start = 90.dp, top = 20.dp)
-                )
-
                 Text(
                     text = "Tern Paragliding",
                     style = TextStyle(
                         fontFamily = gruppoFont,
                         fontSize = 40.sp,
                         fontWeight = FontWeight.W900,
-                        color = MaterialTheme.colorScheme.onBackground,
+                        color = Color.White,
                         shadow = Shadow(
-                            color = Color.Black.copy(alpha = 0.5f),
+                            color = Color.Black.copy(alpha = 0.3f),
                             blurRadius = 8f
                         ),
                         letterSpacing = 1.5.sp
-                    )
+                    ),
+                    modifier = Modifier.padding(top = 40.dp) // Push text down slightly
+                )
+
+                Image(
+                    painter = painterResource(id = R.drawable.kjartan_birgisson),
+                    contentDescription = "Tern Logo",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .width(200.dp)
+                        .offset(y = (-20).dp) // Pull bird up slightly to overlap "d"
                 )
             }
 
@@ -92,11 +88,9 @@ fun WelcomeScreen(
                     PermissionRequiredView(gruppoFont)
                 }
                 com.ternparagliding.redux.GpsStatus.ACTIVE -> {
-                    // GPS active but location not ready yet (final acquisition phase)
                     AcquiringGpsView(gruppoFont, isFinalAcquisition = true)
                 }
                 com.ternparagliding.redux.GpsStatus.SEARCHING -> {
-                    // GPS searching for satellites
                     AcquiringGpsView(gruppoFont, isFinalAcquisition = false)
                 }
             }
@@ -106,7 +100,6 @@ fun WelcomeScreen(
 
 @Composable
 private fun InitialWelcomeView(gruppoFont: FontFamily) {
-    // Subtle welcome text, not competing with branding
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -119,11 +112,7 @@ private fun InitialWelcomeView(gruppoFont: FontFamily) {
                 fontFamily = gruppoFont,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Normal,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f),
-                shadow = Shadow(
-                    color = Color.Black.copy(alpha = 0.3f),
-                    blurRadius = 4f
-                )
+                color = Color.White.copy(alpha = 0.8f)
             ),
             textAlign = TextAlign.Center
         )
@@ -132,7 +121,6 @@ private fun InitialWelcomeView(gruppoFont: FontFamily) {
 
 @Composable
 private fun AcquiringGpsView(gruppoFont: FontFamily, isFinalAcquisition: Boolean = false) {
-    // Subtle bottom-aligned GPS status - much less prominent
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -150,7 +138,7 @@ private fun AcquiringGpsView(gruppoFont: FontFamily, isFinalAcquisition: Boolean
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
             CircularProgressIndicator(
-                color = MaterialTheme.colorScheme.primary,
+                color = Color.White,
                 strokeWidth = 2.dp,
                 modifier = Modifier.size(16.dp)
             )
@@ -163,7 +151,7 @@ private fun AcquiringGpsView(gruppoFont: FontFamily, isFinalAcquisition: Boolean
                     fontFamily = gruppoFont,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Normal,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = Color.White
                 )
             )
         }
@@ -172,7 +160,6 @@ private fun AcquiringGpsView(gruppoFont: FontFamily, isFinalAcquisition: Boolean
 
 @Composable
 private fun GpsLostView(gruppoFont: FontFamily, onRetryGps: () -> Unit) {
-    // Subtle bottom-aligned GPS status
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -208,7 +195,8 @@ private fun GpsLostView(gruppoFont: FontFamily, onRetryGps: () -> Unit) {
                 Text(
                     text = "Retry",
                     fontSize = 10.sp,
-                    fontFamily = gruppoFont
+                    fontFamily = gruppoFont,
+                    color = Color.White
                 )
             }
         }
@@ -217,7 +205,6 @@ private fun GpsLostView(gruppoFont: FontFamily, onRetryGps: () -> Unit) {
 
 @Composable
 private fun PermissionRequiredView(gruppoFont: FontFamily) {
-    // Subtle bottom-aligned GPS status
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -252,7 +239,7 @@ private fun PermissionRequiredView(gruppoFont: FontFamily) {
                     fontFamily = gruppoFont,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Normal,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = Color.White.copy(alpha = 0.8f)
                 ),
                 textAlign = TextAlign.Center
             )

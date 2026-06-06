@@ -3,15 +3,20 @@
     <!-- Base application theme. -->
     <style name="Theme.Tern" parent="Theme.MaterialComponents.DayNight.NoActionBar">
         <!-- Primary brand color. -->
-        <item name="colorPrimary">#00BCD4</item>
-        <item name="colorPrimaryVariant">#0097A7</item>
+        <item name="colorPrimary">#00E5FF</item>
+        <item name="colorPrimaryVariant">#00BCD4</item>
         <item name="colorOnPrimary">#FFFFFFFF</item>
         <!-- Secondary brand color. -->
         <item name="colorSecondary">#A7FFEB</item>
-        <item name="colorSecondaryVariant">#0097A7</item>
+        <item name="colorSecondaryVariant">#00BCD4</item>
         <item name="colorOnSecondary">#FF000000</item>
         <!-- Status bar color. -->
-        <item name="android:statusBarColor">?attr/colorPrimaryVariant</item>
+        <item name="android:statusBarColor">#00E5FF</item>
+        <!-- Window background -->
+        <item name="android:windowBackground">@color/aero_neon_cyan</item>
+        <!-- Android 12+ Splash Screen -->
+        <item name="android:windowSplashScreenAnimatedIcon" tools:targetApi="s">@android:color/transparent</item>
+        <item name="android:windowSplashScreenBackground" tools:targetApi="s">@color/aero_neon_cyan</item>
         <!-- Custom font -->
         <item name="android:fontFamily">@font/gruppo_regular</item>
         <!-- Customize your theme here. -->

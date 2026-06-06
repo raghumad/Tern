@@ -10,7 +10,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.ViewModelProvider
@@ -93,7 +92,10 @@ class TernParaglidingActivity : ComponentActivity() {
 
         setContent {
             TernTheme(darkTheme = true) {
-                Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = com.ternparagliding.ui.theme.AeroNeonCyan
+                ) {
                     TernMapScreen(store = mapStore)
                 }
             }
