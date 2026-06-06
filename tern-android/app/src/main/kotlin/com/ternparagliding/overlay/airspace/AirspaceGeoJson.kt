@@ -126,21 +126,58 @@ object AirspaceGeoJson {
     /**
      * Build the JsonObject properties attached to each GeoJSON feature.
      * The FillLayer/LineLayer expressions read `"class"` to pick colours.
+     * Including floor/ceiling for at-a-glance labelling.
      */
     private fun buildProperties(candidate: AirspaceCandidate): JsonObject {
         val raw = candidate.feature.feature
         val props = raw.nestedProperties()
+        
         val name = props["name"] as? String
             ?: props["Name"] as? String
             ?: candidate.feature.id
+
+        // Extract vertical limits (OpenAIP format)
+        val floor = formatLimit(props["lowerLimit"])
+        val ceiling = formatLimit(props["upperLimit"])
 
         return JsonObject(
             buildMap {
                 put("class", JsonPrimitive(candidate.airspaceClass))
                 put("name", JsonPrimitive(name))
                 put("id", JsonPrimitive(candidate.id))
+                put("floor", JsonPrimitive(floor))
+                put("ceiling", JsonPrimitive(ceiling))
+                put("label", JsonPrimitive("${candidate.airspaceClass}\n$floor/$ceiling"))
             }
         )
+    }
+
+    private fun formatLimit(limitObj: Any?): String {
+        val map = limitObj as? Map<*, *> ?: return "???"
+        val value = (map["value"] as? Number)?.toInt() ?: return "???"
+        val unit = (map["unit"] as? Number)?.toInt() ?: 1 // Default feet
+        val ref = (map["referenceDatum"] as? Number)?.toInt() ?: 1 // Default MSL
+
+        val unitStr = when(unit) {
+            6 -> "FL"
+            0 -> "m"
+            else -> "ft"
+        }
+
+        val refStr = when(ref) {
+            0 -> "GND"
+            1 -> "MSL"
+            2 -> "STD"
+            else -> ""
+        }
+
+        return if (unit == 6) {
+            "FL${value / 100}"
+        } else if (value == 0 && ref == 0) {
+            "SFC"
+        } else {
+            "$value$unitStr $refStr".trim()
+        }
     }
 
     /**

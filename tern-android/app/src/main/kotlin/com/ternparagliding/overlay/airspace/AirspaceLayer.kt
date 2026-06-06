@@ -1,15 +1,26 @@
 package com.ternparagliding.overlay.airspace
 
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color as AndroidColor
+import android.graphics.Paint
+import android.graphics.Typeface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.unit.dp
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import org.maplibre.spatialk.geojson.FeatureCollection
 import org.maplibre.spatialk.geojson.Geometry
 import org.maplibre.compose.expressions.ast.Expression
 import org.maplibre.compose.expressions.dsl.case
 import org.maplibre.compose.expressions.dsl.const
+import org.maplibre.compose.expressions.dsl.image
+import org.maplibre.compose.expressions.dsl.step
 import org.maplibre.compose.expressions.dsl.switch
+import org.maplibre.compose.expressions.dsl.zoom
 import org.maplibre.compose.expressions.value.ColorValue
 import org.maplibre.compose.expressions.value.StringValue
 import org.maplibre.compose.sources.GeoJsonData
@@ -17,13 +28,14 @@ import org.maplibre.compose.sources.rememberGeoJsonSource
 import org.maplibre.compose.expressions.dsl.feature as featureDsl
 
 /**
+ * Bitmap supersampling factor — keeps the labels crisp when scaled by zoom.
+ */
+private const val S = 2.0f
+
+/**
  * Renders prioritized airspace candidates on a MapLibre map using
- * a single GeoJsonSource feeding a FillLayer (polygon fills) and a
- * LineLayer (polygon borders).
- *
- * Colour-coding by airspace class is done via MapLibre expressions
- * that read the "class" property on each GeoJSON feature. The GPU
- * does per-feature styling — no Kotlin loop, no per-polygon object.
+ * a single GeoJsonSource feeding a FillLayer (polygon fills), a
+ * LineLayer (polygon borders), and a SymbolLayer (at-a-glance labels).
  */
 @Composable
 fun AirspaceLayer(
@@ -31,9 +43,6 @@ fun AirspaceLayer(
 ) {
     if (featureCollection.features.isEmpty()) return
 
-    // The FeatureCollection is built off the main thread by AirspaceOverlay —
-    // here we only hand it to the GPU source (no per-vertex work on the UI
-    // thread, which froze the map for ~370 ms on dense sets).
     val source = rememberGeoJsonSource(
         data = GeoJsonData.Features(featureCollection),
     )
@@ -56,6 +65,95 @@ fun AirspaceLayer(
         width = const(2.dp),
         opacity = const(0.8f),
     )
+
+    // Labels: At-a-glance class + limits.
+    AirspaceLabels(featureCollection, source)
+}
+
+/**
+ * Renders labels at the centroid of each airspace polygon.
+ * Since raster styles lack glyphs, we rasterise text to icon bitmaps.
+ */
+@Composable
+private fun AirspaceLabels(
+    featureCollection: FeatureCollection<Geometry, JsonObject>,
+    source: org.maplibre.compose.sources.GeoJsonSource,
+) {
+    val labels = remember(featureCollection) {
+        featureCollection.features
+            .mapNotNull { (it.properties?.get("label") as? JsonPrimitive)?.content }
+            .distinct()
+    }
+
+    if (labels.isEmpty()) return
+
+    @Suppress("UNCHECKED_CAST")
+    val labelExpr = featureDsl.get("label") as Expression<StringValue>
+
+    val iconImage = remember(labels) {
+        val transparent = image(
+            Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888).asImageBitmap()
+        )
+        val cases = labels.map { label ->
+            case(label, image(renderAirspaceLabelBitmap(label).asImageBitmap()))
+        }.toTypedArray()
+        switch(labelExpr, *cases, fallback = transparent)
+    }
+
+    val iconSize = step(
+        zoom(),
+        const(0.6f),
+        10.0 to const(0.8f),
+        13.0 to const(1.0f),
+    )
+
+    org.maplibre.compose.layers.SymbolLayer(
+        id = "airspace-labels",
+        source = source,
+        iconImage = iconImage,
+        iconSize = iconSize,
+        iconAllowOverlap = const(false),
+    )
+}
+
+/**
+ * Rasterises a two-line airspace label (e.g. "CLASS B\nSFC / 5000ft").
+ */
+private fun renderAirspaceLabelBitmap(text: String): Bitmap {
+    val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = AndroidColor.WHITE
+        textSize = 11f * S
+        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        textAlign = Paint.Align.CENTER
+    }
+    
+    val lines = text.split('\n')
+    val maxW = lines.maxOf { paint.measureText(it) }
+    val lineH = paint.descent() - paint.ascent()
+    val totalH = lineH * lines.size + (lines.size - 1) * 2f * S
+
+    val padH = 8f * S
+    val padV = 4f * S
+    val w = maxW + padH * 2
+    val h = totalH + padV * 2
+
+    val bmp = Bitmap.createBitmap(w.toInt().coerceAtLeast(1), h.toInt().coerceAtLeast(1), Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bmp)
+    
+    var y = padV - paint.ascent()
+    lines.forEachIndexed { index, line ->
+        if (index == 0) {
+            paint.color = AndroidColor.YELLOW // Highlight Class
+        } else {
+            paint.color = AndroidColor.WHITE
+        }
+        // Simple dark halo for contrast without the pill background
+        paint.setShadowLayer(2f * S, 0f, 0f, AndroidColor.BLACK)
+        canvas.drawText(line, w / 2f, y, paint)
+        y += lineH + 2f * S
+    }
+    
+    return bmp
 }
 
 // ── Expression helpers ──────────────────────────────────────────────

@@ -20,13 +20,13 @@ import androidx.compose.material3.TextButton
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ternparagliding.model.LocationType
 import com.ternparagliding.overlay.airspace.AirspaceOverlay
 import com.ternparagliding.redux.MapAction
-import com.ternparagliding.redux.MapConstants
 import com.ternparagliding.redux.MapStore
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.conflate
@@ -38,24 +38,14 @@ import org.maplibre.compose.camera.CameraPosition
 import org.maplibre.compose.camera.rememberCameraState
 import org.maplibre.compose.map.MaplibreMap
 import org.maplibre.compose.style.BaseStyle
+import org.maplibre.compose.util.ClickResult
 import org.maplibre.spatialk.geojson.Position
 import org.osmdroid.util.GeoPoint
 
 private const val TAG = "MapViewContainer"
 private val COMPASS_PADDING = 16.dp
 
-// Map style selection. PG pilots need terrain by default — ridges and
-// lee sides have to be visually obvious without panning or zooming.
-//
-// "terrain" uses OpenTopoMap raster tiles (free, no API key, OSM-derived
-// contour lines every 25m). Their tile usage policy permits low-volume
-// development use. For production we'll likely move to a tile provider
-// with an API key (MapTiler outdoor, Stadia Outdoors) for higher
-// quality + better rate limits.
-//
-// "satellite" uses ESRI World Imagery (free, no API key).
-//
-// Anything else falls back to openfreemap "liberty" (streets, light).
+// Map style selection.
 private fun mapStyleFor(styleId: String): BaseStyle = when (styleId) {
     "terrain" -> BaseStyle.Json(
         """{
@@ -100,9 +90,7 @@ private fun mapStyleFor(styleId: String): BaseStyle = when (styleId) {
     else -> BaseStyle.Uri("https://tiles.openfreemap.org/styles/liberty")
 }
 
-// Default center (roughly center of France — reasonable for a paragliding app
-// that starts without a GPS fix). Once the GPS acquires, Redux pushes the real
-// position and the map snaps to it.
+// Default center
 private const val DEFAULT_LAT = 45.8
 private const val DEFAULT_LON = 6.5
 
@@ -115,20 +103,17 @@ fun MapViewContainer(
     val state by store.state.collectAsState()
     val hasLocationPermission = handleLocationPermissions(store)
     val coroutineScope = rememberCoroutineScope()
+    val density = LocalDensity.current
 
-    // Register middleware (unchanged from OSMDroid version)
+    // Register middleware
     LaunchedEffect(store) {
         store.addMiddleware(com.ternparagliding.redux.MapMiddleware(context.applicationContext))
         store.addMiddleware(com.ternparagliding.redux.RoutePlanningMiddleware(context.applicationContext))
         store.addMiddleware(com.ternparagliding.redux.WeatherMiddleware())
-        // Download airspace/PG-spot data for the country under the map centre
-        // (and adjacent ones near borders) as the pilot moves — without this
-        // the overlay caches are never populated in production.
         store.addMiddleware(com.ternparagliding.redux.CountryPreloadMiddleware(context.applicationContext))
     }
 
-    // Persist routes to the offline-first spatial RouteCache whenever they
-    // change, so a pilot's plans survive restarts and can resurface nearby.
+    // Persist routes
     LaunchedEffect(store) {
         com.ternparagliding.redux.RoutePersistence.observe(
             store,
@@ -136,27 +121,14 @@ fun MapViewContainer(
         )
     }
 
-    // MapViewModel still owns overlay lifecycle — disabled for M1 but kept
-    // so that M2-M5 can migrate one manager at a time.
     val mapViewModel: MapViewModel = viewModel()
 
-    // Connect MapViewModel to the Redux store (needed for smart suggestion)
     LaunchedEffect(store) {
         mapViewModel.setMapStore(store)
     }
 
-    // Location service (FusedLocationProvider → Redux)
     val locationService = remember(store, context) { ReduxLocationService(store, context) }
-
-    // Setup location updates
     setupLocationUpdates(state.hasLocationPermission, locationService)
-
-    // ──────────────────────────────────────────────────────────────────────
-    // MapLibre camera state — the single source of truth for what the user
-    // sees on screen.  Redux's MapState.center/zoom/rotation are the
-    // *application-level* source of truth; the CameraState is the
-    // *rendering-level* source of truth.  We keep them in sync below.
-    // ──────────────────────────────────────────────────────────────────────
 
     val initialCenter = state.center
     val initialZoom = state.zoom
@@ -171,10 +143,7 @@ fun MapViewContainer(
         )
     )
 
-    // Test hook: expose lat/lon -> screen-pixel projection so instrumented
-    // gesture helpers can tap/drag at geographic coordinates. Inert in
-    // production (only test code reads it). The resolver closes over the live
-    // cameraState, so each call reflects the current camera.
+    // Test hook
     val projectionDensity = androidx.compose.ui.platform.LocalDensity.current
     androidx.compose.runtime.DisposableEffect(cameraState, projectionDensity) {
         com.ternparagliding.utils.MapProjectionTestHook.setResolver { lat, lon ->
@@ -190,19 +159,12 @@ fun MapViewContainer(
         onDispose { com.ternparagliding.utils.MapProjectionTestHook.setResolver(null) }
     }
 
-    // ── Redux → MapLibre (programmatic camera moves) ────────────────────
-    // When something external (GPS first fix, route zoom, bounding box)
-    // updates Redux's center/zoom, push that into the MapLibre camera.
-    // We skip updates that came from the user's own gesture (tracked via
-    // CameraMoveReason) to avoid feedback loops.
+    // Redux → MapLibre
     LaunchedEffect(store) {
         store.state
             .map { Triple(it.center, it.zoom, it.rotation) }
             .distinctUntilChanged()
             .collectLatest { (center, zoom, rotation) ->
-                // Only push Redux changes when the camera isn't being moved
-                // by the user's finger. If it IS a gesture, the MapLibre →
-                // Redux path (below) will update Redux to match.
                 if (cameraState.moveReason != CameraMoveReason.GESTURE) {
                     center?.let {
                         cameraState.animateTo(
@@ -220,7 +182,7 @@ fun MapViewContainer(
             }
     }
 
-    // Handle pending bounding box (e.g. ZoomToRoute)
+    // Handle pending bounding box
     LaunchedEffect(store) {
         store.state
             .map { it.pendingBoundingBox }
@@ -232,14 +194,6 @@ fun MapViewContainer(
                         Position(box.maxLon, box.maxLat),
                     )
                     cameraState.animateTo(bbox)
-                    // animateTo() suspends until the fit settles. Sync the
-                    // resulting camera target/zoom back into Redux so the
-                    // application-level center/zoom track what's actually
-                    // framed (e.g. after a route auto-fit). The MapLibre →
-                    // Redux snapshot path below only fires for GESTURE moves,
-                    // so without this an auto-framed route leaves state.center
-                    // stale at its pre-frame value. UpdateMapMovement also
-                    // clears pendingBoundingBox, so it won't re-trigger.
                     val settled = cameraState.position
                     store.dispatch(
                         MapAction.UpdateMapMovement(
@@ -252,21 +206,9 @@ fun MapViewContainer(
             }
     }
 
-    // ── MapLibre → Redux (user gestures only) ─────────────────────────
-    // When the user pans/zooms/rotates the map with their finger,
-    // propagate the new camera position back to Redux. We ONLY do this
-    // for GESTURE moves — not PROGRAMMATIC. Without this guard, a
-    // programmatic animateTo() triggers camera position snapshots
-    // mid-animation that overwrite the Redux target with intermediate
-    // positions, creating a feedback loop that prevents the camera
-    // from ever reaching its destination.
-    //
-    // Robust "Muffling" (Phase 1b):
-    // 1. Spatial Throttling: Ignore moves < 5 pixels (reduces micro-jitter).
-    // 2. Conflation: Automatically drops intermediate moves if the store is
-    //    busy, ensuring only the LATEST position is dispatched.
+    // MapLibre → Redux (Robust Muffling)
     LaunchedEffect(cameraState) {
-        var lastDispatchedPos: org.maplibre.spatialk.geojson.Position? = null
+        var lastDispatchedPos: Position? = null
         val pixelThresholdSq = 25.0 // 5px threshold squared
 
         snapshotFlow { cameraState.position to cameraState.moveReason }
@@ -275,11 +217,9 @@ fun MapViewContainer(
             .collectLatest { pair ->
                 val pos = pair.first
                 val reason = pair.second
-                
+
                 if (reason == CameraMoveReason.GESTURE) {
                     val target = pos.target
-                    
-                    // Spatial Throttling: only dispatch if moved significantly on screen
                     val shouldDispatch = lastDispatchedPos?.let { last ->
                         val proj = cameraState.projection
                         if (proj != null) {
@@ -305,18 +245,17 @@ fun MapViewContainer(
             }
     }
 
-    // Smart Waypoint Creation State (driven by Redux)
+    // Smart Waypoint Creation State
     val smartSuggestionState = state.smartSuggestionState
     val nearbyPGSpot = smartSuggestionState.nearbyPGSpot
     val pendingWaypointCreation = smartSuggestionState.pendingWaypointCreation
 
-    // Smart Waypoint Dialog (unchanged from OSMDroid version)
     if (nearbyPGSpot != null && pendingWaypointCreation != null) {
-        val spotName = nearbyPGSpot.feature?.get("properties")?.let { props ->
+        val spotName = nearbyPGSpot.feature.get("properties")?.let { props ->
             (props as? Map<*, *>)?.get("name") as? String
         } ?: "Unknown Spot"
 
-        val spotType = nearbyPGSpot.feature?.get("properties")?.let { props ->
+        val spotType = nearbyPGSpot.feature.get("properties")?.let { props ->
             (props as? Map<*, *>)?.get("siteType") as? String
         } ?: "Launch"
 
@@ -366,12 +305,6 @@ fun MapViewContainer(
         )
     }
 
-    // ──────────────────────────────────────────────────────────────────────
-    // Layout: MapLibre fills the entire Box.  Compose controls (compass,
-    // route HUD) are siblings that float on top — no AndroidView interop
-    // needed anymore.
-    // ──────────────────────────────────────────────────────────────────────
-
     Box(modifier = modifier.fillMaxSize()) {
         MaplibreMap(
             Modifier
@@ -392,21 +325,17 @@ fun MapViewContainer(
             // Airspace overlay
             AirspaceOverlay(store = store, cameraState = cameraState)
 
-            // PG-spot overlay (paragliding sites) — same cache-driven
-            // pattern as airspaces; data is downloaded alongside them.
+            // PG-spot overlay
             com.ternparagliding.overlay.pgspot.PgSpotOverlay(
                 store = store,
                 cameraState = cameraState,
             )
 
-            // Weather-hazard halos (RFC 005): amber for convective danger,
-            // red + bolt for thunderstorms. State-derived from waypoint
-            // weather; always on (safety-critical).
+            // Weather-hazard halos
             com.ternparagliding.overlay.hazard.HazardOverlay(store = store)
 
-            // Peer markers (mezulla) — load Nerd Font for the glyph in
-            // the marker circle (otherwise the glyph renders as tofu).
-            val ctx = androidx.compose.ui.platform.LocalContext.current
+            // Peer markers
+            val ctx = LocalContext.current
             val nerdFont = remember {
                 androidx.core.content.res.ResourcesCompat.getFont(
                     ctx, com.ternparagliding.R.font.jetbrains_mono_nerd_regular
@@ -421,24 +350,14 @@ fun MapViewContainer(
             )
         }
 
-        // Surface preplanned routes from the offline cache when the pilot is
-        // near them (feeds state.routes; RouteLayer above renders them).
         com.ternparagliding.overlay.route.RouteProximityOverlay(store = store)
 
-        // Screen-edge chips pointing to buddies who are off the map view —
-        // essential on wide XC where peers sit tens of km outside the frame.
         com.ternparagliding.overlay.mezulla.OffScreenPeerIndicators(
             peers = state.peerState.peers,
             ownLocation = state.userLocation,
             cameraState = cameraState,
         )
 
-        // Top-right glance-only cluster: Mezulla status badge + compass.
-        // Both are visual-only, no tap targets, so they live in the
-        // hard-to-reach corner per the one-handed UI principle.
-        // Likely future work: merge these into a single combined overlay
-        // (e.g. compass ring with the M+waves inside, or Mezulla state
-        // embedded in the compass rose).
         androidx.compose.foundation.layout.Row(
             modifier = Modifier
                 .align(Alignment.TopEnd)
@@ -455,7 +374,6 @@ fun MapViewContainer(
             }
         }
 
-        // Route Planning HUD
         if (state.selectedRouteId != null) {
             RoutePlanningHUD(
                 state = state,
@@ -467,8 +385,6 @@ fun MapViewContainer(
         }
     }
 }
-
-// ── Helper composables ──────────────────────────────────────────────────
 
 @Composable
 private fun setupLocationUpdates(
