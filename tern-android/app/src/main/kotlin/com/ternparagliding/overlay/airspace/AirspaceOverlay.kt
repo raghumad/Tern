@@ -90,9 +90,19 @@ fun AirspaceOverlay(
                 // AirspaceLayer's composition — keeps the per-vertex parse of a
                 // dense set (~370 ms for ~80 polygons) off the UI thread, so the
                 // map never freezes while airspaces load.
+                // DIAG: split the withContext(IO) round-trip into dispatch (time to
+                // get an IO thread) / exec (queryAndScore) / resume (time to hop back
+                // to this collector's dispatcher). At dense centres (DC) the total
+                // balloons to ~26 s while exec stays ~75 ms — this tells us whether
+                // it's IO-pool starvation (dispatch) or a frame-clock-gated resume.
                 val tQuery = System.currentTimeMillis()
+                var tIoStart = 0L
+                var tIoEnd = 0L
                 val newCandidates = withContext(Dispatchers.IO) {
-                    queryAndScore(airspaceCache, prioritizer, center)
+                    tIoStart = System.currentTimeMillis()
+                    val r = queryAndScore(airspaceCache, prioritizer, center)
+                    tIoEnd = System.currentTimeMillis()
+                    r
                 }
                 val tBuild = System.currentTimeMillis()
                 val built = withContext(Dispatchers.Default) {
@@ -102,7 +112,9 @@ fun AirspaceOverlay(
                     TAG,
                     "query+build: ${newCandidates.size} candidates @ " +
                         "${center.latitude},${center.longitude} " +
-                        "query=${tBuild - tQuery}ms build=${System.currentTimeMillis() - tBuild}ms",
+                        "dispatch=${tIoStart - tQuery}ms exec=${tIoEnd - tIoStart}ms " +
+                        "resume=${tBuild - tIoEnd}ms build=${System.currentTimeMillis() - tBuild}ms " +
+                        "total=${tBuild - tQuery}ms",
                 )
 
                 featureCollection = built
