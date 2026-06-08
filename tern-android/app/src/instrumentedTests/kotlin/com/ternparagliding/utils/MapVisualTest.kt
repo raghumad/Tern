@@ -506,6 +506,37 @@ open class MapVisualTest {
     // OSMDroid MapView is no longer in the view hierarchy. All overlay
     // data is in the Redux store; rendering is MapLibre's concern.
 
+    /**
+     * Honest-test guard: a scenario/step must NOT pass green while the app is
+     * showing the "Pairing failed" overlay — `PairingPrimingScreen` in
+     * `PairingState.Failed`, a full-screen 90%-opaque "board not found" error.
+     * Multiple scenarios were caught GREEN with that error sitting over the
+     * splash (the map never visible), saved as `success_*.png` — a flat lie,
+     * because `onNode("map_view").assertExists()` checks the node is in the tree,
+     * not that it's visible behind the overlay.
+     *
+     * Targets the terminal Failed state ("Pairing failed"), so transient
+     * Scanning/Connecting priming states don't trip it. Usually the error is
+     * leaked pairing state from a prior pairing test or an auto-pair attempt at
+     * launch; the honest answer is to fail, not screenshot it as success.
+     */
+    fun assertNoPairingFailureOnScreen() {
+        val showing = try {
+            composeTestRule
+                .onAllNodesWithText("Pairing failed", substring = true, useUnmergedTree = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        } catch (e: Throwable) {
+            false
+        }
+        if (showing) {
+            throw AssertionError(
+                "App is showing the 'Pairing failed' overlay (board-not-found) — the map/UI is not " +
+                    "in a valid state, so this cannot be a passing step. Reset the pairing state " +
+                    "(or stop the launch-time pairing attempt) before asserting.",
+            )
+        }
+    }
+
     // BDD Helpers (Copied from BddTest to avoid rule conflicts)
     fun scenario(name: String, block: () -> Unit) {
         ReportGenerator.logStep("SCENARIO", name)
@@ -516,10 +547,11 @@ open class MapVisualTest {
             Log.w("MapVisualTest", "map_view not found at scenario start. Waiting for idle.")
             composeTestRule.waitForIdle()
         }
-        
+
         try {
             block()
             composeTestRule.waitForIdle()
+            assertNoPairingFailureOnScreen()
             val result = ReportGenerator.captureScreenshot("success_${name.replace(" ", "_")}")
             ReportGenerator.logStep("RESULT", "Scenario completed without assertion failure", "PASS", result?.path, result?.hash)
         } catch (e: Throwable) {
@@ -556,6 +588,7 @@ open class MapVisualTest {
     fun step(type: String, description: String, takeScreenshot: Boolean, block: () -> Unit) {
         try {
             block()
+            assertNoPairingFailureOnScreen()
             val result = if (takeScreenshot) {
                 // [STABILITY FIX] Synchronize with UI and Redux before capture
                 composeTestRule.waitForIdle()

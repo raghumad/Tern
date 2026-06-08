@@ -77,6 +77,20 @@ abstract class RealUserMapTest {
             store.dispatch(MapAction.UpdateZoom(zoom))
         }
         check(waitForBasemap()) { "Basemap never painted after launch" }
+        assertNoPairingFailure()
+    }
+
+    /**
+     * Honest-test guard: fail if the "Pairing failed" overlay (board-not-found)
+     * is on screen — the map is then hidden behind it and no assertion below is
+     * valid. Mirrors MapVisualTest.assertNoPairingFailureOnScreen for the
+     * UiDevice (real-clock) harness.
+     */
+    protected fun assertNoPairingFailure() {
+        val o = device.findObject(androidx.test.uiautomator.By.textContains("Pairing failed"))
+        if (o != null) {
+            throw AssertionError("App is showing the 'Pairing failed' overlay — map/UI not in a valid state.")
+        }
     }
 
     /** Run [block] with the live [MapStore] on the UI thread. */
