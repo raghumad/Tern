@@ -67,6 +67,14 @@ abstract class RealUserMapTest {
         CacheManager.initialize(targetContext.applicationContext)
         CacheManager.clearAllCaches()
 
+        // Test isolation: clear leaked pairing state (saved board + in-memory
+        // Failed) BEFORE launch, so the app doesn't auto-reconnect to a phantom
+        // board and cover the map with the "Pairing failed" overlay.
+        try {
+            (targetContext.applicationContext as com.ternparagliding.TernApplication)
+                .pairingOrchestrator.forgetBoard()
+        } catch (e: Throwable) { /* app not ready / non-Tern context */ }
+
         scenario = ActivityScenario.launch(TernParaglidingActivity::class.java)
 
         // Position the camera once (Arrange — not the action under test) and mark

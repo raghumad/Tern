@@ -92,6 +92,21 @@ open class MapVisualTest {
         // IMyLocationProvider. The test still sets a country code to
         // prevent real data downloads during test runs.
         com.ternparagliding.utils.geo.CountryUtils.setTestCountryCode("TEST")
+
+        // Test isolation: clear any leaked pairing state BEFORE the rule launches
+        // the activity. pairingOrchestrator is a process singleton, so a prior
+        // test's "Failed" state (and the saved board it auto-reconnects to at
+        // launch) leaks into every later test as the full-screen "Pairing failed"
+        // overlay. forgetBoard() clears the saved board (prefs) AND resets the
+        // in-memory state to Idle. init {} runs at test-instance construction,
+        // before the activity is launched, so the app comes up clean.
+        try {
+            val app = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation()
+                .targetContext.applicationContext as com.ternparagliding.TernApplication
+            app.pairingOrchestrator.forgetBoard()
+        } catch (e: Throwable) {
+            Log.w("MapVisualTest", "Could not reset pairing state: ${e.message}")
+        }
     }
 
 
