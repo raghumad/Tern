@@ -84,14 +84,26 @@ placeholders for you to set.
 - **Resilient:** GPS dropout → last-known shown + "stale" indicator; app keeps
   running. `[ ]`
 
-### K2 — Airspace
-- **Correct:** rendered polygons match source data for the viewport. `[ ]`
-- **Timely:** awareness of airspace ahead fires *before* the boundary (≥ N s /
-  ≥ M m out). `[ ]`
-- **Frictionless:** only viewport-relevant airspace shown; declutters at density. `[ ]`
-- **Offline:** airspace along the corridor served from cache; 0 network calls. `[ ]`
-- **Resilient:** *stale/corrupt airspace → shows stale (indicated) or hides; map,
-  route, peers, weather all keep working; no crash.* ← canonical degradation test `[ ]`
+### K2 — Airspace  *(subsystem mapped 2026-06; JVM-testable except Timely)*
+- **Correct:** queried/rendered polygons match source for the viewport.
+  `AirspaceGeoJson.resolveAirspaceClass` (icaoClass 0-indexed), `queryHilbertRange`
+  (haversine refine). `[~]` partly locked by `AirspaceGeoJsonTest` +
+  `HilbertSpatialQueryTest`; **add** a haversine-vs-brute-force oracle.
+- **Timely:** awareness of airspace ahead fires *before* the boundary. `[GAP]`
+  **Not implemented** — the query is purely reactive (static 200 km horizon on
+  centre change); no lookahead/prediction exists. This is a feature to build, not
+  a test to write.
+- **Frictionless:** only viewport-relevant airspace; declutters at density.
+  `OverlayPrioritizer.prioritize` (budget 300, distance-decay), Class-G filter.
+  `[ ]` JVM — assert count ≤ budget, nearest-first, Class-G dropped.
+- **Offline:** airspace along the corridor served from cache; **0 network calls**.
+  `CountryPreloadMiddleware` `isTestMode` gate + `AirspaceCache.queryAllCachedNearby`.
+  `[ ]` JVM — inject a fixture cache, mock the HTTP client, assert zero calls.
+- **Resilient:** *stale/corrupt/missing airspace → hides or shows stale; map,
+  route, peers, weather keep working; no crash.* ← canonical degradation test.
+  `SpatialDiskCache.validateCacheIntegrity`, silent degenerate-geometry drop in
+  `AirspaceGeoJson.toFeature`. `[ ]` JVM — corrupt index → empty + no throw;
+  stale (age > 90d) → not-cached; <3-vertex geometry → dropped.
 
 ### K3 — Sites / landability (PG spots)
 - **Frictionless:** nearby sites surface without a search. `[ ]`
