@@ -44,22 +44,55 @@ fun MapVisualTest.givenAppIsLaunchedOnMap(
         // Wait for Map
         composeTestRule.onNodeWithTag("map_view").assertExists()
         
-        // Wait for Welcome Screen to disappear
+        // Wait for Welcome Screen to disappear.
+        //
+        // The welcome screen (TernMapScreen) auto-dismisses via two Compose
+        // `delay()` timers — minDisplayTimeReached (1.5s) and welcomeTimedOut
+        // (5s) — OR when the app reports a GPS fix. Under ComposeTestRule the
+        // frame/recomposition clock is test-controlled: a raw Thread.sleep loop
+        // does NOT advance it, so those `delay()` timers never fire and the
+        // welcome stays up forever (this is why these tests failed on every
+        // emulator regardless of GPU/window — it was never an emulator problem).
+        //
+        // Fix: explicitly advance the Compose clock so the app's own timers run,
+        // exactly as wall-clock time would on a real device. We pump past the 5s
+        // welcomeTimedOut safety so the welcome dismisses honestly on the app's
+        // real logic (no bypass of the GPS gate).
         val timeout = 10000L
-        val startTime = System.currentTimeMillis()
         var locationReady = false
-        
+
+        // Step 1: pump the Compose clock past the welcome's 1.5s + 5s safety
+        // timers so they actually fire. We do this with autoAdvance OFF and
+        // advanceTimeBy ONLY — we must NOT call waitForIdle()/fetchSemanticsNodes()
+        // here: MapLibre renders continuously, so the composition never reaches
+        // idle, and any idle-sync while the clock is frozen deadlocks the runner.
+        // advanceTimeBy is bounded and returns, so it's safe.
+        composeTestRule.mainClock.autoAdvance = false
+        try {
+            var advanced = 0L
+            while (advanced < 8000L) {
+                composeTestRule.mainClock.advanceTimeBy(500)
+                advanced += 500
+            }
+        } finally {
+            // Step 2: restore normal auto-advancing. Node queries below then sync
+            // exactly as the original (hang-free) poll did.
+            composeTestRule.mainClock.autoAdvance = true
+        }
+
+        // Step 3: confirm the welcome cleared (timers have now fired).
+        val startTime = System.currentTimeMillis()
         while (System.currentTimeMillis() - startTime < timeout) {
-            try {
-                val nodes = composeTestRule.onAllNodesWithText("Tern Paragliding").fetchSemanticsNodes()
-                if (nodes.isEmpty()) {
-                    locationReady = true
-                    break
-                }
-            } catch (e: Exception) {}
+            val nodes = try {
+                composeTestRule.onAllNodesWithText("Tern Paragliding").fetchSemanticsNodes()
+            } catch (e: Exception) { emptyList() }
+            if (nodes.isEmpty()) {
+                locationReady = true
+                break
+            }
             Thread.sleep(500)
         }
-        
+
         if (!locationReady) {
             throw AssertionError("Welcome Screen did not disappear within $timeout ms")
         }

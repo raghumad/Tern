@@ -552,6 +552,74 @@ open class MapVisualTest {
         }
     }
 
+    /**
+     * Honest-test guard: a scenario/step must NOT pass green while the app is
+     * still showing the [WelcomeScreen] splash — the cyan "Tern Paragliding"
+     * branding with "Acquiring GPS…". When the welcome is up the map is not
+     * visible, so any "success" is a flat lie. This is the exact class caught
+     * by `success_*.png` files that actually showed the splash (e.g.
+     * success_Route_Creation_and_Deletion_Lifecycle showed "Acquiring GPS…").
+     *
+     * Mirrors [assertNoPairingFailureOnScreen]. The welcome auto-dismisses on
+     * its own 1.5s/5s timers (advanced via the Compose clock in
+     * givenAppIsLaunchedOnMap) or on a GPS fix; if it is still up at assertion
+     * time, the test genuinely failed to reach the map and must go red.
+     */
+    fun assertNotStuckOnWelcomeScreen() {
+        val showing = try {
+            composeTestRule
+                .onAllNodesWithText("Tern Paragliding", substring = true, useUnmergedTree = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        } catch (e: Throwable) {
+            false
+        }
+        if (showing) {
+            throw AssertionError(
+                "App is still showing the Welcome splash ('Tern Paragliding' / 'Acquiring GPS…') — " +
+                    "the map is not visible, so this cannot be a passing step. The welcome never " +
+                    "cleared (no GPS fix and the dismiss timers did not fire in this environment).",
+            )
+        }
+    }
+
+    /**
+     * Honest-test guard: a scenario/step must NOT pass green while the screen is
+     * blank — e.g. an all-black GL surface that painted nothing. A Compose node
+     * (`map_view`, a HUD label) can exist in the semantics tree, so
+     * `assertExists()`/`assertIsDisplayed()` returns true, while the actual
+     * rendered pixels are empty. That produced `step_*.png` files that were
+     * recorded PASS but showed a solid black frame (e.g.
+     * step_THEN_the_HUD_should_show showed nothing rendered).
+     *
+     * We take a hardware screenshot (real pixels, not semantics) and fail if
+     * [VisualValidator.isBlank] says >99% of it is a single colour. Checked
+     * BEFORE the success/step screenshot is saved, so a blank frame becomes a
+     * `failure_*.png`, never a lying `success_`/`step_` one.
+     */
+    fun assertScreenRendered() {
+        val automation = androidx.test.platform.app.InstrumentationRegistry
+            .getInstrumentation().uiAutomation
+        // Poll for an actually-painted frame. The MapLibre GL surface can be
+        // mid-render (a transient all-black frame) at the instant we capture;
+        // that is a timing artifact, not a real failure, so we wait up to ~3s
+        // for it to paint. If it NEVER paints, it's a genuine render failure and
+        // we fail honestly — a blank frame can never back a passing visual step.
+        val deadline = System.currentTimeMillis() + 3000
+        var blank = true
+        while (System.currentTimeMillis() < deadline) {
+            val bmp = try { automation.takeScreenshot() } catch (e: Throwable) { null }
+            if (bmp == null) return  // can't capture → don't block the step
+            blank = try { VisualValidator.isBlank(bmp) } finally { bmp.recycle() }
+            if (!blank) return       // surface has painted — good
+            Thread.sleep(150)
+        }
+        throw AssertionError(
+            "Captured screen is blank (>99% one colour — e.g. an all-black GL surface that never " +
+                "painted) after waiting 3s, so this cannot be a passing visual step. A Compose node " +
+                "can exist in the semantics tree while the map/HUD surface rendered nothing.",
+        )
+    }
+
     // BDD Helpers (Copied from BddTest to avoid rule conflicts)
     fun scenario(name: String, block: () -> Unit) {
         ReportGenerator.logStep("SCENARIO", name)
@@ -567,6 +635,8 @@ open class MapVisualTest {
             block()
             composeTestRule.waitForIdle()
             assertNoPairingFailureOnScreen()
+            assertNotStuckOnWelcomeScreen()
+            assertScreenRendered()
             val result = ReportGenerator.captureScreenshot("success_${name.replace(" ", "_")}")
             ReportGenerator.logStep("RESULT", "Scenario completed without assertion failure", "PASS", result?.path, result?.hash)
         } catch (e: Throwable) {
@@ -604,10 +674,13 @@ open class MapVisualTest {
         try {
             block()
             assertNoPairingFailureOnScreen()
+            assertNotStuckOnWelcomeScreen()
             val result = if (takeScreenshot) {
                 // [STABILITY FIX] Synchronize with UI and Redux before capture
                 composeTestRule.waitForIdle()
-                Thread.sleep(200) 
+                Thread.sleep(200)
+                // Blank/black frame on a screenshot step = nothing rendered = lie.
+                assertScreenRendered()
                 ReportGenerator.captureScreenshot("step_${type}_${description.take(20).replace(" ", "_")}")
             } else {
                 null

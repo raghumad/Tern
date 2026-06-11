@@ -83,19 +83,26 @@ def _discover_from_source(seen: set[str]) -> list[TC]:
 def parse_instrumented_tests() -> list[TC]:
     cases: list[TC] = []
     seen: set[str] = set()
+
+    # JUnit XML is the AUTHORITATIVE source of truth for which instrumented
+    # tests ran and whether each passed/failed/was skipped. The per-scenario
+    # summary_*.json files are only EVIDENCE (a link to the BDD report HTML) —
+    # they must NOT define status, because one test method can contain several
+    # scenarios and a single scenario reporting PASS used to override a test
+    # that JUnit recorded as failed/skipped (inflating pass, hiding fails).
+    scenario_meta: dict[str, dict] = {}
     if BDD_REPORTS.is_dir():
         for jp in sorted(BDD_REPORTS.glob("summary_*.json")):
             try: d = json.loads(jp.read_text())
             except Exception: continue
             cn = d.get("className",""); tn = d.get("testName","")
-            # Use short class name in `seen` so source-discovery (which only
-            # has the short name to work with) can de-dupe correctly.
-            seen.add(f"{cn.rsplit('.',1)[-1]}::{tn}")
-            tc = TC(name=tn, classname=cn, category="instrumented",
-                    status="pass" if d.get("status") == "PASS" else "fail",
-                    scenario_name=d.get("scenarioName",""),
-                    report_file=d.get("reportFile",""))
-            cases.append(tc)
+            key = f"{cn.rsplit('.',1)[-1]}::{tn}"
+            # Keep the first scenario's report link for the test; don't overwrite.
+            scenario_meta.setdefault(key, {
+                "scenario_name": d.get("scenarioName",""),
+                "report_file": d.get("reportFile",""),
+            })
+
     for rdir in [INSTR_RESULTS]:
         if not rdir.is_dir(): continue
         for xp in sorted(rdir.rglob("*.xml")):
@@ -106,13 +113,18 @@ def parse_instrumented_tests() -> list[TC]:
                     cn = el.get("classname","").rsplit(".",1)[-1]
                     nm = el.get("name","?")
                     if not nm or nm == "null": continue
-                    if f"{cn}::{nm}" in seen: continue
-                    seen.add(f"{cn}::{nm}")
-                    tc = TC(name=nm, classname=cn, category="instrumented")
+                    key = f"{cn}::{nm}"
+                    if key in seen: continue
+                    seen.add(key)
+                    tc = TC(name=nm, classname=cn, category="instrumented", status="pass")
                     fail_el = el.find("failure")
                     if fail_el is None: fail_el = el.find("error")
                     if fail_el is not None: tc.status = "fail"
                     elif el.find("skipped") is not None: tc.status = "skip"
+                    meta = scenario_meta.get(key)
+                    if meta:
+                        tc.scenario_name = meta["scenario_name"]
+                        tc.report_file = meta["report_file"]
                     cases.append(tc)
     cases.extend(_discover_from_source(seen))
     return cases

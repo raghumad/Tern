@@ -23,6 +23,10 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // Per-test timeout (ms): a single stalled instrumented test fails after
+        // 90s and the suite continues, instead of hanging the whole run. Real
+        // map tests complete in <30s; only a genuine deadlock hits this.
+        testInstrumentationRunnerArguments["timeout_msec"] = "90000"
     }
 
     // Enable coverage for both unit and instrumentation tests
@@ -470,12 +474,27 @@ tasks.register("unitTests") {
     dependsOn("testDebugUnitTest")
 }
 
+// Boot (or reuse) the GPU-backed emulator that the instrumented suite runs on.
+// Idempotent; creates the AVD on first use. See scripts/boot_test_emulator.sh.
+tasks.register<Exec>("bootTestEmulator") {
+    group = "verification"
+    description = "Boot or reuse the GPU-backed test emulator for instrumented tests"
+    commandLine("bash", "${rootProject.projectDir}/scripts/boot_test_emulator.sh")
+}
+
+// connectedDebugAndroidTest must run AFTER the emulator is up.
+tasks.matching { it.name == "connectedDebugAndroidTest" }.configureEach {
+    mustRunAfter("bootTestEmulator")
+}
+
 tasks.register("emulatedDeviceTest") {
     group = "verification"
-    description = "Run tests on all configured managed devices"
-    // specific device task: pixel5api34DebugAndroidTest
-    // all devices task: allDevicesDebugAndroidTest
-    dependsOn("allDevicesDebugAndroidTest")
+    description = "Boot the GPU emulator and run the instrumented suite on it (connected)"
+    // Was allDevicesDebugAndroidTest (headless managed device) — that device
+    // cannot advance the app's welcome timers, so every map test failed there.
+    // We now boot a real-GPU emulator and run the standard connected suite,
+    // which produces honest results that feed the BDD report + dashboard.
+    dependsOn("bootTestEmulator", "connectedDebugAndroidTest")
 }
 
 tasks.register("instrumentedTests") {
@@ -733,21 +752,41 @@ $coverageText
             }
         }
 
+        val bddDir = file("${project.layout.buildDirectory.get()}/reports/bdd-report")
+        bddDir.mkdirs()
+
+        // Gather the BDD artifacts (screenshots, per-scenario report_*.html, step
+        // json) that the run produced. AGP's TestStorage delivers them reliably
+        // to connected_android_test_additional_output/<device>/ — copy from there
+        // (the app's external-files copies are best-effort and were sometimes
+        // empty). Without this the dashboard has videos but zero screenshots, so
+        // a success/welcome screenshot lie can't be seen — the whole point.
+        try {
+            val agpOut = file("${project.layout.buildDirectory.get()}/outputs/connected_android_test_additional_output")
+            var n = 0
+            if (agpOut.exists()) {
+                agpOut.walkTopDown()
+                    .filter { it.isFile && it.extension in listOf("png", "html", "json") }
+                    .forEach { it.copyTo(File(bddDir, it.name), overwrite = true); n++ }
+            }
+            val pngs = bddDir.listFiles()?.count { it.extension == "png" } ?: 0
+            println("🖼️  Gathered $n BDD artifacts from AGP test output ($pngs screenshots in report)")
+        } catch (_: Exception) {}
+
         // Pull screen recordings from device before dashboard generation
         try {
-            val videoDir = file("${project.layout.buildDirectory.get()}/reports/bdd-report")
-            ProcessBuilder("adb", "pull", "/sdcard/tern-tests/.", videoDir.absolutePath)
+            ProcessBuilder("adb", "pull", "/sdcard/tern-tests/.", bddDir.absolutePath)
                 .redirectErrorStream(true).start().waitFor()
-            val vids = videoDir.listFiles()?.count { it.extension == "mp4" } ?: 0
+            val vids = bddDir.listFiles()?.count { it.extension == "mp4" } ?: 0
             if (vids > 0) println("🎬 Pulled $vids screen recordings from device")
         } catch (_: Exception) {}
 
         // Generate the consolidated sidebar dashboard
         try {
-            val script = file("${project.projectDir}/scripts/test_report.py")
+            val script = file("${rootProject.projectDir}/scripts/test_report.py")
             if (script.exists()) {
                 val dashProc = ProcessBuilder("python3", script.absolutePath)
-                    .directory(project.projectDir)
+                    .directory(rootProject.projectDir)
                     .redirectErrorStream(true).start()
                 dashProc.inputStream.bufferedReader().readText()
                 dashProc.waitFor()
