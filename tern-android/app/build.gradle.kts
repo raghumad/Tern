@@ -454,6 +454,20 @@ tasks.register("unitTests") {
     dependsOn("testDebugUnitTest")
 }
 
+// Claims Report — HELD / BROKEN / GAP per claim, from the claim-driven tests
+// (the honest successor to the old screenshot dashboard). Runs after the unit
+// tests, so both `./gradlew testAll` and a bare `testDebugUnitTest` emit it.
+// Output: app/build/reports/claims-report.html
+tasks.register<Exec>("generateClaimsReport") {
+    group = "verification"
+    description = "Generate the Claims Report (HELD/BROKEN/GAP) from claim-test results"
+    commandLine("python3", "${rootProject.projectDir}/scripts/claims_report.py")
+    isIgnoreExitValue = true // a report must never fail the build
+}
+tasks.matching { it.name == "testDebugUnitTest" }.configureEach {
+    finalizedBy("generateClaimsReport")
+}
+
 
 tasks.register("testAll") {
     group = "verification"
