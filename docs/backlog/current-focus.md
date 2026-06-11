@@ -122,7 +122,7 @@ honest *as* it's fixed.
   stale tests (wrong expected coords, `assertExists` on >1 node, RFC-005
   panel-collapse hiding controls, list shows "N WPs" not labels, and a
   synthetic Compose swipe that can't reach the MapLibre surface — now a real
-  UiAutomator swipe). New honest helper: `MapVisualTest.assertMapFramedRoute`.
+  UiAutomator swipe).
 - **✅ Settings units cluster #4 done (2026-06).** `testUnitPreferences` was
   passing dishonestly (clicked a unit, asserted the button still existed) and
   flaked in the blanket run (Units scrolled offscreen in the settings

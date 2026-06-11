@@ -1,3 +1,12 @@
+> **ARCHIVED 2026-06-11.** This describes the instrumented/BDD screenshot test
+> suite (MapVisualTest, ReportGenerator, the emulator `tern-test-dashboard.html`,
+> `scripts/test_report.py`) that was **removed** in favour of claim-driven
+> capability tests. Kept only as a record of the old approach and why it existed.
+> For the current strategy see [../claims.md](../claims.md). Nothing here reflects
+> how tests run today.
+
+---
+
 # Testing Guide
 
 ## Unit Tests

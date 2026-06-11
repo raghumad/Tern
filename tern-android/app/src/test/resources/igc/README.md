@@ -1,7 +1,7 @@
 # IGC test resources
 
-Real flight logs and parser fixtures used by the swarm-simulator BDD
-test framework. Layout:
+Real flight logs and parser fixtures used by the swarm simulator and
+claim-driven flight-replay tests. Layout:
 
 ```
 igc/
@@ -10,7 +10,7 @@ igc/
       2026-04-25-aravis-team-*.igc
     in/            # India (future)
     ...
-  scenarios/       # scenario manifests (one per BDD test scenario)
+  scenarios/       # scenario manifests (one per replay scenario)
   fixtures/        # parser unit-test fixtures (synthetic, exact ground truth)
 ```
 
@@ -20,11 +20,11 @@ Real IGC flight logs. Each pilot is one file. File naming:
 `<YYYY-MM-DD>-<scenario-slug>-<pilot-id>.igc`.
 
 Pilot IDs are short stable handles (often the pilot's XContest username)
-used to refer to them in scenario manifests and BDD scenarios.
+used to refer to them in scenario manifests and replay scenarios.
 
 ## `scenarios/`
 
-One file per scenario the BDD framework can play back. Each scenario
+One file per scenario the replay harness can play back. Each scenario
 points at a list of IGC files in `flights/`, assigns pilot IDs, and
 documents what makes the scenario interesting (terrain, launch timing,
 team dynamics, etc.).

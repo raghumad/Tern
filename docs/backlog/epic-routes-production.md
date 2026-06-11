@@ -4,18 +4,17 @@
 > not production-ready: the route *line* renders, but waypoints/cylinders
 > don't, there's no map-based editing, and most route tests are dishonest
 > (assert Redux/tags, not the rendered map). This epic makes routes genuinely
-> good and backs every feature with an honest, pixel/Compose-verified BDD test.
+> good and backs every feature with a claim-driven test (see [../claims.md](../claims.md)).
 
 ## How we work this epic
 
 One **theme** at a time, via the standing loop:
-implement → honest BDD test (Gherkin steps + screenshots, **managed-device**
-report `pixel9proapi35DebugAndroidTest`, since connected-device runs don't
-generate the BDD HTML) → user reviews the report → push as a new baseline →
-next theme. Definition of done per the project rule: the BDD test passes AND
-the user has reviewed the test + report. A test only counts if it asserts the
-**pilot-visible outcome** (rendered pixels / Compose semantics), never just a
-Redux flag or tag existence ("assert downstream, not upstream").
+implement → a claim-driven test (replay a real task; assert observable behavior —
+store state, cache, the outcome the pilot depends on) → user reviews the report → push as a new baseline →
+next theme. Definition of done: the claim is demonstrated AND the user has
+reviewed it. A test only counts if it asserts the **outcome the pilot depends
+on**, never just a Redux flag or tag existence ("assert downstream, not
+upstream").
 
 ## Current state (honest, 2026-06)
 
@@ -38,11 +37,10 @@ XCTSK verbose import/export (file-level, `RouteIOManagerTest`).
 - Airspace check is point-in-polygon only (misses leg crossings).
 - Compressed-XCTSK / QR codec untested.
 
-**Test-honesty crisis:** of ~26 route tests, only 3 pass honestly
-(`RoutePersistenceTest`, `RouteProximityTest`, `WaypointInteractionUXTest`).
-~14 are dishonest (assert tag/Redux, never run); 2–3 are `@Liar`. All the
-competition tests (Chamonix/Monarca/Bir Billing), `AviationRoutePlanning` ×4,
-`FAITaskUITest` ×3, `RouteManagementTest` ×4 assert existence, not rendering.
+**Test coverage:** the old instrumented route tests (~26) were mostly dishonest
+(asserted tags/Redux, not the rendered map) and have been removed with the rest
+of the BDD suite. Routes will be re-covered by claim-driven tests as each theme
+lands — asserting the pilot-visible outcome, not existence.
 
 ## Feature set by theme
 
@@ -54,9 +52,8 @@ competition tests (Chamonix/Monarca/Bir Billing), `AviationRoutePlanning` ×4,
 - [x] Zoom-adaptive labels (code → code+name+radius).
 - [x] Selection highlight (enlarged centre + halo).
 - [x] Route line + dark casing (thinner line).
-- Honest, pixel-verified BDD tests (RouteVisualizationTest, RouteProximityTest)
-  on the managed device. Design: cylinder-centric, no-tap/glanceable — richer
-  than legacy varios because the phone allows zoom-adaptive density.
+- Design: cylinder-centric, no-tap/glanceable — richer than legacy varios
+  because the phone allows zoom-adaptive density. (Claim-driven coverage pending.)
 
 ### Theme 2 — Map-based editing
 - [ ] Tap a waypoint on the map → select → edit.
@@ -85,14 +82,14 @@ competition tests (Chamonix/Monarca/Bir Billing), `AviationRoutePlanning` ×4,
 - [ ] Verify storm-risk-along-route detection. *(Weather HUD stays deferred to
       the separate weather redesign.)*
 
-### Theme 7 — Test honesty  *(woven through 1–6)*
-Every route test rewritten to assert the pilot-visible outcome (pixel
-signature on the rendered map, or Compose semantics for real UI), or honestly
-retired/marked when it genuinely can't be tested. Targets: the ~14
-dishonest/never-run route tests + the `@Liar` decluttering tests.
+### Theme 7 — Claim coverage  *(woven through 1–6)*
+Each route claim (visible waypoints/cylinders, offline corridor, FAI
+correctness, edit-on-map) backed by a claim-driven test that asserts the
+pilot-visible outcome — replay a real task, drive the data+logic stack — never
+tag/Redux existence. See [../claims.md](../claims.md).
 
 ## Definition of done for the epic
-All themes implemented; every route feature has a passing, honest BDD test
-reviewed by the user; routes are usable offline end-to-end (plan at home →
+All themes implemented; every route feature backed by a passing claim-driven
+test; routes are usable offline end-to-end (plan at home →
 restart → fly the same task in the field, see every waypoint/cylinder, edit on
 the map). Then routes is a production baseline.

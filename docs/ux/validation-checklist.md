@@ -51,4 +51,4 @@ This checklist is designed to validate the user experience of all implemented fe
 ## ⚙️ Settings & System
 - [ ] **Theme**: App respects system Dark/Light mode and provides high-contrast "Aviation" theme.
 - [ ] **Permissions**: Location permission handle denial gracefully with a clear safety rationale.
-- [ ] **Performance**: BDD reports show < 16ms frame time during heavy panning.
+- [ ] **Performance**: Frame time stays smooth (< 16ms) during heavy panning (observe via Perfetto or `PerformanceDebugger` logs).

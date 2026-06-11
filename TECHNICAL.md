@@ -46,9 +46,11 @@ silently downloaded via `UniversalCountryCacheManager`).
 
 ## Testing
 
-Emulator tests, screenshots, and BDD scenarios exist as a truthfulness
-mechanism. A feature is not done until its human test passes on real
-hardware in real conditions.
+Two layers: **JVM unit tests** (`./gradlew testAll` = `testDebugUnitTest` +
+`assembleDebug`) cover logic, and **claim-driven capability tests** prove the
+promises the app makes to a pilot — offline-first, airspace safety, team
+awareness, graceful degradation — by replaying real flights and asserting
+observable behavior (not screenshots). See [docs/claims.md](./docs/claims.md).
 
 ## Building
 

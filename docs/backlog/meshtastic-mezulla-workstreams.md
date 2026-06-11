@@ -3,7 +3,7 @@
 This file covers work on the Meshtastic firmware that runs on the
 LilyGo T3 V1.6.1 board (ESP32-PICO-D4 + SX1276 LoRa + SSD1306 OLED,
 Meshtastic variant `tlora-v2-1-1_6`). It is separate from the Mezulla
-(Tern app) backlog which owns all phone-side BDD tests and UI work.
+(Tern app) backlog which owns all phone-side tests and UI work.
 
 The contract between phone and board is defined in
 `docs/architecture/mezulla-wire-contract.md`. Both sides code to
@@ -71,7 +71,7 @@ Test criteria (verified):
 
 **F1.3: Regression gate**
 
-All Stage 1 Mezulla BDD tests must pass against the source-built
+All Stage 1 Mezulla tests must pass against the source-built
 firmware. The board must be indistinguishable from stock at the
 wire protocol level.
 

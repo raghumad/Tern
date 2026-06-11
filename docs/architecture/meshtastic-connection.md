@@ -16,7 +16,7 @@ the three transports it might be talking to:
 | Transport | Use | Status |
 |---|---|---|
 | `StubMeshtasticConnection` | Unit tests; lets the test inject events. | landed (WS2.1) |
-| `SwarmSimulatedConnection` | IGC-driven swarm playback for the convergence BDD test. | landed |
+| `SwarmSimulatedConnection` | IGC-driven swarm playback for convergence/replay testing. | landed |
 | `TcpMeshtasticConnection` | TCP to a board on WiFi; also dev-time emulator bridge. | landed (WS4.5) |
 | `BleConnection` | Real BLE to a flashed LilyGo board. | skeleton landed (WS4.3), untested on real hardware |
 
