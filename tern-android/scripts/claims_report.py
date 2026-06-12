@@ -81,15 +81,18 @@ def parse_gaps():
     gaps = []
     if not CLAIMS_MD.exists():
         return gaps
-    known = "?"
+    known, axis = "?", "?"
     for line in CLAIMS_MD.read_text(encoding="utf-8", errors="replace").splitlines():
         m = re.match(r"###\s+(K\d+)\s*[—-]\s*(.+)", line)
         if m:
             known = f"{m.group(1)} · {m.group(2).split('*')[0].strip()}"
             continue
+        # Track the current claim's axis from its bullet, so a [GAP] that wraps to
+        # a continuation line still attributes to the right claim.
+        bm = re.match(r"\s*-\s+\*\*([A-Za-z][A-Za-z ]*)", line)
+        if bm:
+            axis = bm.group(1).strip()
         if "[GAP]" in line:
-            am = re.search(r"\*\*([A-Za-z][A-Za-z ]*?):\*\*", line)
-            axis = am.group(1).strip() if am else "?"
             note = re.sub(r"\s+", " ", line.split("[GAP]", 1)[1]).strip(" .`*") or "not implemented"
             gaps.append({"known": known, "axis": axis, "note": note})
     return gaps
