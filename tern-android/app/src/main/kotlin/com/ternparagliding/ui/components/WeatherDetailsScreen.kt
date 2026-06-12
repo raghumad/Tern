@@ -15,6 +15,9 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import com.ternparagliding.ui.weather.FlyabilityCard
+import com.ternparagliding.weather.assessOutlook
+import com.ternparagliding.weather.assessQuality
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -121,6 +124,15 @@ private fun WeatherContent(forecast: WeatherForecast, targetTimestamp: Long?) {
                     fontWeight = FontWeight.Bold
                 )
             }
+        }
+
+        // Flyability — the headline read: is it flyable here, now and soon?
+        forecast.current?.let { nowWeather ->
+            FlyabilityCard(
+                outlook = assessOutlook(forecast),
+                quality = assessQuality(nowWeather),
+                modifier = Modifier.padding(bottom = 16.dp),
+            )
         }
 
         // Compute Skew-T data before branching so it's available in outer scope
