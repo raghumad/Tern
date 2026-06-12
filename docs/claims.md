@@ -138,10 +138,11 @@ placeholders for you to set.
   strength from lapse rate, inversion cap, cloudbase, overcast). `[HELD]` —
   `WeatherClaimsTest` (flyability ×2 · visibility · quality); `weather/Flyability.kt`,
   configurable limits, verdict = worst factor.
-- **Wind detail:** a clean gust *factor* + low-level gradient (10 m vs 80 m) +
-  precip probability. `[GAP]` The model collapses wind to one level and drops
-  precip (both are *fetched*) — needs a small `WeatherData`/parser enrichment
-  before these factors are honest (no level-mixing fudge).
+- **Wind detail:** a clean gust *factor* (gust − 10 m), low-level gradient
+  (80 m − 10 m), and precip probability — now that `WeatherData` + parser carry the
+  10 m wind + precip (Jackson-serialized, ETA-interpolated). `[HELD]` —
+  `WeatherClaimsTest` (gust factor & gradient · precip). *Also fixed:* visibility
+  was compared as metres but the model stores km (latent false-no-go).
 - **Thermal outlook:** lapse rate → expected climb rate / overdevelopment time.
   `[GAP]` Lapse rate is computed but never turned into a thermal forecast.
 - **Source policy:** per-country best free model (HRRR/AROME/ICON-D2) + refresh

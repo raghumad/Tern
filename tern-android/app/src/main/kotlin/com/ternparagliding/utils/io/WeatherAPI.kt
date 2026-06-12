@@ -32,7 +32,9 @@ data class WeatherData(
     val temp850hPa: Double? = null, // °C at 850hPa pressure level (≈1500m MSL)
     val temp925hPa: Double? = null, // °C at 925hPa pressure level (≈750m MSL)
     val cape: Double? = null,        // Convective Available Potential Energy (J/kg)
-    val lightningPotential: Double? = null // Storm potential
+    val lightningPotential: Double? = null, // Storm potential
+    val windSpeed10m: Double? = null,       // 10m wind speed (knots) — for a clean gust factor & low-level gradient
+    val precipProbability: Double? = null   // precipitation probability (%)
 )
 
 data class ForecastPeriod(
@@ -348,7 +350,9 @@ class OpenMeteoWeatherAPI : WeatherAPI {
                 temp850hPa = temps850?.firstOrNull()?.toDouble(),
                 temp925hPa = temps925?.firstOrNull()?.toDouble(),
                 cape = capes?.firstOrNull()?.toDouble(),
-                lightningPotential = lightnings?.firstOrNull()?.toDouble()
+                lightningPotential = lightnings?.firstOrNull()?.toDouble(),
+                windSpeed10m = (hourly["wind_speed_10m"] as? List<Number>)?.firstOrNull()?.toDouble(),
+                precipProbability = (hourly["precipitation_probability"] as? List<Number>)?.firstOrNull()?.toDouble()
             )
         } catch (e: Exception) {
             Log.w("OpenMeteoWeatherAPI", "Failed to extract current weather", e)
@@ -413,7 +417,9 @@ class OpenMeteoWeatherAPI : WeatherAPI {
                         temp850hPa = temps850?.getOrNull(i)?.toDouble(),
                         temp925hPa = temps925?.getOrNull(i)?.toDouble(),
                         cape = capes?.getOrNull(i)?.toDouble(),
-                        lightningPotential = lightnings?.getOrNull(i)?.toDouble()
+                        lightningPotential = lightnings?.getOrNull(i)?.toDouble(),
+                        windSpeed10m = (hourly["wind_speed_10m"] as? List<Number>)?.getOrNull(i)?.toDouble(),
+                        precipProbability = (hourly["precipitation_probability"] as? List<Number>)?.getOrNull(i)?.toDouble()
                     )
 
                     periods.add(ForecastPeriod(

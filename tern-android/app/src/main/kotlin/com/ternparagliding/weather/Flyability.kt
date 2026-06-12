@@ -23,8 +23,14 @@ data class FlyabilityLimits(
     val gustNoGoKt: Double = 28.0,
     val capeCaution: Double = 500.0,        // J/kg — overdevelopment risk
     val lightningNoGo: Double = 60.0,       // % — active storm potential
-    val visCautionM: Double = 5000.0,       // reduced visibility
-    val visNoGoM: Double = 2000.0,          // can't see terrain/traffic
+    val visCautionKm: Double = 5.0,         // reduced visibility (model stores km)
+    val visNoGoKm: Double = 2.0,            // can't see terrain/traffic
+    val gustFactorCautionKt: Double = 8.0,  // gust − 10 m wind — turbulence/gustiness
+    val gustFactorNoGoKt: Double = 12.0,
+    val gradientCautionKt: Double = 10.0,   // 80 m − 10 m wind — low-level shear
+    val gradientNoGoKt: Double = 18.0,
+    val precipCautionPct: Double = 40.0,    // precipitation probability
+    val precipNoGoPct: Double = 70.0,
 )
 
 /** Ordered worst-last: GO < CAUTION < NO_GO. The overall verdict is the worst reason. */
@@ -70,13 +76,36 @@ fun assessFlyability(weather: WeatherData, limits: FlyabilityLimits = Flyability
             reasons += FlyabilityReason(Verdict.CAUTION, "convective", "CAPE ${cape.toInt()} — overdevelopment risk")
     }
 
-    // Visibility (guard 0 = missing, so we don't false-alarm on absent data).
+    // Visibility (km). Parser defaults missing data to 10 km, so a low value is real.
     val vis = weather.visibility
     when {
-        vis in 1.0..limits.visNoGoM ->
-            reasons += FlyabilityReason(Verdict.NO_GO, "visibility", "${(vis / 1000).toInt()} km — can't see terrain/traffic")
-        vis > 0 && vis <= limits.visCautionM ->
-            reasons += FlyabilityReason(Verdict.CAUTION, "visibility", "${(vis / 1000).toInt()} km — reduced")
+        vis in 0.0..limits.visNoGoKm ->
+            reasons += FlyabilityReason(Verdict.NO_GO, "visibility", "${vis.toInt()} km — can't see terrain/traffic")
+        vis <= limits.visCautionKm ->
+            reasons += FlyabilityReason(Verdict.CAUTION, "visibility", "${vis.toInt()} km — reduced")
+    }
+
+    // Gust factor & low-level gradient — need the 10 m wind for a clean read (a
+    // degraded source without it simply skips these, never fudges them).
+    weather.windSpeed10m?.let { w10 ->
+        val gustFactor = weather.wind.gust - w10
+        when {
+            gustFactor >= limits.gustFactorNoGoKt -> reasons += FlyabilityReason(Verdict.NO_GO, "gust factor", "+${gustFactor.toInt()} kt over wind — turbulent")
+            gustFactor >= limits.gustFactorCautionKt -> reasons += FlyabilityReason(Verdict.CAUTION, "gust factor", "+${gustFactor.toInt()} kt over wind — gusty")
+        }
+        val gradient = weather.wind.speed - w10 // wind.speed is the 80 m wind
+        when {
+            gradient >= limits.gradientNoGoKt -> reasons += FlyabilityReason(Verdict.NO_GO, "gradient", "+${gradient.toInt()} kt by 80 m — strong shear")
+            gradient >= limits.gradientCautionKt -> reasons += FlyabilityReason(Verdict.CAUTION, "gradient", "+${gradient.toInt()} kt by 80 m — shear")
+        }
+    }
+
+    // Precipitation probability.
+    weather.precipProbability?.let { p ->
+        when {
+            p >= limits.precipNoGoPct -> reasons += FlyabilityReason(Verdict.NO_GO, "precipitation", "${p.toInt()}% chance")
+            p >= limits.precipCautionPct -> reasons += FlyabilityReason(Verdict.CAUTION, "precipitation", "${p.toInt()}% chance")
+        }
     }
 
     val verdict = reasons.maxByOrNull { it.verdict.ordinal }?.verdict ?: Verdict.GO

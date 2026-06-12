@@ -70,12 +70,15 @@ class WeatherClaimsTest {
         windSpeed: Double = 10.0,
         windDir: Double = 270.0,
         gust: Double = 15.0,
+        windSpeed10m: Double? = null,
+        precip: Double? = null,
         tsMs: Long = System.currentTimeMillis(),
     ) = WeatherData(
         wind = WindData(windSpeed, windDir, gust),
-        temperature = 20.0, humidity = humidity, visibility = 10_000.0,
+        temperature = 20.0, humidity = humidity, visibility = 10.0, // km
         pressure = 1013.0, cloudCover = cloud, timestamp = tsMs,
         cape = cape, lightningPotential = lightning,
+        windSpeed10m = windSpeed10m, precipProbability = precip,
     )
 
     private fun period(weather: WeatherData, startMs: Long, text: String = "") =
@@ -231,12 +234,42 @@ class WeatherClaimsTest {
      */
     @Test
     fun `flyability - low visibility is a safety factor`() {
-        val fog = assessFlyability(wx(windSpeed = 8.0).copy(visibility = 1_500.0))
+        // visibility is in km in the model.
+        val fog = assessFlyability(wx(windSpeed = 8.0).copy(visibility = 1.5))
         assertEquals(Verdict.NO_GO, fog.verdict)
         assertTrue("the visibility reason must be shown", fog.reasons.any { it.factor == "visibility" })
 
-        assertEquals(Verdict.CAUTION, assessFlyability(wx(windSpeed = 8.0).copy(visibility = 4_000.0)).verdict)
+        assertEquals(Verdict.CAUTION, assessFlyability(wx(windSpeed = 8.0).copy(visibility = 4.0)).verdict)
         assertTrue("clear skies raise no visibility flag", assessFlyability(wx(windSpeed = 8.0)).reasons.none { it.factor == "visibility" })
+    }
+
+    /**
+     * **CLAIM K4 · Flyability (wind detail).** With the 10 m wind now carried, a
+     * clean gust *factor* (gust − 10 m wind) flags turbulence and the low-level
+     * gradient (80 m − 10 m) flags shear — both real launch / top-land dangers.
+     */
+    @Test
+    fun `flyability - gust factor and low-level gradient are flagged`() {
+        val gusty = assessFlyability(wx(windSpeed = 12.0, gust = 26.0, windSpeed10m = 12.0))
+        assertTrue("a big gust factor must not read GO", gusty.verdict != Verdict.GO)
+        assertTrue("the gust-factor reason must be shown", gusty.reasons.any { it.factor == "gust factor" })
+
+        val shear = assessFlyability(wx(windSpeed = 28.0, gust = 30.0, windSpeed10m = 8.0))
+        assertTrue("the gradient reason must be shown", shear.reasons.any { it.factor == "gradient" })
+
+        // Light, steady wind at both levels → clean GO, no false alarm.
+        assertEquals(Verdict.GO, assessFlyability(wx(windSpeed = 9.0, gust = 12.0, windSpeed10m = 8.0)).verdict)
+    }
+
+    /**
+     * **CLAIM K4 · Flyability (precip).** A high precipitation probability is a
+     * no-go; a moderate chance is a caution; dry raises no flag.
+     */
+    @Test
+    fun `flyability - precipitation probability gates flying`() {
+        assertEquals(Verdict.NO_GO, assessFlyability(wx(windSpeed = 8.0, precip = 80.0)).verdict)
+        assertEquals(Verdict.CAUTION, assessFlyability(wx(windSpeed = 8.0, precip = 50.0)).verdict)
+        assertTrue("no precip flag when dry", assessFlyability(wx(windSpeed = 8.0, precip = 5.0)).reasons.none { it.factor == "precipitation" })
     }
 
     /**

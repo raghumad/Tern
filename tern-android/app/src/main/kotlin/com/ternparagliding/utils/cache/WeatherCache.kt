@@ -82,7 +82,13 @@ class WeatherCache(private val context: Context) {
                 temp850hPa = null, 
                 temp925hPa = null,
                 cape = cape,
-                lightningPotential = lightning
+                lightningPotential = lightning,
+                windSpeed10m = if (startW.windSpeed10m != null && endW.windSpeed10m != null)
+                    startW.windSpeed10m + (endW.windSpeed10m - startW.windSpeed10m) * ratio
+                else startW.windSpeed10m ?: endW.windSpeed10m,
+                precipProbability = if (startW.precipProbability != null && endW.precipProbability != null)
+                    startW.precipProbability + (endW.precipProbability - startW.precipProbability) * ratio
+                else startW.precipProbability ?: endW.precipProbability
             )
         }
     }
