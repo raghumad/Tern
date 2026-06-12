@@ -463,9 +463,32 @@ class WeatherClaimsTest {
         assertEquals(Verdict.CAUTION,
             assessFlyability(benign.copy(wind = WindData(12.0, 225.0, 14.0)), site = westFacing).verdict)
 
-        // Light wind (3 kt) from the "wrong" N → direction no longer matters.
+        // Only true dead-calm (≤ ~2 kt forward launch) ignores direction.
         assertEquals(Verdict.GO,
-            assessFlyability(benign.copy(wind = WindData(3.0, 0.0, 4.0)), site = westFacing).verdict)
+            assessFlyability(benign.copy(wind = WindData(2.0, 0.0, 3.0)), site = westFacing).verdict)
+    }
+
+    /**
+     * **CLAIM K4×K3 · Regression (the Boulder 5 kt SW bug).** A *light* wind from a
+     * wrong direction is still dangerous at a ridge/soaring launch (lee/rotor, can't
+     * soar) — it must NOT read flyable. Boulder faces NE/E/SE; a 5 kt SW (235°) wind
+     * is a no-go. (Previously slipped under a too-high 6 kt "direction doesn't matter"
+     * threshold and read GO.)
+     */
+    @Test
+    fun `site - a light wind from the wrong direction is still a no-go (Boulder 5kt SW)`() {
+        val boulder = SiteContext(
+            elevationM = 1905.0,
+            orientations = mapOf(
+                Octant.N to 0, Octant.NE to 2, Octant.E to 2, Octant.SE to 2,
+                Octant.S to 1, Octant.SW to 0, Octant.W to 0, Octant.NW to 0,
+            ),
+        )
+        // 5 kt from 235° (SW, score 0) — the exact reported case.
+        val fly = assessFlyability(wx(windSpeed = 5.0, windDir = 235.0, gust = 6.0), site = boulder)
+        assertEquals("5 kt SW at an E-facing launch must be NO-GO", Verdict.NO_GO, fly.verdict)
+        assertTrue("must name the wind-direction reason",
+            fly.reasons.any { it.factor == "wind direction" })
     }
 
     /**

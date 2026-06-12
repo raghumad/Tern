@@ -76,7 +76,12 @@ fun FlyabilityCard(
                     )
                 }
                 Spacer(Modifier.width(12.dp))
-                Text("flyable here, now", style = MaterialTheme.typography.bodyMedium)
+                val subtitle = when (verdict) {
+                    Verdict.GO -> "flyable here, now"
+                    Verdict.CAUTION -> "marginal here, now"
+                    Verdict.NO_GO -> "not flyable here, now"
+                }
+                Text(subtitle, style = MaterialTheme.typography.bodyMedium)
             }
 
             Spacer(Modifier.height(10.dp))

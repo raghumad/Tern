@@ -31,7 +31,8 @@ data class FlyabilityLimits(
     val gradientNoGoKt: Double = 18.0,
     val precipCautionPct: Double = 40.0,    // precipitation probability
     val precipNoGoPct: Double = 70.0,
-    val orientationMinWindKt: Double = 6.0, // below this, wind direction barely matters
+    val orientationMinWindKt: Double = 3.0, // only true dead-calm (forward launch) ignores direction;
+                                            // at any real wind the launch's orientation governs (lee/rotor)
     val cloudbaseInCloudM: Double = 120.0,  // base this close above launch ≈ launching into cloud
 )
 
