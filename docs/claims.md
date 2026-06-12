@@ -146,8 +146,13 @@ placeholders for you to set.
 - **Thermal outlook:** lapse rate → expected climb rate / overdevelopment time.
   `[GAP]` Lapse rate is computed but never turned into a thermal forecast.
 - **Source policy:** per-country best free model (HRRR/AROME/ICON-D2) + refresh
-  cadence, with an independent fallback when Open-Meteo is down. `[GAP]` Single
-  Open-Meteo source (best_match); no fallback, no per-country specialisation.
+  cadence, with an independent fallback when Open-Meteo is down. `[HELD, logic]` —
+  `WeatherClaimsTest` (source policy · fallback): `WeatherSourcePolicy` (country →
+  model + TTL) and `FallbackWeatherAPI` (primary → secondary → cache, never throws).
+- **Source wiring:** apply the policy to the live fetch (model into the URL keyed
+  off the detected country) and implement the MET Norway secondary provider.
+  `[GAP]` The logic above exists + is tested, but the live fetch still uses
+  `best_match` with no fallback until it's threaded through.
 - **Stability diagram:** the Skew-T plot. `[GAP]` The stability math is computed;
   the diagram itself is a text placeholder.
 

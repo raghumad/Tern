@@ -5,15 +5,20 @@ import com.ternparagliding.overlay.hazard.HazardLevel
 import com.ternparagliding.overlay.hazard.classifyHazard
 import com.ternparagliding.utils.cache.WeatherCache
 import com.ternparagliding.utils.geo.CountryUtils
+import com.ternparagliding.utils.io.FallbackWeatherAPI
 import com.ternparagliding.utils.io.ForecastPeriod
+import com.ternparagliding.utils.io.LocationRequest
+import com.ternparagliding.utils.io.WeatherAPI
 import com.ternparagliding.utils.io.WeatherData
 import com.ternparagliding.utils.io.WeatherForecast
 import com.ternparagliding.utils.io.WindData
 import com.ternparagliding.weather.ThermalQuality
 import com.ternparagliding.weather.Verdict
+import com.ternparagliding.weather.WeatherSourcePolicy
 import com.ternparagliding.weather.assessFlyability
 import com.ternparagliding.weather.assessOutlook
 import com.ternparagliding.weather.assessQuality
+import kotlinx.coroutines.runBlocking
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
@@ -294,5 +299,60 @@ class WeatherClaimsTest {
 
         // Overcast → no sun → no lift, whatever the lapse.
         assertEquals(ThermalQuality.NONE, assessQuality(wx(cloud = 95.0)).thermal)
+    }
+
+    /**
+     * **CLAIM K4 · Source policy.** Specialize to the best free national model where
+     * one exists (HRRR / AROME / ICON-D2…), with a tighter cache cadence for the
+     * rapid-refresh models, and fall back to Open-Meteo's global `best_match`
+     * everywhere else.
+     */
+    @Test
+    fun `source policy - specializes per country with a global fallback`() {
+        assertEquals("gfs_hrrr", WeatherSourcePolicy.modelFor("US"))
+        assertEquals("meteofrance_arome_france_hd", WeatherSourcePolicy.modelFor("FR"))
+        assertEquals("icon_d2", WeatherSourcePolicy.modelFor("DE"))
+        assertEquals("best_match", WeatherSourcePolicy.modelFor("IN")) // unknown → global
+        assertEquals("best_match", WeatherSourcePolicy.modelFor(null))
+        assertTrue(
+            "a rapid-refresh region must cache for less time than the global default",
+            WeatherSourcePolicy.cacheTtlHoursFor("US") < WeatherSourcePolicy.cacheTtlHoursFor("IN"),
+        )
+    }
+
+    /**
+     * **CLAIM K4 · Source policy (fallback).** Open-Meteo aggregates the data but is
+     * a single point of failure. When the primary is down, fall to an independent
+     * secondary; if both fail, return null (the caller serves cache). Never throws.
+     */
+    @Test
+    fun `source policy - falls back to the secondary when the primary is down, never crashes`() = runBlocking {
+        val data = forecastOf(wx(windSpeed = 10.0))
+
+        // Primary works → used; secondary untouched.
+        val sec1 = FakeApi(forecastOf(wx(windSpeed = 99.0)))
+        assertEquals(data, FallbackWeatherAPI(FakeApi(data), sec1).fetchForecast(46.0, 6.0))
+        assertEquals("secondary must not be called when the primary works", 0, sec1.calls)
+
+        // Primary returns nothing → secondary used.
+        assertEquals(data, FallbackWeatherAPI(FakeApi(null), FakeApi(data)).fetchForecast(46.0, 6.0))
+
+        // Primary throws → degrade to secondary, no crash.
+        assertEquals(data, FallbackWeatherAPI(FakeApi(null, throws = true), FakeApi(data)).fetchForecast(46.0, 6.0))
+
+        // Both fail → null (caller serves cache), still no crash.
+        assertNull(FallbackWeatherAPI(FakeApi(null, throws = true), FakeApi(null)).fetchForecast(46.0, 6.0))
+    }
+
+    /** A controllable WeatherAPI stand-in for the fallback tests. */
+    private class FakeApi(private val forecast: WeatherForecast?, private val throws: Boolean = false) : WeatherAPI {
+        var calls = 0
+        override suspend fun fetchForecast(lat: Double, lng: Double): WeatherForecast? {
+            calls++
+            if (throws) throw RuntimeException("provider down")
+            return forecast
+        }
+        override suspend fun fetchBatchForecast(locations: List<LocationRequest>): Map<String, WeatherForecast?> = emptyMap()
+        override suspend fun isAvailable(): Boolean = forecast != null
     }
 }
