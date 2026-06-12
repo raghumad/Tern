@@ -133,9 +133,15 @@ placeholders for you to set.
 - **Resilient:** a degraded surface-only source (no CAPE/lightning) raises no false
   hazard and never crashes. `[HELD]` — `WeatherClaimsTest.resilient`.
 - **Flyability:** a transparent "is it flyable here, now and soon" read — GO /
-  CAUTION / NO_GO with the reasons shown, plus the next worsening time.
-  `[HELD]` — `WeatherClaimsTest.flyability` ×2 (`weather/Flyability.kt`,
-  configurable limits; verdict = worst factor, reasons surfaced).
+  CAUTION / NO_GO with the reasons shown (wind, gusts, convective, storm,
+  visibility), plus the next worsening time, plus a *quality* read (thermal
+  strength from lapse rate, inversion cap, cloudbase, overcast). `[HELD]` —
+  `WeatherClaimsTest` (flyability ×2 · visibility · quality); `weather/Flyability.kt`,
+  configurable limits, verdict = worst factor.
+- **Wind detail:** a clean gust *factor* + low-level gradient (10 m vs 80 m) +
+  precip probability. `[GAP]` The model collapses wind to one level and drops
+  precip (both are *fetched*) — needs a small `WeatherData`/parser enrichment
+  before these factors are honest (no level-mixing fudge).
 - **Thermal outlook:** lapse rate → expected climb rate / overdevelopment time.
   `[GAP]` Lapse rate is computed but never turned into a thermal forecast.
 - **Source policy:** per-country best free model (HRRR/AROME/ICON-D2) + refresh

@@ -9,9 +9,11 @@ import com.ternparagliding.utils.io.ForecastPeriod
 import com.ternparagliding.utils.io.WeatherData
 import com.ternparagliding.utils.io.WeatherForecast
 import com.ternparagliding.utils.io.WindData
+import com.ternparagliding.weather.ThermalQuality
 import com.ternparagliding.weather.Verdict
 import com.ternparagliding.weather.assessFlyability
 import com.ternparagliding.weather.assessOutlook
+import com.ternparagliding.weather.assessQuality
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
@@ -221,5 +223,43 @@ class WeatherClaimsTest {
         assertEquals("flyable now", Verdict.GO, outlook.now.verdict)
         assertEquals("must flag the coming storm", Verdict.NO_GO, outlook.deterioratesTo?.verdict)
         assertEquals("at the right time", now + 2 * 3_600_000, outlook.deterioratesAtMs)
+    }
+
+    /**
+     * **CLAIM K4 · Flyability (visibility).** Low visibility is a safety factor —
+     * you can't fly what you can't see. Fog → no-go; reduced → caution; clear → no flag.
+     */
+    @Test
+    fun `flyability - low visibility is a safety factor`() {
+        val fog = assessFlyability(wx(windSpeed = 8.0).copy(visibility = 1_500.0))
+        assertEquals(Verdict.NO_GO, fog.verdict)
+        assertTrue("the visibility reason must be shown", fog.reasons.any { it.factor == "visibility" })
+
+        assertEquals(Verdict.CAUTION, assessFlyability(wx(windSpeed = 8.0).copy(visibility = 4_000.0)).verdict)
+        assertTrue("clear skies raise no visibility flag", assessFlyability(wx(windSpeed = 8.0)).reasons.none { it.factor == "visibility" })
+    }
+
+    /**
+     * **CLAIM K4 · Flyability (quality).** "Worth flying?" — thermal strength reads
+     * from the lapse rate, an inversion caps the day, and overcast kills the lift.
+     * The XC pilot's read, from the stability math (now testable, out of the UI).
+     */
+    @Test
+    fun `quality - thermal strength reads from lapse rate, capped by inversion, killed by overcast`() {
+        // Steep lapse (25 → 10 °C over ~1.5 km = ~10 °C/km), no inversion, clear → STRONG.
+        val strong = assessQuality(wx(cloud = 20.0).copy(temperature = 25.0, temp850hPa = 10.0, temp925hPa = 18.0))
+        assertEquals(ThermalQuality.STRONG, strong.thermal)
+
+        // Shallow lapse (~2 °C/km) → WEAK.
+        val weak = assessQuality(wx(cloud = 20.0).copy(temperature = 15.0, temp850hPa = 12.0, temp925hPa = 13.0))
+        assertEquals(ThermalQuality.WEAK, weak.thermal)
+
+        // Steep lapse but a warm layer aloft (850 > 925) → inversion caps it → WORKABLE.
+        val capped = assessQuality(wx(cloud = 20.0).copy(temperature = 25.0, temp850hPa = 10.0, temp925hPa = 8.0))
+        assertEquals(ThermalQuality.WORKABLE, capped.thermal)
+        assertTrue("the inversion cap must be flagged", capped.cappedByInversion)
+
+        // Overcast → no sun → no lift, whatever the lapse.
+        assertEquals(ThermalQuality.NONE, assessQuality(wx(cloud = 95.0)).thermal)
     }
 }

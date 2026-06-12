@@ -23,6 +23,8 @@ data class FlyabilityLimits(
     val gustNoGoKt: Double = 28.0,
     val capeCaution: Double = 500.0,        // J/kg — overdevelopment risk
     val lightningNoGo: Double = 60.0,       // % — active storm potential
+    val visCautionM: Double = 5000.0,       // reduced visibility
+    val visNoGoM: Double = 2000.0,          // can't see terrain/traffic
 )
 
 /** Ordered worst-last: GO < CAUTION < NO_GO. The overall verdict is the worst reason. */
@@ -68,6 +70,15 @@ fun assessFlyability(weather: WeatherData, limits: FlyabilityLimits = Flyability
             reasons += FlyabilityReason(Verdict.CAUTION, "convective", "CAPE ${cape.toInt()} — overdevelopment risk")
     }
 
+    // Visibility (guard 0 = missing, so we don't false-alarm on absent data).
+    val vis = weather.visibility
+    when {
+        vis in 1.0..limits.visNoGoM ->
+            reasons += FlyabilityReason(Verdict.NO_GO, "visibility", "${(vis / 1000).toInt()} km — can't see terrain/traffic")
+        vis > 0 && vis <= limits.visCautionM ->
+            reasons += FlyabilityReason(Verdict.CAUTION, "visibility", "${(vis / 1000).toInt()} km — reduced")
+    }
+
     val verdict = reasons.maxByOrNull { it.verdict.ordinal }?.verdict ?: Verdict.GO
     return Flyability(verdict, reasons.sortedByDescending { it.verdict.ordinal })
 }
@@ -92,4 +103,64 @@ fun assessOutlook(
         .firstOrNull { it.second.verdict.ordinal > now.verdict.ordinal }
 
     return FlyabilityOutlook(now, worseningPeriod?.second, worseningPeriod?.first?.startTime)
+}
+
+// ── "Worth flying?" — the quality dimension ─────────────────────────────────
+// Safety says you *can* fly; quality says whether it's *good*. The recreational
+// pilot needs the safety gate; the XC pilot also wants this. The math here is the
+// stability analysis that previously lived (un-testable) inside the weather UI.
+
+/** Thermal strength from the day's instability. */
+enum class ThermalQuality { NONE, WEAK, WORKABLE, STRONG }
+
+data class FlyingQuality(
+    val thermal: ThermalQuality,
+    val lapseRateCPerKm: Double?, // null when no upper-air data
+    val cloudBaseM: Double,
+    val cappedByInversion: Boolean,
+    val notes: List<String>,
+)
+
+/** Surface→850 hPa lapse rate (°C/km). Steeper = more unstable = stronger climbs. */
+fun lapseRateCPerKm(w: WeatherData): Double? {
+    val t850 = w.temp850hPa ?: return null
+    return (w.temperature - t850) / 1.5 // 850 hPa ≈ 1500 m
+}
+
+/** Cloud base (LCL) in metres, from the temperature–humidity spread. */
+fun cloudBaseMeters(w: WeatherData): Double {
+    val rh = w.humidity.coerceIn(1.0, 100.0)
+    return (125.0 * ((100.0 - rh) / 5.0)).coerceAtLeast(0.0)
+}
+
+/** A warm layer aloft (850 hPa warmer than 925 hPa) caps the day. */
+fun hasInversion(w: WeatherData): Boolean {
+    val t850 = w.temp850hPa
+    val t925 = w.temp925hPa
+    return t850 != null && t925 != null && t850 > t925
+}
+
+/** Read the day's flying *quality* — strength + ceiling — transparently. */
+fun assessQuality(w: WeatherData): FlyingQuality {
+    val lapse = lapseRateCPerKm(w)
+    val base = cloudBaseMeters(w)
+    val inversion = hasInversion(w)
+    val overcast = w.cloudCover >= 80.0
+    val notes = mutableListOf<String>()
+
+    var thermal = when {
+        overcast -> { notes += "overcast — little sun to trigger thermals"; ThermalQuality.NONE }
+        lapse == null -> ThermalQuality.WORKABLE // no upper-air data → stay neutral
+        lapse < 5.0 -> { notes += "stable air"; ThermalQuality.WEAK }
+        lapse < 7.0 -> ThermalQuality.WORKABLE
+        else -> { notes += "unstable — strong climbs (watch overdevelopment)"; ThermalQuality.STRONG }
+    }
+    // An inversion lids the day: a strong-looking lapse still tops out low.
+    if (inversion) {
+        notes += "inversion caps the day (low ceiling)"
+        if (thermal == ThermalQuality.STRONG) thermal = ThermalQuality.WORKABLE
+    }
+    notes += "cloudbase ~${base.toInt()} m"
+
+    return FlyingQuality(thermal, lapse, base, inversion, notes)
 }
