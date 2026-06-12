@@ -111,10 +111,16 @@ placeholders for you to set.
   fault leaves PG spots untouched). Degenerate geometry (<3 vertices) dropped —
   `AirspaceGeoJsonTest`.
 
-### K3 — Sites / landability (PG spots)
-- **Frictionless:** nearby sites surface without a search. `[ ]`
-- **Offline:** spots for the region cached. `[ ]`
-- **Resilient:** missing/corrupt spot data → spots hidden, rest works. `[ ]`
+### K3 — Sites / landability (PG spots)  *(JVM, via PGSpotCache + PgSpotGeoJson)*
+- **Correct:** a site's name survives the download→cache→query round-trip and
+  resolves for the marker (nested `properties.name` — flat reads "" and renders
+  nothing). `[HELD]` — `SitesClaimsTest.correct`.
+- **Frictionless:** nearby sites surface by *location*, not a search; a distant
+  region's sites don't. `[HELD]` — `SitesClaimsTest.frictionless`.
+- **Offline:** spots for the region served from cache; **0 network calls**.
+  `[HELD]` — `SitesClaimsTest.offline` (corridor).
+- **Resilient:** missing/corrupt spot data → empty/refused, no crash (shares the
+  airspace cache fault catalog). `[HELD]` — `SitesClaimsTest.resilient`.
 
 ### K4 — Weather / wind
 - **Correct:** wind/forecast values match source for the position/time. `[ ]`

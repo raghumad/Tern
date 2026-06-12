@@ -30,7 +30,7 @@ CLAIMS_PKG = "com.ternparagliding.claims."
 KNOWN = {
     "Position": "K1 · Position & terrain",
     "Airspace": "K2 · Airspace",
-    "PgSpot": "K3 · Sites", "Site": "K3 · Sites", "Spot": "K3 · Sites",
+    "PgSpot": "K3 · Sites", "Site": "K3 · Sites", "Sites": "K3 · Sites", "Spot": "K3 · Sites",
     "Weather": "K4 · Weather",
     "Mezulla": "K5 · Team", "Peer": "K5 · Team", "Team": "K5 · Team",
     "Route": "K6 · Route/task", "Task": "K6 · Route/task",
