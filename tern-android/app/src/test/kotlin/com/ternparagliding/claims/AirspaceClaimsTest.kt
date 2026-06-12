@@ -7,6 +7,7 @@ import com.ternparagliding.overlay.priority.OverlayPrioritizer
 import com.ternparagliding.overlay.priority.Position
 import com.ternparagliding.overlay.priority.SimpleOverlayCandidate
 import com.ternparagliding.utils.cache.AirspaceCache
+import com.ternparagliding.utils.cache.PGSpotCache
 import com.ternparagliding.utils.cache.GeoJsonUtils
 import io.mockk.coEvery
 import io.mockk.every
@@ -17,7 +18,9 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -170,6 +173,117 @@ class AirspaceClaimsTest {
         val freshCache = AirspaceCache(context)
         val cachedOnFreshRead = freshCache.isCached("IN") // must not throw
         assertFalse("a corrupt on-disk index must not validate as cached", cachedOnFreshRead)
+    }
+
+    /** Cache a 5-feature cluster under [region] at (lat, lon). Returns the cache subdir. */
+    private fun cacheClusterAt(region: String, lat: Double, lon: Double): java.io.File = runBlocking {
+        coEvery { GeoJsonUtils.streamGeoJsonFeatures(any(), any()) } answers {
+            val emit = secondArg<(Map<String, Any>) -> Unit>()
+            (0 until 5).forEach { i -> emit(airspaceBox(lat + i * 0.03, lon, "$region-$i")) }
+            true
+        }
+        assertTrue("$region: prefetch should cache", cache.downloadAndCache(region))
+        java.io.File(tempFolder.root, "airspace_cache")
+    }
+
+    /**
+     * **CLAIM K2 · Resilient (truncated data).** An interrupted download leaves a
+     * half-written `.flex`. The query must degrade (partial/empty) — never crash.
+     */
+    @Test
+    fun `resilient - a truncated data file does not crash the query`() {
+        val dir = cacheClusterAt("IN", 32.20, 76.70)
+        val flex = java.io.File(dir, "IN_airspace.flex")
+        val bytes = flex.readBytes()
+        flex.writeBytes(bytes.copyOf(maxOf(120, bytes.size / 2))) // simulate interrupted write
+
+        val fresh = AirspaceCache(context) // on-disk read path, as a real launch
+        try {
+            fresh.queryAllCachedNearby(GeoPoint(32.20, 76.70), 50.0) // must not throw
+        } catch (t: Throwable) {
+            fail("a truncated data file crashed the query: $t")
+        }
+    }
+
+    /**
+     * **CLAIM K2 · Resilient (half-deleted).** The index survives but the data file
+     * is gone. The region must be refused as not-cached and degrade to empty.
+     */
+    @Test
+    fun `resilient - a missing data file with a present index is refused, never crashes`() {
+        val dir = cacheClusterAt("IN", 32.20, 76.70)
+        assertTrue(java.io.File(dir, "IN_airspace.flex").delete())
+
+        val fresh = AirspaceCache(context)
+        assertFalse("a region whose data file vanished must not validate as cached", fresh.isCached("IN"))
+        try {
+            assertTrue(
+                "a half-deleted region must degrade to empty",
+                fresh.queryAllCachedNearby(GeoPoint(32.20, 76.70), 50.0).isEmpty(),
+            )
+        } catch (t: Throwable) {
+            fail("a missing data file crashed the query: $t")
+        }
+    }
+
+    /**
+     * **CLAIM K2 · Resilient (stale).** A cache older than the freshness window
+     * (90 days) must be refused — never silently serve a pilot stale airspace.
+     */
+    @Test
+    fun `resilient - a stale cache beyond the freshness window is refused, not silently served`() {
+        val dir = cacheClusterAt("IN", 32.20, 76.70)
+        // Rewrite the on-disk cache index with a 100-day-old timestamp.
+        val staleMs = System.currentTimeMillis() - 100L * 24 * 3600 * 1000
+        java.io.ObjectOutputStream(java.io.FileOutputStream(java.io.File(dir, "cache_index"))).use {
+            it.writeObject(java.util.HashMap<String, Long>().apply { put("IN", staleMs) })
+        }
+
+        val fresh = AirspaceCache(context)
+        assertFalse(
+            "a 100-day-old cache must be refused as stale, not silently served",
+            fresh.isCached("IN"),
+        )
+    }
+
+    /**
+     * **CLAIM K2 · Resilient (no cascade).** A fault in one known must not break
+     * another. Airspace and PG spots live in separate caches; corrupting the
+     * airspace cache must leave PG-spot queries completely unaffected. Locks the
+     * isolation so a future refactor can't let one subsystem poison another.
+     */
+    @Test
+    fun `resilient - an airspace cache fault does not cascade to PG spots`() = runBlocking {
+        val pgCache = PGSpotCache(context)
+
+        // Cache airspace...
+        coEvery { GeoJsonUtils.streamGeoJsonFeatures(any(), any()) } answers {
+            val emit = secondArg<(Map<String, Any>) -> Unit>()
+            (0 until 5).forEach { i -> emit(airspaceBox(32.20 + i * 0.03, 76.70, "IN-$i")) }
+            true
+        }
+        assertTrue(cache.downloadAndCache("IN"))
+
+        // ...and PG spots — a different known, a separate cache. PGSpotCache uses
+        // the downloadGeoJson string seam (not the streaming one airspace uses);
+        // isNdGeoJson is mocked true, so feed it newline-delimited features.
+        val pgNd = (0 until 5).joinToString("\n") { i ->
+            """{"type":"Feature","geometry":{"type":"Point","coordinates":[76.72,${32.20 + i * 0.02}]},"properties":{"name":"SPOT-$i","id":$i}}"""
+        }
+        coEvery { GeoJsonUtils.downloadGeoJson(any(), any()) } returns pgNd
+        assertNotNull("PG spots should cache", pgCache.downloadAndCache("IN"))
+
+        // A FAULT in airspace: corrupt its on-disk index.
+        java.io.File(java.io.File(tempFolder.root, "airspace_cache"), "IN_airspace.idx")
+            .writeBytes(ByteArray(256) { it.toByte() })
+
+        // No cascade: the other known (PG spots) is entirely unaffected.
+        assertTrue(
+            "a PG-spot query must survive an airspace cache fault (no cascade)",
+            pgCache.queryNearbyPGSpots("IN", GeoPoint(32.20, 76.72), 50.0).isNotEmpty(),
+        )
+
+        pgCache.clearCache()
     }
 
     /**

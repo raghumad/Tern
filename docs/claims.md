@@ -105,10 +105,11 @@ placeholders for you to set.
   signs, near the antimeridian).
 - **Resilient:** *stale/corrupt/missing airspace → hides or shows stale; map,
   route, peers, weather keep working; no crash.* ← canonical degradation test.
-  `SpatialDiskCache.validateCacheIntegrity`. `[HELD, partial]` —
-  `AirspaceClaimsTest.resilient` (missing → empty; corrupt on-disk index → rejected,
-  no crash). **To add:** truncated `.flex`, stale (>90d), degenerate geometry, the
-  no-cascade invariant.
+  `SpatialDiskCache.validateCacheIntegrity` + `queryNearby` (catches → empty).
+  `[HELD]` — `AirspaceClaimsTest.resilient` ×6: missing region, corrupt index,
+  missing `.flex`, stale (>90d), truncated `.flex`, and **no-cascade** (an airspace
+  fault leaves PG spots untouched). Degenerate geometry (<3 vertices) dropped —
+  `AirspaceGeoJsonTest`.
 
 ### K3 — Sites / landability (PG spots)
 - **Frictionless:** nearby sites surface without a search. `[ ]`
