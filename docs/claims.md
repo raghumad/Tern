@@ -122,10 +122,25 @@ placeholders for you to set.
 - **Resilient:** missing/corrupt spot data → empty/refused, no crash (shares the
   airspace cache fault catalog). `[HELD]` — `SitesClaimsTest.resilient`.
 
-### K4 — Weather / wind
-- **Correct:** wind/forecast values match source for the position/time. `[ ]`
-- **Offline:** last prefetched forecast available (stale-but-shown with age). `[ ]`
-- **Resilient:** weather fetch fails → stale shown with age; never blocks the map. `[ ]`
+### K4 — Weather / wind  *(JVM, via WeatherAPI + WeatherCache + hazard logic)*
+- **Correct:** hazard thresholds classify right — CAPE>500→convective; lightning
+  >60%→thunderstorm (outranks); cloud&humidity proxy→convective; benign→no false
+  alarm. `[HELD]` — `WeatherClaimsTest.correct`.
+- **Timely:** weather interpolated to the waypoint arrival time (circular wind
+  direction, linear CAPE). `[HELD]` — `WeatherClaimsTest.timely`.
+- **Offline:** a forecast cached pre-flight is retrievable with no network; data
+  >4h is flagged stale. `[HELD]` — `WeatherClaimsTest.offline` + `.resilient`.
+- **Resilient:** a degraded surface-only source (no CAPE/lightning) raises no false
+  hazard and never crashes. `[HELD]` — `WeatherClaimsTest.resilient`.
+- **Flyability:** a top-level "is it flyable" go/no-go synthesised from the data.
+  `[GAP]` Not built — data + hazards exist but aren't combined into one call.
+- **Thermal outlook:** lapse rate → expected climb rate / overdevelopment time.
+  `[GAP]` Lapse rate is computed but never turned into a thermal forecast.
+- **Source policy:** per-country best free model (HRRR/AROME/ICON-D2) + refresh
+  cadence, with an independent fallback when Open-Meteo is down. `[GAP]` Single
+  Open-Meteo source (best_match); no fallback, no per-country specialisation.
+- **Stability diagram:** the Skew-T plot. `[GAP]` The stability math is computed;
+  the diagram itself is a text placeholder.
 
 ### K5 — Team (Mezulla)
 - **Correct:** each peer's position / rel-altitude / heading / distance correct. `[ ]`

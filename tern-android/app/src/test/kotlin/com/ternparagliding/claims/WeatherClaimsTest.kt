@@ -1,0 +1,172 @@
+package com.ternparagliding.claims
+
+import android.content.Context
+import com.ternparagliding.overlay.hazard.HazardLevel
+import com.ternparagliding.overlay.hazard.classifyHazard
+import com.ternparagliding.utils.cache.WeatherCache
+import com.ternparagliding.utils.geo.CountryUtils
+import com.ternparagliding.utils.io.ForecastPeriod
+import com.ternparagliding.utils.io.WeatherData
+import com.ternparagliding.utils.io.WeatherForecast
+import com.ternparagliding.utils.io.WindData
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.mockkObject
+import io.mockk.unmockkObject
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Rule
+import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import org.osmdroid.util.GeoPoint
+
+/**
+ * Claim **K4 · Weather** — the promises about weather data and the safety
+ * decisions it drives, by driving the real hazard / staleness / interpolation
+ * logic and the weather cache (no screenshots, no emulator). See [docs/claims.md].
+ *
+ * What's testable today is the data + decision *foundation*. The synthesis on top
+ * — a "flyable" go/no-go, thermal inference, the Skew-T diagram, the
+ * country/fallback source policy — is not built yet and is logged as GAPs.
+ */
+class WeatherClaimsTest {
+
+    @get:Rule
+    val tempFolder = TemporaryFolder()
+
+    private lateinit var context: Context
+    private lateinit var weatherCache: WeatherCache
+
+    @Before
+    fun setUp() {
+        context = mockk<Context>()
+        every { context.cacheDir } returns tempFolder.root
+        weatherCache = WeatherCache(context)
+        mockkObject(CountryUtils)
+        every { CountryUtils.getCountryCodeFromGeoPoint(any(), any()) } returns "CH"
+    }
+
+    @After
+    fun tearDown() {
+        weatherCache.clearCache()
+        unmockkObject(CountryUtils)
+    }
+
+    // ── builders ──────────────────────────────────────────────────────────
+    private fun wx(
+        cape: Double? = null,
+        lightning: Double? = null,
+        cloud: Double = 30.0,
+        humidity: Double = 50.0,
+        windSpeed: Double = 10.0,
+        windDir: Double = 270.0,
+        gust: Double = 15.0,
+        tsMs: Long = System.currentTimeMillis(),
+    ) = WeatherData(
+        wind = WindData(windSpeed, windDir, gust),
+        temperature = 20.0, humidity = humidity, visibility = 10_000.0,
+        pressure = 1013.0, cloudCover = cloud, timestamp = tsMs,
+        cape = cape, lightningPotential = lightning,
+    )
+
+    private fun period(weather: WeatherData, startMs: Long, text: String = "") =
+        ForecastPeriod(startMs, startMs + 3_600_000, weather, text)
+
+    private fun forecastOf(current: WeatherData) =
+        WeatherForecast(current = current, daily = emptyList(), hourly = emptyList())
+
+    /**
+     * **CLAIM K4 · Correct (hazard logic).** The safety thresholds classify
+     * correctly: CAPE > 500 → convective; lightning > 60% → thunderstorm (and
+     * thunderstorm outranks convective); benign conditions raise NO false alarm.
+     */
+    @Test
+    fun `correct - weather hazards classify against the safety thresholds`() {
+        assertEquals(
+            "CAPE > 500 must read as convective",
+            HazardLevel.CONVECTIVE, classifyHazard(forecastOf(wx(cape = 600.0))),
+        )
+        assertEquals(
+            "lightning > 60% must read as thunderstorm (outranks convective)",
+            HazardLevel.THUNDERSTORM, classifyHazard(forecastOf(wx(cape = 600.0, lightning = 75.0))),
+        )
+        assertEquals(
+            "cloud>85% & humidity>85% must read as convective",
+            HazardLevel.CONVECTIVE, classifyHazard(forecastOf(wx(cape = 0.0, cloud = 90.0, humidity = 90.0))),
+        )
+        assertNull(
+            "benign conditions must raise no false hazard",
+            classifyHazard(forecastOf(wx(cape = 100.0, lightning = 10.0, cloud = 30.0, humidity = 40.0))),
+        )
+    }
+
+    /**
+     * **CLAIM K4 · Timely.** Weather is reported for the time the pilot will be
+     * there: interpolated to the arrival time between two hourly periods — wind
+     * direction wraps the short way (350°→10° through North), the rest linear.
+     */
+    @Test
+    fun `timely - weather interpolates to the arrival time (circular wind, linear CAPE)`() {
+        val t0 = 1_700_000_000_000L
+        val start = period(wx(windDir = 350.0, windSpeed = 10.0, cape = 200.0), t0)
+        val end = period(wx(windDir = 10.0, windSpeed = 20.0, cape = 600.0), t0 + 3_600_000)
+
+        val mid = WeatherCache.interpolateWeather(start, end, t0 + 1_800_000) // halfway
+
+        assertEquals("wind direction must interpolate through North, not backwards", 0.0, mid.wind.direction, 0.5)
+        assertEquals("wind speed must interpolate linearly", 15.0, mid.wind.speed, 1e-6)
+        assertEquals("CAPE must interpolate linearly", 400.0, mid.cape!!, 1e-6)
+    }
+
+    /**
+     * **CLAIM K4 · Resilient (stale).** Weather older than the 4-hour window is
+     * flagged stale, so the pilot is never silently shown old conditions; fresh
+     * data is not flagged.
+     */
+    @Test
+    fun `resilient - weather older than 4h is flagged stale, fresh is not`() {
+        val now = System.currentTimeMillis()
+        val stale = WeatherForecast(null, emptyList(), listOf(period(wx(), now - 5 * 3_600_000)))
+        val fresh = WeatherForecast(null, emptyList(), listOf(period(wx(), now)))
+        assertTrue("5h-old weather must be flagged stale", stale.isStale())
+        assertFalse("current weather must not be flagged stale", fresh.isStale())
+    }
+
+    /**
+     * **CLAIM K4 · Resilient (degraded source).** A degraded fallback gives
+     * surface wind only — no CAPE, no lightning. The hazard logic must not crash
+     * and must not *fabricate* a hazard from the missing upper-air data. (Exactly
+     * what happens when we fall back from Open-Meteo to a surface-only source.)
+     */
+    @Test
+    fun `resilient - a degraded source missing CAPE-lightning raises no false hazard`() {
+        val degraded = forecastOf(wx(cape = null, lightning = null, cloud = 40.0, humidity = 50.0))
+        assertNull("missing upper-air data must not fabricate a hazard", classifyHazard(degraded))
+        assertFalse(degraded.hasConvectiveDanger())
+        assertFalse(degraded.hasThunderstorm())
+    }
+
+    /**
+     * **CLAIM K4 · Offline.** A forecast cached pre-flight is retrievable with no
+     * network — the pilot keeps their weather in the air.
+     */
+    @Test
+    fun `offline - a cached forecast is retrievable with no network`() {
+        val loc = GeoPoint(47.0, 8.0)
+        val fc = WeatherForecast(
+            current = wx(windSpeed = 12.0),
+            daily = emptyList(),
+            hourly = listOf(period(wx(windSpeed = 12.0), System.currentTimeMillis())),
+        )
+        weatherCache.cacheWeather("route-1", loc, fc)
+
+        assertTrue(
+            "a cached forecast must be retrievable offline",
+            weatherCache.queryNearbyWeather("route-1", loc, 10.0).isNotEmpty(),
+        )
+    }
+}
