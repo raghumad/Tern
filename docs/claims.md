@@ -149,10 +149,14 @@ placeholders for you to set.
   cadence, with an independent fallback when Open-Meteo is down. `[HELD, logic]` —
   `WeatherClaimsTest` (source policy · fallback): `WeatherSourcePolicy` (country →
   model + TTL) and `FallbackWeatherAPI` (primary → secondary → cache, never throws).
-- **Source wiring:** apply the policy to the live fetch (model into the URL keyed
-  off the detected country) and implement the MET Norway secondary provider.
-  `[GAP]` The logic above exists + is tested, but the live fetch still uses
-  `best_match` with no fallback until it's threaded through.
+- **Source wiring:** the policy is now applied to the *live* fetch — `OpenMeteoWeatherAPI`
+  resolves the country offline (`OfflineGeocoder`, zero-I/O) and threads the specialized
+  model into the URL (`&models=gfs_hrrr` over the US, AROME over France, …; `best_match`
+  omits it); and the independent **MET Norway** secondary is live behind
+  `FallbackWeatherAPI` in `WeatherMiddleware`, so an Open-Meteo outage degrades to a
+  real surface forecast (CAPE/lightning null → no false hazard) rather than a blank.
+  `[HELD]` — `WeatherClaimsTest` (source wiring · model into the live URL; MET Norway
+  parses into a degraded surface forecast). `MetNorwayWeatherAPI` + `parseMetNorwayCompact`.
 - **Stability diagram:** the Skew-T plot. `[GAP]` The stability math is computed;
   the diagram itself is a text placeholder.
 

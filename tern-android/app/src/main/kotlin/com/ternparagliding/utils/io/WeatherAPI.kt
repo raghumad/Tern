@@ -8,6 +8,9 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.IOException
+import com.ternparagliding.utils.geo.OfflineGeocoder
+import com.ternparagliding.weather.WeatherSourcePolicy
+import org.osmdroid.util.GeoPoint
 
 // Create shared mapper instance
 private val mapper = jacksonObjectMapper()
@@ -271,14 +274,35 @@ class OpenMeteoWeatherAPI : WeatherAPI {
     }
 
 
-    private fun buildUrl(lat: Double, lng: Double): String {
+    @androidx.annotation.VisibleForTesting
+    internal fun buildUrl(lat: Double, lng: Double): String {
         return "$baseUrl?latitude=$lat&longitude=$lng" +
                "&hourly=$HOURLY_PARAMS" +
                "&daily=$DAILY_PARAMS" +
-
+               modelsParamFor(lat, lng) +
                "&forecast_days=$FORECAST_DAYS" +
                "&timezone=auto" +
                "&windspeed_unit=kn" // Crucial for aviation - knots standard
+    }
+
+    /**
+     * Per-country model specialization, applied at the *live fetch*. Resolve the
+     * country offline (zero-I/O point-in-polygon — no blocking geocode) and ask
+     * [WeatherSourcePolicy] for the best free model there (HRRR/AROME/ICON-D2/…).
+     * `best_match` (the global default, or an unknown/over-water location) means
+     * "let Open-Meteo auto-pick" — so we omit `&models=` entirely and degrade to
+     * its built-in selection. Specialize where a better free model exists; degrade
+     * to global otherwise.
+     */
+    @androidx.annotation.VisibleForTesting
+    internal fun modelsParamFor(lat: Double, lng: Double): String {
+        val country = try {
+            OfflineGeocoder.getCountryCode(GeoPoint(lat, lng))
+        } catch (e: Exception) {
+            null
+        }
+        val model = WeatherSourcePolicy.modelFor(country)
+        return if (model == WeatherSourcePolicy.DEFAULT.model) "" else "&models=$model"
     }
 
     private fun parseForecast(jsonString: String, lat: Double, lng: Double): WeatherForecast? {

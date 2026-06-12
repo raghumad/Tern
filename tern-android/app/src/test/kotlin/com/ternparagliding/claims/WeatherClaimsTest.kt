@@ -5,6 +5,7 @@ import com.ternparagliding.overlay.hazard.HazardLevel
 import com.ternparagliding.overlay.hazard.classifyHazard
 import com.ternparagliding.utils.cache.WeatherCache
 import com.ternparagliding.utils.geo.CountryUtils
+import com.ternparagliding.utils.geo.OfflineGeocoder
 import com.ternparagliding.utils.io.FallbackWeatherAPI
 import com.ternparagliding.utils.io.ForecastPeriod
 import com.ternparagliding.utils.io.LocationRequest
@@ -26,6 +27,7 @@ import io.mockk.unmockkObject
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -39,9 +41,10 @@ import org.osmdroid.util.GeoPoint
  * decisions it drives, by driving the real hazard / staleness / interpolation
  * logic and the weather cache (no screenshots, no emulator). See [docs/claims.md].
  *
- * What's testable today is the data + decision *foundation*. The synthesis on top
- * — a "flyable" go/no-go, thermal inference, the Skew-T diagram, the
- * country/fallback source policy — is not built yet and is logged as GAPs.
+ * Covers the data + decision foundation, the Flyability synthesis, and the live
+ * source policy (per-country model into the URL + MET Norway fallback). What's
+ * still GAP and logged in docs/claims.md: the quantitative thermal outlook and the
+ * Skew-T stability diagram.
  */
 class WeatherClaimsTest {
 
@@ -342,6 +345,88 @@ class WeatherClaimsTest {
 
         // Both fail → null (caller serves cache), still no crash.
         assertNull(FallbackWeatherAPI(FakeApi(null, throws = true), FakeApi(null)).fetchForecast(46.0, 6.0))
+    }
+
+    /**
+     * **CLAIM K4 · Source wiring (model into the live URL).** The policy isn't just
+     * a lookup table — the live Open-Meteo fetch URL must actually carry the
+     * country's specialized model. Resolve the country offline, and the built URL
+     * specializes (`&models=gfs_hrrr` over the US) or omits `&models=` to let
+     * Open-Meteo auto-pick (`best_match`) for unknown/global locations.
+     */
+    @Test
+    fun `source wiring - the live fetch URL carries the per-country model`() {
+        mockkObject(OfflineGeocoder)
+        try {
+            val api = com.ternparagliding.utils.io.OpenMeteoWeatherAPI()
+
+            // Over the US → HRRR is threaded into the live URL.
+            every { OfflineGeocoder.getCountryCode(any()) } returns "US"
+            val usUrl = api.buildUrl(40.0, -105.0)
+            assertTrue("US fetch must specialize to HRRR", usUrl.contains("&models=gfs_hrrr"))
+
+            // France → AROME.
+            every { OfflineGeocoder.getCountryCode(any()) } returns "FR"
+            assertTrue(api.buildUrl(45.9, 6.1).contains("&models=meteofrance_arome_france_hd"))
+
+            // Unknown country → no &models= (degrade to Open-Meteo's best_match).
+            every { OfflineGeocoder.getCountryCode(any()) } returns "IN"
+            assertFalse("global default must omit &models=", api.buildUrl(32.2, 76.7).contains("&models="))
+
+            // Over water / unresolved → also best_match, and never throws.
+            every { OfflineGeocoder.getCountryCode(any()) } returns null
+            assertFalse(api.buildUrl(0.0, -150.0).contains("&models="))
+        } finally {
+            unmockkObject(OfflineGeocoder)
+        }
+    }
+
+    /**
+     * **CLAIM K4 · Source wiring (MET Norway secondary).** The independent fallback
+     * provider parses into a real forecast: surface fields correct and unit-converted
+     * (wind m/s → knots), precipitation from the forward block — while the fields it
+     * can't supply (CAPE, lightning, pressure-level temps) come back null so the
+     * convective/stability reads gracefully degrade rather than false-alarm.
+     */
+    @Test
+    fun `source wiring - MET Norway parses into a degraded surface forecast`() {
+        // wind 5 m/s @ 230°, gust 8 m/s, 18.5°C, 40% cloud, 1013 hPa, 20% precip next hour.
+        val json = """
+            {"properties":{"timeseries":[
+              {"time":"2026-06-12T13:00:00Z","data":{
+                "instant":{"details":{
+                  "air_temperature":18.5,"wind_speed":5.0,"wind_speed_of_gust":8.0,
+                  "wind_from_direction":230.0,"relative_humidity":55.0,
+                  "cloud_area_fraction":40.0,"air_pressure_at_sea_level":1013.0}},
+                "next_1_hours":{"details":{"probability_of_precipitation":20.0,"precipitation_amount":0.2}}}},
+              {"time":"2026-06-12T14:00:00Z","data":{
+                "instant":{"details":{
+                  "air_temperature":19.0,"wind_speed":6.0,"wind_from_direction":240.0,
+                  "relative_humidity":50.0,"cloud_area_fraction":35.0,"air_pressure_at_sea_level":1012.0}}}}
+            ]}}
+        """.trimIndent()
+
+        val forecast = com.ternparagliding.utils.io.parseMetNorwayCompact(json)
+        assertNotNull("MET Norway must parse into a forecast", forecast)
+        val now = forecast!!.current!!
+
+        // Surface fields correct + unit-converted (m/s → knots).
+        assertEquals(18.5, now.temperature, 0.01)
+        assertEquals(40.0, now.cloudCover, 0.01)
+        assertEquals(230.0, now.wind.direction, 0.01)
+        assertEquals(5.0 * WeatherAPI.MS_TO_KNOTS, now.wind.speed, 0.01)
+        assertEquals(8.0 * WeatherAPI.MS_TO_KNOTS, now.wind.gust, 0.01)
+        assertEquals(5.0 * WeatherAPI.MS_TO_KNOTS, now.windSpeed10m!!, 0.01)
+        assertEquals(20.0, now.precipProbability!!, 0.01)
+
+        // Surface-only: the fields MET can't supply degrade to null (no false convective alarm).
+        assertNull(now.cape)
+        assertNull(now.lightningPotential)
+        assertNull(now.temp850hPa)
+        assertNull("degraded surface-only source must raise no false hazard", classifyHazard(forecast)) // no CAPE/lightning → null
+
+        // The full hourly series is carried (not just current).
+        assertEquals(2, forecast.hourly.size)
     }
 
     /** A controllable WeatherAPI stand-in for the fallback tests. */

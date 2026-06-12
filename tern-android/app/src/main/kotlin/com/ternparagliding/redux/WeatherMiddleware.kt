@@ -3,6 +3,8 @@ package com.ternparagliding.redux
 import android.util.Log
 import com.ternparagliding.utils.cache.CacheManager
 import com.ternparagliding.utils.io.OpenMeteoWeatherAPI
+import com.ternparagliding.utils.io.MetNorwayWeatherAPI
+import com.ternparagliding.utils.io.FallbackWeatherAPI
 import com.ternparagliding.utils.io.WeatherAPI
 import com.ternparagliding.utils.cache.WeatherCache
 import com.ternparagliding.utils.io.WeatherForecast
@@ -20,7 +22,10 @@ import org.osmdroid.util.GeoPoint
  * Aviation-grade architecture separation from UI components.
  */
 class WeatherMiddleware(
-    private val weatherAPI: WeatherAPI = OpenMeteoWeatherAPI(),
+    // Open-Meteo is the primary (it aggregates the national high-res models we
+    // specialize to per country); MET Norway is the independent secondary so a
+    // primary outage degrades to a real forecast, not a blank. Never breaks, only degrades.
+    private val weatherAPI: WeatherAPI = FallbackWeatherAPI(OpenMeteoWeatherAPI(), MetNorwayWeatherAPI()),
     private val weatherCache: WeatherCache = CacheManager.weatherCache,
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.IO + Job())
 ) : Middleware {
