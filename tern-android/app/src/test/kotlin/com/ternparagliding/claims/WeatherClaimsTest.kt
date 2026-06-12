@@ -9,6 +9,9 @@ import com.ternparagliding.utils.io.ForecastPeriod
 import com.ternparagliding.utils.io.WeatherData
 import com.ternparagliding.utils.io.WeatherForecast
 import com.ternparagliding.utils.io.WindData
+import com.ternparagliding.weather.Verdict
+import com.ternparagliding.weather.assessFlyability
+import com.ternparagliding.weather.assessOutlook
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
@@ -168,5 +171,55 @@ class WeatherClaimsTest {
             "a cached forecast must be retrievable offline",
             weatherCache.queryNearbyWeather("route-1", loc, 10.0).isNotEmpty(),
         )
+    }
+
+    /**
+     * **CLAIM K4 · Flyability.** A transparent, advisory read of the conditions —
+     * GO / CAUTION / NO_GO, the verdict being the worst factor, with every reason
+     * shown (never a black box). The universal pilot question, answered at a point.
+     */
+    @Test
+    fun `flyability - conditions read GO, CAUTION or NO_GO with transparent reasons`() {
+        // Calm + clear → GO, nothing to flag.
+        val go = assessFlyability(wx(windSpeed = 8.0, gust = 12.0))
+        assertEquals(Verdict.GO, go.verdict)
+        assertTrue("a GO must have no flagged reasons", go.reasons.isEmpty())
+
+        // Strong wind → not GO, and the wind reason is surfaced (transparency).
+        val windy = assessFlyability(wx(windSpeed = 18.0, gust = 22.0))
+        assertEquals(Verdict.CAUTION, windy.verdict)
+        assertTrue("the wind reason must be shown", windy.reasons.any { it.factor == "wind" })
+
+        // Thunderstorm → NO_GO, and it outranks everything.
+        val storm = assessFlyability(wx(windSpeed = 8.0, lightning = 80.0))
+        assertEquals(Verdict.NO_GO, storm.verdict)
+        assertTrue("the storm reason must be shown", storm.reasons.any { it.factor == "thunderstorm" })
+
+        // Too-strong wind → NO_GO.
+        assertEquals(Verdict.NO_GO, assessFlyability(wx(windSpeed = 30.0)).verdict)
+    }
+
+    /**
+     * **CLAIM K4 · Flyability (and soon).** Flyable now but a storm builds within
+     * the window → "GO now, deteriorating to NO_GO at HH:MM" — the look-ahead a
+     * pilot needs before committing to a flight.
+     */
+    @Test
+    fun `flyability - flags when conditions deteriorate soon`() {
+        val now = System.currentTimeMillis()
+        val outlook = assessOutlook(
+            WeatherForecast(
+                current = wx(windSpeed = 8.0), // GO now
+                daily = emptyList(),
+                hourly = listOf(
+                    period(wx(windSpeed = 8.0), now),
+                    period(wx(windSpeed = 8.0), now + 3_600_000),
+                    period(wx(windSpeed = 8.0, lightning = 80.0), now + 2 * 3_600_000), // storm in 2h
+                ),
+            ),
+        )
+        assertEquals("flyable now", Verdict.GO, outlook.now.verdict)
+        assertEquals("must flag the coming storm", Verdict.NO_GO, outlook.deterioratesTo?.verdict)
+        assertEquals("at the right time", now + 2 * 3_600_000, outlook.deterioratesAtMs)
     }
 }

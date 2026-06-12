@@ -132,8 +132,10 @@ placeholders for you to set.
   >4h is flagged stale. `[HELD]` — `WeatherClaimsTest.offline` + `.resilient`.
 - **Resilient:** a degraded surface-only source (no CAPE/lightning) raises no false
   hazard and never crashes. `[HELD]` — `WeatherClaimsTest.resilient`.
-- **Flyability:** a top-level "is it flyable" go/no-go synthesised from the data.
-  `[GAP]` Not built — data + hazards exist but aren't combined into one call.
+- **Flyability:** a transparent "is it flyable here, now and soon" read — GO /
+  CAUTION / NO_GO with the reasons shown, plus the next worsening time.
+  `[HELD]` — `WeatherClaimsTest.flyability` ×2 (`weather/Flyability.kt`,
+  configurable limits; verdict = worst factor, reasons surfaced).
 - **Thermal outlook:** lapse rate → expected climb rate / overdevelopment time.
   `[GAP]` Lapse rate is computed but never turned into a thermal forecast.
 - **Source policy:** per-country best free model (HRRR/AROME/ICON-D2) + refresh
