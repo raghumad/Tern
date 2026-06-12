@@ -133,10 +133,15 @@ placeholders for you to set.
 - **Offline:** works over LoRa mesh with no internet at all. `[ ]`
 - **Resilient:** peer dropout → ages out / marked stale; HUD + map never crash. `[ ]`
 
-### K6 — Route / task
-- **Correct:** task geometry (cylinders, legs, FAI) and progress correct. `[ ]`
-- **Offline:** task works offline. `[ ]`
-- **Resilient:** bad task import rejected gracefully; app stays usable. `[ ]`
+### K6 — Route / task  *(JVM, via RouteCache + RouteIOManager)*
+- **Correct:** task geometry — each waypoint's position and FAI cylinder radius —
+  round-trips through persistence exactly. `[HELD]` — `RouteClaimsTest.correct`.
+  *To add:* FAI-triangle detection (known 0.4 km closure-heuristic bug) and
+  per-leg airspace-crossing (currently point-in-polygon only).
+- **Offline:** a saved/imported route survives a restart and is retrievable with
+  **no network**. `[HELD]` — `RouteClaimsTest.offline`.
+- **Resilient:** a malformed task import is rejected gracefully (null, no crash);
+  a missing route degrades to null. `[HELD]` — `RouteClaimsTest.resilient`.
 
 ## The Claims Report (replaces the dashboard)
 
