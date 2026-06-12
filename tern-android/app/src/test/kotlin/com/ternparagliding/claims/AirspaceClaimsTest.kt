@@ -2,6 +2,10 @@ package com.ternparagliding.claims
 
 import android.content.Context
 import com.ternparagliding.overlay.airspace.AirspaceGeoJson
+import com.ternparagliding.overlay.priority.OverlayKind
+import com.ternparagliding.overlay.priority.OverlayPrioritizer
+import com.ternparagliding.overlay.priority.Position
+import com.ternparagliding.overlay.priority.SimpleOverlayCandidate
 import com.ternparagliding.utils.cache.AirspaceCache
 import com.ternparagliding.utils.cache.GeoJsonUtils
 import io.mockk.coEvery
@@ -192,6 +196,51 @@ class AirspaceClaimsTest {
             "OpenAIP icaoClass=2 must resolve to Class C",
             "C",
             AirspaceGeoJson.resolveAirspaceClass(served.first()),
+        )
+    }
+
+    /**
+     * **CLAIM K2 · Frictionless (memory-safe declutter).** No matter how dense the
+     * airspace, the overlay stays bounded by the budget — so it can never OOM, the
+     * way dragging into dense Europe (Annecy) did *before* budgeting was added —
+     * and it keeps the *nearest* (most relevant) airspace. Under memory pressure
+     * the budget tightens further, never grows.
+     *
+     * This is the guarantee the old on-device "performance scorecard" was chasing,
+     * now a deterministic assertion instead of a flaky memory measurement.
+     */
+    @Test
+    fun `frictionless - dense airspace is bounded by the budget and keeps the nearest`() {
+        val prioritizer = OverlayPrioritizer() // default budget 300
+        val pilot = Position(45.90, 6.10)      // Annecy
+
+        // A pathologically dense region — the kind that OOM'd before budgeting.
+        // Each successive airspace is farther from the pilot.
+        val dense = (1..3000).map { i ->
+            SimpleOverlayCandidate(
+                kind = OverlayKind.AIRSPACE,
+                position = Position(45.90 + i * 0.001, 6.10),
+                id = "asp-$i",
+            )
+        }
+
+        val shown = prioritizer.prioritize(dense, pilot)
+
+        // (1) Memory stays bounded — 3000 candidates in, at most `budget` out.
+        assertEquals("dense airspace must be capped to the budget (the OOM guard)", 300, shown.size)
+
+        // (2) Declutter is sensible — the nearest is kept, the farthest dropped.
+        val keptIds = shown.filterIsInstance<SimpleOverlayCandidate>().map { it.id }.toSet()
+        assertTrue("the nearest airspace must be kept", "asp-1" in keptIds)
+        assertFalse("a far airspace must be decluttered out", "asp-3000" in keptIds)
+
+        // (3) Under memory pressure (onTrimMemory halves the budget) the overlay
+        //     must shrink, never grow.
+        prioritizer.budget = 150
+        assertEquals(
+            "under memory pressure the overlay must shrink, never grow",
+            150,
+            prioritizer.prioritize(dense, pilot).size,
         )
     }
 

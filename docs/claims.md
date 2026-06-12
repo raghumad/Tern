@@ -87,23 +87,28 @@ placeholders for you to set.
 ### K2 — Airspace  *(subsystem mapped 2026-06; JVM-testable except Timely)*
 - **Correct:** queried/rendered polygons match source for the viewport.
   `AirspaceGeoJson.resolveAirspaceClass` (icaoClass 0-indexed), `queryHilbertRange`
-  (haversine refine). `[~]` partly locked by `AirspaceGeoJsonTest` +
-  `HilbertSpatialQueryTest`; **add** a haversine-vs-brute-force oracle.
+  (haversine refine). `[HELD]` — `AirspaceClaimsTest.correct` (real OpenAIP Class-C
+  TMA round-trip), `AirspaceGeoJsonTest`, `HilbertSpatialQueryTest`. *Nice-to-have:*
+  a haversine-vs-brute-force oracle over random points.
 - **Timely:** awareness of airspace ahead fires *before* the boundary. `[GAP]`
   **Not implemented** — the query is purely reactive (static 200 km horizon on
   centre change); no lookahead/prediction exists. This is a feature to build, not
   a test to write.
-- **Frictionless:** only viewport-relevant airspace; declutters at density.
-  `OverlayPrioritizer.prioritize` (budget 300, distance-decay), Class-G filter.
-  `[ ]` JVM — assert count ≤ budget, nearest-first, Class-G dropped.
+- **Frictionless (memory-safe declutter):** dense airspace stays bounded by the
+  budget so it can **never OOM** (dragging into dense Europe did, before budgeting
+  was added), keeping the nearest; tightens under memory pressure.
+  `OverlayPrioritizer.prioritize` (budget 300, distance-decay). `[HELD]` —
+  `AirspaceClaimsTest.frictionless` (3000 in → 300 out → 150 under pressure).
 - **Offline:** airspace along the corridor served from cache; **0 network calls**.
-  `CountryPreloadMiddleware` `isTestMode` gate + `AirspaceCache.queryAllCachedNearby`.
-  `[ ]` JVM — inject a fixture cache, mock the HTTP client, assert zero calls.
+  `AirspaceCache.queryAllCachedNearby` (no network). `[HELD]` —
+  `AirspaceClaimsTest.offline` across 5 locations (both hemispheres, both longitude
+  signs, near the antimeridian).
 - **Resilient:** *stale/corrupt/missing airspace → hides or shows stale; map,
   route, peers, weather keep working; no crash.* ← canonical degradation test.
-  `SpatialDiskCache.validateCacheIntegrity`, silent degenerate-geometry drop in
-  `AirspaceGeoJson.toFeature`. `[ ]` JVM — corrupt index → empty + no throw;
-  stale (age > 90d) → not-cached; <3-vertex geometry → dropped.
+  `SpatialDiskCache.validateCacheIntegrity`. `[HELD, partial]` —
+  `AirspaceClaimsTest.resilient` (missing → empty; corrupt on-disk index → rejected,
+  no crash). **To add:** truncated `.flex`, stale (>90d), degenerate geometry, the
+  no-cascade invariant.
 
 ### K3 — Sites / landability (PG spots)
 - **Frictionless:** nearby sites surface without a search. `[ ]`
