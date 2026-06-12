@@ -52,18 +52,12 @@ class WeatherMiddleware(
                     return@launch
                 }
 
-                // API Fetch - Restrict to CORE and NEAR zones (RFC 005)
-                val mapCenter = store.state.value.center ?: store.state.value.userLocation
-                val distanceKm = mapCenter?.let { 
-                    org.osmdroid.util.GeoPoint(action.latitude, action.longitude).distanceToAsDouble(it) / 1000.0
-                } ?: Double.MAX_VALUE
-
-                val zone = com.ternparagliding.utils.geo.DistanceZone.fromDistanceKm(distanceKm)
-                if (zone != com.ternparagliding.utils.geo.DistanceZone.CORE && zone != com.ternparagliding.utils.geo.DistanceZone.NEAR) {
-                    // Skip API fetch for distant spots to optimize performance/API costs
-                    return@launch
-                }
-
+                // This path is now reached only by an explicit PG-spot tap (the
+                // weekend-pilot "is it flyable here?" intent). An explicit tap is
+                // always worth a fetch — unlike the *automatic batch* prefetch
+                // (fetchBatchWeatherForSpots), which keeps the CORE/NEAR distance
+                // budget to spare API credits. So no distance gate here: skipping
+                // would strand the open dialog on a permanent "loading".
                 val forecast = weatherAPI.fetchForecast(action.latitude, action.longitude)
                 if (forecast != null) {
                     weatherCache.cacheWeatherData(action.latitude, action.longitude, forecast)

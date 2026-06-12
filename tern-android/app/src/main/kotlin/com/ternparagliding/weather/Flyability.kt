@@ -31,7 +31,35 @@ data class FlyabilityLimits(
     val gradientNoGoKt: Double = 18.0,
     val precipCautionPct: Double = 40.0,    // precipitation probability
     val precipNoGoPct: Double = 70.0,
+    val orientationMinWindKt: Double = 6.0, // below this, wind direction barely matters
+    val cloudbaseInCloudM: Double = 120.0,  // base this close above launch ≈ launching into cloud
 )
+
+/** A compass octant, every 45° from N. Used to read wind direction against a launch. */
+enum class Octant { N, NE, E, SE, S, SW, W, NW }
+
+/** The octant a wind is blowing *from* (e.g. 235° → SW). */
+fun octantOf(directionDeg: Double): Octant {
+    val d = ((directionDeg % 360) + 360) % 360
+    return Octant.entries[(Math.round(d / 45.0).toInt()) % 8]
+}
+
+/**
+ * What we know about the **launch itself** — its geometry, from Paragliding Earth.
+ * Combined with the weather, this answers site-specific questions a generic forecast
+ * can't: is the wind *on the hill*, and where is cloudbase *relative to the launch*.
+ *
+ * @param elevationM takeoff altitude (m MSL), null if unknown.
+ * @param orientations the wind-**from** octant → suitability (0 = no, 1 = workable,
+ *   2 = ideal), exactly as PGE scores a site's flyable directions.
+ */
+data class SiteContext(
+    val elevationM: Double? = null,
+    val orientations: Map<Octant, Int> = emptyMap(),
+) {
+    /** True if PGE actually scored any direction for this site. */
+    val hasOrientation: Boolean get() = orientations.values.any { it > 0 }
+}
 
 /** Ordered worst-last: GO < CAUTION < NO_GO. The overall verdict is the worst reason. */
 enum class Verdict { GO, CAUTION, NO_GO }
@@ -49,8 +77,17 @@ data class FlyabilityOutlook(
     val deterioratesAtMs: Long?,     // when that worsening first occurs
 )
 
-/** Assess a single moment's conditions. */
-fun assessFlyability(weather: WeatherData, limits: FlyabilityLimits = FlyabilityLimits()): Flyability {
+/**
+ * Assess a single moment's conditions. When a [site] is given, the read becomes
+ * **site-aware**: the air-mass factors below are joined by the launch geometry —
+ * wind-vs-orientation and cloudbase-vs-launch — so the air can be perfectly
+ * flyable yet *this launch* still a no-go today.
+ */
+fun assessFlyability(
+    weather: WeatherData,
+    limits: FlyabilityLimits = FlyabilityLimits(),
+    site: SiteContext? = null,
+): Flyability {
     val reasons = mutableListOf<FlyabilityReason>()
 
     val wind = weather.wind.speed
@@ -108,6 +145,32 @@ fun assessFlyability(weather: WeatherData, limits: FlyabilityLimits = Flyability
         }
     }
 
+    // ── Site-aware factors (only when we know the launch geometry) ───────────
+    site?.let { s ->
+        // Wind vs the hill: a launch only works in certain wind directions. With
+        // meaningful wind, a cross/behind wind is a no-go *for this launch* even
+        // if the air is otherwise fine — the unknown a novice can't compute.
+        if (s.hasOrientation && weather.wind.speed >= limits.orientationMinWindKt) {
+            val from = octantOf(weather.wind.direction)
+            when (s.orientations[from] ?: 0) {
+                0 -> reasons += FlyabilityReason(Verdict.NO_GO, "wind direction",
+                        "$from wind is cross or behind this launch")
+                1 -> reasons += FlyabilityReason(Verdict.CAUTION, "wind direction",
+                        "$from wind — workable, not straight on the hill")
+                // 2 = on the hill: nothing to warn about.
+            }
+        }
+        // Cloudbase relative to the launch: a base sitting at launch height means
+        // launching into cloud — can't see, unambiguous no-go. (Low but-clear bases
+        // are a *quality* read, surfaced in assessQuality, not a safety gate here.)
+        val band = cloudBaseMeters(weather)
+        if (band <= limits.cloudbaseInCloudM) {
+            val msl = s.elevationM?.let { " (~${(it + band).toInt()} m MSL)" } ?: ""
+            reasons += FlyabilityReason(Verdict.NO_GO, "cloudbase",
+                    "base ~${band.toInt()} m above launch$msl — likely in cloud")
+        }
+    }
+
     val verdict = reasons.maxByOrNull { it.verdict.ordinal }?.verdict ?: Verdict.GO
     return Flyability(verdict, reasons.sortedByDescending { it.verdict.ordinal })
 }
@@ -121,14 +184,15 @@ fun assessOutlook(
     forecast: WeatherForecast,
     hoursAhead: Int = 4,
     limits: FlyabilityLimits = FlyabilityLimits(),
+    site: SiteContext? = null,
 ): FlyabilityOutlook {
     val nowWeather = forecast.current ?: forecast.hourly.firstOrNull()?.weather
-    val now = nowWeather?.let { assessFlyability(it, limits) }
+    val now = nowWeather?.let { assessFlyability(it, limits, site) }
         ?: Flyability(Verdict.NO_GO, listOf(FlyabilityReason(Verdict.NO_GO, "data", "no weather available")))
 
     val worseningPeriod = forecast.hourly
         .take(hoursAhead)
-        .map { it to assessFlyability(it.weather, limits) }
+        .map { it to assessFlyability(it.weather, limits, site) }
         .firstOrNull { it.second.verdict.ordinal > now.verdict.ordinal }
 
     return FlyabilityOutlook(now, worseningPeriod?.second, worseningPeriod?.first?.startTime)
@@ -169,8 +233,12 @@ fun hasInversion(w: WeatherData): Boolean {
     return t850 != null && t925 != null && t850 > t925
 }
 
-/** Read the day's flying *quality* — strength + ceiling — transparently. */
-fun assessQuality(w: WeatherData): FlyingQuality {
+/**
+ * Read the day's flying *quality* — strength + ceiling — transparently. With a
+ * [site], the cloudbase is also expressed relative to the launch (height above
+ * launch + MSL), the working band the pilot actually has.
+ */
+fun assessQuality(w: WeatherData, site: SiteContext? = null): FlyingQuality {
     val lapse = lapseRateCPerKm(w)
     val base = cloudBaseMeters(w)
     val inversion = hasInversion(w)
@@ -189,7 +257,9 @@ fun assessQuality(w: WeatherData): FlyingQuality {
         notes += "inversion caps the day (low ceiling)"
         if (thermal == ThermalQuality.STRONG) thermal = ThermalQuality.WORKABLE
     }
-    notes += "cloudbase ~${base.toInt()} m"
+    notes += site?.elevationM?.let { elev ->
+        "cloudbase ~${base.toInt()} m above launch (~${(elev + base).toInt()} m MSL)"
+    } ?: "cloudbase ~${base.toInt()} m"
 
     return FlyingQuality(thermal, lapse, base, inversion, notes)
 }

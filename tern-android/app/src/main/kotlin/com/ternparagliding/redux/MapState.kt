@@ -164,7 +164,9 @@ data class OverlayState(
 data class WeatherDialogState(
     val pgSpotId: String,
     val spotName: String,
-    val forecast: com.ternparagliding.utils.io.WeatherForecast?
+    val forecast: com.ternparagliding.utils.io.WeatherForecast?,
+    // Launch geometry (elevation + orientation) for a site-aware Flyability read.
+    val siteContext: com.ternparagliding.weather.SiteContext? = null,
 )
 
 /**

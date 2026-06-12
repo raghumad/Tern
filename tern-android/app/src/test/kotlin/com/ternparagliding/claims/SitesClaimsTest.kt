@@ -2,6 +2,8 @@ package com.ternparagliding.claims
 
 import android.content.Context
 import com.ternparagliding.overlay.pgspot.overlayFeaturesToGeoJson
+import com.ternparagliding.overlay.pgspot.siteContextFromJsonProps
+import com.ternparagliding.weather.Octant
 import com.ternparagliding.utils.cache.GeoJsonUtils
 import com.ternparagliding.utils.cache.PGSpotCache
 import io.mockk.coEvery
@@ -128,6 +130,45 @@ class SitesClaimsTest {
             (it.properties?.get("name") as? JsonPrimitive)?.content
         }
         assertTrue("the site name must resolve for the marker (nested properties)", "Bir Launch" in names)
+    }
+
+    /**
+     * A site carrying PGE launch geometry: takeoff_altitude (m) + orientation octants.
+     * PGE sends these as JSON **strings** (`"takeoff_altitude":"1905"`, `"W":"0"`), so we
+     * emit them that way — the round-trip must tolerate the real wire shape, not a tidied one.
+     */
+    private fun siteWithGeometry(
+        lat: Double, lon: Double, name: String, altM: Int, octants: Map<String, Int>,
+    ): String {
+        val oct = octants.entries.joinToString(",") { "\"${it.key}\":\"${it.value}\"" }
+        return """{"type":"Feature","geometry":{"type":"Point","coordinates":[$lon,$lat]},""" +
+            """"properties":{"name":"$name","takeoff_altitude":"$altM",$oct}}"""
+    }
+
+    /**
+     * **CLAIM K3×K4 · Site geometry survives the round-trip.** PGE's launch elevation
+     * and orientation octants must reach the tap intact — download → cache (FlexBuffer)
+     * → query → GeoJSON → [siteContextFromJsonProps] — or site-aware Flyability silently
+     * degrades to generic. Locks the full data path the device depends on.
+     */
+    @Test
+    fun `correct - PGE launch geometry round-trips into a SiteContext`() {
+        prefetch(
+            "IN",
+            siteWithGeometry(32.20, 76.70, "Billing", 2400, mapOf("W" to 2, "SW" to 1, "N" to 0)),
+            site(32.22, 76.70, "B"), site(32.24, 76.70, "C"),
+            site(32.26, 76.70, "D"), site(32.28, 76.70, "E"),
+        )
+
+        val served = cache.queryAllCachedNearby(GeoPoint(32.20, 76.70), 30.0)
+        val billing = overlayFeaturesToGeoJson(served).features.first {
+            (it.properties?.get("name") as? JsonPrimitive)?.content == "Billing"
+        }
+        val ctx = siteContextFromJsonProps(billing.properties)
+        assertEquals("launch elevation must survive the cache round-trip", 2400.0, ctx.elevationM!!, 0.01)
+        assertEquals("orientation must survive", 2, ctx.orientations[Octant.W])
+        assertEquals(1, ctx.orientations[Octant.SW])
+        assertEquals(0, ctx.orientations[Octant.N])
     }
 
     /**

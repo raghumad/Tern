@@ -19,3 +19,17 @@ fun Map<String, Any>.nestedProperties(): Map<String, Any> =
 /** A string property, resolved nested `properties.<key>` first, then flat `<key>`. */
 fun Map<String, Any>.nestedOrFlatString(key: String): String? =
     (nestedProperties()[key] as? String) ?: (this[key] as? String)
+
+/**
+ * A numeric property, resolved nested `properties.<key>` first, then flat `<key>`.
+ * Tolerates values stored as numbers or numeric strings (PGE sends both across
+ * fields), returning null for anything non-numeric.
+ */
+fun Map<String, Any>.nestedOrFlatNumber(key: String): Double? {
+    val v = nestedProperties()[key] ?: this[key]
+    return when (v) {
+        is Number -> v.toDouble()
+        is String -> v.trim().toDoubleOrNull()
+        else -> null
+    }
+}

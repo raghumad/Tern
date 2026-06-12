@@ -56,6 +56,7 @@ private fun soonLabel(atMs: Long?): String {
 fun FlyabilityCard(
     outlook: FlyabilityOutlook,
     quality: FlyingQuality? = null,
+    site: com.ternparagliding.weather.SiteContext? = null,
     modifier: Modifier = Modifier,
 ) {
     val verdict = outlook.now.verdict
@@ -105,8 +106,13 @@ fun FlyabilityCard(
             quality?.let { q ->
                 Spacer(Modifier.height(8.dp))
                 val lid = if (q.cappedByInversion) " (inversion lid)" else ""
+                // Site-aware: when we know the launch elevation, read cloudbase as the
+                // working band above launch + MSL — the height the pilot actually has.
+                val base = site?.elevationM?.let {
+                    "cloudbase ~${q.cloudBaseM.toInt()} m above launch (~${(it + q.cloudBaseM).toInt()} m MSL)"
+                } ?: "cloudbase ~${q.cloudBaseM.toInt()} m"
                 Text(
-                    "thermals: ${q.thermal}$lid · cloudbase ~${q.cloudBaseM.toInt()} m",
+                    "thermals: ${q.thermal}$lid · $base",
                     style = MaterialTheme.typography.bodySmall,
                 )
             }

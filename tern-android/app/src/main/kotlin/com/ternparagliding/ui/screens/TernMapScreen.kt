@@ -247,6 +247,7 @@ fun TernMapScreen(
         WeatherDetailsDialog(
             forecast = dialogState.forecast ?: state.weatherState.spotWeathers[dialogState.pgSpotId],
             spotName = dialogState.spotName,
+            siteContext = dialogState.siteContext,
             isLoading = state.weatherState.fetchingSpots.contains(dialogState.pgSpotId),
             onDismiss = {
                 store.dispatch(WeatherActions.DismissWeatherDetails)

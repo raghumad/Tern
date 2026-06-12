@@ -115,7 +115,8 @@ fun weatherReducer(state: MapState, action: WeatherActions): MapState = when (ac
             showingWeatherDialog = WeatherDialogState(
                 pgSpotId = action.pgSpotId,
                 spotName = action.spotName,
-                forecast = action.forecast
+                forecast = action.forecast,
+                siteContext = action.siteContext,
             )
         )
         state.copy(weatherState = newWeatherState)

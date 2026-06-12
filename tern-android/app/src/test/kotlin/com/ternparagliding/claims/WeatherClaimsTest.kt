@@ -13,10 +13,14 @@ import com.ternparagliding.utils.io.WeatherAPI
 import com.ternparagliding.utils.io.WeatherData
 import com.ternparagliding.utils.io.WeatherForecast
 import com.ternparagliding.utils.io.WindData
+import com.ternparagliding.overlay.pgspot.siteContextOf
+import com.ternparagliding.weather.Octant
+import com.ternparagliding.weather.SiteContext
 import com.ternparagliding.weather.ThermalQuality
 import com.ternparagliding.weather.Verdict
 import com.ternparagliding.weather.WeatherSourcePolicy
 import com.ternparagliding.weather.assessFlyability
+import com.ternparagliding.weather.octantOf
 import com.ternparagliding.weather.assessOutlook
 import com.ternparagliding.weather.assessQuality
 import kotlinx.coroutines.runBlocking
@@ -427,6 +431,104 @@ class WeatherClaimsTest {
 
         // The full hourly series is carried (not just current).
         assertEquals(2, forecast.hourly.size)
+    }
+
+    /**
+     * **CLAIM K4×K3 · Site-aware Flyability (wind vs the hill).** A launch only works
+     * in certain wind directions (PGE orientation). With meaningful wind, a cross/behind
+     * wind is a no-go *for this launch* even when the air mass is otherwise GO — the
+     * unknown a weekend pilot can't compute. Light wind makes direction moot.
+     */
+    @Test
+    fun `site - wind on the hill vs cross-behind gates this launch`() {
+        // A west-facing launch: W ideal, SW/NW workable, everything else a no.
+        val westFacing = SiteContext(
+            elevationM = 1500.0,
+            orientations = mapOf(Octant.W to 2, Octant.SW to 1, Octant.NW to 1),
+        )
+        val benign = wx(windSpeed = 12.0, gust = 14.0, cape = 50.0) // air-mass GO
+
+        // Wind from the W (270°) → straight on the hill, no orientation downgrade.
+        assertEquals(Verdict.GO,
+            assessFlyability(benign.copy(wind = WindData(12.0, 270.0, 14.0)), site = westFacing).verdict)
+
+        // Wind from the N (0°) → cross/behind. The same air with no site reads GO,
+        // but THIS launch faces away → NO_GO. ("the air is flyable, but not here today")
+        val crossWind = benign.copy(wind = WindData(12.0, 0.0, 14.0))
+        assertEquals("air alone is flyable", Verdict.GO, assessFlyability(crossWind).verdict)
+        assertEquals("but this launch faces away from a N wind", Verdict.NO_GO,
+            assessFlyability(crossWind, site = westFacing).verdict)
+
+        // Wind from the SW (225°, workable = 1) → CAUTION.
+        assertEquals(Verdict.CAUTION,
+            assessFlyability(benign.copy(wind = WindData(12.0, 225.0, 14.0)), site = westFacing).verdict)
+
+        // Light wind (3 kt) from the "wrong" N → direction no longer matters.
+        assertEquals(Verdict.GO,
+            assessFlyability(benign.copy(wind = WindData(3.0, 0.0, 4.0)), site = westFacing).verdict)
+    }
+
+    /**
+     * **CLAIM K4×K3 · Site-aware Flyability (cloudbase vs launch).** A base sitting at
+     * launch height means launching into cloud — a no-go. The quality read expresses
+     * cloudbase relative to the launch (height above launch + MSL) when elevation is known.
+     */
+    @Test
+    fun `site - cloudbase at launch height is in-cloud, quality reads relative to launch`() {
+        val site = SiteContext(elevationM = 1500.0, orientations = mapOf(Octant.W to 2))
+        // Very humid → LCL only ~50 m above launch → likely in cloud.
+        val humid = wx(windSpeed = 8.0, gust = 9.0, windDir = 270.0, humidity = 98.0, cape = 0.0)
+
+        val fly = assessFlyability(humid, site = site)
+        assertEquals(Verdict.NO_GO, fly.verdict)
+        assertTrue("must name the cloudbase reason", fly.reasons.any { it.factor == "cloudbase" })
+
+        // Same humid air with no site context: cloudbase isn't a safety gate → GO.
+        assertEquals(Verdict.GO, assessFlyability(humid).verdict)
+
+        // Quality expresses cloudbase relative to launch + MSL.
+        val q = assessQuality(humid, site = site)
+        assertTrue("quality note expresses cloudbase above launch in MSL",
+            q.notes.any { it.contains("MSL") && it.contains("launch") })
+    }
+
+    /** **CLAIM K4×K3 · Site context.** The wind-from octant maps correctly (and wraps). */
+    @Test
+    fun `site - wind-from direction maps to the right octant`() {
+        assertEquals(Octant.N, octantOf(0.0))
+        assertEquals(Octant.N, octantOf(359.0))
+        assertEquals(Octant.E, octantOf(90.0))
+        assertEquals(Octant.SW, octantOf(235.0))
+        assertEquals(Octant.W, octantOf(270.0))
+        assertEquals(Octant.N, octantOf(720.0)) // wraps past 360
+    }
+
+    /**
+     * **CLAIM K3×K4 · Site context parsing.** PGE's launch geometry (takeoff_altitude +
+     * the eight orientation octants) reads into a SiteContext — nested or flat, tolerating
+     * numeric strings, degrading cleanly on missing fields.
+     */
+    @Test
+    fun `site - PGE properties parse into a SiteContext`() {
+        val pge = mapOf<String, Any>(
+            "properties" to mapOf(
+                "name" to "Gringlay",
+                "takeoff_altitude" to 444,
+                "W" to 2, "SW" to 1, "NW" to "1", "N" to 0, // NW as a numeric string
+            )
+        )
+        val ctx = siteContextOf(pge)
+        assertEquals(444.0, ctx.elevationM!!, 0.01)
+        assertEquals(2, ctx.orientations[Octant.W])
+        assertEquals(1, ctx.orientations[Octant.SW])
+        assertEquals(1, ctx.orientations[Octant.NW]) // numeric string tolerated
+        assertEquals(0, ctx.orientations[Octant.N])
+        assertTrue(ctx.hasOrientation)
+
+        // Missing altitude / orientation degrade cleanly (no crash, no fake data).
+        val empty = siteContextOf(mapOf("properties" to mapOf("name" to "x")))
+        assertNull(empty.elevationM)
+        assertFalse(empty.hasOrientation)
     }
 
     /** A controllable WeatherAPI stand-in for the fallback tests. */

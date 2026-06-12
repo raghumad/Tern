@@ -14,6 +14,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import com.ternparagliding.R
+import com.ternparagliding.weather.SiteContext
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import org.maplibre.compose.expressions.ast.Expression
@@ -54,6 +55,11 @@ private const val S = 2.5f
 @Composable
 fun PgSpotLayer(
     featureCollection: FeatureCollection<Geometry, JsonObject>,
+    // Tapping a site is the weekend-pilot entry point to "is it flyable here?":
+    // the handler gets the spot's name, coordinates, and launch geometry (elevation +
+    // orientation, as a SiteContext) so the caller can fetch weather and open a
+    // *site-aware* Flyability read. Default no-op keeps previews/tests simple.
+    onSpotClick: (name: String, lat: Double, lng: Double, site: SiteContext) -> Unit = { _, _, _, _ -> },
 ) {
     val context = LocalContext.current
     val birdIcon = remember {
@@ -90,9 +96,9 @@ fun PgSpotLayer(
     // RFC 005 scaling: smaller at regional zoom, full size when zoomed in.
     val iconSize = step(
         zoom(),
-        const(0.55f),
-        8.0 to const(0.8f),
-        12.0 to const(1.0f),
+        const(0.4f),
+        8.0 to const(0.6f),
+        12.0 to const(0.75f),
     )
 
     org.maplibre.compose.layers.SymbolLayer(
@@ -101,6 +107,20 @@ fun PgSpotLayer(
         iconImage = iconImage,
         iconSize = iconSize,
         iconAllowOverlap = const(false),
+        onClick = { features ->
+            // The clicked feature carries the Point geometry + "name" property that
+            // overlayFeaturesToGeoJson wrote. Pull both and hand them up; consume the
+            // tap so it doesn't fall through to layers below (airspace, etc.).
+            val f = features.firstOrNull()
+            val pt = f?.geometry as? org.maplibre.spatialk.geojson.Point
+            if (pt != null) {
+                val name = (f.properties?.get("name") as? JsonPrimitive)?.content?.takeIf { it.isNotBlank() } ?: "Site"
+                onSpotClick(name, pt.coordinates.latitude, pt.coordinates.longitude, siteContextFromJsonProps(f.properties))
+                org.maplibre.compose.util.ClickResult.Consume
+            } else {
+                org.maplibre.compose.util.ClickResult.Pass
+            }
+        },
     )
 }
 

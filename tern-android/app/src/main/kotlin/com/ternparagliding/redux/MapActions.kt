@@ -170,7 +170,7 @@ sealed class WeatherActions : TernAction {
     data class SetWeatherDetailsEnabled(val enabled: Boolean) : WeatherActions()
 
     // UI controls for weather details
-    data class ShowWeatherDetails(val pgSpotId: String, val spotName: String, val forecast: com.ternparagliding.utils.io.WeatherForecast?) : WeatherActions()
+    data class ShowWeatherDetails(val pgSpotId: String, val spotName: String, val forecast: com.ternparagliding.utils.io.WeatherForecast?, val siteContext: com.ternparagliding.weather.SiteContext? = null) : WeatherActions()
     data object DismissWeatherDetails : WeatherActions()
 
     // Cache management

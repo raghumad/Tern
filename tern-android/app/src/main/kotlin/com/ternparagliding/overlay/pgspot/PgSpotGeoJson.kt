@@ -48,10 +48,15 @@ fun overlayFeaturesToGeoJson(
         val raw = overlay.feature
         val name = raw.nestedOrFlatString("name") ?: raw.nestedOrFlatString("label") ?: ""
         val siteType = raw.nestedOrFlatString("siteType") ?: ""
+        // Carry the launch geometry (PGE elevation + orientation octants) onto the
+        // feature so a tap can build a SiteContext for site-aware Flyability without
+        // re-reading the cache. The map renderer ignores these; the tap handler reads them.
+        val siteProps = siteContextOf(raw).toMapLibreProps()
         val geoProps = JsonObject(
             buildMap {
                 put("name", JsonPrimitive(name))
                 if (siteType.isNotEmpty()) put("siteType", JsonPrimitive(siteType))
+                putAll(siteProps)
             }
         )
         Feature<Geometry, JsonObject>(point, geoProps)

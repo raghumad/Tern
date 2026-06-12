@@ -143,6 +143,15 @@ placeholders for you to set.
   10 m wind + precip (Jackson-serialized, ETA-interpolated). `[HELD]` —
   `WeatherClaimsTest` (gust factor & gradient · precip). *Also fixed:* visibility
   was compared as metres but the model stores km (latent false-no-go).
+- **Site-aware (K3×K4):** Flyability joins the launch geometry to the air mass — a
+  launch only works in certain wind directions (PGE orientation octants), so a
+  cross/behind wind is a no-go *for this launch* even when the air is otherwise GO
+  ("the air's flyable, but not here today"); and cloudbase is read relative to the
+  launch (height above launch + MSL), with a base at launch height flagged as
+  in-cloud. `[HELD]` — `WeatherClaimsTest` (site ×4: wind-vs-hill · cloudbase-vs-launch
+  · octant mapping · PGE→SiteContext parse). `SiteContext` + `assessFlyability(…, site)`;
+  PGE fields threaded `PgSpotGeoJson → tap → dialog`. *Objective geometry only — stays
+  off the subjective pilot-skill line.*
 - **Thermal outlook:** lapse rate → expected climb rate / overdevelopment time.
   `[GAP]` Lapse rate is computed but never turned into a thermal forecast.
 - **Source policy:** per-country best free model (HRRR/AROME/ICON-D2) + refresh

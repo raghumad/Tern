@@ -12,6 +12,7 @@ import com.ternparagliding.overlay.priority.OverlayPrioritizer
 import com.ternparagliding.overlay.priority.Position
 import com.ternparagliding.redux.MapAction
 import com.ternparagliding.redux.MapStore
+import com.ternparagliding.redux.WeatherActions
 import com.ternparagliding.utils.cache.CacheManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.conflate
@@ -97,7 +98,19 @@ fun PgSpotOverlay(
             }
     }
 
-    PgSpotLayer(featureCollection = state.pgSpotGeoJson ?: EMPTY_PG_SPOT_COLLECTION)
+    PgSpotLayer(
+        featureCollection = state.pgSpotGeoJson ?: EMPTY_PG_SPOT_COLLECTION,
+        onSpotClick = { name, lat, lng, site ->
+            // Open the weather/Flyability dialog immediately (loading), then kick the
+            // on-demand fetch. The whole downstream chain already exists:
+            // FetchWeatherForPGSpot → WeatherMiddleware → WeatherFetched →
+            // spotWeathers[id], which the dialog reads to render the FlyabilityCard.
+            // The launch geometry (site) rides along so the read is site-aware.
+            val id = "$name|$lat|$lng"
+            store.dispatch(WeatherActions.ShowWeatherDetails(id, name, null, site))
+            store.dispatch(WeatherActions.FetchWeatherForPGSpot(id, lat, lng))
+        },
+    )
 }
 
 /**

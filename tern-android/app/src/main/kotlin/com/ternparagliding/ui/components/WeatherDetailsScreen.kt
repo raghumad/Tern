@@ -45,6 +45,7 @@ fun WeatherDetailsDialog(
     forecast: WeatherForecast?,
     spotName: String = "Launch Site",
     targetArrivalTimestamp: Long? = null,
+    siteContext: com.ternparagliding.weather.SiteContext? = null,
     isLoading: Boolean = false,
     onDismiss: () -> Unit = {}
 ) {
@@ -83,7 +84,7 @@ fun WeatherDetailsDialog(
                     textAlign = TextAlign.Center
                 )
             } else {
-                WeatherContent(forecast, targetArrivalTimestamp)
+                WeatherContent(forecast, targetArrivalTimestamp, siteContext)
             }
         },
         confirmButton = {
@@ -98,7 +99,11 @@ fun WeatherDetailsDialog(
  * Weather Content - Scrollable weather details
  */
 @Composable
-private fun WeatherContent(forecast: WeatherForecast, targetTimestamp: Long?) {
+private fun WeatherContent(
+    forecast: WeatherForecast,
+    targetTimestamp: Long?,
+    siteContext: com.ternparagliding.weather.SiteContext? = null,
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -129,8 +134,9 @@ private fun WeatherContent(forecast: WeatherForecast, targetTimestamp: Long?) {
         // Flyability — the headline read: is it flyable here, now and soon?
         forecast.current?.let { nowWeather ->
             FlyabilityCard(
-                outlook = assessOutlook(forecast),
-                quality = assessQuality(nowWeather),
+                outlook = assessOutlook(forecast, site = siteContext),
+                quality = assessQuality(nowWeather, site = siteContext),
+                site = siteContext,
                 modifier = Modifier.padding(bottom = 16.dp),
             )
         }
