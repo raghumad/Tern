@@ -171,6 +171,7 @@ fun OrientationCard(site: SiteContext, weather: WeatherData, units: UnitPrefs, m
     val score = site.orientations[from] ?: 0
 
     val (verdict, color) = when {
+        !site.hasOrientation -> "Launch orientation unknown" to MaterialTheme.colorScheme.onSurfaceVariant
         windSpeedKt < ORIENTATION_MIN_WIND_KT -> "Light wind — direction moot" to MaterialTheme.colorScheme.onSurfaceVariant
         score >= 2 -> "Wind on the hill" to IDEAL
         score == 1 -> "Workable — not straight on" to WORKABLE
@@ -196,11 +197,19 @@ fun OrientationCard(site: SiteContext, weather: WeatherData, units: UnitPrefs, m
                 Spacer(Modifier.height(6.dp))
                 Text(verdict, color = color, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
                 Spacer(Modifier.height(8.dp))
-                if (good.isNotEmpty()) {
-                    Text("Flies: $good", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                if (marginal.isNotEmpty()) {
-                    Text("Marginal: $marginal", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (site.hasOrientation) {
+                    if (good.isNotEmpty()) {
+                        Text("Flies: $good", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    if (marginal.isNotEmpty()) {
+                        Text("Marginal: $marginal", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                } else {
+                    Text(
+                        "Not recorded on Paragliding Earth — check the slope yourself.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
                 Text("${Units.speed(windSpeedKt, units.speed)} from ${windFrom.toInt()}° ($from)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }

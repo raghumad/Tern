@@ -192,8 +192,10 @@ private fun WeatherContent(
             SoarableCard(day, units, modifier = Modifier.padding(bottom = 16.dp))
         }
 
-        // Launch orientation — wind vs the site's flyable arc (only when PGE gives it).
-        if (siteContext != null && siteContext.hasOrientation) {
+        // Launch orientation + wind. Shown for any tapped site: with the flyable arc when
+        // PGE records it, otherwise the wind dial alone with an "orientation unknown" note
+        // (never silently hide it and imply the launch is fine).
+        if (siteContext != null) {
             forecast.current?.let { now ->
                 OrientationCard(siteContext, now, units, modifier = Modifier.padding(bottom = 16.dp))
             }
