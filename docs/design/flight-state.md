@@ -3,6 +3,15 @@
 > **Status: DRAFT v0** — design for review before code. Edit freely. This is the
 > structure the vario, the inferences, landing detection, the recorder, the map,
 > and Spedmo all read from. Get it right once; everything bolts onto it.
+>
+> **Build started (2026-06).** The near-term sensor source is decided: an **XC Tracer
+> vario over BLE** (it does inertial+baro fusion on-device and emits a `$XCTRC` stream of
+> position, pressure-alt, fused climb, and attitude), ingested as a second peripheral beside
+> the LoRa board — so the `EXTERNAL_BLE` source below is the *primary* near-term input, not a
+> "later." Brains-first, like the weather arc. **Shipped:** the `wind` channel's estimator —
+> `flight/WindEstimator.kt`, wind-from-drift while circling, claim-tested (K7 · 3 HELD) per
+> open decision #4's plan (replay a real IGC flight, assert). **Next:** the `$XCTRC` parser
+> and the baro+GPS Kalman `verticalSpeed` (the vario), then wire `FlightState` into Redux.
 
 ## Why this is the keystone
 

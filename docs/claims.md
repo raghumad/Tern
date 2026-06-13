@@ -193,6 +193,32 @@ placeholders for you to set.
 - **Resilient:** a malformed task import is rejected gracefully (null, no crash);
   a missing route degrades to null. `[HELD]` — `RouteClaimsTest.resilient`.
 
+### K7 — Flight state / wind  *(JVM, via WindEstimator; IGC replay)*
+
+> The fused flight-state keystone — see [design/flight-state.md](design/flight-state.md).
+> First brain shipped: **wind from drift while circling**, the estimate the orientation
+> dial / compass rosette wants and the airplane "groundspeed − airspeed" trick can't give a
+> paraglider. Pure math over a `(time, lat, lon)` stream — phone GPS today, an XC Tracer
+> tomorrow — so it's claim-tested offline against real flights.
+
+- **Correct:** a glider circling at a known airspeed in a known wind has its wind
+  recovered (speed + *from* direction) by the velocity-space circle fit. `[HELD]` —
+  `FlightStateClaimsTest.correct` (synthetic drifting circle: 10 m/s air, 4 m/s @ 240°,
+  recovered to ±0.6 m/s / ±8°).
+- **Resilient (honesty):** a straight glide has no circle to fit, so the estimate is
+  **withheld** rather than reporting noise as wind. `[HELD]` —
+  `FlightStateClaimsTest.resilient` (straight cruise ⇒ null; phase = STRAIGHT).
+- **Resilient (real flight):** a real Bir Billing thermalling track replayed from IGC
+  yields stable, plausible reads — ≥95 % of confident reads carry a paraglider's airspeed
+  (median ≈10.5 m/s), adjacent circles agree (median direction step <20°), non-circling
+  stretches are withheld, and the wind is allowed to *veer* SW→NW over the flight (real, not
+  asserted constant). `[HELD]` — `FlightStateClaimsTest` real-thermal replay.
+- **Timely (vario):** `[GAP]` — fused vertical speed (baro+GPS Kalman, < 100 ms to display)
+  is designed (flight-state.md) but not built. The XC Tracer hands us a fused climb directly;
+  ingest is the next brain.
+- **Correct (sensor ingest):** `[GAP]` — XC Tracer `$XCTRC` over BLE (position, pressure-alt,
+  fused climb, attitude) as a second peripheral alongside the LoRa board — not yet wired.
+
 ## The Claims Report (replaces the dashboard)
 
 For each claim: `HELD` / `BROKEN` + a one-line evidence narrative, e.g.

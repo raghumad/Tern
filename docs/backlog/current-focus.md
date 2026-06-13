@@ -140,13 +140,20 @@ honest *as* it's fixed.
   (bottom sheet · soarable card · **orientation dial w/ wind barbs** · 48 h chart with
   soarable shading + gust envelope + value axes). Spedmo's soarable API is parked as
   Story 3.10 (our offline scan is tuned to agree with it).
-- **Next: re-envision the map-screen UI** (flight deck) — see
-  [../design/flight-deck-ui.md](../design/flight-deck-ui.md): the compass rosette grows
-  into the deck's primary instrument (heading/track + wind, adopting the orientation-dial
-  language), the shelf becomes mode-aware, plus quick-wins (compass tap-to-north, recenter
-  button, share icon). Other open gaps: **FAI editor (#3)**, **overlay tap/select on dense
-  clusters (#5)** (PG-spot tap shipped this round), **K2 airspace-ahead (Timely)**,
-  **K4 thermal outlook**, **K4 Skew-T plot**.
+- **In progress: the flight-deck brains (K7), then the map-hero UI.** Decision (2026-06):
+  the flight deck is **map-hero** (map stays the hero; instruments frame it, not a Dynon-style
+  panel split), driven by an **XC Tracer vario over BLE** as the near-term sensor source
+  (before Mezulla v2). Brains-first, mirroring the weather arc. **First brain shipped:**
+  `WindEstimator` — wind from drift while circling (velocity-space circle fit), claim-tested
+  against a synthetic circle and a real Bir Billing thermal replay (K7 · 3 HELD). **Next
+  brains:** XC Tracer `$XCTRC` BLE ingest (a 2nd peripheral beside the LoRa board) →
+  `FlightState`/`Measured` fusion (vario = baro+GPS Kalman) → then fold wind into the compass
+  rosette and add the vario/altitude/glide instrument bands. See
+  [../design/flight-state.md](../design/flight-state.md) and
+  [../design/flight-deck-ui.md](../design/flight-deck-ui.md).
+- **Other open gaps:** **FAI editor (#3)**, **overlay tap/select on dense clusters (#5)**
+  (PG-spot tap shipped), **K2 airspace-ahead (Timely)**, **K4 thermal outlook**, **K4 Skew-T
+  plot**, plus the UI quick-wins (compass tap-to-north, recenter button, share icon).
 
 ### Phase 3 — Stability hardening
 
