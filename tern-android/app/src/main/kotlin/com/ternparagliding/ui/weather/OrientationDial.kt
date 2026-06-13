@@ -46,8 +46,9 @@ private const val ORIENTATION_MIN_WIND_KT = 3.0 // mirrors FlyabilityLimits
 
 /**
  * Wind-vs-launch at a glance: a compass ring with each octant tinted by the site's
- * flyability (green = ideal, amber = workable, faint = no), and a needle at the wind's
- * **from** direction. Needle in a green sector → the wind is on the hill. This is the
+ * flyability (green = ideal, amber = workable, faint = no), and an arrow streaming in
+ * from the wind's **from** side, pointing downwind (a west wind comes in from the left,
+ * arrow east). Its tail sits in the from-sector — green tail → on the hill. This is the
  * gauge re-pointed at the question that matters — not a speed dial. Pairs the PGE
  * orientation data with the live wind, the same join the Flyability verdict makes.
  */
@@ -99,23 +100,28 @@ fun OrientationDial(
                 drawText(lay, topLeft = Offset(pos.x - lay.size.width / 2f, pos.y - lay.size.height / 2f))
             }
 
-            // Needle → the wind's from-direction. Tip lands in the sector the wind comes from.
+            // Incoming-wind arrow: it streams IN from the wind's from-side and points
+            // downwind (the way the wind travels) — a west wind comes in from the left
+            // and points east. The tail sits in the from-sector (what the verdict reads).
             val nrad = Math.toRadians((windFromDeg - 90f))
-            val tipR = ringMid - ringThickness / 2f - 2.dp.toPx()
-            val tip = Offset(c.x + tipR * cos(nrad).toFloat(), c.y + tipR * sin(nrad).toFloat())
+            val ux = cos(nrad).toFloat()
+            val uy = sin(nrad).toFloat()
+            val tailR = ringMid - ringThickness / 2f - 3.dp.toPx() // rim, from-side
+            val headR = r * 0.30f                                  // near centre, downwind
+            val tail = Offset(c.x + tailR * ux, c.y + tailR * uy)
+            val tip = Offset(c.x + headR * ux, c.y + headR * uy)
             val sw = 2.5.dp.toPx()
-            drawLine(needleColor, c, tip, strokeWidth = sw, cap = StrokeCap.Round)
-            // Arrowhead.
+            drawLine(needleColor, tail, tip, strokeWidth = sw, cap = StrokeCap.Round)
+            // Arrowhead at the tip, barbs opening back toward the tail.
             val headLen = 7.dp.toPx()
             for (off in listOf(-0.4, 0.4)) {
                 val a = nrad + off
                 drawLine(
                     needleColor, tip,
-                    Offset(tip.x - headLen * cos(a).toFloat(), tip.y - headLen * sin(a).toFloat()),
+                    Offset(tip.x + headLen * cos(a).toFloat(), tip.y + headLen * sin(a).toFloat()),
                     strokeWidth = sw, cap = StrokeCap.Round,
                 )
             }
-            drawCircle(needleColor, radius = 3.dp.toPx(), center = c)
         }
 
         Text(
