@@ -63,6 +63,19 @@ object WindEstimator {
     enum class FlightPhase { UNKNOWN, STRAIGHT, CIRCLING }
 
     /**
+     * One ground-velocity sample between consecutive fixes (east/north m/s, time-stamped).
+     * Exposed because the flight deck wants ground speed/track directly, and because
+     * cross-method wind validation needs the same raw velocities the circle fit consumes.
+     */
+    data class GroundVel(val timeMs: Long, val east: Double, val north: Double) {
+        val speedMs: Double get() = hypot(east, north)
+        val trackDeg: Double get() = normalizeDeg(Math.toDegrees(atan2(east, north)))
+    }
+
+    /** Ground-velocity vectors between consecutive fixes in the window. */
+    fun groundVelocities(samples: List<TrackSample>): List<GroundVel> = velocities(samples)
+
+    /**
      * Estimate the wind from one window of consecutive track samples (typically the last
      * ~20–40 s). Returns null when the window doesn't describe a trustworthy circle — too
      * few samples, too little of the turn swept, or an implausible airspeed.
@@ -115,9 +128,9 @@ object WindEstimator {
     // ── internals ──────────────────────────────────────────────────────────────────
 
     /** Ground-velocity vectors (east, north m/s) between consecutive fixes. */
-    private fun velocities(samples: List<TrackSample>): List<Vel> {
+    private fun velocities(samples: List<TrackSample>): List<GroundVel> {
         if (samples.size < 2) return emptyList()
-        val out = ArrayList<Vel>(samples.size - 1)
+        val out = ArrayList<GroundVel>(samples.size - 1)
         for (i in 1 until samples.size) {
             val a = samples[i - 1]
             val b = samples[i]
@@ -126,18 +139,16 @@ object WindEstimator {
             val latMean = Math.toRadians((a.lat + b.lat) / 2.0)
             val dEast = Math.toRadians(b.lon - a.lon) * cos(latMean) * EARTH_R_M
             val dNorth = Math.toRadians(b.lat - a.lat) * EARTH_R_M
-            out.add(Vel(dEast / dtS, dNorth / dtS))
+            out.add(GroundVel(b.timeMs, dEast / dtS, dNorth / dtS))
         }
         return out
     }
 
-    private data class Vel(val e: Double, val n: Double)
-
     /** Largest swept arc (360° − biggest gap) over the velocity directions. */
-    private fun angularCoverageDeg(vels: List<Vel>): Double {
+    private fun angularCoverageDeg(vels: List<GroundVel>): Double {
         if (vels.size < 2) return 0.0
         val angles = vels
-            .map { normalizeDeg(Math.toDegrees(atan2(it.e, it.n))) }
+            .map { it.trackDeg }
             .sorted()
         var maxGap = 0.0
         for (i in 1 until angles.size) maxGap = maxOf(maxGap, angles[i] - angles[i - 1])
@@ -147,13 +158,13 @@ object WindEstimator {
     }
 
     /** Algebraic (Kåsa) least-squares circle fit. Returns (centreEast, centreNorth, radius). */
-    private fun fitCircle(vels: List<Vel>): Triple<Double, Double, Double>? {
+    private fun fitCircle(vels: List<GroundVel>): Triple<Double, Double, Double>? {
         // Fit x²+y² = a·x + b·y + c ; centre = (a/2, b/2), r² = c + a²/4 + b²/4.
         var sx = 0.0; var sy = 0.0; var sxx = 0.0; var syy = 0.0; var sxy = 0.0
         var sxz = 0.0; var syz = 0.0; var sz = 0.0
         val n = vels.size.toDouble()
         for (v in vels) {
-            val x = v.e; val y = v.n; val z = x * x + y * y
+            val x = v.east; val y = v.north; val z = x * x + y * y
             sx += x; sy += y; sxx += x * x; syy += y * y; sxy += x * y
             sxz += x * z; syz += y * z; sz += z
         }
@@ -172,10 +183,10 @@ object WindEstimator {
     }
 
     /** RMS distance of the velocity points from the fitted circle. */
-    private fun fitResidual(vels: List<Vel>, cE: Double, cN: Double, r: Double): Double {
+    private fun fitResidual(vels: List<GroundVel>, cE: Double, cN: Double, r: Double): Double {
         var acc = 0.0
         for (v in vels) {
-            val d = hypot(v.e - cE, v.n - cN) - r
+            val d = hypot(v.east - cE, v.north - cN) - r
             acc += d * d
         }
         return sqrt(acc / vels.size)
