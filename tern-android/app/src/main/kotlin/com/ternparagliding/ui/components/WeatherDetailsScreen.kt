@@ -184,9 +184,23 @@ private fun WeatherContent(
             )
         }
 
-        // "When today" — the soarable window + daily digest (under the now-verdict).
-        assessSoarableDays(forecast, site = siteContext, maxDays = 1).firstOrNull()?.let { day ->
+        // "When today" — the soarable window + digest, then the 48 h chart with the
+        // soarable windows shaded. Compute the days once and share.
+        val soarableDays = assessSoarableDays(forecast, site = siteContext, maxDays = 2)
+        soarableDays.firstOrNull()?.let { day ->
             SoarableCard(day, units, modifier = Modifier.padding(bottom = 16.dp))
+        }
+        if (forecast.hourly.size >= 2) {
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+            ) {
+                Column(Modifier.padding(16.dp)) {
+                    Text("Next 48 hours", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(12.dp))
+                    com.ternparagliding.ui.weather.SoarableChart(forecast.hourly, soarableDays, units)
+                }
+            }
         }
 
         // Compute Skew-T data before branching so it's available in outer scope
