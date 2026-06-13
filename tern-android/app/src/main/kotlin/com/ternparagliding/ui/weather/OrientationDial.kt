@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.TextStyle
@@ -38,6 +39,7 @@ import com.ternparagliding.weather.Octant
 import com.ternparagliding.weather.SiteContext
 import com.ternparagliding.weather.octantOf
 import kotlin.math.cos
+import kotlin.math.roundToInt
 import kotlin.math.sin
 
 private val IDEAL = Color(0xFF22C55E)   // score 2
@@ -56,7 +58,7 @@ private const val ORIENTATION_MIN_WIND_KT = 3.0 // mirrors FlyabilityLimits
 fun OrientationDial(
     orientations: Map<Octant, Int>,
     windFromDeg: Double,
-    centerLabel: String,
+    windSpeedKt: Double,
     modifier: Modifier = Modifier,
     diameter: Dp = 132.dp,
 ) {
@@ -101,13 +103,13 @@ fun OrientationDial(
             }
 
             // Incoming-wind arrow: it streams IN from the wind's from-side and points
-            // downwind (the way the wind travels) — a west wind comes in from the left
-            // and points east. The tail sits in the from-sector (what the verdict reads).
+            // downwind (a west wind comes in from the left, arrow east). The tail sits in
+            // the from-sector (what the verdict reads); wind barbs ride the tail (knots).
             val nrad = Math.toRadians((windFromDeg - 90f))
             val ux = cos(nrad).toFloat()
             val uy = sin(nrad).toFloat()
-            val tailR = ringMid - ringThickness / 2f - 3.dp.toPx() // rim, from-side
-            val headR = r * 0.30f                                  // near centre, downwind
+            val tailR = ringMid - ringThickness / 2f - 5.dp.toPx() // rim, from-side
+            val headR = r * 0.12f                                  // near centre, downwind
             val tail = Offset(c.x + tailR * ux, c.y + tailR * uy)
             val tip = Offset(c.x + headR * ux, c.y + headR * uy)
             val sw = 2.5.dp.toPx()
@@ -122,15 +124,38 @@ fun OrientationDial(
                     strokeWidth = sw, cap = StrokeCap.Round,
                 )
             }
-        }
 
-        Text(
-            centerLabel,
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(top = (diameter.value * 0.42f).dp),
-        )
+            // Wind barbs at the tail (knots — the standard read: full = 10, half = 5,
+            // pennant = 50). They stack from the tail inward along the shaft.
+            val s = Offset(-ux, -uy) // tail → tip (downwind) unit vector
+            fun rot(v: Offset, deg: Double): Offset {
+                val a = Math.toRadians(deg); val ca = cos(a).toFloat(); val sa = sin(a).toFloat()
+                return Offset(v.x * ca - v.y * sa, v.x * sa + v.y * ca)
+            }
+            val barbDir = rot(s, 125.0) // back-and-to-one-side
+            val fullLen = 9.dp.toPx(); val halfLen = 4.5.dp.toPx(); val stepPx = 5.dp.toPx()
+            val barbSw = sw * 0.85f
+            var spd = (windSpeedKt / 5.0).roundToInt() * 5
+            val pennants = spd / 50; spd -= pennants * 50
+            val fulls = spd / 10; spd -= fulls * 10
+            val halves = spd / 5
+            var d = stepPx * 0.6f
+            repeat(pennants) {
+                val b0 = tail + s * d; val b1 = tail + s * (d + stepPx * 1.1f); val o = b0 + barbDir * fullLen
+                drawPath(Path().apply { moveTo(b0.x, b0.y); lineTo(b1.x, b1.y); lineTo(o.x, o.y); close() }, needleColor)
+                d += stepPx * 1.4f
+            }
+            repeat(fulls) {
+                val b = tail + s * d
+                drawLine(needleColor, b, b + barbDir * fullLen, strokeWidth = barbSw, cap = StrokeCap.Round)
+                d += stepPx
+            }
+            repeat(halves) {
+                val b = tail + s * d
+                drawLine(needleColor, b, b + barbDir * halfLen, strokeWidth = barbSw, cap = StrokeCap.Round)
+                d += stepPx
+            }
+        }
     }
 }
 
@@ -163,7 +188,7 @@ fun OrientationCard(site: SiteContext, weather: WeatherData, units: UnitPrefs, m
             OrientationDial(
                 orientations = site.orientations,
                 windFromDeg = windFrom,
-                centerLabel = Units.speed(windSpeedKt, units.speed),
+                windSpeedKt = windSpeedKt,
             )
             Spacer(Modifier.width(16.dp))
             Column {
@@ -177,7 +202,7 @@ fun OrientationCard(site: SiteContext, weather: WeatherData, units: UnitPrefs, m
                 if (marginal.isNotEmpty()) {
                     Text("Marginal: $marginal", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                Text("Wind from ${windFrom.toInt()}° ($from)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("${Units.speed(windSpeedKt, units.speed)} from ${windFrom.toInt()}° ($from)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
