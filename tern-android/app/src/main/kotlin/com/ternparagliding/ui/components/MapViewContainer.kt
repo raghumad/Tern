@@ -37,6 +37,8 @@ import org.maplibre.compose.camera.CameraMoveReason
 import org.maplibre.compose.camera.CameraPosition
 import org.maplibre.compose.camera.rememberCameraState
 import org.maplibre.compose.map.MaplibreMap
+import org.maplibre.compose.map.MapOptions
+import org.maplibre.compose.map.OrnamentOptions
 import org.maplibre.compose.style.BaseStyle
 import org.maplibre.compose.util.ClickResult
 import org.maplibre.spatialk.geojson.Position
@@ -317,6 +319,9 @@ fun MapViewContainer(
                 .testTag("map_view"),
             mapStyleFor(state.mapStyle),
             cameraState,
+            // Disable MapLibre's native compass — we render our own (Compass) and the two
+            // overlapped at TopEnd on rotation. Keep the logo + attribution (OSM/Esri legal).
+            options = MapOptions(ornamentOptions = OrnamentOptions(isCompassEnabled = false)),
         ) {
             // Route overlay
             val visibleRoutes = state.routes.filter { it.isVisible }
@@ -375,7 +380,10 @@ fun MapViewContainer(
                 peerState = state.peerState,
             )
             if (state.compassVisible) {
-                Compass(rotation = state.rotation)
+                // The needle points to true north, so it rotates opposite the camera
+                // bearing (MapLibre bearing is clockwise from north): bearing 90° (facing
+                // east) → north is to the left → rotate −90°.
+                Compass(rotation = -state.rotation)
             }
         }
 
