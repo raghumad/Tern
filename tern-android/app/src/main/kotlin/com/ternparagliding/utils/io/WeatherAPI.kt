@@ -36,7 +36,8 @@ data class WeatherData(
     val temp925hPa: Double? = null, // °C at 925hPa pressure level (≈750m MSL)
     val cape: Double? = null,        // Convective Available Potential Energy (J/kg)
     val lightningPotential: Double? = null, // Storm potential
-    val windSpeed10m: Double? = null,       // 10m wind speed (knots) — for a clean gust factor & low-level gradient
+    val windSpeed10m: Double? = null,       // 10m wind speed (knots) — the surface wind a pilot feels at launch
+    val windDirection10m: Double? = null,   // 10m wind direction (°) — surface; drives the launch orientation check
     val precipProbability: Double? = null   // precipitation probability (%)
 )
 
@@ -376,6 +377,7 @@ class OpenMeteoWeatherAPI : WeatherAPI {
                 cape = capes?.firstOrNull()?.toDouble(),
                 lightningPotential = lightnings?.firstOrNull()?.toDouble(),
                 windSpeed10m = (hourly["wind_speed_10m"] as? List<Number>)?.firstOrNull()?.toDouble(),
+                windDirection10m = (hourly["wind_direction_10m"] as? List<Number>)?.firstOrNull()?.toDouble(),
                 precipProbability = (hourly["precipitation_probability"] as? List<Number>)?.firstOrNull()?.toDouble()
             )
         } catch (e: Exception) {
@@ -443,6 +445,7 @@ class OpenMeteoWeatherAPI : WeatherAPI {
                         cape = capes?.getOrNull(i)?.toDouble(),
                         lightningPotential = lightnings?.getOrNull(i)?.toDouble(),
                         windSpeed10m = (hourly["wind_speed_10m"] as? List<Number>)?.getOrNull(i)?.toDouble(),
+                        windDirection10m = (hourly["wind_direction_10m"] as? List<Number>)?.getOrNull(i)?.toDouble(),
                         precipProbability = (hourly["precipitation_probability"] as? List<Number>)?.getOrNull(i)?.toDouble()
                     )
 

@@ -151,8 +151,13 @@ fun assessFlyability(
         // Wind vs the hill: a launch only works in certain wind directions. With
         // meaningful wind, a cross/behind wind is a no-go *for this launch* even
         // if the air is otherwise fine — the unknown a novice can't compute.
-        if (s.hasOrientation && weather.wind.speed >= limits.orientationMinWindKt) {
-            val from = octantOf(weather.wind.direction)
+        // Use the SURFACE (10 m) wind — what hits the slope at launch — not the
+        // 80 m aloft wind (which the gradient calc uses); friction can veer them
+        // 20°+ apart, enough to flip the octant. Fall back to 80 m if 10 m absent.
+        val surfaceSpeed = weather.windSpeed10m ?: weather.wind.speed
+        val surfaceDir = weather.windDirection10m ?: weather.wind.direction
+        if (s.hasOrientation && surfaceSpeed >= limits.orientationMinWindKt) {
+            val from = octantOf(surfaceDir)
             when (s.orientations[from] ?: 0) {
                 0 -> reasons += FlyabilityReason(Verdict.NO_GO, "wind direction",
                         "$from wind is cross or behind this launch")

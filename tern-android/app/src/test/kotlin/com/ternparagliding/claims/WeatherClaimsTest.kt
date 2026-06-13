@@ -83,6 +83,7 @@ class WeatherClaimsTest {
         windDir: Double = 270.0,
         gust: Double = 15.0,
         windSpeed10m: Double? = null,
+        windDir10m: Double? = null,
         precip: Double? = null,
         tsMs: Long = System.currentTimeMillis(),
     ) = WeatherData(
@@ -90,7 +91,7 @@ class WeatherClaimsTest {
         temperature = 20.0, humidity = humidity, visibility = 10.0, // km
         pressure = 1013.0, cloudCover = cloud, timestamp = tsMs,
         cape = cape, lightningPotential = lightning,
-        windSpeed10m = windSpeed10m, precipProbability = precip,
+        windSpeed10m = windSpeed10m, windDirection10m = windDir10m, precipProbability = precip,
     )
 
     private fun period(weather: WeatherData, startMs: Long, text: String = "") =
@@ -513,6 +514,25 @@ class WeatherClaimsTest {
         val q = assessQuality(humid, site = site)
         assertTrue("quality note expresses cloudbase above launch in MSL",
             q.notes.any { it.contains("MSL") && it.contains("launch") })
+    }
+
+    /**
+     * **CLAIM K4×K3 · The orientation check follows the SURFACE wind.** Friction can
+     * veer the 10 m (what hits the launch) and 80 m (aloft) winds 20°+ apart — enough
+     * to flip the octant. The launch decision must use the wind the pilot actually
+     * feels, not the aloft wind (which is for the gradient).
+     */
+    @Test
+    fun `site - orientation uses the surface wind, not the 80m aloft wind`() {
+        val westFacing = SiteContext(orientations = mapOf(Octant.W to 2, Octant.SW to 1))
+        // Aloft (80 m) from the W (270°, ideal) but surface (10 m) from the S (180°, a no).
+        // Decision must follow the surface → NO_GO (if it wrongly used aloft it'd read GO).
+        val w = wx(
+            windSpeed = 12.0, windDir = 270.0,      // 80 m aloft → W, ideal
+            windSpeed10m = 10.0, windDir10m = 180.0, // 10 m surface → S, score 0
+            cape = 50.0, gust = 14.0,
+        )
+        assertEquals(Verdict.NO_GO, assessFlyability(w, site = westFacing).verdict)
     }
 
     /** **CLAIM K4×K3 · Site context.** The wind-from octant maps correctly (and wraps). */

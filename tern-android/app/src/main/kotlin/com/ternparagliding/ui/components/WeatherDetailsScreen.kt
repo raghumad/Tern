@@ -227,8 +227,19 @@ private fun CurrentWeatherCard(weather: WeatherData, units: UnitPrefs = UnitPref
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Wind (most important for paragliding)
-            WindDisplay(weather.wind.speed, weather.wind.direction, units)
+            // Wind (most important for paragliding). Surface (10 m) is the wind the
+            // pilot feels at launch → primary. The 80 m "aloft" wind (what wind.speed
+            // carries) is shown secondary; friction can veer the two apart.
+            val surfaceSpeed = weather.windSpeed10m ?: weather.wind.speed
+            val surfaceDir = weather.windDirection10m ?: weather.wind.direction
+            WindDisplay(surfaceSpeed, surfaceDir, units)
+            if (weather.windDirection10m != null) { // a genuine, distinct 80 m reading (Open-Meteo)
+                Text(
+                    "aloft ${Units.speed(weather.wind.speed, units.speed)} @ ${weather.wind.direction.toInt()}° · 80 m",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
 
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -279,9 +290,13 @@ private fun HourlyWeatherCard(period: ForecastPeriod, label: String, units: Unit
             style = MaterialTheme.typography.bodyMedium
         )
 
-        // Wind
+        // Wind (surface, for consistency with Current Conditions)
         Row(modifier = Modifier.weight(2f), verticalAlignment = Alignment.CenterVertically) {
-            WindDisplaySmall(period.weather.wind.speed, period.weather.wind.direction, period.weather.wind.gust, units)
+            WindDisplaySmall(
+                period.weather.windSpeed10m ?: period.weather.wind.speed,
+                period.weather.windDirection10m ?: period.weather.wind.direction,
+                period.weather.wind.gust, units,
+            )
         }
     }
 }
@@ -330,10 +345,14 @@ private fun DailyWeatherCard(period: ForecastPeriod, units: UnitPrefs = UnitPref
                 style = MaterialTheme.typography.bodyMedium
             )
 
-            // Wind
+            // Wind (surface)
             Row(modifier = Modifier.weight(2f), verticalAlignment = Alignment.CenterVertically) {
                 Spacer(modifier = Modifier.width(8.dp))
-                WindDisplaySmall(period.weather.wind.speed, period.weather.wind.direction, period.weather.wind.gust, units)
+                WindDisplaySmall(
+                    period.weather.windSpeed10m ?: period.weather.wind.speed,
+                    period.weather.windDirection10m ?: period.weather.wind.direction,
+                    period.weather.wind.gust, units,
+                )
             }
         }
     }

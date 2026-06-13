@@ -56,6 +56,16 @@ class WeatherCache(private val context: Context) {
             var direction = (startDir + diff * ratio) % 360.0
             if (direction < 0) direction += 360.0
             
+            // Circular interpolation for the 10m (surface) direction, when both present.
+            val dir10m: Double? = if (startW.windDirection10m != null && endW.windDirection10m != null) {
+                var d = (endW.windDirection10m - startW.windDirection10m) % 360.0
+                if (d < -180.0) d += 360.0
+                if (d > 180.0) d -= 360.0
+                var r = (startW.windDirection10m + d * ratio) % 360.0
+                if (r < 0) r += 360.0
+                r
+            } else startW.windDirection10m ?: endW.windDirection10m
+
             val temp = startW.temperature + (endW.temperature - startW.temperature) * ratio
             val humidity = startW.humidity + (endW.humidity - startW.humidity) * ratio
             val visibility = startW.visibility + (endW.visibility - startW.visibility) * ratio
@@ -86,6 +96,7 @@ class WeatherCache(private val context: Context) {
                 windSpeed10m = if (startW.windSpeed10m != null && endW.windSpeed10m != null)
                     startW.windSpeed10m + (endW.windSpeed10m - startW.windSpeed10m) * ratio
                 else startW.windSpeed10m ?: endW.windSpeed10m,
+                windDirection10m = dir10m,
                 precipProbability = if (startW.precipProbability != null && endW.precipProbability != null)
                     startW.precipProbability + (endW.precipProbability - startW.precipProbability) * ratio
                 else startW.precipProbability ?: endW.precipProbability
