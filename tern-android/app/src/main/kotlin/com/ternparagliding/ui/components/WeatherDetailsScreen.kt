@@ -24,6 +24,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import com.ternparagliding.ui.weather.FlyabilityCard
+import com.ternparagliding.ui.weather.OrientationCard
 import com.ternparagliding.ui.weather.SoarableCard
 import com.ternparagliding.weather.assessOutlook
 import com.ternparagliding.weather.assessQuality
@@ -190,6 +191,14 @@ private fun WeatherContent(
         soarableDays.firstOrNull()?.let { day ->
             SoarableCard(day, units, modifier = Modifier.padding(bottom = 16.dp))
         }
+
+        // Launch orientation — wind vs the site's flyable arc (only when PGE gives it).
+        if (siteContext != null && siteContext.hasOrientation) {
+            forecast.current?.let { now ->
+                OrientationCard(siteContext, now, units, modifier = Modifier.padding(bottom = 16.dp))
+            }
+        }
+
         if (forecast.hourly.size >= 2) {
             Card(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
