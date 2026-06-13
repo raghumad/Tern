@@ -1,6 +1,7 @@
 package com.ternparagliding.claims
 
 import com.ternparagliding.flight.CirclingWindTracker
+import com.ternparagliding.flight.IgcToXctrc
 import com.ternparagliding.flight.NmeaLineAssembler
 import com.ternparagliding.flight.SensorFix
 import com.ternparagliding.flight.WindEstimator
@@ -203,6 +204,44 @@ class FlightStateClaimsTest {
         assertEquals("UTC time incl. centiseconds", expectedMs, fix.timeMs)
         // It plugs into the wind brain unchanged.
         assertNotNull("a positioned fix yields a track sample", fix.toTrackSample())
+    }
+
+    /**
+     * **CLAIM K7 · Correct (flight replay through the parser).** A real Bir Billing flight,
+     * replayed as `$XCTRC` sentences (the own-ship replay vehicle) and run through the *actual*
+     * parse path, round-trips: every synthesized sentence parses, position/altitude match the
+     * IGC, and the parsed `SensorFix` stream still yields a plausible circling wind. This is the
+     * test vehicle the deck claims (averager, altitude-ref, glide) will ride on — they exercise
+     * the live pipeline, not a shortcut.
+     */
+    @Test
+    fun `correct - a real flight replays through the XCTRC parser end-to-end`() {
+        val text = javaClass.getResourceAsStream("/igc/flights/in/2025-10-11-birbilling-richard.igc")
+            ?.bufferedReader()?.use { it.readText() }
+        assertNotNull(text)
+        val flight = com.ternparagliding.sim.igc.IgcParser.parseString(text!!)
+        val validFixes = flight.fixes.filter { it.fixValid }
+        val sentences = IgcToXctrc.sentences(flight)
+        assertEquals("one sentence per valid fix", validFixes.size, sentences.size)
+
+        val parsed = sentences.mapNotNull { XcTracerParser.parse(it) }
+        assertEquals("every synthesized \$XCTRC parses (checksums valid)", sentences.size, parsed.size)
+
+        // Position/altitude round-trip on a mid-flight fix.
+        val k = validFixes.size / 2
+        assertEquals(validFixes[k].latitude, parsed[k].lat!!, 1e-5)
+        assertEquals(validFixes[k].longitude, parsed[k].lon!!, 1e-5)
+        assertEquals(validFixes[k].gpsAltitude.toDouble(), parsed[k].gpsAltitudeM!!, 0.1)
+
+        // End-to-end: the parsed stream still produces a plausible circling wind.
+        val tracker = CirclingWindTracker()
+        val winds = ArrayList<WindEstimator.WindEstimate>()
+        parsed.forEach { fix -> tracker.add(fix)?.let { winds.add(it) } }
+        assertTrue("replay through the parser yields wind estimates", winds.isNotEmpty())
+        assertTrue(
+            "and at least one carries a plausible PG airspeed",
+            winds.any { it.airspeedMs in 5.0..18.0 },
+        )
     }
 
     /**

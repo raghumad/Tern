@@ -245,6 +245,38 @@ placeholders for you to set.
   self-healed by auto-reconnect. Still to verify in flight: the live **wind** read (needs
   circling) and the phone-GPS hand-off under real movement.
 
+### K7 — Flight-deck UI build (claims queued — fix one-by-one)
+
+> The board tracks these GAP→HELD as each lands; BROKEN ≠ 0 means a regression. Each is a
+> pure-logic claim tested both synthetic-exact and via **IGC→`$XCTRC`→parser replay**
+> (`IgcToXctrc`, HELD round-trip) so it exercises the live pipeline, not a shortcut. `[smoke]`
+> items are Android/Compose, verified on-device, not on the JVM board.
+
+- **Correct (flight track):** own-position fixes accumulate into a decimated, ring-buffered
+  track (oldest dropped at the cap). `[GAP]`
+- **Correct (track tint):** a track segment's colour maps from its climb (green ≥ +0.2, red
+  ≤ −0.2, neutral between) — the thermal-map trail. `[GAP]`
+- **Correct (glide ratio):** L/D = ground speed / sink; withheld when climbing or sink ≈ 0;
+  clamped to a sane max. `[GAP]`
+- **Correct (thermal averager):** averaged climb over the configured window matches a known
+  series. `[GAP]`
+- **Correct (height-above-takeoff):** takeoff datum captured from the first fix; height =
+  altitude − datum. `[GAP]`
+- **Correct (HUD stage logic):** the cluster content selector — L/D shown iff gliding, ▲launch
+  iff climbing, cloudbase-gap iff known & near. `[GAP]`
+- **Correct (vario units):** m/s ↔ ft/min conversion + formatting via `Units`. `[GAP]`
+- **Correct (auto-zoom):** circling tighter than gliding; within gliding, faster ground speed
+  → wider; clamped to [min,max]. `[GAP]`
+- **Correct (keep-in-view):** the framing box includes own-position + next-WP + nearest buddy.
+  `[GAP]`
+- **Resilient (source ladder):** a positioned vario fix → source XC_TRACER; on link loss →
+  PHONE (reducer). `[GAP]`
+- **Resilient (device memory):** a remembered vario MAC persists and is offered next launch.
+  `[GAP]`
+- **Correct (altitude ref):** the readout switches MSL ↔ above-takeoff per the setting. `[GAP]`
+- *On-device `[smoke]` (not JVM claims):* flight-track map layer, HUD + vario-bar render,
+  rosette wind arrow, zoom→camera, connection pill.
+
 ## The Claims Report (replaces the dashboard)
 
 For each claim: `HELD` / `BROKEN` + a one-line evidence narrative, e.g.
