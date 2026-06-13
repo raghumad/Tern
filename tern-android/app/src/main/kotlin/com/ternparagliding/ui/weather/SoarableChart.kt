@@ -25,8 +25,13 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import kotlin.math.roundToInt
 import com.ternparagliding.units.UnitPrefs
 import com.ternparagliding.units.Units
 import com.ternparagliding.utils.io.ForecastPeriod
@@ -42,6 +47,7 @@ private val WIND_COLOR = Color(0xFF38BDF8) // sky blue — sustained wind
 private val GUST_COLOR = Color(0xFF7DD3FC) // light sky — gust (paired with wind)
 private val GO_SHADE = Color(0xFF22C55E)
 private val CAUTION_SHADE = Color(0xFFF59E0B)
+private val AXIS_INSET = androidx.compose.ui.unit.Dp(30f) // gutter for the value-axis numbers
 
 /**
  * The 24–48 h forecast at a glance — temperature and wind over time, a wind-direction
@@ -78,6 +84,8 @@ fun SoarableChart(
 
     val arrowColor = MaterialTheme.colorScheme.onSurfaceVariant
     val gridColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.12f)
+    val measurer = rememberTextMeasurer()
+    val axisStyle = remember { TextStyle(fontSize = 9.sp) }
 
     Column(modifier) {
         Row(
@@ -95,16 +103,20 @@ fun SoarableChart(
             val plotTop = 6.dp.toPx()
             val plotBottom = size.height - arrowBand
             val plotH = plotBottom - plotTop
-            val w = size.width
+            val leftInset = AXIS_INSET.toPx()   // wind axis (blue)
+            val rightInset = AXIS_INSET.toPx()  // temp axis (orange)
+            val plotLeft = leftInset
+            val plotRight = size.width - rightInset
+            val plotW = plotRight - plotLeft
 
-            fun xOf(ts: Long) = ((ts - tMin) / span) * w
+            fun xOf(ts: Long) = plotLeft + ((ts - tMin) / span) * plotW
             fun yTemp(v: Double) = plotBottom - ((v - tLo) / (tHi - tLo)).toFloat() * plotH
             fun yWind(v: Double) = plotBottom - (v / wHi).toFloat() * plotH
 
             // 1) Soarable shading — vertical green (GO) / amber (marginal) bands.
             for (day in days) for (win in day.windows) {
-                val x0 = xOf(win.startMs).coerceIn(0f, w)
-                val x1 = xOf(win.endMs).coerceIn(0f, w)
+                val x0 = xOf(win.startMs).coerceIn(plotLeft, plotRight)
+                val x1 = xOf(win.endMs).coerceIn(plotLeft, plotRight)
                 if (x1 > x0) drawRect(
                     color = (if (win.verdict == Verdict.GO) GO_SHADE else CAUTION_SHADE).copy(alpha = 0.16f),
                     topLeft = Offset(x0, plotTop),
@@ -112,7 +124,19 @@ fun SoarableChart(
                 )
             }
 
-            // 2) Day boundaries — faint vertical gridlines at local midnight.
+            // 2) Value axes — horizontal gridlines, wind numbers (blue) left, temp (orange) right.
+            val rows = 4
+            for (k in 0..rows) {
+                val y = plotTop + plotH * k / rows
+                drawLine(gridColor, Offset(plotLeft, y), Offset(plotRight, y), strokeWidth = 1f)
+                val frac = (plotBottom - y) / plotH
+                val wl = measurer.measure((frac * wHi).roundToInt().toString(), axisStyle.copy(color = WIND_COLOR))
+                drawText(wl, topLeft = Offset(plotLeft - 6.dp.toPx() - wl.size.width, y - wl.size.height / 2f))
+                val tl = measurer.measure((tLo + frac * (tHi - tLo)).roundToInt().toString(), axisStyle.copy(color = TEMP_COLOR))
+                drawText(tl, topLeft = Offset(plotRight + 6.dp.toPx(), y - tl.size.height / 2f))
+            }
+
+            // 3) Day boundaries — faint vertical gridlines at local midnight.
             run {
                 val dayMs = 86_400_000L
                 var d = ((tMin / dayMs) + 1) * dayMs
@@ -123,7 +147,7 @@ fun SoarableChart(
                 }
             }
 
-            // 3) Wind + gust. Fill the band between them — a wide band reads as gusty
+            // 4) Wind + gust. Fill the band between them — a wide band reads as gusty
             //    (turbulent) at a glance — then the gust line (dashed) over the wind line.
             val windPts = pts.indices.map { Offset(xOf(pts[it].startTime), yWind(winds[it])) }
             val gustPts = pts.indices.map { Offset(xOf(pts[it].startTime), yWind(gusts[it])) }
@@ -143,13 +167,13 @@ fun SoarableChart(
             )
             drawPath(linePath(windPts), color = WIND_COLOR, style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round))
 
-            // 4) Temperature line (over the wind family so it stays readable).
+            // 5) Temperature line (over the wind family so it stays readable).
             drawPath(
                 linePath(pts.indices.map { Offset(xOf(pts[it].startTime), yTemp(temps[it])) }),
                 color = TEMP_COLOR, style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round),
             )
 
-            // 5) Wind-direction arrows (every 3 h), pointing downwind.
+            // 6) Wind-direction arrows (every 3 h), pointing downwind.
             val ay = size.height - arrowBand / 2f
             val len = 10.dp.toPx()
             val sw = 1.5.dp.toPx()
@@ -164,8 +188,8 @@ fun SoarableChart(
             }
         }
 
-        // Time axis: 5 evenly spaced labels bracketing the range.
-        Row(Modifier.fillMaxWidth().padding(top = 4.dp)) {
+        // Time axis: 5 evenly spaced labels bracketing the range (inset to match the plot).
+        Row(Modifier.fillMaxWidth().padding(top = 4.dp).padding(horizontal = AXIS_INSET)) {
             val fractions = listOf(0f, 0.25f, 0.5f, 0.75f, 1f)
             fractions.forEachIndexed { idx, f ->
                 val ts = tMin + (span * f).toLong()
