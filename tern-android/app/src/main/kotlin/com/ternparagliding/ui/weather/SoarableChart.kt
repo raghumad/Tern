@@ -21,6 +21,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
@@ -37,7 +38,8 @@ import java.util.Locale
 import java.util.TimeZone
 
 private val TEMP_COLOR = Color(0xFFF97316) // orange
-private val WIND_COLOR = Color(0xFF38BDF8) // sky blue
+private val WIND_COLOR = Color(0xFF38BDF8) // sky blue — sustained wind
+private val GUST_COLOR = Color(0xFF7DD3FC) // light sky — gust (paired with wind)
 private val GO_SHADE = Color(0xFF22C55E)
 private val CAUTION_SHADE = Color(0xFFF59E0B)
 
@@ -69,9 +71,10 @@ fun SoarableChart(
     // Plot in the pilot's units so a future numeric axis stays consistent.
     val temps = pts.map { Units.tempValue(it.weather.temperature, units.temperature) }
     val winds = pts.map { Units.speedValue(it.weather.wind.speed, units.speed) }
+    val gusts = pts.map { Units.speedValue(it.weather.wind.gust, units.speed) }
     val tLo = temps.min()
     val tHi = temps.max().coerceAtLeast(tLo + 1.0)
-    val wHi = winds.max().coerceAtLeast(1.0)
+    val wHi = maxOf(winds.max(), gusts.max()).coerceAtLeast(1.0) // gust shares the wind scale
 
     val arrowColor = MaterialTheme.colorScheme.onSurfaceVariant
     val gridColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.12f)
@@ -83,6 +86,7 @@ fun SoarableChart(
         ) {
             LegendDot(TEMP_COLOR, "temp")
             LegendDot(WIND_COLOR, "wind")
+            LegendDot(GUST_COLOR, "gust")
             LegendDot(GO_SHADE.copy(alpha = 0.5f), "soarable")
         }
 
@@ -119,17 +123,33 @@ fun SoarableChart(
                 }
             }
 
-            // 3) Temperature + wind lines.
+            // 3) Wind + gust. Fill the band between them — a wide band reads as gusty
+            //    (turbulent) at a glance — then the gust line (dashed) over the wind line.
+            val windPts = pts.indices.map { Offset(xOf(pts[it].startTime), yWind(winds[it])) }
+            val gustPts = pts.indices.map { Offset(xOf(pts[it].startTime), yWind(gusts[it])) }
+            val envelope = Path().apply {
+                moveTo(gustPts[0].x, gustPts[0].y)
+                for (i in 1 until gustPts.size) lineTo(gustPts[i].x, gustPts[i].y)
+                for (i in windPts.indices.reversed()) lineTo(windPts[i].x, windPts[i].y)
+                close()
+            }
+            drawPath(envelope, color = WIND_COLOR.copy(alpha = 0.12f))
+            drawPath(
+                linePath(gustPts), color = GUST_COLOR,
+                style = Stroke(
+                    width = 1.5.dp.toPx(), cap = StrokeCap.Round,
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(7f, 6f)),
+                ),
+            )
+            drawPath(linePath(windPts), color = WIND_COLOR, style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round))
+
+            // 4) Temperature line (over the wind family so it stays readable).
             drawPath(
                 linePath(pts.indices.map { Offset(xOf(pts[it].startTime), yTemp(temps[it])) }),
                 color = TEMP_COLOR, style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round),
             )
-            drawPath(
-                linePath(pts.indices.map { Offset(xOf(pts[it].startTime), yWind(winds[it])) }),
-                color = WIND_COLOR, style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round),
-            )
 
-            // 4) Wind-direction arrows (every 3 h), pointing downwind.
+            // 5) Wind-direction arrows (every 3 h), pointing downwind.
             val ay = size.height - arrowBand / 2f
             val len = 10.dp.toPx()
             val sw = 1.5.dp.toPx()
