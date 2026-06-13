@@ -12,6 +12,16 @@
 > `flight/WindEstimator.kt`, wind-from-drift while circling, claim-tested (K7 · 3 HELD) per
 > open decision #4's plan (replay a real IGC flight, assert). **Next:** the `$XCTRC` parser
 > and the baro+GPS Kalman `verticalSpeed` (the vario), then wire `FlightState` into Redux.
+>
+> **Validated on 197 real personal flights (2016–2019, Flytec).** ~101 had enough data to
+> validate; on those the wind read held (airspeed always a paraglider's, two independent
+> methods agreeing to ~11° median, jitter ~3°). The discovery worth baking into the design:
+> **the wind window must adapt to the fix rate.** A thermal turn is ~12–20 s, so a coarse log
+> rate under-samples the circle (Nyquist); Flytec logs at a *variable* 3–9 s/fix and needed a
+> ~60 s window vs the 30 s that suited 1 Hz fixtures. The live `FusionEngine` therefore must
+> derive the circling-wind window from the observed sample rate, and honestly report
+> "fix rate too coarse" rather than silently withholding when the data simply can't resolve a
+> circle (≳10 s/fix). The XC Tracer's regular high rate makes this a non-issue for live flight.
 
 ## Why this is the keystone
 

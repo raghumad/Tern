@@ -40,10 +40,23 @@ import org.junit.Test
  * Plus two model-free sanity checks the data must satisfy on its own: the recovered airspeed
  * (circle radius) must land in a paraglider's band and stay *stable within a flight* (we
  * never feed it), and adjacent circles must read a steady wind (low jitter).
+ *
+ * **Corpus finding (197 personal Flytec flights, 2016–2019).** The math held everywhere it
+ * had the data: ~101/197 validated at a 60 s window — airspeed medians 7.6–10.6 m/s every
+ * flight, circle-vs-min/max median ~11°, jitter ~3°. The binding constraint is **fix rate,
+ * not the algorithm**: a thermal turn is ~12–20 s, so a coarse log rate under-samples the
+ * circle (Nyquist). Flytec logs at a *variable* 3–9 s/fix, so the analysis window must be
+ * widened to match — `TERN_IGC_WINDOW_S=60` rescued ~58 flights that starved at the 30 s
+ * default. Implication for the live deck: the production estimator should pick its window
+ * from the observed fix rate (the XC Tracer's ~regular high rate makes this a non-issue live,
+ * but historical-IGC replay and degraded GPS need it). Set the window:
+ * `TERN_IGC_WINDOW_S=60 TERN_IGC_DIR=/path ./gradlew ... --tests "...WindValidationHarness"`.
  */
 class WindValidationHarness {
 
-    private val windowMs = 30_000L
+    // Window is configurable because real IGC log rates vary wildly (Flytec variable-rate
+    // logging runs 3–9 s/fix); a window that's fine at 1 Hz starves at 6 s/fix. TERN_IGC_WINDOW_S.
+    private val windowMs = ((System.getProperty("tern.igc.window.s") ?: System.getenv("TERN_IGC_WINDOW_S"))?.toLongOrNull() ?: 30L) * 1000L
     private val stepMs = 10_000L
     private val bundled = listOf(
         "/igc/flights/fr/2026-04-25-aravis-team-cbe.igc",
