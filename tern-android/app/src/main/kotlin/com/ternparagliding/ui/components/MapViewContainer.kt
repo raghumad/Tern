@@ -121,6 +121,11 @@ fun MapViewContainer(
         )
     }
 
+    // Persist unit preferences (hydrate on start, write through on change)
+    LaunchedEffect(store) {
+        com.ternparagliding.redux.SettingsPersistence.observe(store, context.applicationContext)
+    }
+
     val mapViewModel: MapViewModel = viewModel()
 
     LaunchedEffect(store) {

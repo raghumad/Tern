@@ -248,6 +248,12 @@ fun TernMapScreen(
             forecast = dialogState.forecast ?: state.weatherState.spotWeathers[dialogState.pgSpotId],
             spotName = dialogState.spotName,
             siteContext = dialogState.siteContext,
+            units = com.ternparagliding.units.UnitPrefs(
+                temperature = state.settingsState.temperatureUnit,
+                speed = state.settingsState.speedUnit,
+                distance = state.settingsState.distanceUnit,
+                altitude = state.settingsState.altitudeUnit,
+            ),
             isLoading = state.weatherState.fetchingSpots.contains(dialogState.pgSpotId),
             onDismiss = {
                 store.dispatch(WeatherActions.DismissWeatherDetails)
