@@ -194,6 +194,69 @@ What done looks like:
   treatment (filled callsign pill vs outline).
 - "Who's flying here" defaults to club-filtered before public.
 
+### Story 3.10: Soarable forecast from Spedmo (don't fork the algorithm)
+Status: later · waiting on Spedmo to expose a partner API
+
+Spedmo's site forecast card (the green "Soarable 08:00–09:00" window,
+"on direction for Boulder", the temp/wind/direction chart, the plain
+daily digest) is exactly the read Tern wants on a PG-spot tap. Spedmo
+already computes it and already serializes it — so **Tern asks Spedmo
+for the answer rather than re-implementing it.** One source of truth
+means a pilot never sees "Tern: NO-GO" next to "Spedmo: soarable."
+
+The model (read from Spedmo source, for reference only — we won't copy
+it): an hourly **flyable probability** = windSpeed × windDirection ×
+rain × cloud(low/mid/high) × time-of-day(daylight) × forecast-age,
+with a good/marginal direction split (1.0 / 0.8) against the site's
+16-point `windDirection` / `marginalWindDirection`. The "soarable
+window" is the best contiguous run of that probability, daylight-bound.
+
+Endpoints that already exist (currently session AJAX, POST form params):
+- `POST /json/getForecast.pg?id=<spedmoSiteId>` → multi-day forecast
+  with the soarable window + on-direction verdict + daily digest
+  (`ForecastDaySerializer`). Works anonymously.
+- `POST /json/getHourlyForecast.pg?id=<spedmoSiteId>` → hourly series +
+  the flyable-probability values (the green-shading intensity).
+
+Architecture — **same cache+fallback pattern as the weather provider**
+(`FallbackWeatherAPI` / `WeatherSourcePolicy`):
+
+```
+SpedmoFlyabilityProvider  (authoritative · online · prefetched + cached)
+        ↓ degrade when offline / stale / site unmapped
+TernLocalFlyability       (already built — assessFlyability/assessOutlook
+                           from Open-Meteo + MET Norway)
+```
+
+Online (home / any signal) we pull and cache Spedmo's soarable forecast
+for the pilot's sites; offline in the field we serve the cache, and if
+it's absent/stale we degrade to Tern's own Flyability. Never breaks,
+only degrades (P1/P2). The local Flyability we built is the offline
+safety net — and because we now know Spedmo's model, we tune the
+fallback to *agree* with it, so the degradation is seamless.
+
+What done looks like:
+- A PG-spot tap shows the soarable window + on-direction verdict +
+  24h chart with soarable shading + a plain daily digest, sourced from
+  Spedmo when reachable.
+- Offline / unmapped site → the same screen, computed locally, with a
+  subtle "local estimate" indicator (vs "Spedmo").
+- Soarable forecast is prefetched + cached per site like airspaces/spots.
+
+Needed from Spedmo (Raghu to arrange — friend's platform):
+- A stable, **authenticated partner API** endpoint (API key, versioned
+  JSON, rate limits) rather than the internal session AJAX.
+- A **site-id resolver**: `getForecast` keys off a *Spedmo* site id;
+  Tern keys off PGE / lat-lng. Does Spedmo already store the PGE id, or
+  do we resolve by location/name?
+
+Depends on: Tern-local Flyability (the *now* verdict is done —
+site-aware wind-vs-orientation + cloudbase + next-worsening outlook).
+Still to build for the offline fallback: the **soarable-window scan**
+(walk the day's hourly forecast → flyable intervals, daylight-bound, a
+plain digest), tuned to agree with Spedmo's probability model. Relates
+to the prefetch/cache machinery (Story 3.2).
+
 ## Open questions
 
 - **OAuth flow in a paragliding app.** OAuth requires a browser
