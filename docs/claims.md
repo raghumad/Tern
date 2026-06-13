@@ -216,8 +216,17 @@ placeholders for you to set.
 - **Timely (vario):** `[GAP]` — fused vertical speed (baro+GPS Kalman, < 100 ms to display)
   is designed (flight-state.md) but not built. The XC Tracer hands us a fused climb directly;
   ingest is the next brain.
-- **Correct (sensor ingest):** `[GAP]` — XC Tracer `$XCTRC` over BLE (position, pressure-alt,
-  fused climb, attitude) as a second peripheral alongside the LoRa board — not yet wired.
+- **Correct (sensor ingest, parse):** the XC Tracer `$XCTRC` BLE sentence parses to a
+  device-agnostic `SensorFix` (position, GPS alt, ground speed m/s, fused climb, pressure,
+  battery, UTC) with NMEA-checksum validation, and feeds straight into the wind brain. `[HELD]`
+  — `FlightStateClaimsTest.correct` (real checksummed sentence) + `.resilient` (bad checksum
+  rejected; pre-GPS fix keeps the vario, null position). Field layout verified vs XCSoar's
+  driver. Validated end-to-end on the device's own 184 logs (1 Hz): airspeed 9.2–12.1 m/s
+  (matches the Ozone Alpina 3), circle-vs-min/max ~9°.
+- **Correct (sensor ingest, transport):** `[GAP]` — the live BLE link: XC Tracer as a second
+  Nordic-UART peripheral beside the LoRa board (Service `6e400001…`, TX-notify `6e400003…`),
+  streaming `$XCTRC` into the parser. Device confirmed configured (`stringToSend=XCTRACER`,
+  `sendDataOver=BLE`); the GATT wiring isn't built yet.
 
 ## The Claims Report (replaces the dashboard)
 

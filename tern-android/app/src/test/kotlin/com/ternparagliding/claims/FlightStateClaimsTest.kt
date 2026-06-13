@@ -2,11 +2,15 @@ package com.ternparagliding.claims
 
 import com.ternparagliding.flight.WindEstimator
 import com.ternparagliding.flight.WindEstimator.TrackSample
+import com.ternparagliding.flight.XcTracerParser
+import java.time.LocalDateTime
+import java.time.ZoneOffset
 import com.ternparagliding.sim.igc.IgcParser
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -169,5 +173,57 @@ class FlightStateClaimsTest {
             "adjacent circles read a steady wind (median step $median° should be small)",
             median < 20.0,
         )
+    }
+
+    /**
+     * **CLAIM K7 · Correct (sensor ingest).** The XC Tracer `$XCTRC` BLE sentence parses to a
+     * device-agnostic [com.ternparagliding.flight.SensorFix] with the right fields and units —
+     * position, GPS altitude, ground speed (m/s), fused climb, pressure, battery, UTC time —
+     * and that fix feeds straight into the wind brain. Field layout verified against XCSoar's
+     * driver; the sentence below carries a genuine NMEA checksum.
+     */
+    @Test
+    fun `correct - an XCTRC BLE sentence parses to a usable fix`() {
+        val s = "\$XCTRC,2025,6,12,9,15,2,50,45.123456,6.654321,1850.5,9.80,235.0,1.45,,,,812.40,77*7E"
+        val fix = XcTracerParser.parse(s)
+        assertNotNull("a well-formed \$XCTRC must parse", fix)
+        fix!!
+        assertEquals(45.123456, fix.lat!!, 1e-6)
+        assertEquals(6.654321, fix.lon!!, 1e-6)
+        assertEquals(1850.5, fix.gpsAltitudeM!!, 1e-3)
+        assertEquals("ground speed is m/s, stored as-is", 9.80, fix.groundSpeedMs!!, 1e-3)
+        assertEquals(235.0, fix.courseDeg!!, 1e-3)
+        assertEquals("fused vario", 1.45, fix.climbMs!!, 1e-3)
+        assertEquals(812.40, fix.pressureHpa!!, 1e-2)
+        assertEquals(77, fix.batteryPct)
+        val expectedMs = LocalDateTime.of(2025, 6, 12, 9, 15, 2).toInstant(ZoneOffset.UTC).toEpochMilli() + 500
+        assertEquals("UTC time incl. centiseconds", expectedMs, fix.timeMs)
+        // It plugs into the wind brain unchanged.
+        assertNotNull("a positioned fix yields a track sample", fix.toTrackSample())
+    }
+
+    /**
+     * **CLAIM K7 · Resilient (sensor ingest).** A sentence corrupted in transit (bad checksum)
+     * is rejected, not parsed into a plausible-but-wrong fix; and a vario sample that arrives
+     * *before* the GPS has a fix still yields the climb with a null position (the device powers
+     * up beeping before it sees satellites). Honesty over a confident lie.
+     */
+    @Test
+    fun `resilient - corrupt XCTRC is rejected and a pre-GPS fix keeps the vario`() {
+        // Same body, checksum digits flipped → must be rejected.
+        val corrupt = "\$XCTRC,2025,6,12,9,15,2,50,45.123456,6.654321,1850.5,9.80,235.0,1.45,,,,812.40,77*00"
+        assertNull("a bad checksum must not parse", XcTracerParser.parse(corrupt))
+        // Not an XCTRC sentence at all → null (mixed streams just skip it).
+        assertNull(XcTracerParser.parse("\$GPGGA,123519,4807.038,N*47"))
+
+        // Vario before GPS: lat/lon blank, climb present.
+        val noFix = "\$XCTRC,2015,1,5,16,34,33,36,,,,,,2.78,,,,964.93,98*54"
+        val fix = XcTracerParser.parse(noFix)
+        assertNotNull(fix)
+        fix!!
+        assertFalse("no GPS fix yet", fix.hasPosition)
+        assertNull(fix.toTrackSample())
+        assertEquals("but the vario is already live", 2.78, fix.climbMs!!, 1e-3)
+        assertEquals(98, fix.batteryPct)
     }
 }
