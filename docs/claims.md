@@ -238,9 +238,12 @@ placeholders for you to set.
   and the deck shows a live vario/altitude/wind HUD. Per the source ladder, a positioned vario
   fix becomes the **own-position authority and powers down the phone GPS** (battery offload),
   falling back on disconnect. The streaming wind wrapper is claim-tested (`CirclingWindTracker`
-  recovers wind from a fix-by-fix circle; a pre-GPS vario sample doesn't disturb it). `[GAP —
-  on-device verify]`: the live BLE link itself (Android GATT) needs a run with the paired XC
-  Tracer to confirm; the APK builds.
+  recovers wind from a fix-by-fix circle; a pre-GPS vario sample doesn't disturb it).
+  **Verified on-device 2026-06-13** (Power Armor 14 Pro + the real XC Tracer Mini II): tapped
+  Connect → scan → FFE1 subscribe → live `$XCTRC` streaming (ATT notifications) → the deck HUD
+  showed live altitude (~4920 ft) updating in real time. The first-connect GATT-133 drop was
+  self-healed by auto-reconnect. Still to verify in flight: the live **wind** read (needs
+  circling) and the phone-GPS hand-off under real movement.
 
 ## The Claims Report (replaces the dashboard)
 

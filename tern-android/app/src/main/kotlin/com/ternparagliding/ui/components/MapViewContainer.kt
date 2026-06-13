@@ -144,8 +144,28 @@ fun MapViewContainer(
         com.ternparagliding.flight.XcTracerBleClient(context.applicationContext, coroutineScope)
     }
     val windTracker = remember { com.ternparagliding.flight.CirclingWindTracker() }
+    // BLE runtime permissions for the vario scan (Android 12+). Requested on first connect.
+    val blePerms = remember {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            arrayOf(android.Manifest.permission.BLUETOOTH_SCAN, android.Manifest.permission.BLUETOOTH_CONNECT)
+        } else emptyArray()
+    }
+    fun hasBlePerms(): Boolean = blePerms.all {
+        androidx.core.content.ContextCompat.checkSelfPermission(context, it) ==
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+    }
+    val blePermLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions(),
+    ) { grants ->
+        if (grants.values.all { it }) xcTracerClient.start()
+        else store.dispatch(MapAction.ToggleVario) // denied → revert the toggle
+    }
     LaunchedEffect(state.flightDeck.varioRequested) {
-        if (state.flightDeck.varioRequested) xcTracerClient.start() else xcTracerClient.stop()
+        if (state.flightDeck.varioRequested) {
+            if (hasBlePerms()) xcTracerClient.start() else blePermLauncher.launch(blePerms)
+        } else {
+            xcTracerClient.stop()
+        }
     }
     LaunchedEffect(xcTracerClient) {
         var handedOver = false

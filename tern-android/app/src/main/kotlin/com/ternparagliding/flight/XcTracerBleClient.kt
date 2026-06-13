@@ -103,8 +103,10 @@ class XcTracerBleClient(
             scanner = s
             scanning = true
         }
+        // Low-latency (continuous) scan: this is a deliberate, user-initiated connect, so find
+        // the vario fast rather than dribble battery on a low duty cycle.
         val settings = ScanSettings.Builder()
-            .setScanMode(ScanSettings.SCAN_MODE_LOW_POWER)
+            .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
             .build()
         // No ScanFilter: XC Tracers don't reliably advertise the FFE0 service UUID, so we
         // match on the advertised name in onScanResult instead.
@@ -122,9 +124,14 @@ class XcTracerBleClient(
     private val scanCallback = object : ScanCallback() {
         @SuppressLint("MissingPermission")
         override fun onScanResult(callbackType: Int, result: ScanResult) {
+            val seen = result.device?.name ?: result.scanRecord?.deviceName
+            Log.d(TAG, "scan saw: name=$seen addr=${result.device?.address}")
             if (!looksLikeXcTracer(result)) return
             val device = result.device ?: return
             synchronized(lock) {
+                // A low-latency scan can deliver several hits before stopScan lands; only the
+                // first wins, or we'd call connectGatt twice and the second clobbers the first.
+                if (gatt != null || !scanning) return
                 scanner?.let { runCatching { it.stopScan(this) } }
                 scanner = null
                 scanning = false
