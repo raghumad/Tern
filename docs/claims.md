@@ -224,9 +224,12 @@ placeholders for you to set.
   driver. Validated end-to-end on the device's own 184 logs (1 Hz): airspeed 9.2–12.1 m/s
   (matches the Ozone Alpina 3), circle-vs-min/max ~9°.
 - **Correct (sensor ingest, transport):** `[GAP]` — the live BLE link: XC Tracer as a second
-  Nordic-UART peripheral beside the LoRa board (Service `6e400001…`, TX-notify `6e400003…`),
-  streaming `$XCTRC` into the parser. Device confirmed configured (`stringToSend=XCTRACER`,
-  `sendDataOver=BLE`); the GATT wiring isn't built yet.
+  GATT peripheral beside the LoRa board. **UUIDs confirmed by sniffing the real device** (it
+  uses the **FFE0/FFE1** BLE-serial profile, *not* Nordic UART): Service
+  `0000ffe0-0000-1000-8000-00805f9b34fb`, notify characteristic `0000ffe1-…`. Reassemble the
+  ~20-byte notifications into `\r\n`-delimited lines → `XcTracerParser`. Device confirmed
+  configured (`stringToSend=XCTRACER`, `sendDataOver=BLE`) and a live `$XCTRC` captured + its
+  checksum verified against the parser; the Android GATT wiring isn't built yet.
 
 ## The Claims Report (replaces the dashboard)
 

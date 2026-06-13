@@ -203,6 +203,28 @@ class FlightStateClaimsTest {
     }
 
     /**
+     * **CLAIM K7 · Correct (real device).** A sentence captured live off the actual XC Tracer
+     * Mini II GPS over BLE (FFE0/FFE1) parses exactly — the real-world regression anchor:
+     * negative longitude with 6 decimals, ground speed in m/s, empty IMU fields, pressure and
+     * battery present. Checksum `*6a` matches the parser's XOR.
+     */
+    @Test
+    fun `correct - a real XC Tracer device sentence parses`() {
+        // Captured 2026-06-13 from device 8E412BC3E600, stationary indoors near Boulder, CO.
+        val s = "\$XCTRC,2026,6,13,22,33,4,0,40.148471,-104.953582,1491.36,0.33,154.9,0.00,,,,853.71,24*6a"
+        val fix = XcTracerParser.parse(s)
+        assertNotNull("the real device sentence must parse", fix)
+        fix!!
+        assertEquals(40.148471, fix.lat!!, 1e-6)
+        assertEquals(-104.953582, fix.lon!!, 1e-6)
+        assertEquals(1491.36, fix.gpsAltitudeM!!, 1e-2)
+        assertEquals(0.33, fix.groundSpeedMs!!, 1e-3)
+        assertEquals(853.71, fix.pressureHpa!!, 1e-2)
+        assertEquals(24, fix.batteryPct)
+        assertTrue("indoors but it already had a GPS fix", fix.hasPosition)
+    }
+
+    /**
      * **CLAIM K7 · Resilient (sensor ingest).** A sentence corrupted in transit (bad checksum)
      * is rejected, not parsed into a plausible-but-wrong fix; and a vario sample that arrives
      * *before* the GPS has a fix still yields the climb with a null position (the device powers
