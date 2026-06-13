@@ -223,13 +223,18 @@ placeholders for you to set.
   rejected; pre-GPS fix keeps the vario, null position). Field layout verified vs XCSoar's
   driver. Validated end-to-end on the device's own 184 logs (1 Hz): airspeed 9.2–12.1 m/s
   (matches the Ozone Alpina 3), circle-vs-min/max ~9°.
-- **Correct (sensor ingest, transport):** `[GAP]` — the live BLE link: XC Tracer as a second
-  GATT peripheral beside the LoRa board. **UUIDs confirmed by sniffing the real device** (it
-  uses the **FFE0/FFE1** BLE-serial profile, *not* Nordic UART): Service
-  `0000ffe0-0000-1000-8000-00805f9b34fb`, notify characteristic `0000ffe1-…`. Reassemble the
-  ~20-byte notifications into `\r\n`-delimited lines → `XcTracerParser`. Device confirmed
-  configured (`stringToSend=XCTRACER`, `sendDataOver=BLE`) and a live `$XCTRC` captured + its
-  checksum verified against the parser; the Android GATT wiring isn't built yet.
+- **Correct (BLE reassembly):** the ~20-byte BLE notifications (which split sentences
+  mid-field) reassemble into whole lines via `NmeaLineAssembler` and parse correctly. `[HELD]`
+  — `FlightStateClaimsTest` feeds the *exact* fragment sequence captured from the real device
+  (longitude `-104.953582` arriving as `…,-10` + `4.953582`) → one parseable fix.
+- **Correct (sensor ingest, transport):** the BLE client is built — `XcTracerBleClient` scans
+  for the vario, subscribes to **FFE0/FFE1** (Service `0000ffe0-…`, notify char `0000ffe1-…`,
+  UUIDs confirmed by sniffing the real device — *not* Nordic UART), reassembles + parses, and
+  emits a `Flow<SensorFix>` with auto-reconnect, as a second GATT peripheral beside the LoRa
+  board. Android/GATT code, so not JVM-unit-tested; the pure pieces it composes are
+  (`NmeaLineAssembler`, `XcTracerParser`). `[GAP — app wiring]`: not yet dispatched into Redux
+  / fed to the live wind brain / surfaced as a "Connect vario" control; needs an on-device run
+  with the paired device to verify the live link.
 
 ## The Claims Report (replaces the dashboard)
 

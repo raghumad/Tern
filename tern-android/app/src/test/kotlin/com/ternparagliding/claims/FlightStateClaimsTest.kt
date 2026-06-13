@@ -1,5 +1,6 @@
 package com.ternparagliding.claims
 
+import com.ternparagliding.flight.NmeaLineAssembler
 import com.ternparagliding.flight.WindEstimator
 import com.ternparagliding.flight.WindEstimator.TrackSample
 import com.ternparagliding.flight.XcTracerParser
@@ -222,6 +223,30 @@ class FlightStateClaimsTest {
         assertEquals(853.71, fix.pressureHpa!!, 1e-2)
         assertEquals(24, fix.batteryPct)
         assertTrue("indoors but it already had a GPS fix", fix.hasPosition)
+    }
+
+    /**
+     * **CLAIM K7 · Correct (BLE reassembly).** The XC Tracer streams `$XCTRC` in ~20-byte BLE
+     * notifications that split sentences mid-field. The exact chunk sequence captured from the
+     * real device (longitude `-104.953582` arrives as `…,-10` + `4.953582`) must reassemble
+     * into one whole sentence that the parser then reads correctly. Assembler + parser, on
+     * real fragments.
+     */
+    @Test
+    fun `correct - chunked BLE notifications reassemble into a parseable fix`() {
+        // The actual notification fragments, in order, as captured from device 8E412BC3E600.
+        val chunks = listOf(
+            "\$XCTRC,2026,6,13", ",22,", "33,4,0,40.148471", ",-10", "4.953582,1491.36",
+            ",0.3", "3,154.9,0.00,,,,", "853.", "71,24*6a\r\n",
+        )
+        val asm = NmeaLineAssembler()
+        val lines = ArrayList<String>()
+        chunks.forEach { lines += asm.append(it) }
+        assertEquals("the fragments form exactly one complete line", 1, lines.size)
+        val fix = XcTracerParser.parse(lines.first())
+        assertNotNull("the reassembled real sentence must parse", fix)
+        assertEquals(-104.953582, fix!!.lon!!, 1e-6)
+        assertEquals(853.71, fix.pressureHpa!!, 1e-2)
     }
 
     /**
