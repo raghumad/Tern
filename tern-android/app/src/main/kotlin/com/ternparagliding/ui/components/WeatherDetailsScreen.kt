@@ -67,9 +67,29 @@ fun WeatherDetailsDialog(
 ) {
     // A bottom sheet, not a full-screen dialog: the map stays visible above so the
     // pilot keeps their context. Opens partially expanded (peek), drags up for detail.
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false),
+        sheetState = sheetState,
+        dragHandle = {
+            // At the peek, the bottom-edge "more" chevron is off-screen (the sheet lays
+            // content out at full height), so the always-visible drag handle carries the
+            // cue: "pull up for more" while partially expanded; the pill alone once expanded.
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                androidx.compose.material3.BottomSheetDefaults.DragHandle()
+                if (sheetState.currentValue == androidx.compose.material3.SheetValue.PartiallyExpanded) {
+                    Text(
+                        "Pull up for the full forecast",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 6.dp),
+                    )
+                }
+            }
+        },
     ) {
         when {
             isLoading -> Box(
