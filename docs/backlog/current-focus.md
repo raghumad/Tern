@@ -130,7 +130,23 @@ honest *as* it's fixed.
   changed — the highlight (`assertIsSelected`) *and* the `settingsState`
   preference. Small **product** win: the unit picker's colour-only selection
   is now exposed to the semantics tree (screen-reader + test visible).
-- **Next:** FAI editor (#3) → overlay tap/select (#5) → weather (#6, last).
+- **✅ Weather (#6) shipped as a full deck (2026-06) — not just a test fix.**
+  What was scoped as "fix the weather cluster, last" became the **K4 weather /
+  Flyability feature**, all claim-tested (board ~42 HELD · 0 BROKEN · 3 GAP):
+  site-aware Flyability (wind-vs-orientation on the surface wind + cloudbase-vs-launch),
+  the **soarable-window scan** ("when today is it flyable", daylight-bound, daily digest),
+  live **source policy** (per-country model + MET Norway fallback), **surface + aloft
+  wind**, **pilot-preferred units + persistence**, and a glass-cockpit weather UI
+  (bottom sheet · soarable card · **orientation dial w/ wind barbs** · 48 h chart with
+  soarable shading + gust envelope + value axes). Spedmo's soarable API is parked as
+  Story 3.10 (our offline scan is tuned to agree with it).
+- **Next: re-envision the map-screen UI** (flight deck) — see
+  [../design/flight-deck-ui.md](../design/flight-deck-ui.md): the compass rosette grows
+  into the deck's primary instrument (heading/track + wind, adopting the orientation-dial
+  language), the shelf becomes mode-aware, plus quick-wins (compass tap-to-north, recenter
+  button, share icon). Other open gaps: **FAI editor (#3)**, **overlay tap/select on dense
+  clusters (#5)** (PG-spot tap shipped this round), **K2 airspace-ahead (Timely)**,
+  **K4 thermal outlook**, **K4 Skew-T plot**.
 
 ### Phase 3 — Stability hardening
 

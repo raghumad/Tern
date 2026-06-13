@@ -30,14 +30,20 @@ picked up.
   real product bug vs. test debt is now **unverified** (the tests are gone).
   Re-validate the FAI task build/edit flow. *(claim: K6 route/task)*
 
-- **Overlay tap / select on GPU markers.** PG-spot and dense-cluster markers are
-  MapLibre `SymbolLayer` features, not Compose nodes, so tapping/selecting them
-  is unreliable. Needs a real hit-test against the MapLibre projection
-  (`cameraState.projection.positionFromScreenLocation`, already used by
-  `OffScreenPeerIndicators`). *(claim: K3 sites · Frictionless)*
+- **Overlay tap / select on dense clusters.** *PG-spot tap is now wired*
+  (2026-06): tapping a spot opens its weather/Flyability sheet via the
+  maplibre-compose `SymbolLayer` `onClick`. **Still open:** reliable
+  tap/select on *dense, overlapping* clusters (and other layers) where the
+  collision-declutter and hit ambiguity bite — a real hit-test against the
+  MapLibre projection (`cameraState.projection.positionFromScreenLocation`,
+  as `OffScreenPeerIndicators` uses) is the durable fix. *(claim: K3 · Frictionless)*
 
-- **Weather — deferred.** Parked behind a larger weather redesign; tackle once
-  the rest is healthy. *(claim: K4 weather)*
+- **~~Weather — deferred.~~ ✅ Done (2026-06).** Shipped as the full **K4
+  weather / Flyability deck**, claim-tested — see [../claims.md](../claims.md)
+  (K4) and [../design/flight-deck-ui.md](../design/flight-deck-ui.md). Open
+  weather *gaps* are now narrow and tracked on the board: **thermal outlook**
+  (climb-rate forecast) and the **Skew-T stability plot** (math exists, plot is
+  a text placeholder). *(claim: K4 weather)*
 
 ## Not bugs (documented so they aren't re-investigated)
 
