@@ -11,13 +11,17 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import com.ternparagliding.ui.weather.FlyabilityCard
+import com.ternparagliding.ui.weather.SoarableCard
 import com.ternparagliding.weather.assessOutlook
 import com.ternparagliding.weather.assessQuality
+import com.ternparagliding.weather.assessSoarableDays
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -33,15 +37,18 @@ import com.ternparagliding.utils.io.WeatherForecast
 import com.ternparagliding.units.Units
 import com.ternparagliding.units.UnitPrefs
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.runtime.remember
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 
 /**
  * WeatherDetailsScreen - Modern Android Aviation Weather Dialog
  * Moved from screens to components as it's a reusable dialog component
  * Equivalent to iOS weather detail view with aviation-specific formatting
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WeatherDetailsDialog(
     forecast: WeatherForecast?,
@@ -52,50 +59,34 @@ fun WeatherDetailsDialog(
     isLoading: Boolean = false,
     onDismiss: () -> Unit = {}
 ) {
-    AlertDialog(
+    // A bottom sheet, not a full-screen dialog: the map stays visible above so the
+    // pilot keeps their context. Opens partially expanded (peek), drags up for detail.
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
-        title = {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = "Weather - $spotName",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.testTag("WeatherDialogTitle")
-                )
-                Text(
-                    text = "Aviation Forecast",
-                    style = MaterialTheme.typography.bodyLarge,
-                    textAlign = TextAlign.Center
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false),
+    ) {
+        when {
+            isLoading -> Box(
+                modifier = Modifier.fillMaxWidth().height(160.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                androidx.compose.material3.CircularProgressIndicator(
+                    modifier = Modifier.testTag("WeatherLoadingIndicator")
                 )
             }
-        },
-        text = {
-            if (isLoading) {
-                Box(
-                    modifier = Modifier.fillMaxWidth().height(200.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    androidx.compose.material3.CircularProgressIndicator(
-                        modifier = Modifier.testTag("WeatherLoadingIndicator")
-                    )
-                }
-            } else if (forecast == null) {
+            forecast == null -> Box(
+                modifier = Modifier.fillMaxWidth().padding(24.dp),
+                contentAlignment = Alignment.Center,
+            ) {
                 Text(
                     "Weather data unavailable",
-                    modifier = Modifier.fillMaxWidth().testTag("WeatherUnavailableMessage"),
-                    textAlign = TextAlign.Center
+                    modifier = Modifier.testTag("WeatherUnavailableMessage"),
+                    textAlign = TextAlign.Center,
                 )
-            } else {
-                WeatherContent(forecast, targetArrivalTimestamp, siteContext, units)
             }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Close")
-            }
+            else -> WeatherContent(forecast, targetArrivalTimestamp, siteContext, units, spotName)
         }
-    )
+    }
 }
 
 /**
@@ -107,14 +98,33 @@ private fun WeatherContent(
     targetTimestamp: Long?,
     siteContext: com.ternparagliding.weather.SiteContext? = null,
     units: UnitPrefs = UnitPrefs(),
+    spotName: String = "Launch Site",
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .verticalScroll(rememberScrollState())
-            .padding(vertical = 8.dp),
+            .padding(horizontal = 20.dp)
+            .padding(bottom = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        // Header (scrolls with content; the sheet provides its own drag handle).
+        Text(
+            text = spotName,
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("WeatherDialogTitle"),
+        )
+        Text(
+            text = "Aviation forecast",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+
         // Stale Data Warning
         if (forecast.isStale()) {
             Card(
@@ -146,6 +156,11 @@ private fun WeatherContent(
             )
         }
 
+        // "When today" — the soarable window + daily digest (under the now-verdict).
+        assessSoarableDays(forecast, site = siteContext, maxDays = 1).firstOrNull()?.let { day ->
+            SoarableCard(day, units, modifier = Modifier.padding(bottom = 16.dp))
+        }
+
         // Compute Skew-T data before branching so it's available in outer scope
         val interpolated: com.ternparagliding.utils.io.WeatherData? = if (targetTimestamp != null && forecast.hourly.isNotEmpty()) {
             val startPeriod = forecast.hourly.lastOrNull { it.startTime <= targetTimestamp }
@@ -172,11 +187,13 @@ private fun WeatherContent(
         SkewTPlaceholderCard(weatherData = skewTData, units = units)
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Hourly Forecast (next 24 hours, every 3 hours)
-        forecast.hourly.take(8).chunked(1).forEach { hours -> // Show every hour for 8 hours
-            hours.first().let { period ->
-                HourlyWeatherCard(period, "Now +${(period.startTime - (System.currentTimeMillis() / 1000)) / 3600}h", units)
-            }
+        // Hourly Forecast (next 8 hours), labeled with the local hour. Timestamps are
+        // local-wall-clock carried as UTC epoch ms, so format in UTC to read them back.
+        val hourFmt = remember {
+            SimpleDateFormat("EEE HH:00", Locale.getDefault()).apply { timeZone = TimeZone.getTimeZone("UTC") }
+        }
+        forecast.hourly.take(8).forEach { period ->
+            HourlyWeatherCard(period, hourFmt.format(Date(period.startTime)), units)
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -319,11 +336,12 @@ private fun DailyWeatherCard(period: ForecastPeriod, units: UnitPrefs = UnitPref
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // Date
-            val dateFormat = SimpleDateFormat("EEE", Locale.getDefault())
-            val date = Date(period.startTime * 1000)
+            // Date (startTime is local-wall-clock ms; format in UTC to read it back)
+            val dateFormat = remember {
+                SimpleDateFormat("EEE", Locale.getDefault()).apply { timeZone = TimeZone.getTimeZone("UTC") }
+            }
             Text(
-                dateFormat.format(date),
+                dateFormat.format(Date(period.startTime)),
                 modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Bold
