@@ -232,9 +232,15 @@ placeholders for you to set.
   UUIDs confirmed by sniffing the real device — *not* Nordic UART), reassembles + parses, and
   emits a `Flow<SensorFix>` with auto-reconnect, as a second GATT peripheral beside the LoRa
   board. Android/GATT code, so not JVM-unit-tested; the pure pieces it composes are
-  (`NmeaLineAssembler`, `XcTracerParser`). `[GAP — app wiring]`: not yet dispatched into Redux
-  / fed to the live wind brain / surfaced as a "Connect vario" control; needs an on-device run
-  with the paired device to verify the live link.
+  (`NmeaLineAssembler`, `XcTracerParser`).
+- **Correct (live wiring):** the vario is wired end-to-end — a "Connect vario" shelf button
+  toggles scanning; fixes flow `XcTracerBleClient → CirclingWindTracker → Redux` (`UpdateVarioFix`),
+  and the deck shows a live vario/altitude/wind HUD. Per the source ladder, a positioned vario
+  fix becomes the **own-position authority and powers down the phone GPS** (battery offload),
+  falling back on disconnect. The streaming wind wrapper is claim-tested (`CirclingWindTracker`
+  recovers wind from a fix-by-fix circle; a pre-GPS vario sample doesn't disturb it). `[GAP —
+  on-device verify]`: the live BLE link itself (Android GATT) needs a run with the paired XC
+  Tracer to confirm; the APK builds.
 
 ## The Claims Report (replaces the dashboard)
 

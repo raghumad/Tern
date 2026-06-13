@@ -1,6 +1,8 @@
 package com.ternparagliding.claims
 
+import com.ternparagliding.flight.CirclingWindTracker
 import com.ternparagliding.flight.NmeaLineAssembler
+import com.ternparagliding.flight.SensorFix
 import com.ternparagliding.flight.WindEstimator
 import com.ternparagliding.flight.WindEstimator.TrackSample
 import com.ternparagliding.flight.XcTracerParser
@@ -223,6 +225,36 @@ class FlightStateClaimsTest {
         assertEquals(853.71, fix.pressureHpa!!, 1e-2)
         assertEquals(24, fix.batteryPct)
         assertTrue("indoors but it already had a GPS fix", fix.hasPosition)
+    }
+
+    /**
+     * **CLAIM K7 · Correct (live wind tracker).** The streaming wrapper around the windowed
+     * estimator recovers the wind from a circle fed fix-by-fix (as the BLE link will), and a
+     * vario-only sample arriving before GPS lock neither crashes it nor disturbs the estimate.
+     */
+    @Test
+    fun `correct - the live wind tracker recovers wind from a streamed circle`() {
+        val tracker = CirclingWindTracker()
+        val airspeed = 10.0; val windSpeed = 4.0; val windFromDeg = 240.0
+        val toRad = Math.toRadians(windFromDeg + 180.0)
+        val wE = windSpeed * sin(toRad); val wN = windSpeed * cos(toRad)
+        var lat = 46.0; var lon = 7.0; var t = 0L
+        val mPerDegLat = 111_320.0; val mPerDegLon = 111_320.0 * cos(Math.toRadians(lat))
+        val dt = 2.0
+        var theta = 0.0
+        var lastWind: WindEstimator.WindEstimate? = null
+        while (theta < 540.0) { // ~1.5 turns so the window holds a full circle
+            val a = Math.toRadians(theta % 360.0)
+            val gE = airspeed * sin(a) + wE; val gN = airspeed * cos(a) + wN
+            lat += (gN * dt) / mPerDegLat; lon += (gE * dt) / mPerDegLon; t += (dt * 1000).toLong()
+            lastWind = tracker.add(SensorFix(timeMs = t, lat = lat, lon = lon, climbMs = 1.2))
+            theta += 30.0
+        }
+        assertNotNull("a streamed circle yields a live wind", lastWind)
+        assertTrue("recovered the from-direction", angularDiff(lastWind!!.directionDeg, windFromDeg) < 12.0)
+        // Vario-only fix (no GPS yet) is ignored for wind and returns the last estimate.
+        val after = tracker.add(SensorFix(timeMs = t + 1000, climbMs = 2.0))
+        assertEquals(lastWind, after)
     }
 
     /**

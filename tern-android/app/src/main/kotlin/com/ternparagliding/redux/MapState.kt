@@ -88,6 +88,30 @@ data class MapState(
     // null = not yet loaded (layer hidden). Empty collection = loaded
     // but no spots nearby.
     val pgSpotGeoJson: FeatureCollection<Geometry, JsonObject>? = null,
+
+    // Flight deck — live data from an external vario (XC Tracer over BLE).
+    val flightDeck: FlightDeckState = FlightDeckState(),
+)
+
+/** Which sensor is currently the authority for own-position (battery/quality ladder). */
+enum class PositionSource { PHONE, XC_TRACER }
+
+/**
+ * Live flight-deck state fed by the external vario. When the XC Tracer is delivering
+ * positioned fixes it becomes the position authority and the phone GPS is powered down
+ * (better data + battery offload); on disconnect we fall back to the phone.
+ */
+data class FlightDeckState(
+    val varioRequested: Boolean = false,   // pilot toggled "Connect vario"
+    val varioConnected: Boolean = false,
+    val varioScanning: Boolean = false,
+    val climbMs: Double? = null,           // fused vario (m/s, + up)
+    val altitudeM: Double? = null,         // GPS altitude from the vario (m)
+    val pressureHpa: Double? = null,
+    val windFromDeg: Double? = null,       // live circling-wind estimate
+    val windSpeedMs: Double? = null,
+    val positionSource: PositionSource = PositionSource.PHONE,
+    val lastFixMs: Long = 0L,
 )
 
 /**

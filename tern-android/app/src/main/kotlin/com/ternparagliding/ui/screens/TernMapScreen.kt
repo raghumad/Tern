@@ -114,6 +114,11 @@ fun TernMapScreen(
                 SettingsButton(onClick = { showSettingsSheet = true })
                 ShareButton(onClick = { showShareSheet = true })
                 RouteButton(onClick = { showRouteListScreen = true })
+                VarioConnectButton(
+                    connected = state.flightDeck.varioConnected,
+                    scanning = state.flightDeck.varioScanning,
+                    onClick = { store.dispatch(MapAction.ToggleVario) },
+                )
                 MezullaViewModeButton(
                     viewMode = state.mezullaViewMode,
                     linkState = state.peerState.linkState,

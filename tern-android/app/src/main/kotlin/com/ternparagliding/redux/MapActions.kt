@@ -64,8 +64,17 @@ sealed class MapAction : TernAction {
     data class SetSettingsOverlayEnabled(val overlayType: String, val enabled: Boolean) : MapAction()
     data class SetUnitPreference(val unitType: String, val unit: String) : MapAction()
 
-    // Sensor actions - real-time flight data
-
+    // Sensor actions - real-time flight data (XC Tracer vario over BLE)
+    /** A parsed fix from the external vario, plus the live wind estimate (m/s, from-deg). */
+    data class UpdateVarioFix(
+        val fix: com.ternparagliding.flight.SensorFix,
+        val windFromDeg: Double?,
+        val windSpeedMs: Double?,
+    ) : MapAction()
+    /** Vario BLE link state for the shelf button + battery hand-off. */
+    data class SetVarioLinkState(val connected: Boolean, val scanning: Boolean) : MapAction()
+    /** Pilot tapped "Connect vario" — start/stop scanning for the XC Tracer. */
+    object ToggleVario : MapAction()
 
     // Handedness-aware UI actions - optimizes control placement for user preference
     data class SetHandedness(val handedness: Handedness) : MapAction()

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Air
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
@@ -72,6 +73,18 @@ fun AddWaypointButton() {
 fun ShareButton(onClick: () -> Unit) {
     DockButton(onClick, "Share Menu") { m ->
         Icon(Icons.Default.MoreVert, contentDescription = "Share Menu", tint = DOCK_ICON, modifier = m)
+    }
+}
+
+@Composable
+fun VarioConnectButton(connected: Boolean, scanning: Boolean, onClick: () -> Unit) {
+    val tint = when {
+        connected -> Color(0xFF22C55E) // green = streaming
+        scanning -> Color(0xFFF59E0B)  // amber = scanning
+        else -> DOCK_ICON
+    }
+    DockButton(onClick, "Connect vario") { m ->
+        Icon(Icons.Default.Air, contentDescription = "Connect vario", tint = tint, modifier = m)
     }
 }
 

@@ -137,6 +137,43 @@ fun MapViewContainer(
     val locationService = remember(store, context) { ReduxLocationService(store, context) }
     setupLocationUpdates(state.hasLocationPermission, locationService)
 
+    // XC Tracer vario over BLE — a second peripheral beside the LoRa board. The pilot toggles
+    // it from the shelf; once it streams positioned fixes it becomes the position authority and
+    // the phone GPS powers down (better data + battery offload), falling back on disconnect.
+    val xcTracerClient = remember(context) {
+        com.ternparagliding.flight.XcTracerBleClient(context.applicationContext, coroutineScope)
+    }
+    val windTracker = remember { com.ternparagliding.flight.CirclingWindTracker() }
+    LaunchedEffect(state.flightDeck.varioRequested) {
+        if (state.flightDeck.varioRequested) xcTracerClient.start() else xcTracerClient.stop()
+    }
+    LaunchedEffect(xcTracerClient) {
+        var handedOver = false
+        launch {
+            xcTracerClient.fixes().collect { fix ->
+                val wind = windTracker.add(fix)
+                store.dispatch(MapAction.UpdateVarioFix(fix, wind?.directionDeg, wind?.speedMs))
+                if (fix.hasPosition && !handedOver) {
+                    handedOver = true
+                    locationService.stopLocationUpdates() // vario is the better source now
+                }
+            }
+        }
+        launch {
+            xcTracerClient.state().collect { st ->
+                val connected = st == com.ternparagliding.flight.XcTracerBleClient.State.CONNECTED
+                val scanning = st == com.ternparagliding.flight.XcTracerBleClient.State.SCANNING
+                store.dispatch(MapAction.SetVarioLinkState(connected, scanning))
+                if (!connected && handedOver) {
+                    // Lost the vario — fall back to phone GPS until it returns.
+                    handedOver = false
+                    windTracker.reset()
+                    if (store.state.value.hasLocationPermission) locationService.startLocationUpdates()
+                }
+            }
+        }
+    }
+
     val initialCenter = state.center
     val initialZoom = state.zoom
 
@@ -394,6 +431,17 @@ fun MapViewContainer(
                     .align(Alignment.TopStart)
                     .padding(WindowInsets.statusBars.asPaddingValues())
                     .padding(16.dp),
+            )
+        }
+
+        // Live flight-deck readout (vario / altitude / wind) when an external vario is streaming.
+        if (state.flightDeck.varioConnected) {
+            VarioHud(
+                deck = state.flightDeck,
+                settings = state.settingsState,
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(24.dp),
             )
         }
     }

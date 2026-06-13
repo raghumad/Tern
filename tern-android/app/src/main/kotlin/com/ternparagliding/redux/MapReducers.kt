@@ -111,6 +111,53 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
 
     // M3: PG spot GeoJSON for MapLibre rendering
     is MapAction.UpdatePgSpotGeoJson -> state.copy(pgSpotGeoJson = action.geoJson)
+
+    // Flight deck — XC Tracer vario over BLE
+    is MapAction.UpdateVarioFix,
+    is MapAction.SetVarioLinkState,
+    MapAction.ToggleVario -> handleFlightDeckActions(state, action)
+}
+
+/**
+ * Handle live flight-deck (external vario) actions. A positioned fix makes the vario the
+ * own-position authority (better data + lets the phone GPS power down for battery).
+ */
+private fun handleFlightDeckActions(state: MapState, action: MapAction): MapState = when (action) {
+    MapAction.ToggleVario -> state.copy(
+        flightDeck = state.flightDeck.copy(varioRequested = !state.flightDeck.varioRequested),
+    )
+    is MapAction.SetVarioLinkState -> state.copy(
+        flightDeck = state.flightDeck.copy(
+            varioConnected = action.connected,
+            varioScanning = action.scanning,
+            positionSource = if (action.connected) state.flightDeck.positionSource else PositionSource.PHONE,
+        ),
+    )
+    is MapAction.UpdateVarioFix -> {
+        val fix = action.fix
+        val deck = state.flightDeck.copy(
+            climbMs = fix.climbMs ?: state.flightDeck.climbMs,
+            altitudeM = fix.gpsAltitudeM ?: state.flightDeck.altitudeM,
+            pressureHpa = fix.pressureHpa ?: state.flightDeck.pressureHpa,
+            windFromDeg = action.windFromDeg ?: state.flightDeck.windFromDeg,
+            windSpeedMs = action.windSpeedMs ?: state.flightDeck.windSpeedMs,
+            lastFixMs = fix.timeMs,
+            positionSource = if (fix.hasPosition) PositionSource.XC_TRACER else state.flightDeck.positionSource,
+        )
+        if (fix.hasPosition) {
+            val gp = org.osmdroid.util.GeoPoint(fix.lat!!, fix.lon!!, fix.gpsAltitudeM ?: 0.0)
+            state.copy(
+                flightDeck = deck,
+                userLocation = gp,
+                isLocationReady = true,
+                gpsStatus = GpsStatus.ACTIVE,
+                center = if (!state.isLocationReady) gp else state.center,
+            )
+        } else {
+            state.copy(flightDeck = deck)
+        }
+    }
+    else -> state
 }
 
 /**
