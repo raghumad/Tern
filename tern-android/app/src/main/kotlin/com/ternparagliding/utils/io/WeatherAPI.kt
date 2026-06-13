@@ -45,7 +45,12 @@ data class ForecastPeriod(
     val startTime: Long, // UTC timestamp (ms)
     val endTime: Long,   // UTC timestamp (ms)
     val weather: WeatherData,
-    val shortForecast: String
+    val shortForecast: String,
+    // Daily periods carry the day's sun times (same local-wall-clock basis as the
+    // hourly timestamps) so the soarable-window scan can bound flyable hours to
+    // daylight. Null on hourly periods and where the source omits them.
+    val sunriseMs: Long? = null,
+    val sunsetMs: Long? = null,
 )
 
 data class WeatherForecast(
@@ -482,6 +487,10 @@ class OpenMeteoWeatherAPI : WeatherAPI {
             val windSpeeds = daily["wind_speed_10m_max"] as? List<Number> ?: return emptyList()
             @Suppress("UNCHECKED_CAST")
             val windDirections = daily["wind_direction_10m_dominant"] as? List<Number> ?: return emptyList()
+            @Suppress("UNCHECKED_CAST")
+            val sunrises = daily["sunrise"] as? List<String>
+            @Suppress("UNCHECKED_CAST")
+            val sunsets = daily["sunset"] as? List<String>
 
             val maxPeriods = minOf(times.size, FORECAST_DAYS, maxTemps.size)
 
@@ -517,7 +526,9 @@ class OpenMeteoWeatherAPI : WeatherAPI {
                         startTime = startTime,
                         endTime = startTime + 86400000L, // 24 hours in ms
                         weather = weather,
-                        shortForecast = "Daily forecast"
+                        shortForecast = "Daily forecast",
+                        sunriseMs = sunrises?.getOrNull(i)?.let { parseTimeString(it) },
+                        sunsetMs = sunsets?.getOrNull(i)?.let { parseTimeString(it) },
                     ))
                 } catch (e: Exception) {
                     Log.w("OpenMeteoWeatherAPI", "Skipping malformed daily period $i", e)

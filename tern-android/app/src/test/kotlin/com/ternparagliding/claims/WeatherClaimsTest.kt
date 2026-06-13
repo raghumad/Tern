@@ -16,10 +16,13 @@ import com.ternparagliding.utils.io.WindData
 import com.ternparagliding.overlay.pgspot.siteContextOf
 import com.ternparagliding.weather.Octant
 import com.ternparagliding.weather.SiteContext
+import com.ternparagliding.weather.Precip
+import com.ternparagliding.weather.Sky
 import com.ternparagliding.weather.ThermalQuality
 import com.ternparagliding.weather.Verdict
 import com.ternparagliding.weather.WeatherSourcePolicy
 import com.ternparagliding.weather.assessFlyability
+import com.ternparagliding.weather.assessSoarableDays
 import com.ternparagliding.weather.octantOf
 import com.ternparagliding.weather.assessOutlook
 import com.ternparagliding.weather.assessQuality
@@ -572,6 +575,112 @@ class WeatherClaimsTest {
         val empty = siteContextOf(mapOf("properties" to mapOf("name" to "x")))
         assertNull(empty.elevationM)
         assertFalse(empty.hasOrientation)
+    }
+
+    // ── soarable-window scan helpers ────────────────────────────────────────
+    private val DAY = 20000L // arbitrary day index; hour h → local hour h
+    private fun hMs(h: Int) = DAY * 86_400_000L + h * 3_600_000L
+    private fun dayForecast(
+        hourly: List<ForecastPeriod>, sunriseH: Int = 6, sunsetH: Int = 20, withSun: Boolean = true,
+    ): WeatherForecast {
+        val daily = if (withSun) listOf(
+            ForecastPeriod(DAY * 86_400_000L, DAY * 86_400_000L + 86_400_000L, wx(), "d",
+                sunriseMs = hMs(sunriseH), sunsetMs = hMs(sunsetH)),
+        ) else emptyList()
+        return WeatherForecast(current = hourly.firstOrNull()?.weather, daily = daily, hourly = hourly)
+    }
+
+    /** West-facing launch used across the soarable tests (W ideal, SW workable). */
+    private val westFacing = SiteContext(orientations = mapOf(Octant.W to 2, Octant.SW to 1))
+    private fun goHour(h: Int) = period(wx(windSpeed = 12.0, windDir = 270.0, windSpeed10m = 10.0, windDir10m = 270.0, gust = 14.0, cape = 50.0), hMs(h))
+    private fun crossHour(h: Int) = period(wx(windSpeed = 12.0, windDir = 0.0, windSpeed10m = 10.0, windDir10m = 0.0, gust = 14.0, cape = 50.0), hMs(h))
+    private fun calmHour(h: Int) = period(wx(windSpeed = 2.0, windDir = 270.0, windSpeed10m = 2.0, windDir10m = 270.0), hMs(h))
+
+    /**
+     * **CLAIM K4 · Soarable window.** The scan finds *when today* the site is flyable —
+     * a contiguous GO run, reported as the best window. (The "when to show up" read.)
+     */
+    @Test
+    fun `soarable - finds the contiguous flyable window in the day`() {
+        // GO 10:00–12:00; cross-wind (NO_GO) the rest of daylight; calm at night.
+        val hours = (0..23).map { h ->
+            when {
+                h in 10..12 -> goHour(h)
+                h in 6..20 -> crossHour(h)
+                else -> calmHour(h)
+            }
+        }
+        val days = assessSoarableDays(dayForecast(hours), site = westFacing, maxDays = 1)
+        assertEquals(1, days.size)
+        val best = days[0].best!!
+        assertEquals("soarable window must be the GO run", Verdict.GO, best.verdict)
+        assertEquals("window starts at 10:00", hMs(10), best.startMs)
+        assertEquals("window ends at 13:00 (end of the 12:00 hour)", hMs(13), best.endMs)
+    }
+
+    /**
+     * **CLAIM K4 · Soarable is daylight-bound.** Even if the air is flyable at 03:00,
+     * you can't soar in the dark — windows are clipped to sunrise→sunset.
+     */
+    @Test
+    fun `soarable - windows are bounded to daylight`() {
+        val hours = (0..23).map { goHour(it) } // flyable around the clock
+        val day = assessSoarableDays(dayForecast(hours, sunriseH = 6, sunsetH = 20), site = westFacing, maxDays = 1)[0]
+        val best = day.best!!
+        assertEquals("starts at sunrise, not midnight", hMs(6), best.startMs)
+        assertEquals("ends at sunset hour, not 24:00", hMs(21), best.endMs) // 20:00 hour ends at 21:00
+        assertTrue("no window may include night hours", day.windows.all { it.startMs >= hMs(6) })
+    }
+
+    /**
+     * **CLAIM K4 · Marginal fallback.** A day with no GO hour but some CAUTION still
+     * reports a window — labeled marginal, not hidden. (Spedmo's "Marginal window".)
+     */
+    @Test
+    fun `soarable - a day with only marginal hours reports a marginal window`() {
+        // 18 kt on-direction → CAUTION (strong but flyable), all daylight.
+        val hours = (0..23).map { h ->
+            if (h in 6..20) period(wx(windSpeed = 18.0, windDir = 270.0, windSpeed10m = 18.0, windDir10m = 270.0, gust = 15.0, cape = 50.0), hMs(h))
+            else calmHour(h)
+        }
+        val best = assessSoarableDays(dayForecast(hours), site = westFacing, maxDays = 1)[0].best!!
+        assertEquals(Verdict.CAUTION, best.verdict)
+    }
+
+    /**
+     * **CLAIM K4 · Daily digest.** The plain summary a pilot scans: prevailing wind +
+     * on/off direction, gust, temp range, sky, precip — all from the day's daylight hours.
+     */
+    @Test
+    fun `soarable - digest summarizes the day's prevailing conditions`() {
+        val hours = (0..23).map { h ->
+            if (h in 6..20) period(
+                wx(windSpeed = 12.0, windDir = 270.0, windSpeed10m = 10.0, windDir10m = 270.0,
+                    gust = 18.0, cloud = 10.0, cape = 50.0),
+                hMs(h),
+            ) else calmHour(h)
+        }
+        val digest = assessSoarableDays(dayForecast(hours), site = westFacing, maxDays = 1)[0].digest!!
+        assertEquals("prevailing wind is from the W", Octant.W, digest.dominantOctant)
+        assertEquals("W is on the hill for a west-facing site", true, digest.onDirection)
+        assertEquals(18.0, digest.maxGustKt, 0.01)
+        assertEquals(Sky.CLEAR, digest.sky)       // 10% cloud
+        assertEquals(Precip.DRY, digest.precip)   // no precip probability
+    }
+
+    /**
+     * **CLAIM K4 · Soarable degrades without sun times.** A surface-only source (no
+     * daily sun times) still produces a read, bounded by a daytime band — never an
+     * all-night "soarable", never a crash.
+     */
+    @Test
+    fun `soarable - degrades to a daytime band when sun times are missing`() {
+        val hours = (0..23).map { goHour(it) }
+        val day = assessSoarableDays(dayForecast(hours, withSun = false), site = westFacing, maxDays = 1)[0]
+        assertNull("no sun times available", day.sunriseMs)
+        val best = day.best!!
+        assertTrue("window must not start before the fallback daytime band", best.startMs >= hMs(5))
+        assertTrue("window must not run past the fallback daytime band", best.endMs <= hMs(21))
     }
 
     /** A controllable WeatherAPI stand-in for the fallback tests. */

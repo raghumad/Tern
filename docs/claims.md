@@ -143,6 +143,14 @@ placeholders for you to set.
   10 m wind + precip (Jackson-serialized, ETA-interpolated). `[HELD]` —
   `WeatherClaimsTest` (gust factor & gradient · precip). *Also fixed:* visibility
   was compared as metres but the model stores km (latent false-no-go).
+- **Soarable window (K4 · temporal):** "*when today* is this site flyable" — scans
+  the day's hourly forecast with the site-aware verdict, bounded to daylight (Open-Meteo
+  sun times, captured), and reports the contiguous GO window(s) (or marginal CAUTION
+  runs), plus a structured daily digest (prevailing wind + on/off direction, gust,
+  temp range, sky, precip). `[HELD]` — `WeatherClaimsTest` (soarable ×5: window ·
+  daylight-bound · marginal fallback · digest · no-sun degradation). `weather/Soarable.kt`.
+  *This is Tern's offline fallback for the Spedmo soarable forecast (backlog 3.10),
+  tuned to the same factors so the two agree.*
 - **Site-aware (K3×K4):** Flyability joins the launch geometry to the air mass — a
   launch only works in certain wind directions (PGE orientation octants), so a
   cross/behind wind is a no-go *for this launch* even when the air is otherwise GO
