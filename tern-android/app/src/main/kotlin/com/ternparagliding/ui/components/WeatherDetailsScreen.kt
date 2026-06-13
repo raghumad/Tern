@@ -1,7 +1,13 @@
 package com.ternparagliding.ui.components
 
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -100,10 +106,12 @@ private fun WeatherContent(
     units: UnitPrefs = UnitPrefs(),
     spotName: String = "Launch Site",
 ) {
+    val scrollState = rememberScrollState()
+    Box(modifier = Modifier.fillMaxWidth()) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .verticalScroll(rememberScrollState())
+            .verticalScroll(scrollState)
             .padding(horizontal = 20.dp)
             .padding(bottom = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -208,6 +216,38 @@ private fun WeatherContent(
 
         forecast.daily.take(5).forEach { period ->
             DailyWeatherCard(period, units)
+        }
+    }
+
+        // "More below" hint: a soft fade + chevron at the bottom edge, shown only
+        // while there's content still to scroll. Disappears at the end.
+        androidx.compose.animation.AnimatedVisibility(
+            visible = scrollState.canScrollForward,
+            enter = androidx.compose.animation.fadeIn(),
+            exit = androidx.compose.animation.fadeOut(),
+            modifier = Modifier.align(Alignment.BottomCenter),
+        ) {
+            ScrollMoreHint()
+        }
+    }
+}
+
+/** Fade-to-sheet gradient + a drawn down-chevron, the universal "scroll for more" cue. */
+@Composable
+private fun ScrollMoreHint(modifier: Modifier = Modifier) {
+    val sheetColor = MaterialTheme.colorScheme.surfaceContainerLow
+    val chevron = MaterialTheme.colorScheme.onSurfaceVariant
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(44.dp)
+            .background(Brush.verticalGradient(listOf(Color.Transparent, sheetColor))),
+        contentAlignment = Alignment.BottomCenter,
+    ) {
+        Canvas(modifier = Modifier.padding(bottom = 10.dp).width(22.dp).height(9.dp)) {
+            val sw = 2.dp.toPx()
+            drawLine(chevron, Offset(0f, 0f), Offset(size.width / 2f, size.height), strokeWidth = sw, cap = StrokeCap.Round)
+            drawLine(chevron, Offset(size.width, 0f), Offset(size.width / 2f, size.height), strokeWidth = sw, cap = StrokeCap.Round)
         }
     }
 }
