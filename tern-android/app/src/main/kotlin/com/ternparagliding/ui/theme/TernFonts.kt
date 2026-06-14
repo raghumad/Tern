@@ -38,6 +38,11 @@ object TernFontFamily {
         Font(R.font.jetbrains_mono_nerd_regular, FontWeight.Normal),
         Font(R.font.jetbrains_mono_nerd_bold, FontWeight.Bold),
     )
+
+    /** Gruppo — thin geometric display face used for the flight-deck instruments (HUD + tape). */
+    val gruppo: FontFamily = FontFamily(
+        Font(R.font.gruppo_regular, FontWeight.Normal),
+    )
 }
 
 /**

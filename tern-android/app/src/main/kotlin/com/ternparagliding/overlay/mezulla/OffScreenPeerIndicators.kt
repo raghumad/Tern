@@ -117,13 +117,13 @@ fun OffScreenPeerIndicators(
             Row(
                 modifier = Modifier
                     .offset { IntOffset(px.coerceIn(0, (wPx - 1).toInt()), py.coerceIn(0, (hPx - 1).toInt())) }
-                    .background(Color(0xCC141414), RoundedCornerShape(50))
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                    .background(Color(0xB3141414), RoundedCornerShape(50))
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
                     .testTag("offscreen-peer-$callsign")
                     .semantics { contentDescription = "offscreen-peer:$callsign:$distText" },
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(3.dp),
             ) {
-                Canvas(Modifier.size(14.dp)) {
+                Canvas(Modifier.size(10.dp)) {
                     rotate(angleDeg, pivot = center) {
                         val p = Path().apply {
                             moveTo(size.width, size.height / 2f)            // tip (points +x)
@@ -134,9 +134,9 @@ fun OffScreenPeerIndicators(
                         drawPath(p, color)
                     }
                 }
-                Text(callsign, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Text(callsign, color = Color.White, fontSize = 10.sp, fontFamily = com.ternparagliding.ui.theme.TernFontFamily.gruppo)
                 if (distText.isNotEmpty()) {
-                    Text(distText, color = Color(0xFFB0B0B0), fontSize = 13.sp)
+                    Text(distText, color = Color(0xFFB0B0B0), fontSize = 10.sp, fontFamily = com.ternparagliding.ui.theme.TernFontFamily.gruppo)
                 }
             }
         }

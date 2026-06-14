@@ -95,7 +95,7 @@ fun PeerLayer(
         id = "mezulla-peers",
         source = source,
         iconImage = iconImage,
-        iconSize = const(1f),
+        iconSize = const(0.75f), // smaller markers — the deck instruments crowd the screen
         iconAllowOverlap = const(true),
     )
 }

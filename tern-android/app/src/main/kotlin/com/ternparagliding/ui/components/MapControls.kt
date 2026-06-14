@@ -29,7 +29,8 @@ fun Compass(
     windFromDeg: Double? = null,
 ) {
     val ringColor = MaterialTheme.colorScheme.outline
-    val northColor = MaterialTheme.colorScheme.error
+    // Standard compass convention: north carat is bright red.
+    val northColor = Color(0xFFFF1A1A)
 
     Canvas(
         modifier = modifier
