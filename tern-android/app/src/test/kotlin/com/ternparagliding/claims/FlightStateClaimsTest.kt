@@ -2,6 +2,7 @@ package com.ternparagliding.claims
 
 import com.ternparagliding.flight.CirclingWindTracker
 import com.ternparagliding.flight.FlightMetrics
+import com.ternparagliding.flight.FlightTrack
 import com.ternparagliding.flight.IgcToXctrc
 import com.ternparagliding.flight.NmeaLineAssembler
 import com.ternparagliding.flight.SensorFix
@@ -314,6 +315,89 @@ class FlightStateClaimsTest {
             "and at least one carries a plausible PG airspeed",
             winds.any { it.airspeedMs in 5.0..18.0 },
         )
+    }
+
+    // ── Flight track (batch 2) ───────────────────────────────────────────────────────
+
+    private fun fixAt(t: Long, lat: Double, lon: Double, climb: Double? = null) =
+        SensorFix(timeMs = t, lat = lat, lon = lon, climbMs = climb)
+
+    /**
+     * **CLAIM K7 · Correct (flight track).** Own-position fixes accumulate into a *decimated*,
+     * *ring-buffered* trail: a fix too close to the last kept one is dropped (so a 1 Hz thermal
+     * doesn't stack points), an unpositioned vario-only fix is ignored, and once the cap is hit
+     * the oldest point falls off the tail — the trailing-window behaviour the live deck draws.
+     */
+    @Test
+    fun `correct - flight track decimates and ring-buffers`() {
+        val lat = 46.0
+        val mPerDegLon = 111_320.0 * cos(Math.toRadians(lat))
+
+        // Decimation: a 2 m hop is dropped; a 22 m hop is kept.
+        val track = FlightTrack(maxPoints = 100, minSpacingM = 10.0)
+        var lon = 7.0
+        assertTrue("first fix is always kept", track.add(fixAt(0, lat, lon)))
+        lon += 2.0 / mPerDegLon
+        assertFalse("a 2 m hop is below the spacing floor", track.add(fixAt(1_000, lat, lon)))
+        lon += 20.0 / mPerDegLon
+        assertTrue("now 22 m from the last kept point → kept", track.add(fixAt(2_000, lat, lon)))
+        assertFalse("a vario-only fix (no GPS) is ignored", track.add(SensorFix(timeMs = 3_000, climbMs = 1.0)))
+        assertEquals(2, track.points.size)
+
+        // Ring buffer: feed 5 well-spaced fixes into a cap of 3 → only the last 3 survive.
+        val rb = FlightTrack(maxPoints = 3, minSpacingM = 5.0)
+        var lon2 = 7.0
+        repeat(5) { i ->
+            lon2 += 20.0 / mPerDegLon
+            rb.add(fixAt(i.toLong() * 1_000, lat, lon2))
+        }
+        assertEquals(3, rb.points.size)
+        assertEquals("oldest dropped at the cap", 2_000L, rb.points.first().timeMs)
+        assertEquals(4_000L, rb.points.last().timeMs)
+    }
+
+    /**
+     * **CLAIM K7 · Correct (track tint).** A segment's colour maps from the climb at its newer
+     * endpoint — lift (green) ≥ +0.2, sink (red) ≤ −0.2, neutral in the dead-band and when climb
+     * is unknown. And a logger-gap between two points breaks the trail (no phantom segment).
+     */
+    @Test
+    fun `correct - track segment tint maps from climb`() {
+        assertEquals(FlightTrack.TrackTint.LIFT, FlightTrack.trackTint(0.5))
+        assertEquals("boundary is lift", FlightTrack.TrackTint.LIFT, FlightTrack.trackTint(0.2))
+        assertEquals(FlightTrack.TrackTint.SINK, FlightTrack.trackTint(-0.5))
+        assertEquals("boundary is sink", FlightTrack.TrackTint.SINK, FlightTrack.trackTint(-0.2))
+        assertEquals("dead-band is neutral", FlightTrack.TrackTint.NEUTRAL, FlightTrack.trackTint(0.1))
+        assertEquals("unknown climb → neutral, not implied lift", FlightTrack.TrackTint.NEUTRAL, FlightTrack.trackTint(null))
+
+        val lat = 46.0
+        val mPerDegLon = 111_320.0 * cos(Math.toRadians(lat))
+        val gt = FlightTrack(minSpacingM = 1.0, gapMs = 10_000L)
+        var lon = 7.0
+        gt.add(fixAt(0, lat, lon, 1.0)); lon += 20.0 / mPerDegLon
+        gt.add(fixAt(5_000, lat, lon, 1.5)); lon += 20.0 / mPerDegLon // 5 s gap → a segment
+        gt.add(fixAt(25_000, lat, lon, -1.0)) // 20 s gap → break, no segment
+        val segs = gt.segments()
+        assertEquals("the 20 s gap breaks the trail", 1, segs.size)
+        assertEquals("segment is tinted by its newer endpoint's climb", FlightTrack.TrackTint.LIFT, segs.first().tint)
+    }
+
+    /**
+     * **CLAIM K7 · Resilient (track on a real flight).** Built straight from the live parse path
+     * (`$XCTRC` → parser → fix → track), a real Bir Billing flight produces a substantial trail
+     * carrying *both* lift and sink segments — a real thermal map, not a monochrome line.
+     */
+    @Test
+    fun `resilient - flight track builds through the live parse path with lift and sink`() {
+        val text = javaClass.getResourceAsStream("/igc/flights/in/2025-10-11-birbilling-richard.igc")!!
+            .bufferedReader().use { it.readText() }
+        val flight = com.ternparagliding.sim.igc.IgcParser.parseString(text)
+        val track = FlightTrack()
+        IgcToXctrc.sentences(flight).mapNotNull { XcTracerParser.parse(it) }.forEach { track.add(it) }
+        val segs = track.segments()
+        assertTrue("a real flight builds a substantial trail (got ${segs.size})", segs.size > 50)
+        assertTrue("thermalling shows lift segments", segs.any { it.tint == FlightTrack.TrackTint.LIFT })
+        assertTrue("gliding shows sink segments", segs.any { it.tint == FlightTrack.TrackTint.SINK })
     }
 
     /**

@@ -253,9 +253,9 @@ placeholders for you to set.
 > items are Android/Compose, verified on-device, not on the JVM board.
 
 - **Correct (flight track):** own-position fixes accumulate into a decimated, ring-buffered
-  track (oldest dropped at the cap). `[GAP]`
+  track (oldest dropped at the cap). `[HELD]` — `FlightStateClaimsTest` (flight track decimates and ring-buffers; real-flight trail via IGC replay).
 - **Correct (track tint):** a track segment's colour maps from its climb (green ≥ +0.2, red
-  ≤ −0.2, neutral between) — the thermal-map trail. `[GAP]`
+  ≤ −0.2, neutral between) — the thermal-map trail. `[HELD]` — `FlightStateClaimsTest` (track segment tint maps from climb, incl. gap-break).
 - **Correct (glide ratio):** L/D = ground speed / sink; withheld when climbing or sink ≈ 0;
   clamped to a sane max. `[HELD]` — `FlightStateClaimsTest` (glide ratio).
 - **Correct (thermal averager):** averaged climb over the configured window matches a known
