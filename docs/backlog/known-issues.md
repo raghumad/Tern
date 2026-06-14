@@ -24,6 +24,29 @@ picked up.
   are correct. One-line fix in the type→label map. *(claim: K2 airspace ·
   Correct)*
 
+- **Airspace visualization is "everything, always" — needs a relevance model.**
+  Surfaced 2026-06-14 reviewing the Aravis flight-deck replay: it looked like the
+  whole team was flying *inside* airspace. They weren't — these are real legal
+  tracks below the TMA floor (e.g. Geneva TMA floor ≈ 8,500 ft MSL; pilots at
+  ~6,600 ft). The overlay draws **every airspace footprint as a flat 25% lateral
+  fill regardless of the pilot's altitude**, and over dense regions (Europe,
+  India) that blankets the entire map — an instrument that's always red is the
+  same as no instrument. Two intertwined problems:
+  1. **Altitude-unaware** — floor/ceiling are in the data (OpenAIP
+     `lowerLimit`/`upperLimit`, even shown in the label) and pilot altitude is now
+     in `FlightDeckState`, but the two are never combined. A block floored far
+     above you should recede, not shout. *(this is the K2 "vertical airspace
+     proximity" gap — "180 m below CTR floor")*
+  2. **Relevance / declutter** — even altitude-correct, showing all classes at
+     all times is noise. Candidate directions (to weigh when we revisit, not
+     decided): filter/dim by **class** (hard boundaries — CTR/Prohibited/Restricted
+     — bold; advisory/high-FL classes faint or off), by **vertical proximity**
+     (bold only what you're in or approaching), by **phase** (look-ahead while
+     gliding, immediate while circling), and outline-only at low zoom with fills
+     reserved for what can actually bite you. Goal: airspace becomes a
+     *vertical-clearance + boundary-ahead* instrument, not wallpaper.
+  *(claim: K2 airspace · Correct + Timely; revisit deferred — do NOT build yet)*
+
 - **FAI / competition task editor — unverified.** The old suite showed failures
   around the FAI editor (`FAITaskUITest`, Chamonix/Monarca competition flows),
   likely one shared root cause in the editor labels/panel. Whether any was a
