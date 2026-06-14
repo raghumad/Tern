@@ -48,7 +48,8 @@ class IgcReplaySource(
          */
         val FLIGHTS: Map<String, String> = mapOf(
             "birbilling" to "/igc/flights/in/2025-10-11-birbilling-richard.igc",
-            "aravis" to "/igc/flights/fr/2026-04-25-aravis-team-cbe.igc",
+            // Own-ship = tonio24 (the scenario DUT) so it doesn't collide with a buddy peer.
+            "aravis" to "/igc/flights/fr/2026-04-25-aravis-team-tonio24.igc",
         )
 
         /** Load a bundled flight by id, or null if unknown / unreadable. */

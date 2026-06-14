@@ -159,6 +159,35 @@ fun MapViewContainer(
         smoothedZoom.value = Double.NaN; smoothedBearing.value = Double.NaN
         lastZoom.value = Double.NaN; lastBearing.value = Double.NaN
     }
+    // Buddy playback for the Aravis team replay: own-ship is tonio24 (the DUT), and cbe/cor/lma
+    // ride onto the map as Mezulla peers driven off the SAME replay clock (one timeline).
+    val buddyPlayback = remember { androidx.compose.runtime.mutableStateOf<com.ternparagliding.sim.swarm.SwarmPlayback?>(null) }
+    val buddyNodes = remember {
+        mapOf(
+            com.ternparagliding.sim.swarm.scenarios.AravisTeam2026.CBE to 0xB0D01L,
+            com.ternparagliding.sim.swarm.scenarios.AravisTeam2026.COR to 0xB0D02L,
+            com.ternparagliding.sim.swarm.scenarios.AravisTeam2026.LMA to 0xB0D03L,
+        )
+    }
+    fun driveBuddies(timeMs: Long) {
+        val pb = buddyPlayback.value ?: return
+        val t = java.time.Instant.ofEpochMilli(timeMs)
+        buddyNodes.forEach { (pilot, node) ->
+            val pos = pb.currentPosition(pilot, t) ?: return@forEach // null = pre-launch / landed
+            val identity = com.ternparagliding.mezulla.connection.PeerIdentity.fromNodeNumber(
+                node, longName = pilot.value, shortName = pilot.value.take(4),
+            )
+            val pfix = com.ternparagliding.mezulla.connection.PeerPosition.Fix(
+                latitudeDeg = pos.latitude,
+                longitudeDeg = pos.longitude,
+                altitudeMeters = pos.altitudeMeters,
+                groundSpeedMetersPerSecond = null,
+                groundTrackDegrees = null,
+                timestampSeconds = t.epochSecond,
+            )
+            store.dispatch(com.ternparagliding.mezulla.redux.PeerAction.PeerPositionReceived(identity, pfix, t))
+        }
+    }
 
     // One fix from any source (BLE or replay): update the brains, push the enriched deck state,
     // grow the track, and follow the pilot. The camera is *eased*: zoom and track-up bearing
@@ -174,6 +203,7 @@ fun MapViewContainer(
         }
         if (flightTrack.add(fix)) trackVersion.intValue++
         store.dispatch(MapAction.UpdateVarioFix(fix, wind?.directionDeg, wind?.speedMs, avg))
+        driveBuddies(fix.timeMs) // synchronized buddies (Aravis replay only; no-op otherwise)
         if (fix.hasPosition) {
             val cam = com.ternparagliding.flight.FlightCamera
             val phase = com.ternparagliding.flight.WindEstimator.classifyPhase(phaseBuf.toList())
@@ -261,8 +291,22 @@ fun MapViewContainer(
         }
         windTracker.reset(); averager.reset(); flightTrack.reset()
         phaseBuf.clear(); trackVersion.intValue++; resetDeckCamera()
+        // Aravis flies as a team — load the buddies' synchronized playback.
+        buddyPlayback.value = if (id == "aravis") {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching {
+                    com.ternparagliding.sim.swarm.SwarmPlayback(
+                        com.ternparagliding.sim.swarm.scenarios.AravisTeam2026.scenario,
+                    )
+                }.getOrNull()
+            }
+        } else null
         store.dispatch(MapAction.SetVarioLinkState(connected = true, scanning = false))
-        com.ternparagliding.flight.IgcReplaySource(flight).fixes().collect { onDeckFix(it) }
+        try {
+            com.ternparagliding.flight.IgcReplaySource(flight).fixes().collect { onDeckFix(it) }
+        } finally {
+            buddyPlayback.value = null // stop driving buddies on end/cancel
+        }
         store.dispatch(MapAction.UpdateRotation(0f)) // natural end → north-up
         store.dispatch(MapAction.StopDeckReplay)     // and reset the deck
     }
@@ -535,6 +579,15 @@ fun MapViewContainer(
                     .align(Alignment.TopStart)
                     .padding(WindowInsets.statusBars.asPaddingValues())
                     .padding(16.dp),
+            )
+        }
+
+        // Own-ship pilot glyph at screen-centre (the follow-camera keeps the pilot there).
+        // Heading is track relative to the map, so it points up on glide and swings while circling.
+        if (state.flightDeck.varioConnected && state.flightDeck.courseDeg != null) {
+            PilotGlyph(
+                headingDeg = (state.flightDeck.courseDeg!! - state.rotation).toFloat(),
+                modifier = Modifier.align(Alignment.Center),
             )
         }
 
