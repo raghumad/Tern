@@ -24,6 +24,7 @@ object IgcToXctrc {
 
     private const val EARTH_R_M = 6_371_000.0
     private const val BATTERY_PCT = 85
+    private const val GAP_S = 10.0 // above this dt, treat as a logger gap (no velocity/climb)
 
     /** One `$XCTRC` sentence per valid fix, in order. */
     fun sentences(flight: IgcFlight): List<String> {
@@ -39,13 +40,17 @@ object IgcToXctrc {
         var gs = 0.0
         var course = 0.0
         var climb = 0.0
-        if (prev != null && dt > 0) {
+        // dt > GAP_S means a logger pause / stitched-segment boundary, not a real sample — skip
+        // its bogus velocity/climb. A real device emits nothing across such a gap.
+        if (prev != null && dt > 0 && dt <= GAP_S) {
             val latMean = Math.toRadians((prev.latitude + cur.latitude) / 2)
             val dE = Math.toRadians(cur.longitude - prev.longitude) * cos(latMean) * EARTH_R_M
             val dN = Math.toRadians(cur.latitude - prev.latitude) * EARTH_R_M
             gs = hypot(dE, dN) / dt
             course = (Math.toDegrees(atan2(dE, dN)) + 360.0) % 360.0
-            climb = (cur.pressureAltitude - prev.pressureAltitude) / dt // baro-derived vario (coarse)
+            // Baro-derived vario (coarse), bounded to a physical range — the real device caps its
+            // output too, and a 1 Hz log can throw non-physical single-sample spikes.
+            climb = ((cur.pressureAltitude - prev.pressureAltitude) / dt).coerceIn(-15.0, 15.0)
         }
 
         val z = cur.timestamp.atZone(ZoneOffset.UTC)

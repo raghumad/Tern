@@ -95,4 +95,18 @@ object Units {
 
     fun altitude(meters: Double, unit: String): String =
         "${altitudeValue(meters, unit).roundToInt()} ${altitudeSymbol(unit)}"
+
+    // ── Vario / climb rate — canonical metres-per-second ──────────────────────
+    fun varioValue(ms: Double, unit: String): Double = when (unit) {
+        "ft/min" -> ms * 196.850394
+        else -> ms // "m/s"
+    }
+
+    fun varioSymbol(unit: String): String = if (unit == "ft/min") "ft/min" else "m/s"
+
+    /** Signed, e.g. +1.4 m/s or +276 ft/min. m/s keeps a decimal; ft/min is whole. */
+    fun vario(ms: Double, unit: String): String = when (unit) {
+        "ft/min" -> "%+d ft/min".format(varioValue(ms, unit).roundToInt())
+        else -> "%+.1f m/s".format(ms)
+    }
 }

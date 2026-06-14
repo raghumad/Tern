@@ -257,14 +257,14 @@ placeholders for you to set.
 - **Correct (track tint):** a track segment's colour maps from its climb (green ≥ +0.2, red
   ≤ −0.2, neutral between) — the thermal-map trail. `[GAP]`
 - **Correct (glide ratio):** L/D = ground speed / sink; withheld when climbing or sink ≈ 0;
-  clamped to a sane max. `[GAP]`
+  clamped to a sane max. `[HELD]` — `FlightStateClaimsTest` (glide ratio).
 - **Correct (thermal averager):** averaged climb over the configured window matches a known
-  series. `[GAP]`
+  series. `[HELD]` — `FlightStateClaimsTest` (averager window + real-flight realism via IGC replay).
 - **Correct (height-above-takeoff):** takeoff datum captured from the first fix; height =
-  altitude − datum. `[GAP]`
+  altitude − datum. `[HELD]` — `FlightStateClaimsTest` (height/altitude-reference).
 - **Correct (HUD stage logic):** the cluster content selector — L/D shown iff gliding, ▲launch
   iff climbing, cloudbase-gap iff known & near. `[GAP]`
-- **Correct (vario units):** m/s ↔ ft/min conversion + formatting via `Units`. `[GAP]`
+- **Correct (vario units):** m/s ↔ ft/min conversion + formatting via `Units`. `[HELD]` — `FlightStateClaimsTest` (vario units).
 - **Correct (auto-zoom):** circling tighter than gliding; within gliding, faster ground speed
   → wider; clamped to [min,max]. `[GAP]`
 - **Correct (keep-in-view):** the framing box includes own-position + next-WP + nearest buddy.
@@ -273,7 +273,7 @@ placeholders for you to set.
   PHONE (reducer). `[GAP]`
 - **Resilient (device memory):** a remembered vario MAC persists and is offered next launch.
   `[GAP]`
-- **Correct (altitude ref):** the readout switches MSL ↔ above-takeoff per the setting. `[GAP]`
+- **Correct (altitude ref):** the readout switches MSL ↔ above-takeoff per the setting. `[HELD]` — `FlightStateClaimsTest` (height/altitude-reference).
 - *On-device `[smoke]` (not JVM claims):* flight-track map layer, HUD + vario-bar render,
   rosette wind arrow, zoom→camera, connection pill.
 

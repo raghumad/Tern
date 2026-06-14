@@ -1,10 +1,13 @@
 package com.ternparagliding.claims
 
 import com.ternparagliding.flight.CirclingWindTracker
+import com.ternparagliding.flight.FlightMetrics
 import com.ternparagliding.flight.IgcToXctrc
 import com.ternparagliding.flight.NmeaLineAssembler
 import com.ternparagliding.flight.SensorFix
+import com.ternparagliding.flight.ThermalAverager
 import com.ternparagliding.flight.WindEstimator
+import com.ternparagliding.units.Units
 import com.ternparagliding.flight.WindEstimator.TrackSample
 import com.ternparagliding.flight.XcTracerParser
 import java.time.LocalDateTime
@@ -204,6 +207,75 @@ class FlightStateClaimsTest {
         assertEquals("UTC time incl. centiseconds", expectedMs, fix.timeMs)
         // It plugs into the wind brain unchanged.
         assertNotNull("a positioned fix yields a track sample", fix.toTrackSample())
+    }
+
+    // ── Deck instrument math (batch 1) ───────────────────────────────────────────────
+
+    /**
+     * **CLAIM K7 · Correct (glide ratio).** L/D = ground speed / sink, withheld while climbing
+     * or near level (no meaningful glide), and clamped as sink → 0.
+     */
+    @Test
+    fun `correct - glide ratio is ground-speed over sink, withheld when not gliding`() {
+        assertEquals(11.0, FlightMetrics.glideRatio(11.0, -1.0)!!, 1e-6)
+        assertNull("climbing has no glide", FlightMetrics.glideRatio(11.0, 2.0))
+        assertNull("near-level sink isn't a glide", FlightMetrics.glideRatio(11.0, -0.05))
+        assertEquals("clamped as sink→0", FlightMetrics.MAX_GLIDE, FlightMetrics.glideRatio(50.0, -0.2)!!, 1e-6)
+    }
+
+    /**
+     * **CLAIM K7 · Correct (thermal averager).** The averaged climb tracks the trailing window;
+     * old samples age out. This is the needle pilots center thermals by.
+     */
+    @Test
+    fun `correct - thermal averager smooths climb over its window`() {
+        val avg = ThermalAverager(windowMs = 10_000L)
+        assertEquals(2.0, avg.add(0, 2.0), 1e-9)
+        assertEquals(2.0, avg.add(2_000, 2.0), 1e-9)
+        assertEquals(3.0, avg.add(4_000, 5.0), 1e-9) // (2+2+5)/3
+        assertEquals(5.0, avg.add(20_000, 5.0), 1e-9) // earlier samples aged out → only the last
+    }
+
+    /**
+     * **CLAIM K7 · Resilient (averager on a real flight).** Replayed through the live parse path
+     * (`$XCTRC` → parser → climb → averager), a real Bir Billing flight's best 25 s-averaged
+     * climb lands in a plausible thermal band — the realism check on the coarse 1 Hz climb.
+     */
+    @Test
+    fun `resilient - thermal averager finds a plausible best thermal on a real flight`() {
+        val text = javaClass.getResourceAsStream("/igc/flights/in/2025-10-11-birbilling-richard.igc")!!
+            .bufferedReader().use { it.readText() }
+        val flight = com.ternparagliding.sim.igc.IgcParser.parseString(text)
+        val parsed = IgcToXctrc.sentences(flight).mapNotNull { XcTracerParser.parse(it) }
+        val avg = ThermalAverager(25_000L)
+        var best = Double.NEGATIVE_INFINITY
+        parsed.forEach { f -> f.climbMs?.let { best = maxOf(best, avg.add(f.timeMs, it)) } }
+        assertTrue("best 25 s-avg climb is a real thermal (got $best)", best in 2.0..8.0)
+    }
+
+    /**
+     * **CLAIM K7 · Correct (altitude reference).** Height-above-takeoff is the launch-datum
+     * subtraction, and the readout switches MSL ↔ above-takeoff per the pilot's setting.
+     */
+    @Test
+    fun `correct - height above takeoff and altitude reference`() {
+        // Bir Billing peak: 5011 m MSL, takeoff 2332 m.
+        assertEquals(2679.0, FlightMetrics.heightAboveTakeoff(5011.0, 2332.0), 1e-6)
+        assertEquals(5011.0, FlightMetrics.displayAltitude(5011.0, 2332.0, FlightMetrics.AltRef.MSL), 1e-6)
+        assertEquals(2679.0, FlightMetrics.displayAltitude(5011.0, 2332.0, FlightMetrics.AltRef.ABOVE_TAKEOFF), 1e-6)
+    }
+
+    /**
+     * **CLAIM K7 · Correct (vario units).** Climb formats in the pilot's unit (m/s or ft/min),
+     * signed, and falls back to canonical for an unknown setting.
+     */
+    @Test
+    fun `correct - vario formats in the pilot's units`() {
+        assertEquals("+1.4 m/s", Units.vario(1.4, "m/s"))
+        assertEquals("-2.0 m/s", Units.vario(-2.0, "m/s"))
+        assertEquals(196.850394, Units.varioValue(1.0, "ft/min"), 1e-3)
+        assertEquals("+197 ft/min", Units.vario(1.0, "ft/min"))
+        assertEquals("m/s", Units.varioSymbol("garbage")) // total: unknown → canonical
     }
 
     /**
