@@ -144,6 +144,36 @@ fun MapViewContainer(
         com.ternparagliding.flight.XcTracerBleClient(context.applicationContext, coroutineScope)
     }
     val windTracker = remember { com.ternparagliding.flight.CirclingWindTracker() }
+    // Deck accumulators (shared by the live BLE path and the IGC bench replay): thermal
+    // averager, the climb-tinted track, and a short rolling buffer for phase classification.
+    val averager = remember { com.ternparagliding.flight.ThermalAverager() }
+    val flightTrack = remember { com.ternparagliding.flight.FlightTrack() }
+    val phaseBuf = remember { ArrayDeque<com.ternparagliding.flight.WindEstimator.TrackSample>() }
+    val trackVersion = remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    val lastAutoZoom = remember { androidx.compose.runtime.mutableStateOf(Double.NaN) }
+
+    // One fix from any source (BLE or replay): update the brains, push the enriched deck state,
+    // grow the track, and follow the pilot with phase-and-speed auto-zoom.
+    fun onDeckFix(fix: com.ternparagliding.flight.SensorFix) {
+        val wind = windTracker.add(fix)
+        val avg = fix.climbMs?.let { averager.add(fix.timeMs, it) }
+        fix.toTrackSample()?.let { ts ->
+            phaseBuf.addLast(ts)
+            val cutoff = ts.timeMs - 30_000L
+            while (phaseBuf.isNotEmpty() && phaseBuf.first().timeMs < cutoff) phaseBuf.removeFirst()
+        }
+        if (flightTrack.add(fix)) trackVersion.intValue++
+        store.dispatch(MapAction.UpdateVarioFix(fix, wind?.directionDeg, wind?.speedMs, avg))
+        if (fix.hasPosition) {
+            val phase = com.ternparagliding.flight.WindEstimator.classifyPhase(phaseBuf.toList())
+            val zoom = com.ternparagliding.flight.FlightCamera.autoZoom(phase, fix.groundSpeedMs ?: 0.0)
+            store.dispatch(MapAction.UpdateCenter(GeoPoint(fix.lat!!, fix.lon!!)))
+            if (lastAutoZoom.value.isNaN() || kotlin.math.abs(zoom - lastAutoZoom.value) > 0.25) {
+                store.dispatch(MapAction.UpdateZoom(zoom))
+                lastAutoZoom.value = zoom
+            }
+        }
+    }
     // BLE runtime permissions for the vario scan (Android 12+). Requested on first connect.
     val blePerms = remember {
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
@@ -171,8 +201,7 @@ fun MapViewContainer(
         var handedOver = false
         launch {
             xcTracerClient.fixes().collect { fix ->
-                val wind = windTracker.add(fix)
-                store.dispatch(MapAction.UpdateVarioFix(fix, wind?.directionDeg, wind?.speedMs))
+                onDeckFix(fix)
                 if (fix.hasPosition && !handedOver) {
                     handedOver = true
                     locationService.stopLocationUpdates() // vario is the better source now
@@ -192,6 +221,25 @@ fun MapViewContainer(
                 }
             }
         }
+    }
+
+    // IGC bench replay: drive the deck from a bundled flight through the *same* path the live
+    // vario uses (no hardware). Started/stopped from the Settings demo section.
+    LaunchedEffect(state.flightDeck.replayFlightId) {
+        val id = state.flightDeck.replayFlightId ?: return@LaunchedEffect
+        val flight = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            com.ternparagliding.flight.IgcReplaySource.load(id)
+        }
+        if (flight == null) {
+            Log.w(TAG, "Deck replay: flight '$id' not found")
+            store.dispatch(MapAction.StopDeckReplay)
+            return@LaunchedEffect
+        }
+        windTracker.reset(); averager.reset(); flightTrack.reset()
+        phaseBuf.clear(); trackVersion.intValue++; lastAutoZoom.value = Double.NaN
+        store.dispatch(MapAction.SetVarioLinkState(connected = true, scanning = false))
+        com.ternparagliding.flight.IgcReplaySource(flight).fixes().collect { onDeckFix(it) }
+        store.dispatch(MapAction.StopDeckReplay) // natural end → reset the deck
     }
 
     val initialCenter = state.center
@@ -389,6 +437,14 @@ fun MapViewContainer(
                 )
             }
 
+            // Climb-tinted flight track (live vario or bench replay).
+            if (state.flightDeck.varioConnected) {
+                com.ternparagliding.overlay.flight.FlightTrackLayer(
+                    segments = flightTrack.segments(),
+                    version = trackVersion.intValue,
+                )
+            }
+
             // Airspace overlay
             AirspaceOverlay(store = store, cameraState = cameraState)
 
@@ -440,7 +496,10 @@ fun MapViewContainer(
                 // The needle points to true north, so it rotates opposite the camera
                 // bearing (MapLibre bearing is clockwise from north): bearing 90° (facing
                 // east) → north is to the left → rotate −90°.
-                Compass(rotation = -state.rotation)
+                Compass(
+                    rotation = -state.rotation,
+                    windFromDeg = if (state.flightDeck.varioConnected) state.flightDeck.windFromDeg else null,
+                )
             }
         }
 

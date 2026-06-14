@@ -115,6 +115,8 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
     // Flight deck — XC Tracer vario over BLE
     is MapAction.UpdateVarioFix,
     is MapAction.SetVarioLinkState,
+    is MapAction.StartDeckReplay,
+    MapAction.StopDeckReplay,
     MapAction.ToggleVario -> handleFlightDeckActions(state, action)
 }
 
@@ -135,10 +137,18 @@ private fun handleFlightDeckActions(state: MapState, action: MapAction): MapStat
     )
     is MapAction.UpdateVarioFix -> {
         val fix = action.fix
+        // Capture the takeoff datum on the first positioned fix → height-above-takeoff.
+        val datum = state.flightDeck.takeoffDatumM
+            ?: if (fix.hasPosition) fix.gpsAltitudeM else null
         val deck = state.flightDeck.copy(
             climbMs = fix.climbMs ?: state.flightDeck.climbMs,
+            avgClimbMs = action.avgClimbMs ?: state.flightDeck.avgClimbMs,
             altitudeM = fix.gpsAltitudeM ?: state.flightDeck.altitudeM,
+            takeoffDatumM = datum,
             pressureHpa = fix.pressureHpa ?: state.flightDeck.pressureHpa,
+            groundSpeedMs = fix.groundSpeedMs ?: state.flightDeck.groundSpeedMs,
+            courseDeg = fix.courseDeg ?: state.flightDeck.courseDeg,
+            batteryPct = fix.batteryPct ?: state.flightDeck.batteryPct,
             windFromDeg = action.windFromDeg ?: state.flightDeck.windFromDeg,
             windSpeedMs = action.windSpeedMs ?: state.flightDeck.windSpeedMs,
             lastFixMs = fix.timeMs,
@@ -157,6 +167,13 @@ private fun handleFlightDeckActions(state: MapState, action: MapAction): MapStat
             state.copy(flightDeck = deck)
         }
     }
+    is MapAction.StartDeckReplay -> state.copy(
+        flightDeck = state.flightDeck.copy(replayFlightId = action.flightId),
+    )
+    MapAction.StopDeckReplay -> state.copy(
+        // Clear the live readout so the deck resets between runs.
+        flightDeck = FlightDeckState(),
+    )
     else -> state
 }
 

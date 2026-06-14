@@ -106,12 +106,19 @@ data class FlightDeckState(
     val varioConnected: Boolean = false,
     val varioScanning: Boolean = false,
     val climbMs: Double? = null,           // fused vario (m/s, + up)
+    val avgClimbMs: Double? = null,        // thermal-averaged climb (the centering needle)
     val altitudeM: Double? = null,         // GPS altitude from the vario (m)
+    val takeoffDatumM: Double? = null,     // first-fix altitude → height-above-takeoff
     val pressureHpa: Double? = null,
+    val groundSpeedMs: Double? = null,
+    val courseDeg: Double? = null,
+    val batteryPct: Int? = null,
     val windFromDeg: Double? = null,       // live circling-wind estimate
     val windSpeedMs: Double? = null,
     val positionSource: PositionSource = PositionSource.PHONE,
     val lastFixMs: Long = 0L,
+    /** Non-null while a bundled IGC flight is being replayed into the deck (bench demo). */
+    val replayFlightId: String? = null,
 )
 
 /**

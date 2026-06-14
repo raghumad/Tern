@@ -5,18 +5,28 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.sin
+
+// Live-wind needle on the rosette — sky blue, distinct from the red north carat.
+private val WIND_COLOR = Color(0xFF38BDF8)
 
 @Composable
 fun Compass(
     rotation: Float,
     modifier: Modifier = Modifier,
-    size: Dp = 48.dp
+    size: Dp = 48.dp,
+    /** Live wind direction (degrees the wind blows *from*); null hides the needle. */
+    windFromDeg: Double? = null,
 ) {
     val ringColor = MaterialTheme.colorScheme.outline
     val northColor = MaterialTheme.colorScheme.error
@@ -51,5 +61,29 @@ fun Compass(
             path = path,
             color = northColor
         )
+
+        // Live-wind needle: streams IN from the wind's from-side (tail at the rim) and points
+        // downwind toward the centre. The canvas is already rotated so up = north, so the wind's
+        // compass bearing maps straight to a clockwise-from-up angle.
+        if (windFromDeg != null) {
+            val th = Math.toRadians(windFromDeg)
+            val dx = sin(th).toFloat()       // toward the from-side (north = up)
+            val dy = (-cos(th)).toFloat()
+            val tail = Offset(center.x + radius * 0.80f * dx, center.y + radius * 0.80f * dy)
+            val tip = Offset(center.x - radius * 0.45f * dx, center.y - radius * 0.45f * dy)
+            val stroke = 3.dp.toPx()
+            drawLine(WIND_COLOR, tail, tip, strokeWidth = stroke, cap = StrokeCap.Round)
+            // Arrowhead at the downwind tip.
+            val phi = atan2((tip.y - tail.y), (tip.x - tail.x))
+            val headLen = radius * 0.30f
+            for (s in intArrayOf(-1, 1)) {
+                val a = phi + Math.PI + s * 0.4
+                drawLine(
+                    WIND_COLOR, tip,
+                    Offset(tip.x + headLen * cos(a).toFloat(), tip.y + headLen * sin(a).toFloat()),
+                    strokeWidth = stroke, cap = StrokeCap.Round,
+                )
+            }
+        }
     }
 }

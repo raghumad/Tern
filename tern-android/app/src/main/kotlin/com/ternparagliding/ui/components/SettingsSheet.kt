@@ -237,6 +237,34 @@ fun SettingsSheet(
                     Spacer(modifier = Modifier.height(16.dp))
                 }
             }
+
+            // Flight-deck bench replay — fly a bundled IGC through the live deck (no hardware).
+            item {
+                HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+                Text("Flight deck (bench replay)", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
+                val replayingId = state.flightDeck.replayFlightId
+                listOf("birbilling" to "Bir Billing", "aravis" to "Aravis").forEach { (id, label) ->
+                    val running = replayingId == id
+                    OutlinedButton(
+                        onClick = {
+                            if (running) {
+                                store.dispatch(com.ternparagliding.redux.MapAction.StopDeckReplay)
+                            } else {
+                                store.dispatch(com.ternparagliding.redux.MapAction.StartDeckReplay(id))
+                                onDismiss()
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .padding(bottom = 8.dp)
+                            .testTag("deck_replay_$id"),
+                    ) {
+                        Text(text = if (running) "Stop $label" else "Replay: $label", fontSize = 16.sp)
+                    }
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+            }
         }
     }
 }

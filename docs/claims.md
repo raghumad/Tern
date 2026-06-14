@@ -276,6 +276,14 @@ placeholders for you to set.
 - **Correct (altitude ref):** the readout switches MSL ↔ above-takeoff per the setting. `[HELD]` — `FlightStateClaimsTest` (height/altitude-reference).
 - *On-device `[smoke]` (not JVM claims):* flight-track map layer, HUD + vario-bar render,
   rosette wind arrow, zoom→camera, connection pill.
+  **Verified on-device 2026-06-14** (Power Armor 14 Pro) via the IGC *bench replay* — a bundled
+  Bir Billing flight streamed through the live `$XCTRC → XcTracerParser → SensorFix` path (no
+  hardware), driving: the climb-tinted `FlightTrackLayer` (green thermal coils + red glide line),
+  the enriched `VarioHud` (climb + ø-avg, MSL + ▲height-above-takeoff, GS + L/D-when-gliding,
+  live wind, source + battery), the live wind needle on the `Compass` rosette, and
+  phase+speed `FlightCamera.autoZoom` camera-follow. Source: replay = `IgcReplaySource`
+  (Settings → *Flight deck (bench replay)*). Still open: HUD stage selector, source ladder +
+  device memory (below, JVM claims).
 
 ## The Claims Report (replaces the dashboard)
 
