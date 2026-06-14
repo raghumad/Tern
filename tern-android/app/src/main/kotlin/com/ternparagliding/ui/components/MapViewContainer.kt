@@ -603,11 +603,15 @@ fun MapViewContainer(
             )
         }
 
-        // Analog vario tape pinned to the left edge (the mockup's signature instrument).
+        // Combined altitude + vario tape (left edge): the vario is the trend bar extending from
+        // the altitude pointer, with a launch reference — rate + height in one glance.
         if (state.flightDeck.varioConnected) {
-            VarioTape(
+            AltitudeVarioTape(
+                altitudeM = state.flightDeck.altitudeM,
                 climbMs = state.flightDeck.climbMs,
                 avgClimbMs = state.flightDeck.avgClimbMs,
+                takeoffDatumM = state.flightDeck.takeoffDatumM,
+                altitudeUnit = state.settingsState.altitudeUnit,
                 modifier = Modifier
                     .align(Alignment.CenterStart)
                     .padding(start = 10.dp),
