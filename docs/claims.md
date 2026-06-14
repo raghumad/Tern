@@ -266,9 +266,9 @@ placeholders for you to set.
   iff climbing, cloudbase-gap iff known & near. `[GAP]`
 - **Correct (vario units):** m/s ↔ ft/min conversion + formatting via `Units`. `[HELD]` — `FlightStateClaimsTest` (vario units).
 - **Correct (auto-zoom):** circling tighter than gliding; within gliding, faster ground speed
-  → wider; clamped to [min,max]. `[GAP]`
+  → wider; clamped to [min,max]. `[HELD]` — `FlightStateClaimsTest` (auto-zoom tighter circling than gliding, widens with speed).
 - **Correct (keep-in-view):** the framing box includes own-position + next-WP + nearest buddy.
-  `[GAP]`
+  `[HELD]` — `FlightStateClaimsTest` (framing box keeps own + next-WP + nearest buddy in view).
 - **Resilient (source ladder):** a positioned vario fix → source XC_TRACER; on link loss →
   PHONE (reducer). `[GAP]`
 - **Resilient (device memory):** a remembered vario MAC persists and is offered next launch.

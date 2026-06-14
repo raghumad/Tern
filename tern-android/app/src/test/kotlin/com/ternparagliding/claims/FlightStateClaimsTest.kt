@@ -1,6 +1,7 @@
 package com.ternparagliding.claims
 
 import com.ternparagliding.flight.CirclingWindTracker
+import com.ternparagliding.flight.FlightCamera
 import com.ternparagliding.flight.FlightMetrics
 import com.ternparagliding.flight.FlightTrack
 import com.ternparagliding.flight.IgcToXctrc
@@ -398,6 +399,59 @@ class FlightStateClaimsTest {
         assertTrue("a real flight builds a substantial trail (got ${segs.size})", segs.size > 50)
         assertTrue("thermalling shows lift segments", segs.any { it.tint == FlightTrack.TrackTint.LIFT })
         assertTrue("gliding shows sink segments", segs.any { it.tint == FlightTrack.TrackTint.SINK })
+    }
+
+    // ── Map camera (batch 3) ─────────────────────────────────────────────────────────
+
+    /**
+     * **CLAIM K7 · Correct (auto-zoom).** The map zooms with what you're doing: tight while
+     * circling, wider on glide, and within glide a faster ground speed pulls the look-ahead
+     * wider still — all clamped to a sane range. No manual input needed for the common case.
+     */
+    @Test
+    fun `correct - auto-zoom is tighter circling than gliding and widens with speed`() {
+        val circling = FlightCamera.autoZoom(WindEstimator.FlightPhase.CIRCLING, 4.0)
+        val slowGlide = FlightCamera.autoZoom(WindEstimator.FlightPhase.STRAIGHT, 8.0)
+        val fastGlide = FlightCamera.autoZoom(WindEstimator.FlightPhase.STRAIGHT, 18.0)
+
+        assertEquals("circling sits at the tight zoom", FlightCamera.CIRCLING_ZOOM, circling, 1e-9)
+        assertTrue("circling is tighter (more zoomed-in) than gliding", circling > slowGlide)
+        assertTrue("a faster glide looks wider than a slow one", slowGlide > fastGlide)
+
+        // Clamped: an absurd speed can't widen past the floor, circling can't exceed the ceiling.
+        val tooFast = FlightCamera.autoZoom(WindEstimator.FlightPhase.STRAIGHT, 200.0)
+        assertTrue("clamped to the widest", tooFast >= FlightCamera.MIN_ZOOM)
+        assertTrue("circling stays within the ceiling", circling <= FlightCamera.MAX_ZOOM)
+        // Unknown phase falls back to a sensible default, not an extreme.
+        val unknown = FlightCamera.autoZoom(WindEstimator.FlightPhase.UNKNOWN, 0.0)
+        assertTrue(unknown in FlightCamera.MIN_ZOOM..FlightCamera.MAX_ZOOM)
+    }
+
+    /**
+     * **CLAIM K7 · Correct (keep-in-view).** The framing box spans own-position plus whichever
+     * of (next-WP, nearest buddy) are present, so the tactical points never drift off-screen;
+     * with only own-position it degenerates to a point box (the camera then leans on auto-zoom).
+     */
+    @Test
+    fun `correct - the framing box keeps own-position, next-WP and nearest buddy in view`() {
+        val own = FlightCamera.Point(46.0, 7.0)
+        val wp = FlightCamera.Point(46.2, 7.3)
+        val buddy = FlightCamera.Point(45.9, 6.8)
+
+        val box = FlightCamera.framingBox(own, wp, buddy)
+        assertTrue("own in view", box.contains(own))
+        assertTrue("next-WP in view", box.contains(wp))
+        assertTrue("nearest buddy in view", box.contains(buddy))
+        assertEquals("box spans the southern/western extreme", 45.9, box.south, 1e-9)
+        assertEquals(6.8, box.west, 1e-9)
+        assertEquals("and the northern/eastern extreme", 46.2, box.north, 1e-9)
+        assertEquals(7.3, box.east, 1e-9)
+
+        // No route, no buddy → a point box around the pilot.
+        val solo = FlightCamera.framingBox(own)
+        assertTrue(solo.contains(own))
+        assertEquals(own.lat, solo.south, 1e-9)
+        assertEquals(own.lat, solo.north, 1e-9)
     }
 
     /**
