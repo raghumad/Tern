@@ -455,6 +455,34 @@ class FlightStateClaimsTest {
     }
 
     /**
+     * **CLAIM K7 · Correct (camera smoothing).** The follow-camera eases toward its target
+     * rather than snapping — a low-pass so a transient phase flip or noisy heading doesn't whip
+     * the view around (the fix for nauseating auto-zoom). Zoom eases monotonically and converges;
+     * bearing eases the *short way* around the compass (350°→10° turns +, not −340°); NaN (no
+     * prior value) snaps straight to target.
+     */
+    @Test
+    fun `correct - the follow-camera eases toward its target instead of snapping`() {
+        // Zoom: NaN snaps; then each step moves a fraction toward target and stays between.
+        assertEquals("NaN snaps to target", 14.0, FlightCamera.ease(Double.NaN, 14.0, 0.12), 1e-9)
+        val step = FlightCamera.ease(12.0, 16.0, 0.12)
+        assertTrue("eases toward, not onto, the target", step > 12.0 && step < 16.0)
+        // Converges after enough steps.
+        var z = 12.0
+        repeat(200) { z = FlightCamera.ease(z, 16.0, 0.12) }
+        assertEquals("converges", 16.0, z, 1e-3)
+
+        // Bearing: short way around the wrap. 350° → 10° must move *up* through 0°, staying near.
+        val b = FlightCamera.easeBearing(350.0, 10.0, 0.5)
+        assertTrue("crossed 0° the short way (got $b)", b in 0.0..20.0 || b in 350.0..360.0)
+        // And converges to the target the short way.
+        var bb = 350.0
+        repeat(200) { bb = FlightCamera.easeBearing(bb, 10.0, 0.3) }
+        assertTrue("bearing converges to ~10°", angularDiff(bb, 10.0) < 0.5)
+        assertEquals("NaN snaps to normalized target", 10.0, FlightCamera.easeBearing(Double.NaN, 370.0, 0.1), 1e-9)
+    }
+
+    /**
      * **CLAIM K7 · Correct (real device).** A sentence captured live off the actual XC Tracer
      * Mini II GPS over BLE (FFE0/FFE1) parses exactly — the real-world regression anchor:
      * negative longitude with 6 decimals, ground speed in m/s, empty IMU fields, pressure and

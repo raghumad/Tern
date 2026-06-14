@@ -150,10 +150,20 @@ fun MapViewContainer(
     val flightTrack = remember { com.ternparagliding.flight.FlightTrack() }
     val phaseBuf = remember { ArrayDeque<com.ternparagliding.flight.WindEstimator.TrackSample>() }
     val trackVersion = remember { androidx.compose.runtime.mutableIntStateOf(0) }
-    val lastAutoZoom = remember { androidx.compose.runtime.mutableStateOf(Double.NaN) }
+    // Smoothed follow-camera state (eased, not snapped) + last value actually dispatched.
+    val smoothedZoom = remember { androidx.compose.runtime.mutableStateOf(Double.NaN) }
+    val smoothedBearing = remember { androidx.compose.runtime.mutableStateOf(Double.NaN) }
+    val lastZoom = remember { androidx.compose.runtime.mutableStateOf(Double.NaN) }
+    val lastBearing = remember { androidx.compose.runtime.mutableStateOf(Double.NaN) }
+    fun resetDeckCamera() {
+        smoothedZoom.value = Double.NaN; smoothedBearing.value = Double.NaN
+        lastZoom.value = Double.NaN; lastBearing.value = Double.NaN
+    }
 
     // One fix from any source (BLE or replay): update the brains, push the enriched deck state,
-    // grow the track, and follow the pilot with phase-and-speed auto-zoom.
+    // grow the track, and follow the pilot. The camera is *eased*: zoom and track-up bearing
+    // nudge toward their targets so motion stays calm even under sped-up replay. Track-up follows
+    // course on glide but holds steady while circling (otherwise the map spins every thermal).
     fun onDeckFix(fix: com.ternparagliding.flight.SensorFix) {
         val wind = windTracker.add(fix)
         val avg = fix.climbMs?.let { averager.add(fix.timeMs, it) }
@@ -165,12 +175,26 @@ fun MapViewContainer(
         if (flightTrack.add(fix)) trackVersion.intValue++
         store.dispatch(MapAction.UpdateVarioFix(fix, wind?.directionDeg, wind?.speedMs, avg))
         if (fix.hasPosition) {
+            val cam = com.ternparagliding.flight.FlightCamera
             val phase = com.ternparagliding.flight.WindEstimator.classifyPhase(phaseBuf.toList())
-            val zoom = com.ternparagliding.flight.FlightCamera.autoZoom(phase, fix.groundSpeedMs ?: 0.0)
+            val circling = phase == com.ternparagliding.flight.WindEstimator.FlightPhase.CIRCLING
+
+            val targetZoom = cam.autoZoom(phase, fix.groundSpeedMs ?: 0.0)
+            smoothedZoom.value = cam.ease(smoothedZoom.value, targetZoom, cam.ZOOM_EASE)
+            // Hold heading while circling (don't chase the spinning course); else track-up.
+            val targetBearing = if (circling) smoothedBearing.value else (fix.courseDeg ?: smoothedBearing.value)
+            smoothedBearing.value = cam.easeBearing(smoothedBearing.value, targetBearing, cam.BEARING_EASE)
+
             store.dispatch(MapAction.UpdateCenter(GeoPoint(fix.lat!!, fix.lon!!)))
-            if (lastAutoZoom.value.isNaN() || kotlin.math.abs(zoom - lastAutoZoom.value) > 0.25) {
-                store.dispatch(MapAction.UpdateZoom(zoom))
-                lastAutoZoom.value = zoom
+            val sz = smoothedZoom.value
+            if (lastZoom.value.isNaN() || kotlin.math.abs(sz - lastZoom.value) > 0.05) {
+                store.dispatch(MapAction.UpdateZoom(sz)); lastZoom.value = sz
+            }
+            val sb = smoothedBearing.value
+            if (!sb.isNaN()) {
+                val moved = lastBearing.value.isNaN() ||
+                    kotlin.math.abs(((sb - lastBearing.value + 540.0) % 360.0) - 180.0) > 0.5
+                if (moved) { store.dispatch(MapAction.UpdateRotation(sb.toFloat())); lastBearing.value = sb }
             }
         }
     }
@@ -236,10 +260,11 @@ fun MapViewContainer(
             return@LaunchedEffect
         }
         windTracker.reset(); averager.reset(); flightTrack.reset()
-        phaseBuf.clear(); trackVersion.intValue++; lastAutoZoom.value = Double.NaN
+        phaseBuf.clear(); trackVersion.intValue++; resetDeckCamera()
         store.dispatch(MapAction.SetVarioLinkState(connected = true, scanning = false))
         com.ternparagliding.flight.IgcReplaySource(flight).fixes().collect { onDeckFix(it) }
-        store.dispatch(MapAction.StopDeckReplay) // natural end → reset the deck
+        store.dispatch(MapAction.UpdateRotation(0f)) // natural end → north-up
+        store.dispatch(MapAction.StopDeckReplay)     // and reset the deck
     }
 
     val initialCenter = state.center

@@ -16,17 +16,30 @@ import kotlin.math.min
 object FlightCamera {
 
     /** Widest / tightest zoom we'll auto-select (MapLibre zoom: higher = closer). */
-    const val MIN_ZOOM = 11.0
-    const val MAX_ZOOM = 16.5
+    const val MIN_ZOOM = 10.5
+    const val MAX_ZOOM = 15.0
 
-    /** Circling sits at a fixed tight zoom — the turn and the core are what matter. */
-    const val CIRCLING_ZOOM = 16.0
+    /**
+     * Circling sits a touch tighter than gliding — but only by ~1–1.5 levels, not a jarring
+     * jump. The smoothing in [ease] does the rest, so the camera glides between phases instead
+     * of snapping (which reads as nauseating, especially under sped-up replay).
+     */
+    const val CIRCLING_ZOOM = 14.0
 
     /** Glide zoom interpolates across this ground-speed band (m/s ≈ 29–65 km/h). */
     const val GLIDE_SLOW_MS = 8.0
     const val GLIDE_FAST_MS = 18.0
-    const val GLIDE_SLOW_ZOOM = 14.0
-    const val GLIDE_FAST_ZOOM = 12.0
+    const val GLIDE_SLOW_ZOOM = 13.0
+    const val GLIDE_FAST_ZOOM = 11.5
+
+    /**
+     * Smoothing factors for the follow-camera. Low = calm: each fix nudges the camera a fraction
+     * of the way to its target, so a transient phase flip or a noisy heading doesn't whip the
+     * view around. These make the motion frame-rate-independent in feel — gentle whether fixes
+     * arrive at 1 Hz (real flight) or 12 Hz (replay).
+     */
+    const val ZOOM_EASE = 0.12
+    const val BEARING_EASE = 0.08
 
     /**
      * Zoom for the current phase and ground speed. Circling → [CIRCLING_ZOOM]; gliding →
@@ -44,6 +57,25 @@ object FlightCamera {
             WindEstimator.FlightPhase.UNKNOWN -> GLIDE_SLOW_ZOOM
         }
         return z.coerceIn(MIN_ZOOM, MAX_ZOOM)
+    }
+
+    /**
+     * Exponential ease toward [target] by fraction [alpha] (a low-pass). [prev] = NaN (no prior
+     * value) snaps straight to the target. Used to smooth the zoom so phase flips don't snap.
+     */
+    fun ease(prev: Double, target: Double, alpha: Double): Double =
+        if (prev.isNaN()) target else prev + alpha * (target - prev)
+
+    /**
+     * Ease a *bearing* toward [target] the short way around the compass (so 350° → 10° turns +20°,
+     * not −340°). [prev] = NaN snaps to the normalized target. Result is in [0, 360).
+     */
+    fun easeBearing(prev: Double, target: Double, alpha: Double): Double {
+        if (target.isNaN()) return prev
+        val t = ((target % 360.0) + 360.0) % 360.0
+        if (prev.isNaN()) return t
+        val delta = ((t - prev + 540.0) % 360.0) - 180.0 // shortest signed arc, −180..180
+        return ((prev + alpha * delta) % 360.0 + 360.0) % 360.0
     }
 
     data class Point(val lat: Double, val lon: Double)

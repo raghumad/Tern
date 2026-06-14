@@ -36,8 +36,8 @@ class IgcReplaySource(
     }
 
     companion object {
-        /** 1 minute of flight ≈ 5 s on the bench — fast enough to scrub, slow enough to read. */
-        const val DEFAULT_SPEED = 12
+        /** 1 minute of flight ≈ 7.5 s on the bench — fast enough to scrub, slow enough to read. */
+        const val DEFAULT_SPEED = 8
 
         private const val MIN_STEP_MS = 40L   // don't flood the UI faster than ~25 fps
         private const val MAX_STEP_MS = 1_000L // a logger gap shouldn't freeze the replay
