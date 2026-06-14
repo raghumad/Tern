@@ -65,10 +65,10 @@ fun AltitudeVarioTape(
         modifier = modifier
             .clip(RoundedCornerShape(10.dp))
             .background(DeckColors.panel(0.34f))
-            .width(118.dp)
+            .width(88.dp)
             .height(tapeHeight),
     ) {
-        Canvas(Modifier.size(118.dp, tapeHeight)) {
+        Canvas(Modifier.size(88.dp, tapeHeight)) {
             val w = size.width
             val h = size.height
             val cy = h / 2f

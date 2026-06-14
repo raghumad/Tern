@@ -16,7 +16,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -40,23 +39,16 @@ private val GRUPPO = TernFontFamily.gruppo
 private val DECK_SHADOW = Shadow(color = Color(0xDD000000), offset = Offset(1.5f, 1.5f), blurRadius = 5f)
 private val SHADOW_STYLE = TextStyle(shadow = DECK_SHADOW)
 
-/** Append a value, then its unit as a small grey subscript (disambiguation, not primary info). */
-private fun AnnotatedString.Builder.valUnit(value: String, unit: String, unitSizeSp: Int) {
-    append(value)
-    withStyle(
-        SpanStyle(
-            fontSize = unitSizeSp.sp,
-            baselineShift = BaselineShift.Subscript,
-            color = DeckColors.unitColor,
-        ),
-    ) { append(" $unit") }
-}
-
 /**
- * Glanceable flight-deck readout, styled in Gruppo on the deck colour code. **Fixed width** so the
- * capsule doesn't breathe as the numbers change; each row is a label-left / value-right pair so the
- * figures stay aligned. Important figures (climb, altitude) are bold; units are muted subscripts;
- * every line carries a shadow for legibility over terrain. Translucent so the map reads through.
+ * Glanceable flight-deck readout — the **secondary** panel. Instantaneous climb and altitude are
+ * deliberately **not** repeated here: the tape already shows both prominently, so this capsule
+ * carries only what the tape doesn't put a number on — thermal average, height gained, ground
+ * speed, glide ratio, wind, and the source/battery line.
+ *
+ * Styled in Gruppo on the deck colour code. **Fixed width** so it doesn't breathe, and every row is
+ * a label-left / value-right pair where the *unit is pinned to the right edge* — so as a value grows
+ * from one digit to three the number expands leftward into the gap and the unit never jumps.
+ * Translucent, shadowed for legibility over terrain.
  */
 @Composable
 fun VarioHud(deck: FlightDeckState, settings: SettingsState, modifier: Modifier = Modifier) {
@@ -67,99 +59,50 @@ fun VarioHud(deck: FlightDeckState, settings: SettingsState, modifier: Modifier 
         altitude = settings.altitudeUnit,
     )
     val varioUnit = if (settings.altitudeUnit == "ft") "ft/min" else "m/s"
-    val climb = deck.climbMs
+    val speedSym = Units.speedSymbol(prefs.speed)
+    val altSym = Units.altitudeSymbol(prefs.altitude)
 
     Column(
         modifier = modifier
-            .width(232.dp)
+            .width(196.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(DeckColors.panel(0.34f))
             .padding(horizontal = 14.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
+        verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
-        // ── Climb (big, bold) + thermal average ──
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
-            Text(
-                text = buildAnnotatedString {
-                    if (climb == null) append("—")
-                    else valUnit(varioNum(climb, varioUnit), Units.varioSymbol(varioUnit), 15)
-                },
-                color = DeckColors.vario(climb),
-                fontSize = 40.sp,
-                fontFamily = GRUPPO,
-                fontWeight = FontWeight.Bold,
-                style = SHADOW_STYLE,
-            )
-            deck.avgClimbMs?.let {
-                Text(
-                    text = "ø ${varioNum(it, varioUnit)}",
-                    color = DeckColors.vario(it),
-                    fontSize = 20.sp,
-                    fontFamily = GRUPPO,
-                    style = SHADOW_STYLE,
-                    modifier = Modifier.padding(bottom = 5.dp),
-                )
-            }
+        // Thermal average for the current climb — the tape shows this only as an amber tick.
+        deck.avgClimbMs?.let {
+            MetricRow("AVG", varioNum(it, varioUnit), Units.varioSymbol(varioUnit), DeckColors.vario(it), bold = true)
         }
 
-        // ── Altitude (bold) + height-above-takeoff ──
+        // Height gained above takeoff — the tape marks the launch datum but doesn't number it.
         deck.altitudeM?.let { alt ->
-            val height = deck.takeoffDatumM?.let { FlightMetrics.heightAboveTakeoff(alt, it) }
-            val sym = Units.altitudeSymbol(prefs.altitude)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
-                Text(
-                    text = buildAnnotatedString { valUnit("${Units.altitudeValue(alt, prefs.altitude).roundToInt()}", sym, 12) },
-                    color = DeckColors.primary,
-                    fontSize = 22.sp,
-                    fontFamily = GRUPPO,
-                    fontWeight = FontWeight.Bold,
-                    style = SHADOW_STYLE,
-                )
-                if (height != null) {
-                    Text(
-                        text = buildAnnotatedString {
-                            append("▲ ")
-                            valUnit("${Units.altitudeValue(height, prefs.altitude).roundToInt()}", sym, 11)
-                        },
-                        color = DeckColors.neutral,
-                        fontSize = 17.sp,
-                        fontFamily = GRUPPO,
-                        style = SHADOW_STYLE,
-                    )
-                }
+            deck.takeoffDatumM?.let { datum ->
+                val gain = FlightMetrics.heightAboveTakeoff(alt, datum)
+                MetricRow("GAIN", "${Units.altitudeValue(gain, prefs.altitude).roundToInt()}", altSym, DeckColors.neutral)
             }
         }
 
-        // ── Ground speed + glide ratio (L/D only when gliding) ──
+        // Ground speed.
         deck.groundSpeedMs?.let { gs ->
-            val ld = climb?.let { FlightMetrics.glideRatio(gs, it) }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(
-                    text = buildAnnotatedString {
-                        append("GS ")
-                        valUnit("${Units.speedValue(gs * MS_TO_KNOTS, prefs.speed).roundToInt()}", Units.speedSymbol(prefs.speed), 11)
-                    },
-                    color = DeckColors.neutral, fontSize = 17.sp, fontFamily = GRUPPO, style = SHADOW_STYLE,
-                )
-                if (ld != null) {
-                    Text("L/D %.1f".format(ld), color = DeckColors.neutral, fontSize = 17.sp, fontFamily = GRUPPO, style = SHADOW_STYLE)
-                }
+            MetricRow("GS", "${Units.speedValue(gs * MS_TO_KNOTS, prefs.speed).roundToInt()}", speedSym, DeckColors.neutral)
+            // Glide ratio (only meaningful while gliding, i.e. sinking).
+            deck.climbMs?.let { c ->
+                FlightMetrics.glideRatio(gs, c)?.let { ld -> MetricRow("L/D", "%.1f".format(ld), null, DeckColors.neutral) }
             }
         }
 
-        // ── Live circling wind ──
+        // Live circling wind — direction in the label, speed pinned right.
         if (deck.windFromDeg != null && deck.windSpeedMs != null) {
             val oct = octantOf(deck.windFromDeg!!)
-            Text(
-                text = buildAnnotatedString {
-                    append("WIND ${deck.windFromDeg!!.toInt()}° $oct · ")
-                    valUnit("${Units.speedValue(deck.windSpeedMs!! * MS_TO_KNOTS, prefs.speed).roundToInt()}", Units.speedSymbol(prefs.speed), 10)
-                },
-                color = DeckColors.wind, fontSize = 15.sp, fontFamily = GRUPPO, style = SHADOW_STYLE,
+            MetricRow(
+                "WIND ${deck.windFromDeg!!.toInt()}°$oct",
+                "${Units.speedValue(deck.windSpeedMs!! * MS_TO_KNOTS, prefs.speed).roundToInt()}",
+                speedSym, DeckColors.wind, valueSizeSp = 16,
             )
         }
 
-        // ── Source + battery ──
+        // Source + battery.
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(
                 if (deck.positionSource == PositionSource.XC_TRACER) "◉ XC TRACER" else "◉ PHONE",
@@ -169,6 +112,48 @@ fun VarioHud(deck: FlightDeckState, settings: SettingsState, modifier: Modifier 
                 Text("🔋$it%", color = DeckColors.neutral, fontSize = 13.sp, fontFamily = GRUPPO, style = SHADOW_STYLE)
             }
         }
+    }
+}
+
+/**
+ * One reading: muted label on the left, value on the right with its unit as a pinned grey
+ * subscript. Because the value is the row's right-hand element, its right edge (the unit) stays
+ * fixed while the number grows leftward — so the unit never shifts as the magnitude changes.
+ */
+@Composable
+private fun MetricRow(
+    label: String,
+    value: String,
+    unit: String?,
+    color: Color,
+    valueSizeSp: Int = 18,
+    bold: Boolean = false,
+) {
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.Bottom,
+    ) {
+        Text(label, color = DeckColors.unitColor, fontSize = 13.sp, fontFamily = GRUPPO, style = SHADOW_STYLE)
+        Text(
+            text = buildAnnotatedString {
+                append(value)
+                if (unit != null) {
+                    withStyle(
+                        SpanStyle(
+                            fontSize = (valueSizeSp * 0.62f).sp,
+                            baselineShift = BaselineShift.Subscript,
+                            color = DeckColors.unitColor,
+                        ),
+                    ) { append(" $unit") }
+                }
+            },
+            color = color,
+            fontSize = valueSizeSp.sp,
+            fontFamily = GRUPPO,
+            fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
+            style = SHADOW_STYLE,
+        )
     }
 }
 

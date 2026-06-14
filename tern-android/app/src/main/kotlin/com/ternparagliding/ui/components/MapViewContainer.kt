@@ -557,6 +557,7 @@ fun MapViewContainer(
                 lastEventTime = state.peerState.lastEventTime,
                 ownLocation = state.userLocation,
                 nerdFont = nerdFont,
+                altitudeUnit = state.settingsState.altitudeUnit,
             )
         }
 
@@ -637,8 +638,8 @@ fun MapViewContainer(
                 deck = state.flightDeck,
                 settings = state.settingsState,
                 modifier = Modifier
-                    .align(if (landscape) Alignment.BottomCenter else Alignment.BottomStart)
-                    .padding(if (landscape) 12.dp else 24.dp),
+                    .align(if (landscape) Alignment.BottomEnd else Alignment.BottomStart)
+                    .padding(if (landscape) 16.dp else 24.dp),
             )
         }
     }

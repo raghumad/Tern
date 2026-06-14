@@ -5,6 +5,7 @@ import com.ternparagliding.redux.MezullaViewMode
 import org.osmdroid.util.GeoPoint
 import java.time.Duration
 import java.time.Instant
+import kotlin.math.roundToInt
 
 internal data class PeerBundle(
     val geoJson: String,
@@ -52,6 +53,7 @@ internal fun buildPeerBundle(
     viewMode: MezullaViewMode,
     now: Instant,
     ownLocation: GeoPoint? = null,
+    altitudeUnit: String = "m",
 ): PeerBundle {
     val withPos = peers.entries.filter { it.value.lastPosition != null }
     android.util.Log.i("PeerBundle",
@@ -96,8 +98,10 @@ internal fun buildPeerBundle(
         var deltaAltText = ""
         var deltaAltColor = ALT_UP_COLOR
         if (!lost && ownLocation != null && fix.altitudeMeters != null) {
-            val delta = fix.altitudeMeters - ownLocation.altitude.toInt()
-            deltaAltText = "${if (delta >= 0) "+" else ""}${delta}m"
+            val deltaM = fix.altitudeMeters - ownLocation.altitude
+            val delta = com.ternparagliding.units.Units.altitudeValue(deltaM, altitudeUnit).roundToInt()
+            val sym = com.ternparagliding.units.Units.altitudeSymbol(altitudeUnit)
+            deltaAltText = "${if (delta >= 0) "+" else ""}$delta$sym"
             deltaAltColor = if (delta >= 0) ALT_UP_COLOR else ALT_DOWN_COLOR
         }
 

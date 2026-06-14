@@ -60,9 +60,10 @@ fun PeerLayer(
     lastEventTime: Instant,
     ownLocation: GeoPoint? = null,
     nerdFont: Typeface? = null,
+    altitudeUnit: String = "m",
 ) {
-    val bundle = remember(peers, viewMode, lastEventTime, ownLocation) {
-        buildPeerBundle(peers, viewMode, lastEventTime, ownLocation)
+    val bundle = remember(peers, viewMode, lastEventTime, ownLocation, altitudeUnit) {
+        buildPeerBundle(peers, viewMode, lastEventTime, ownLocation, altitudeUnit)
     }
 
     if (bundle.specs.isEmpty()) return

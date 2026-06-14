@@ -12,6 +12,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -103,13 +104,24 @@ fun TernMapScreen(
                     .fillMaxWidth(),
             )
 
-            // Right-edge controls: settings, share, route, and Mezulla view mode
+            // Right-edge controls: settings, share, route, and Mezulla view mode.
+            // The five-button column is too tall to centre in a 720px-high landscape window
+            // without rising into the compass, so there it anchors at the top (below the
+            // status bar + compass) with tighter spacing; portrait keeps the centred dock.
+            val controlsLandscape =
+                LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
             Column(
                 modifier = Modifier
                     .padding(innerPadding)
-                    .align(Alignment.CenterEnd)
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                    .align(if (controlsLandscape) Alignment.TopEnd else Alignment.CenterEnd)
+                    .then(
+                        if (controlsLandscape)
+                            Modifier
+                                .padding(WindowInsets.statusBars.asPaddingValues())
+                                .padding(top = 64.dp, end = 16.dp)
+                        else Modifier.padding(16.dp)
+                    ),
+                verticalArrangement = Arrangement.spacedBy(if (controlsLandscape) 8.dp else 16.dp)
             ) {
                 SettingsButton(onClick = { showSettingsSheet = true })
                 ShareButton(onClick = { showShareSheet = true })
