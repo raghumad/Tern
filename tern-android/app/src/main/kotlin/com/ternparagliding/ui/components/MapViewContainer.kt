@@ -566,6 +566,9 @@ fun MapViewContainer(
             peers = state.peerState.peers,
             ownLocation = state.userLocation,
             cameraState = cameraState,
+            // Use the peer timeline as "now" so replayed buddies (flight-time timestamps) aren't
+            // all judged LOST against the wall clock — matches how PeerLayer ages on-map peers.
+            now = state.peerState.lastEventTime,
         )
 
         androidx.compose.foundation.layout.Row(
@@ -597,6 +600,17 @@ fun MapViewContainer(
                     .align(Alignment.TopStart)
                     .padding(WindowInsets.statusBars.asPaddingValues())
                     .padding(16.dp),
+            )
+        }
+
+        // Analog vario tape pinned to the left edge (the mockup's signature instrument).
+        if (state.flightDeck.varioConnected) {
+            VarioTape(
+                climbMs = state.flightDeck.climbMs,
+                avgClimbMs = state.flightDeck.avgClimbMs,
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .padding(start = 10.dp),
             )
         }
 

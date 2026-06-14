@@ -134,9 +134,9 @@ fun OffScreenPeerIndicators(
                         drawPath(p, color)
                     }
                 }
-                Text(callsign, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text(callsign, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 if (distText.isNotEmpty()) {
-                    Text(distText, color = Color(0xFFB0B0B0), fontSize = 11.sp)
+                    Text(distText, color = Color(0xFFB0B0B0), fontSize = 13.sp)
                 }
             }
         }

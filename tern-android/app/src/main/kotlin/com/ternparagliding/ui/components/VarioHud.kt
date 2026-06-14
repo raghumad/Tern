@@ -23,6 +23,7 @@ import com.ternparagliding.redux.SettingsState
 import com.ternparagliding.units.UnitPrefs
 import com.ternparagliding.units.Units
 import com.ternparagliding.weather.octantOf
+import kotlin.math.roundToInt
 
 private const val MS_TO_KNOTS = 1.943844
 private val HUD_BG = Color(0xFF0F1117).copy(alpha = 0.62f)
@@ -49,22 +50,33 @@ fun VarioHud(deck: FlightDeckState, settings: SettingsState, modifier: Modifier 
             .background(HUD_BG)
             .padding(horizontal = 12.dp, vertical = 8.dp),
     ) {
+        // Vario reads in the pilot's vertical unit: ft/min when altitude is in feet, else m/s.
+        val varioUnit = if (settings.altitudeUnit == "ft") "ft/min" else "m/s"
+
         // ── Climb (big) + thermal average (the centering needle) ──
         val climb = deck.climbMs
         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
-                text = if (climb == null) "— m/s" else "%+.1f m/s".format(climb),
+                text = if (climb == null) "—" else varioNum(climb, varioUnit),
                 color = varioColor(climb),
-                fontSize = 26.sp,
+                fontSize = 38.sp,
                 fontWeight = FontWeight.Bold,
                 fontFamily = FontFamily.Monospace,
             )
+            Text(
+                text = Units.varioSymbol(varioUnit),
+                color = varioColor(climb),
+                fontSize = 16.sp,
+                fontFamily = FontFamily.Monospace,
+                modifier = Modifier.padding(bottom = 5.dp),
+            )
             deck.avgClimbMs?.let {
                 Text(
-                    text = "ø %+.1f".format(it),
+                    text = "ø ${varioNum(it, varioUnit)}",
                     color = varioColor(it),
-                    fontSize = 14.sp,
+                    fontSize = 20.sp,
                     fontFamily = FontFamily.Monospace,
+                    modifier = Modifier.padding(bottom = 4.dp),
                 )
             }
         }
@@ -76,7 +88,7 @@ fun VarioHud(deck: FlightDeckState, settings: SettingsState, modifier: Modifier 
                 append(Units.altitude(alt, prefs.altitude))
                 if (height != null) append("  ▲ ${Units.altitude(height, prefs.altitude)}")
             }
-            Text(line, color = Color.White, fontSize = 14.sp, fontFamily = FontFamily.Monospace)
+            Text(line, color = Color.White, fontSize = 19.sp, fontFamily = FontFamily.Monospace)
         }
 
         // ── Ground speed + glide ratio (L/D only when gliding) ──
@@ -86,7 +98,7 @@ fun VarioHud(deck: FlightDeckState, settings: SettingsState, modifier: Modifier 
                 append("GS ${Units.speed(gs * MS_TO_KNOTS, prefs.speed)}")
                 if (ld != null) append("  ·  L/D %.1f".format(ld))
             }
-            Text(line, color = MUTED, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
+            Text(line, color = MUTED, fontSize = 16.sp, fontFamily = FontFamily.Monospace)
         }
 
         // ── Live circling wind ──
@@ -96,7 +108,7 @@ fun VarioHud(deck: FlightDeckState, settings: SettingsState, modifier: Modifier 
             Text(
                 text = "wind ${deck.windFromDeg!!.toInt()}° $oct · $spd",
                 color = Color(0xFF93C5FD),
-                fontSize = 12.sp,
+                fontSize = 15.sp,
                 fontFamily = FontFamily.Monospace,
             )
         }
@@ -104,9 +116,14 @@ fun VarioHud(deck: FlightDeckState, settings: SettingsState, modifier: Modifier 
         // ── Source + battery ──
         val source = if (deck.positionSource == PositionSource.XC_TRACER) "◉ XC Tracer" else "◉ phone"
         val battery = deck.batteryPct?.let { "  🔋$it%" } ?: ""
-        Text("$source$battery", color = MUTED, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+        Text("$source$battery", color = MUTED, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
     }
 }
+
+/** Signed vario value without the unit suffix (whole ft/min, or one-decimal m/s). */
+private fun varioNum(ms: Double, unit: String): String =
+    if (unit == "ft/min") "%+d".format(Units.varioValue(ms, unit).roundToInt())
+    else "%+.1f".format(ms)
 
 private fun varioColor(ms: Double?): Color = when {
     ms == null -> Color.White
