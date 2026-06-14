@@ -64,7 +64,12 @@
         <activity
             android:name=".TernParaglidingActivity"
             android:exported="true"
-            android:theme="@style/Theme.Tern">
+            android:theme="@style/Theme.Tern"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|density|uiMode">
+            <!-- Handle config changes in-process: rotating the phone must NOT recreate the
+                 Activity (which would tear down the Compose tree, restart a running flight-deck
+                 replay, and flash the GPS-acquisition screen). MapLibre + Compose relayout on
+                 their own; all in-memory flight state (track, camera, replay progress) survives. -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
