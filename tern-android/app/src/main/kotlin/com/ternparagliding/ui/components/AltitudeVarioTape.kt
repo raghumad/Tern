@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.res.ResourcesCompat
@@ -26,17 +27,18 @@ import com.ternparagliding.R
 import com.ternparagliding.units.Units
 import kotlin.math.abs
 import kotlin.math.floor
+import kotlin.math.pow
 import kotlin.math.roundToInt
 
 /**
- * The deck's primary instrument — a combined altitude + vario tape with **two labeled scales**:
- *  - **right = altitude** (ft or m): scrolling scale with value labels, the current altitude
- *    boxed at the centre pointer, and a blue ▸ launch reference (gap = height-above-takeoff).
- *  - **left = vario** (ft/min or m/s): a fixed ±max scale with ±reference marks; the colored bar
- *    grows up-green / down-red from the centre, and an amber tick marks the thermal average.
+ * The deck's primary instrument — a full-width **altitude tape** with the **vario arc overlaid on
+ * the left**. The vario is a curved wedge hugging the left edge: pinched thin at the centre (zero),
+ * fanning **wide-green toward the top** (climb) and **wide-red toward the bottom** (sink). The faint
+ * full arc is always visible; a solid fill rises/falls from the centre with the current climb. The
+ * altitude scale runs full-width underneath — value labels + current-altitude box on the right with
+ * a ft/m subscript, a blue ▸ launch reference — so the arc overlaps it without stealing width.
  *
- * Both share the centre line (your current state). Styled in Gruppo, on the deck colour code,
- * translucent so the map reads through. The HUD still carries the precise digits.
+ * Styled in Gruppo on the deck colour code; labels carry a shadow for contrast over any terrain.
  */
 @Composable
 fun AltitudeVarioTape(
@@ -46,6 +48,7 @@ fun AltitudeVarioTape(
     takeoffDatumM: Double?,
     altitudeUnit: String,
     modifier: Modifier = Modifier,
+    tapeHeight: Dp = 348.dp,
 ) {
     val cur = altitudeM ?: return
     val ctx = LocalContext.current
@@ -53,7 +56,6 @@ fun AltitudeVarioTape(
 
     val varioUnit = if (altitudeUnit == "ft") "ft/min" else "m/s"
     val vMax = if (altitudeUnit == "ft") 1000.0 else 5.0
-    val vMaxLabel = if (altitudeUnit == "ft") "1k" else "5"
     val altStep = if (altitudeUnit == "ft") 200 else 50
     val altWindow = if (altitudeUnit == "ft") 600.0 else 175.0
     val altSym = Units.altitudeSymbol(altitudeUnit)
@@ -63,36 +65,66 @@ fun AltitudeVarioTape(
         modifier = modifier
             .clip(RoundedCornerShape(10.dp))
             .background(DeckColors.panel(0.34f))
-            .width(110.dp)
-            .height(348.dp),
+            .width(118.dp)
+            .height(tapeHeight),
     ) {
-        Canvas(Modifier.size(110.dp, 348.dp)) {
+        Canvas(Modifier.size(118.dp, tapeHeight)) {
             val w = size.width
             val h = size.height
             val cy = h / 2f
-            val split = w * 0.40f      // boundary: vario lane (left) | altitude scale (right)
-            val varioH = h * 0.40f
-            val altH = h * 0.46f
+            val varioH = h * 0.42f
+            val baseW = 3.dp.toPx()       // arc width at the centre (thinnest)
+            val maxW = w * 0.46f          // arc width at the extremes (overlaps the left ~46%)
 
-            fun mkPaint(sizeSp: Float, c: Color, align: android.graphics.Paint.Align) =
+            fun mkPaint(sizeSp: Float, c: Color, align: android.graphics.Paint.Align, shadow: Boolean = true) =
                 android.graphics.Paint().apply {
                     isAntiAlias = true; color = c.toArgb(); textSize = sizeSp
                     typeface = gruppo; textAlign = align
+                    if (shadow) setShadowLayer(4f, 1.2f, 1.2f, android.graphics.Color.BLACK)
                 }
-            fun text(s: String, x: Float, yBaseline: Float, p: android.graphics.Paint) =
-                drawContext.canvas.nativeCanvas.drawText(s, x, yBaseline, p)
+            fun text(s: String, x: Float, y: Float, p: android.graphics.Paint) =
+                drawContext.canvas.nativeCanvas.drawText(s, x, y, p)
 
-            fun varioY(disp: Double) = cy - (disp / vMax).coerceIn(-1.0, 1.0).toFloat() * varioH
-            fun altY(disp: Double) = cy - ((disp - curDisp) / altWindow).toFloat() * altH
+            fun altY(disp: Double) = cy - ((disp - curDisp) / altWindow).toFloat() * (h * 0.46f)
+            // Left-anchored arc: width grows from centre to top/bottom (curved via power profile).
+            fun archW(y: Float): Float {
+                val t = (abs(y - cy) / varioH).coerceIn(0f, 1f)
+                return baseW + (maxW - baseW) * t.pow(0.7f)
+            }
+            fun wedge(toY: Float): Path {
+                val p = Path()
+                p.moveTo(0f, cy)
+                p.lineTo(0f, toY)                       // straight left edge (the screen edge)
+                val steps = 16
+                for (i in 0..steps) {                   // curved right boundary back to centre
+                    val yy = toY + (cy - toY) * (i / steps.toFloat())
+                    p.lineTo(archW(yy), yy)
+                }
+                p.close()
+                return p
+            }
 
-            // ── Altitude scale (right): ticks + value labels ──
-            val altLabel = mkPaint(9.sp.toPx(), DeckColors.neutral, android.graphics.Paint.Align.RIGHT)
+            // ── Vario arc: faint full gauge (green up / red down), then the solid current fill ──
+            drawPath(wedge(cy - varioH), DeckColors.lift.copy(alpha = 0.16f))
+            drawPath(wedge(cy + varioH), DeckColors.sink.copy(alpha = 0.16f))
+            val climb = climbMs ?: 0.0
+            val vy = cy - (Units.varioValue(climb, varioUnit) / vMax).coerceIn(-1.0, 1.0).toFloat() * varioH
+            drawPath(wedge(vy), (if (climb >= 0) DeckColors.lift else DeckColors.sink).copy(alpha = 0.72f))
+
+            // Thermal-average tick (amber) across the arc.
+            avgClimbMs?.let { avg ->
+                val ay = cy - (Units.varioValue(avg, varioUnit) / vMax).coerceIn(-1.0, 1.0).toFloat() * varioH
+                drawLine(DeckColors.attention, Offset(0f, ay), Offset(archW(ay), ay), strokeWidth = 2.5.dp.toPx())
+            }
+
+            // ── Altitude scale (right): ticks + value labels (bright + shadowed for contrast) ──
+            val altLabel = mkPaint(10.sp.toPx(), Color(0xFFE8EAED), android.graphics.Paint.Align.RIGHT)
             var d = floor((curDisp - altWindow) / altStep).toInt() * altStep
             while (d <= curDisp + altWindow) {
                 val ty = altY(d.toDouble())
-                if (ty in 14f..(h - 4f)) {
-                    drawLine(DeckColors.neutral.copy(alpha = 0.45f), Offset(w * 0.90f, ty), Offset(w, ty), strokeWidth = 1.dp.toPx())
-                    if (abs(ty - cy) > 16.dp.toPx()) text("$d", w - w * 0.12f, ty + 3.dp.toPx(), altLabel)
+                if (ty in 14f..(h - 4f) && abs(ty - cy) > 16.dp.toPx()) {
+                    drawLine(Color(0xCCFFFFFF), Offset(w - w * 0.09f, ty), Offset(w, ty), strokeWidth = 1.dp.toPx())
+                    text("$d", w - w * 0.11f, ty + 3.5.dp.toPx(), altLabel)
                 }
                 d += altStep
             }
@@ -102,47 +134,29 @@ fun AltitudeVarioTape(
                 val dDisp = Units.altitudeValue(datum, altitudeUnit).coerceIn(curDisp - altWindow, curDisp + altWindow)
                 val ly = altY(dDisp)
                 val s = 5.dp.toPx()
-                val tri = Path().apply { moveTo(split + s, ly); lineTo(split - s, ly - s); lineTo(split - s, ly + s); close() }
-                drawLine(DeckColors.reference.copy(alpha = 0.55f), Offset(split, ly), Offset(w, ly), strokeWidth = 1.2.dp.toPx())
+                val tri = Path().apply { moveTo(w * 0.62f + s, ly); lineTo(w * 0.62f - s, ly - s); lineTo(w * 0.62f - s, ly + s); close() }
+                drawLine(DeckColors.reference.copy(alpha = 0.6f), Offset(w * 0.62f, ly), Offset(w, ly), strokeWidth = 1.2.dp.toPx())
                 drawPath(tri, DeckColors.reference)
             }
 
-            // ── Vario scale (left): reference marks + ±max labels ──
-            for (frac in listOf(1.0, 0.5, -0.5, -1.0)) {
-                val vy = cy - frac.toFloat() * varioH
-                drawLine(DeckColors.neutral.copy(alpha = 0.4f), Offset(0f, vy), Offset(split, vy), strokeWidth = 1.dp.toPx())
-            }
-            val vLabel = mkPaint(9.sp.toPx(), DeckColors.neutral, android.graphics.Paint.Align.LEFT)
-            text("+$vMaxLabel", 2.dp.toPx(), cy - varioH + 9.dp.toPx(), vLabel)
-            text("-$vMaxLabel", 2.dp.toPx(), cy + varioH - 1.dp.toPx(), vLabel)
+            // ── Unit headers ──
+            text(varioUnit, 2.dp.toPx(), 12.dp.toPx(), mkPaint(8.sp.toPx(), DeckColors.unitColor, android.graphics.Paint.Align.LEFT))
 
-            // ── Vario bar (left lane) ──
-            val climb = climbMs ?: 0.0
-            val vy = varioY(Units.varioValue(climb, varioUnit))
-            val barColor = (if (climb >= 0) DeckColors.lift else DeckColors.sink).copy(alpha = 0.7f)
-            val top = minOf(cy, vy); val bot = maxOf(cy, vy)
-            if (bot - top > 0.5f) drawRect(barColor, topLeft = Offset(split * 0.30f, top), size = Size(split * 0.40f, bot - top))
-
-            // ── Thermal-average tick (amber) ──
-            avgClimbMs?.let { avg ->
-                val ay = varioY(Units.varioValue(avg, varioUnit))
-                drawLine(DeckColors.attention, Offset(split * 0.10f, ay), Offset(split * 0.90f, ay), strokeWidth = 2.5.dp.toPx())
-            }
-
-            // ── Unit headers (top of each scale) ──
-            text(varioUnit, 2.dp.toPx(), 11.dp.toPx(), mkPaint(8.sp.toPx(), DeckColors.unitColor, android.graphics.Paint.Align.LEFT))
-            text(altSym, w - 2.dp.toPx(), 11.dp.toPx(), mkPaint(8.sp.toPx(), DeckColors.unitColor, android.graphics.Paint.Align.RIGHT))
-
-            // ── Centre reference line + current-altitude box ──
-            drawLine(DeckColors.primary, Offset(split, cy), Offset(w, cy), strokeWidth = 2.dp.toPx())
-            val curLabel = "${curDisp.roundToInt()}"
-            val boxPaint = mkPaint(15.sp.toPx(), DeckColors.primary, android.graphics.Paint.Align.RIGHT)
+            // ── Centre reference line + current-altitude box (number + unit subscript) ──
+            drawLine(DeckColors.primary, Offset(w * 0.40f, cy), Offset(w, cy), strokeWidth = 2.dp.toPx())
+            val numPaint = mkPaint(16.sp.toPx(), DeckColors.primary, android.graphics.Paint.Align.LEFT, shadow = false)
+            val uPaint = mkPaint(9.sp.toPx(), DeckColors.unitColor, android.graphics.Paint.Align.LEFT, shadow = false)
+            val numStr = "${curDisp.roundToInt()}"
+            val numW = numPaint.measureText(numStr)
+            val gap = 2.dp.toPx()
+            val uW = uPaint.measureText(altSym)
             val padX = 5.dp.toPx(); val boxH = 22.dp.toPx()
-            val textW = boxPaint.measureText(curLabel)
-            val boxLeft = w - textW - 2 * padX
-            drawRect(DeckColors.panel(0.92f), topLeft = Offset(boxLeft, cy - boxH / 2), size = Size(textW + 2 * padX, boxH))
-            drawRect(DeckColors.primary, topLeft = Offset(boxLeft, cy - boxH / 2), size = Size(textW + 2 * padX, boxH), style = Stroke(1.dp.toPx()))
-            text(curLabel, w - padX, cy + boxPaint.textSize * 0.35f, boxPaint)
+            val boxW = numW + gap + uW + 2 * padX
+            val boxLeft = w - boxW
+            drawRect(DeckColors.panel(0.95f), topLeft = Offset(boxLeft, cy - boxH / 2), size = Size(boxW, boxH))
+            drawRect(DeckColors.primary, topLeft = Offset(boxLeft, cy - boxH / 2), size = Size(boxW, boxH), style = Stroke(1.dp.toPx()))
+            text(numStr, boxLeft + padX, cy + numPaint.textSize * 0.35f, numPaint)
+            text(altSym, boxLeft + padX + numW + gap, cy + numPaint.textSize * 0.35f + 2.dp.toPx(), uPaint)
         }
     }
 }

@@ -603,8 +603,11 @@ fun MapViewContainer(
             )
         }
 
-        // Combined altitude + vario tape (left edge): the vario is the trend bar extending from
-        // the altitude pointer, with a launch reference — rate + height in one glance.
+        // Combined altitude + vario tape (left edge). Height adapts to the viewport so it doesn't
+        // collide with the HUD in landscape; the HUD moves to bottom-centre there to stay clear.
+        val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+        val landscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        val tapeH = (configuration.screenHeightDp - 64).coerceIn(180, 348).dp
         if (state.flightDeck.varioConnected) {
             AltitudeVarioTape(
                 altitudeM = state.flightDeck.altitudeM,
@@ -612,6 +615,7 @@ fun MapViewContainer(
                 avgClimbMs = state.flightDeck.avgClimbMs,
                 takeoffDatumM = state.flightDeck.takeoffDatumM,
                 altitudeUnit = state.settingsState.altitudeUnit,
+                tapeHeight = tapeH,
                 modifier = Modifier
                     .align(Alignment.CenterStart)
                     .padding(start = 10.dp),
@@ -633,8 +637,8 @@ fun MapViewContainer(
                 deck = state.flightDeck,
                 settings = state.settingsState,
                 modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(24.dp),
+                    .align(if (landscape) Alignment.BottomCenter else Alignment.BottomStart)
+                    .padding(if (landscape) 12.dp else 24.dp),
             )
         }
     }
