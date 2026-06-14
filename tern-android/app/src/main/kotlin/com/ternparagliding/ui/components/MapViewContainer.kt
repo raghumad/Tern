@@ -96,6 +96,27 @@ private fun mapStyleFor(styleId: String): BaseStyle = when (styleId) {
 private const val DEFAULT_LAT = 45.8
 private const val DEFAULT_LON = 6.5
 
+/**
+ * For a bench-replay flight id, the team scenario + the buddy pilots to render as Mezulla peers
+ * (with stable synthetic node numbers), or null for a solo replay. The own-ship pilot (the DUT
+ * the replay streams) is deliberately excluded so it doesn't double as a peer.
+ */
+private fun deckBuddies(
+    flightId: String,
+): Pair<com.ternparagliding.sim.swarm.Scenario, Map<com.ternparagliding.sim.swarm.PilotId, Long>>? {
+    val aravis = com.ternparagliding.sim.swarm.scenarios.AravisTeam2026
+    val bir = com.ternparagliding.sim.swarm.scenarios.BirBilling2025
+    return when (flightId) {
+        "aravis" -> aravis.scenario to mapOf(
+            aravis.CBE to 0xB0D01L, aravis.COR to 0xB0D02L, aravis.LMA to 0xB0D03L,
+        )
+        "birbilling" -> bir.scenario to mapOf(
+            bir.ARIEL to 0xB0D04L, bir.BARNEY to 0xB0D05L,
+        )
+        else -> null
+    }
+}
+
 @Composable
 fun MapViewContainer(
     modifier: Modifier = Modifier,
@@ -159,20 +180,15 @@ fun MapViewContainer(
         smoothedZoom.value = Double.NaN; smoothedBearing.value = Double.NaN
         lastZoom.value = Double.NaN; lastBearing.value = Double.NaN
     }
-    // Buddy playback for the Aravis team replay: own-ship is tonio24 (the DUT), and cbe/cor/lma
-    // ride onto the map as Mezulla peers driven off the SAME replay clock (one timeline).
+    // Buddy playback for team replays: own-ship is the scenario DUT, and the rest of the team
+    // ride onto the map as Mezulla peers driven off the SAME replay clock (one timeline). The
+    // scenario + buddy node-numbers are chosen per flight by [deckBuddies].
     val buddyPlayback = remember { androidx.compose.runtime.mutableStateOf<com.ternparagliding.sim.swarm.SwarmPlayback?>(null) }
-    val buddyNodes = remember {
-        mapOf(
-            com.ternparagliding.sim.swarm.scenarios.AravisTeam2026.CBE to 0xB0D01L,
-            com.ternparagliding.sim.swarm.scenarios.AravisTeam2026.COR to 0xB0D02L,
-            com.ternparagliding.sim.swarm.scenarios.AravisTeam2026.LMA to 0xB0D03L,
-        )
-    }
+    val buddyNodes = remember { androidx.compose.runtime.mutableStateOf<Map<com.ternparagliding.sim.swarm.PilotId, Long>>(emptyMap()) }
     fun driveBuddies(timeMs: Long) {
         val pb = buddyPlayback.value ?: return
         val t = java.time.Instant.ofEpochMilli(timeMs)
-        buddyNodes.forEach { (pilot, node) ->
+        buddyNodes.value.forEach { (pilot, node) ->
             val pos = pb.currentPosition(pilot, t) ?: return@forEach // null = pre-launch / landed
             val identity = com.ternparagliding.mezulla.connection.PeerIdentity.fromNodeNumber(
                 node, longName = pilot.value, shortName = pilot.value.take(4),
@@ -291,21 +307,23 @@ fun MapViewContainer(
         }
         windTracker.reset(); averager.reset(); flightTrack.reset()
         phaseBuf.clear(); trackVersion.intValue++; resetDeckCamera()
-        // Aravis flies as a team — load the buddies' synchronized playback.
-        buddyPlayback.value = if (id == "aravis") {
+        // Team flights (Aravis, Bir Billing) carry buddies — load their synchronized playback.
+        val buddies = deckBuddies(id)
+        buddyNodes.value = buddies?.second ?: emptyMap()
+        buddyPlayback.value = buddies?.let { (scenario, _) ->
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                runCatching {
-                    com.ternparagliding.sim.swarm.SwarmPlayback(
-                        com.ternparagliding.sim.swarm.scenarios.AravisTeam2026.scenario,
-                    )
-                }.getOrNull()
+                runCatching { com.ternparagliding.sim.swarm.SwarmPlayback(scenario) }
+                    .onFailure { Log.e(TAG, "buddy playback load failed for '$id'", it) }
+                    .getOrNull()
             }
-        } else null
+        }
+        Log.i(TAG, "deck replay '$id': buddies=${buddyNodes.value.keys}, playback=${buddyPlayback.value != null}")
         store.dispatch(MapAction.SetVarioLinkState(connected = true, scanning = false))
         try {
             com.ternparagliding.flight.IgcReplaySource(flight).fixes().collect { onDeckFix(it) }
         } finally {
             buddyPlayback.value = null // stop driving buddies on end/cancel
+            buddyNodes.value = emptyMap()
         }
         store.dispatch(MapAction.UpdateRotation(0f)) // natural end → north-up
         store.dispatch(MapAction.StopDeckReplay)     // and reset the deck
