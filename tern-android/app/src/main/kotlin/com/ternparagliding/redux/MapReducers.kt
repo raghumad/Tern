@@ -60,6 +60,20 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
     is MapAction.SurfaceNearbyTasks,
     is MapAction.ClearAllTasks -> handleTaskActions(state, action)
 
+    // Waypoint library (standalone waypoints, independent of tasks)
+    is MapAction.SetWaypointLibrary -> state.copy(waypointLibrary = action.waypoints)
+    is MapAction.ImportWaypointsToLibrary -> {
+        // Merge by id (= code): imported entries refresh existing ones, order keeps
+        // existing first then appends genuinely new codes.
+        val incoming = action.waypoints.associateBy { it.id }
+        val merged = state.waypointLibrary.map { incoming[it.id] ?: it } +
+            action.waypoints.filter { wp -> state.waypointLibrary.none { it.id == wp.id } }
+        state.copy(waypointLibrary = merged)
+    }
+    is MapAction.RemoveLibraryWaypoint ->
+        state.copy(waypointLibrary = state.waypointLibrary.filterNot { it.id == action.waypointId })
+    MapAction.ClearWaypointLibrary -> state.copy(waypointLibrary = emptyList())
+
     // Waypoint Management (TaskReducers.kt)
     is MapAction.AddWaypointToTask,
     is MapAction.RemoveWaypoint,

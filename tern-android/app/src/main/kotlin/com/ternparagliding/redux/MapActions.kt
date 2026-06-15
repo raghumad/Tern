@@ -88,6 +88,16 @@ sealed class MapAction : TernAction {
     // User preferences actions
     data class UpdateUserPreferences(val preferences: UserPreferencesState) : MapAction()
 
+    // Waypoint library actions — standalone waypoints (exist without tasks).
+    /** Replace the whole library (used to hydrate from disk on start). */
+    data class SetWaypointLibrary(val waypoints: List<com.ternparagliding.model.LibraryWaypoint>) : MapAction()
+    /** Merge imported waypoints into the library (by code; re-import refreshes). */
+    data class ImportWaypointsToLibrary(val waypoints: List<com.ternparagliding.model.LibraryWaypoint>) : MapAction()
+    /** Remove one library waypoint by id. */
+    data class RemoveLibraryWaypoint(val waypointId: String) : MapAction()
+    /** Clear the entire waypoint library. */
+    object ClearWaypointLibrary : MapAction()
+
     // Task actions
     data class AddTask(val task: Task) : MapAction()
     data class RemoveTask(val taskId: String) : MapAction()

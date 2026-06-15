@@ -40,6 +40,7 @@ fun TernMapScreen(
     var showEditWaypointScreen by remember { mutableStateOf(false) }
     var showTaskListScreen by remember { mutableStateOf(false) }
     var showTaskRibbon by remember { mutableStateOf(false) }
+    var showWaypointLibrary by remember { mutableStateOf(false) }
     val state by store.state.collectAsState()
     val isLocationReady = state.isLocationReady
     val gpsStatus = state.gpsStatus
@@ -210,7 +211,18 @@ fun TernMapScreen(
         TaskListScreen(
             store = store,
             onTaskSelected = { showTaskListScreen = false },
-            onDismiss = { showTaskListScreen = false }
+            onDismiss = { showTaskListScreen = false },
+            onManageWaypoints = {
+                showTaskListScreen = false
+                showWaypointLibrary = true
+            },
+        )
+    }
+
+    if (showWaypointLibrary) {
+        WaypointLibraryScreen(
+            store = store,
+            onDismiss = { showWaypointLibrary = false },
         )
     }
 

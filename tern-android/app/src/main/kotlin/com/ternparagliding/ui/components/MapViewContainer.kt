@@ -190,6 +190,14 @@ fun MapViewContainer(
         )
     }
 
+    // Persist + hydrate the standalone waypoint library.
+    LaunchedEffect(store) {
+        com.ternparagliding.redux.WaypointLibraryPersistence.observe(
+            store,
+            com.ternparagliding.utils.cache.WaypointLibraryStore(context.applicationContext),
+        )
+    }
+
     // Persist unit preferences (hydrate on start, write through on change)
     LaunchedEffect(store) {
         com.ternparagliding.redux.SettingsPersistence.observe(store, context.applicationContext)

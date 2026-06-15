@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material.icons.filled.Visibility
@@ -63,7 +64,8 @@ fun TaskListScreen(
     modifier: Modifier = Modifier,
     store: MapStore,
     onTaskSelected: () -> Unit = {}, // Callback to navigate to map screen
-    onDismiss: () -> Unit = {} // Callback to dismiss the screen
+    onDismiss: () -> Unit = {}, // Callback to dismiss the screen
+    onManageWaypoints: () -> Unit = {} // Open the standalone waypoint library
 ) {
     val state by store.state.collectAsState()
     val tasks = state.tasks
@@ -152,6 +154,9 @@ fun TaskListScreen(
                 fontWeight = FontWeight.Bold
             )
             Row {
+                IconButton(onClick = onManageWaypoints) {
+                    Icon(Icons.Default.LocationOn, contentDescription = "Waypoint library")
+                }
                 IconButton(onClick = { importLauncher.launch(arrayOf("*/*")) }) {
                     Icon(Icons.Default.Upload, contentDescription = "Import Task")
                 }

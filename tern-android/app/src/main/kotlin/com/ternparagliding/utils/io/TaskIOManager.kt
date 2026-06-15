@@ -127,6 +127,30 @@ object TaskIOManager {
     /**
      * Import a Task from a URI
      */
+    /**
+     * Import **standalone waypoints** (not a task) from a .cup/.wpt/.gpx file into
+     * the library. Reads the display name so the parser can detect the format by
+     * extension, then content-sniffs as a fallback.
+     */
+    fun importWaypointsFromUri(context: Context, uri: Uri): List<com.ternparagliding.model.LibraryWaypoint> {
+        return try {
+            val name = queryDisplayName(context, uri)
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                val content = input.bufferedReader().use { it.readText() }
+                WaypointFileParser.parse(name, content)
+            } ?: emptyList()
+        } catch (e: Exception) {
+            e.printStackTrace(); emptyList()
+        }
+    }
+
+    private fun queryDisplayName(context: Context, uri: Uri): String? = try {
+        context.contentResolver.query(uri, null, null, null, null)?.use { c ->
+            val idx = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+            if (idx >= 0 && c.moveToFirst()) c.getString(idx) else null
+        }
+    } catch (e: Exception) { null }
+
     fun importTaskFromUri(context: Context, uri: Uri): Task? {
         return try {
             context.contentResolver.openInputStream(uri)?.use { inputStream ->

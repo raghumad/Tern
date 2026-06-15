@@ -57,6 +57,11 @@ data class MapState(
     // Task state - cached tasks for display
     val tasks: List<Task> = emptyList(),
 
+    // Standalone waypoint library — waypoints exist independently of tasks (comp
+    // organisers issue the waypoint set first; tasks reference them later). The
+    // source the pilot imports (.cup/.wpt/.gpx) and builds tasks from.
+    val waypointLibrary: List<com.ternparagliding.model.LibraryWaypoint> = emptyList(),
+
     // Task editing state - for interactive waypoint editing
     val selectedWaypoint: WaypointSelection? = null,
 
