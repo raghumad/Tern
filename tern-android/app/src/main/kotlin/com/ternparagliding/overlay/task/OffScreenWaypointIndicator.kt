@@ -103,12 +103,16 @@ fun OffScreenWaypointIndicator(
         } else ""
 
         val chipApproxHalfPx = with(density) { 64.dp.toPx() }
-        val px = (ex - chipApproxHalfPx).roundToInt()
+        // Cap the left edge so the chip's full width stays left of the dock inset —
+        // otherwise a due-east target slides the distance/glide text under the dock.
+        val chipMaxWidthPx = with(density) { 180.dp.toPx() }
+        val pxMax = (wPx - dockInset - chipMaxWidthPx).coerceAtLeast(0f)
+        val px = (ex - chipApproxHalfPx).coerceIn(0f, pxMax).roundToInt()
         val py = (ey - with(density) { 12.dp.toPx() }).roundToInt()
 
         Row(
             modifier = Modifier
-                .offset { IntOffset(px.coerceIn(0, (wPx - 1).toInt()), py.coerceIn(0, (hPx - 1).toInt())) }
+                .offset { IntOffset(px, py.coerceIn(0, (hPx - 1).toInt())) }
                 .background(Color(0xCC0A1417), RoundedCornerShape(50))
                 .padding(horizontal = 6.dp, vertical = 2.dp)
                 .testTag("offscreen-waypoint-$label")

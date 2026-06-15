@@ -124,7 +124,7 @@ fun TernMapScreen(
                                 .padding(top = 64.dp, end = 16.dp)
                         else Modifier.padding(16.dp)
                     ),
-                verticalArrangement = Arrangement.spacedBy(if (controlsLandscape) 8.dp else 16.dp)
+                verticalArrangement = Arrangement.spacedBy(if (controlsLandscape) 6.dp else 10.dp)
             ) {
                 SettingsButton(onClick = { showSettingsSheet = true })
                 RecenterButton(

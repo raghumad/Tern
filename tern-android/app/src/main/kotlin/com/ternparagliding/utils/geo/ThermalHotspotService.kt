@@ -27,7 +27,7 @@ class ThermalHotspotService(private val context: Context) {
     companion object {
         private const val TAG = "ThermalHotspotService"
         private const val CACHE_NAME = "thermal_hotspots"
-        private const val CACHE_HOURS = 720 // 30 days
+        private const val CACHE_HOURS = 8640 // 360 days — hotspots are a climatology, they barely change
         // kk7 thermal-hotspot API (same endpoint the iOS app uses): a GPX feed of waypoints over a
         // {minLat},{minLon},{maxLat},{maxLon} bounding box.
         private const val BASE_URL = "https://thermal.kk7.ch/api/hotspots/gpx/all_all"

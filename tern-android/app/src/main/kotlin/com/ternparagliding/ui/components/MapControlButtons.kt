@@ -8,7 +8,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Air
+import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material.icons.filled.BluetoothConnected
+import androidx.compose.material.icons.filled.BluetoothSearching
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
@@ -92,13 +94,21 @@ fun RecenterButton(enabled: Boolean, onClick: () -> Unit) {
 
 @Composable
 fun VarioConnectButton(connected: Boolean, scanning: Boolean, onClick: () -> Unit) {
+    // A Bluetooth glyph (not the old "wind/Air" icon, which read as a weather
+    // control): this button pairs the external XC Tracer vario over BLE. The
+    // icon and tint both track link state so the state is unambiguous.
     val tint = when {
         connected -> Color(0xFF22C55E) // green = streaming
         scanning -> Color(0xFFF59E0B)  // amber = scanning
         else -> DOCK_ICON
     }
+    val icon = when {
+        connected -> Icons.Default.BluetoothConnected
+        scanning -> Icons.Default.BluetoothSearching
+        else -> Icons.Default.Bluetooth
+    }
     DockButton(onClick, "Connect vario") { m ->
-        Icon(Icons.Default.Air, contentDescription = "Connect vario", tint = tint, modifier = m)
+        Icon(icon, contentDescription = "Connect vario", tint = tint, modifier = m)
     }
 }
 
