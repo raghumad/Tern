@@ -134,7 +134,15 @@ pull-up.
 4. **Final glide comes from a glider profile in pilot settings** (see below),
    the way XCTrack/others do it — not a hand-set glide ratio.
 
-![C — compass: wind vs next-WP arrow](assets/inflight/mockup-C-compass-arrows.png)
+The compass rosette carries **three** elements, each unmistakable:
+1. **North** — the red carat.
+2. **Wind barb** — a meteorological barb (staff + feathers; feathers encode
+   speed) pointing the wind, in cool blue.
+3. **Next waypoint** — the Font Awesome **`f041` map-marker pin**, rotated so its
+   **point indicates the bearing**, with the **waypoint number in the bulb**, in
+   magenta.
+
+![C — compass rosette: N + wind barb + waypoint pin](assets/inflight/mockup-C-compass-rosette.png)
 
 So the v2 split becomes:
 - **A → folds into the compass** (mockup C) + a small readout (next WP name,
