@@ -28,10 +28,12 @@ class ThermalHotspotService(private val context: Context) {
         private const val TAG = "ThermalHotspotService"
         private const val CACHE_NAME = "thermal_hotspots"
         private const val CACHE_HOURS = 720 // 30 days
-        private const val BASE_URL = "https://thermal.kk7.ch/api/get_hotspots"
-        
+        // kk7 thermal-hotspot API (same endpoint the iOS app uses): a GPX feed of waypoints over a
+        // {minLat},{minLon},{maxLat},{maxLon} bounding box.
+        private const val BASE_URL = "https://thermal.kk7.ch/api/hotspots/gpx/all_all"
+
         // Coarse grid for region-based caching
-        private const val GRID_SIZE = 0.5 
+        private const val GRID_SIZE = 0.5
     }
 
     private val diskCache = SpatialDiskCache(context, CACHE_NAME, CACHE_HOURS)
@@ -85,12 +87,12 @@ class ThermalHotspotService(private val context: Context) {
     }
 
     private suspend fun downloadAndParse(center: GeoPoint, rangeDegrees: Double): List<OverlayFeature> {
-        val west = center.longitude - rangeDegrees
-        val south = center.latitude - rangeDegrees
-        val east = center.longitude + rangeDegrees
-        val north = center.latitude + rangeDegrees
+        val minLat = center.latitude - rangeDegrees
+        val minLon = center.longitude - rangeDegrees
+        val maxLat = center.latitude + rangeDegrees
+        val maxLon = center.longitude + rangeDegrees
 
-        val url = "$BASE_URL?bounds=$west,$south,$east,$north&format=gpx"
+        val url = "$BASE_URL/$minLat,$minLon,$maxLat,$maxLon"
         Log.d(TAG, "Executing KK7 API call: $url")
 
         val client = HttpClientProvider.getInstance(context)

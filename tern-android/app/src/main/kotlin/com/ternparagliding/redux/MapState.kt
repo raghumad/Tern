@@ -89,6 +89,9 @@ data class MapState(
     // but no spots nearby.
     val pgSpotGeoJson: FeatureCollection<Geometry, JsonObject>? = null,
 
+    // Thermal-hotspot GeoJSON (kk7.ch) for the CircleLayer. null = not loaded.
+    val thermalHotspotGeoJson: FeatureCollection<Geometry, JsonObject>? = null,
+
     // Flight deck — live data from an external vario (XC Tracer over BLE).
     val flightDeck: FlightDeckState = FlightDeckState(),
 )
@@ -154,7 +157,7 @@ data class WaypointSelection(
 /**
  * Redux state for overlay management
  */
-enum class OverlayType { AIRSPACE, PG_SPOTS, ROUTES, MEZULLA }
+enum class OverlayType { AIRSPACE, PG_SPOTS, ROUTES, MEZULLA, THERMAL_HOTSPOTS }
 
 /**
  * View mode for Mezulla peer markers. Each mode shows different
@@ -186,7 +189,9 @@ data class OverlayConfig(
 data class OverlayState(
     val airspaces: OverlayConfig = OverlayConfig(enabled = true),
     val pgSpots: OverlayConfig = OverlayConfig(enabled = true),
-    val routes: OverlayConfig = OverlayConfig(enabled = true)
+    val routes: OverlayConfig = OverlayConfig(enabled = true),
+    // Thermal hotspots (kk7.ch) — off by default; fetched on demand when enabled.
+    val thermalHotspots: OverlayConfig = OverlayConfig(enabled = false)
 )
 
 /**

@@ -146,6 +146,9 @@ sealed class MapAction : TernAction {
 
     // M3: PG spot GeoJSON for MapLibre rendering
     data class UpdatePgSpotGeoJson(val geoJson: FeatureCollection<Geometry, JsonObject>?) : MapAction()
+
+    // Thermal-hotspot GeoJSON (kk7.ch) for MapLibre rendering
+    data class UpdateThermalHotspotGeoJson(val geoJson: FeatureCollection<Geometry, JsonObject>?) : MapAction()
 }
 
 /**

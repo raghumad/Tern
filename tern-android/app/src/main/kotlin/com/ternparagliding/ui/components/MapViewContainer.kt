@@ -563,6 +563,12 @@ fun MapViewContainer(
                 cameraState = cameraState,
             )
 
+            // Thermal-hotspot overlay (kk7.ch) — colour-coded reliability dots
+            com.ternparagliding.overlay.thermal.ThermalHotspotOverlay(
+                store = store,
+                cameraState = cameraState,
+            )
+
             // Weather-hazard halos
             com.ternparagliding.overlay.hazard.HazardOverlay(store = store)
 

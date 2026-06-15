@@ -111,6 +111,7 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
 
     // M3: PG spot GeoJSON for MapLibre rendering
     is MapAction.UpdatePgSpotGeoJson -> state.copy(pgSpotGeoJson = action.geoJson)
+    is MapAction.UpdateThermalHotspotGeoJson -> state.copy(thermalHotspotGeoJson = action.geoJson)
 
     // Flight deck — XC Tracer vario over BLE
     is MapAction.UpdateVarioFix,
@@ -220,6 +221,7 @@ private fun handleOverlayActions(state: MapState, action: MapAction): MapState =
             OverlayType.AIRSPACE -> state.overlayState.copy(airspaces = state.overlayState.airspaces.copy(enabled = action.enabled))
             OverlayType.PG_SPOTS -> state.overlayState.copy(pgSpots = state.overlayState.pgSpots.copy(enabled = action.enabled))
             OverlayType.ROUTES -> state.overlayState.copy(routes = state.overlayState.routes.copy(enabled = action.enabled))
+            OverlayType.THERMAL_HOTSPOTS -> state.overlayState.copy(thermalHotspots = state.overlayState.thermalHotspots.copy(enabled = action.enabled))
             OverlayType.MEZULLA -> state.overlayState // Mezulla has no toggle in OverlayState; always on when peers exist
         }
         state.copy(overlayState = newOverlayState)
@@ -229,6 +231,7 @@ private fun handleOverlayActions(state: MapState, action: MapAction): MapState =
             OverlayType.AIRSPACE -> state.overlayState.copy(airspaces = action.config)
             OverlayType.PG_SPOTS -> state.overlayState.copy(pgSpots = action.config)
             OverlayType.ROUTES -> state.overlayState.copy(routes = action.config)
+            OverlayType.THERMAL_HOTSPOTS -> state.overlayState.copy(thermalHotspots = action.config)
             OverlayType.MEZULLA -> state.overlayState // No per-type config for Mezulla
         }
         state.copy(overlayState = newOverlayState)
@@ -275,7 +278,7 @@ private fun handleSettingsActions(state: MapState, action: MapAction): MapState 
     is MapAction.SetSettingsOverlayEnabled -> {
         val newOverlayState = when (action.overlayType) {
             "airspaces" -> state.overlayState.copy(airspaces = state.overlayState.airspaces.copy(enabled = action.enabled))
-            "hotspots" -> state.overlayState.copy(pgSpots = state.overlayState.pgSpots.copy(enabled = action.enabled))
+            "hotspots" -> state.overlayState.copy(thermalHotspots = state.overlayState.thermalHotspots.copy(enabled = action.enabled))
             "pgspots" -> state.overlayState.copy(pgSpots = state.overlayState.pgSpots.copy(enabled = action.enabled))
             else -> state.overlayState
         }

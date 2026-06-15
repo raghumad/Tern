@@ -139,7 +139,7 @@ fun SettingsSheet(
                 }
                 SettingsToggleRow(
                     text = "Hotspots",
-                    isChecked = state.overlayState.pgSpots.enabled,
+                    isChecked = state.overlayState.thermalHotspots.enabled,
                     onCheckedChange = { enabled ->
                         store.dispatch(com.ternparagliding.redux.MapAction.SetSettingsOverlayEnabled("hotspots", enabled))
                     }
