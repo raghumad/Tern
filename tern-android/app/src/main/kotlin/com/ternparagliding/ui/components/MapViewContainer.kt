@@ -375,6 +375,9 @@ fun MapViewContainer(
 
     // Redux → MapLibre
     LaunchedEffect(store) {
+        // Track the last centre we drove the camera to ourselves (not read back from cameraState,
+        // whose position getter throws until the map is ready). Lets us detect a large jump.
+        var lastDriven: GeoPoint? = null
         store.state
             .map { Triple(it.center, it.zoom, it.rotation) }
             .distinctUntilChanged()
@@ -389,10 +392,12 @@ fun MapViewContainer(
                         // Snap (don't animate) across large jumps — e.g. a bench replay starting
                         // while the map is on the far side of the world. animateTo would be cancelled
                         // by the next fix every ~125ms and never traverse the gap, freezing the camera.
-                        val cur = cameraState.position.target
-                        val farJump = kotlin.math.abs(cur.latitude - it.latitude) > 2.0 ||
-                            kotlin.math.abs(cur.longitude - it.longitude) > 2.0
+                        val prev = lastDriven
+                        val farJump = prev == null ||
+                            kotlin.math.abs(prev.latitude - it.latitude) > 2.0 ||
+                            kotlin.math.abs(prev.longitude - it.longitude) > 2.0
                         if (farJump) cameraState.position = target else cameraState.animateTo(target)
+                        lastDriven = it
                     }
                 }
             }
