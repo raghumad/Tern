@@ -136,13 +136,13 @@ pull-up.
 
 The compass rosette carries **three** elements, each unmistakable:
 1. **North** — the red carat.
-2. **Wind** — a cool-blue arrow that **spans the whole rosette** (rim → through
-   centre → opposite rim), arrowhead pointing downwind, matching the app's
-   existing compass needle.
-3. **Next waypoint** — the Font Awesome **`f041` map-marker pin**, sized to
-   **fill the rosette**, rotated so its **point indicates the bearing**, with the
-   **waypoint number centred** in it, in magenta. (N carat + wind barb overlay on
-   top; in code the wind barb gets a thin dark outline for contrast over the pin.)
+2. **Wind** — an arrow that **spans the whole rosette** (rim → through centre →
+   opposite rim), arrowhead pointing downwind, matching the app's existing
+   compass needle. Drawn **white/neutral** (with a dark casing) so it stays
+   distinct now that the waypoint badge is cyan.
+3. **Next waypoint** — a **cyan circular badge** that fills the rosette with the
+   **waypoint number centred** (cut-out style) and a **pointed tail** that
+   rotates so it **points the bearing**. (N carat + wind arrow overlay on top.)
 
 ![C — compass rosette: N + wind barb + waypoint pin](assets/inflight/mockup-C-compass-rosette.png)
 
