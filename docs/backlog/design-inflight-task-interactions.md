@@ -136,8 +136,9 @@ pull-up.
 
 The compass rosette carries **three** elements, each unmistakable:
 1. **North** — the red carat.
-2. **Wind barb** — a meteorological barb (staff + feathers; feathers encode
-   speed) pointing the wind, in cool blue.
+2. **Wind** — a cool-blue arrow that **spans the whole rosette** (rim → through
+   centre → opposite rim), arrowhead pointing downwind, matching the app's
+   existing compass needle.
 3. **Next waypoint** — the Font Awesome **`f041` map-marker pin**, sized to
    **fill the rosette**, rotated so its **point indicates the bearing**, with the
    **waypoint number centred** in it, in magenta. (N carat + wind barb overlay on
