@@ -7,6 +7,8 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- Haptic confirmation when a task cylinder is tagged (eyes-out flight feedback). -->
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <!-- Mock GPS for IGC-replay tests (com.ternparagliding.sim.mockgps).
          On Android 6+ this permission alone is not sufficient; the user

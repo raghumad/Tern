@@ -151,6 +151,18 @@ private fun birBillingDemoTask(flight: com.ternparagliding.sim.igc.IgcFlight): c
     )
 }
 
+/** The next-waypoint read shown on/under the compass rosette. */
+private data class NextWpNav(
+    val bearingDeg: Double,
+    val distanceM: Double,
+    val number: String,
+    val name: String,
+)
+
+/** Compact distance for the rosette readout (m under 1 km, else 1-dp km). */
+private fun formatNavDistance(meters: Double): String =
+    if (meters < 1000) "${meters.toInt()}m" else String.format("%.1fkm", meters / 1000.0)
+
 @Composable
 fun MapViewContainer(
     modifier: Modifier = Modifier,
@@ -594,6 +606,11 @@ fun MapViewContainer(
                     tasks = visibleTasks,
                     selectedWaypointId = state.selectedWaypoint?.let { "${it.taskId}:${it.waypointId}" },
                     activeWaypointId = state.activeWaypointId,
+                    // Phase 0 — tap a waypoint to select it (hit-test → selection). The
+                    // foundation for every touch interaction; selection opens the editor today.
+                    onWaypointClick = { taskId, wpId ->
+                        store.dispatch(MapAction.SelectWaypoint(taskId, wpId))
+                    },
                 )
             }
 
@@ -676,6 +693,27 @@ fun MapViewContainer(
             now = state.peerState.lastEventTime,
         )
 
+        // Next-waypoint navigation read for the rosette + the readout under it: the
+        // bearing/distance to the active waypoint and its task ordinal + place name.
+        // Driven by the plain GPS fix (state.userLocation) so it works with or without
+        // a vario, exactly like the off-screen chip.
+        val nextWpNav = remember(activeWaypoint, state.userLocation, state.selectedTaskId, state.tasks) {
+            val wp = activeWaypoint
+            val own = state.userLocation
+            if (wp == null || own == null) null
+            else {
+                val task = state.tasks.find { it.id == state.selectedTaskId }
+                val ordinal = task?.waypoints?.indexOfFirst { it.id == wp.id }?.takeIf { it >= 0 }?.plus(1)
+                val target = GeoPoint(wp.lat, wp.lon)
+                NextWpNav(
+                    bearingDeg = own.bearingTo(target),
+                    distanceM = own.distanceToAsDouble(target),
+                    number = ordinal?.toString() ?: "•",
+                    name = wp.displayName ?: "Next",
+                )
+            }
+        }
+
         androidx.compose.foundation.layout.Row(
             modifier = Modifier
                 .align(Alignment.TopEnd)
@@ -684,29 +722,48 @@ fun MapViewContainer(
                 .padding(WindowInsets.systemBars.asPaddingValues())
                 .padding(COMPASS_PADDING),
             horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
+            verticalAlignment = Alignment.Top,
         ) {
             com.ternparagliding.mezulla.ui.MezullaStatusBadge(
                 peerState = state.peerState,
             )
             if (state.compassVisible) {
-                // The needle points to true north, so it rotates opposite the camera
-                // bearing (MapLibre bearing is clockwise from north): bearing 90° (facing
-                // east) → north is to the left → rotate −90°.
-                Compass(
-                    rotation = -state.rotation,
-                    windFromDeg = if (state.flightDeck.varioConnected) state.flightDeck.windFromDeg else null,
-                    // Tap to reset north-up. (While a replay is track-up following, the next fix
-                    // re-orients — the gesture is for the free/idle map.)
-                    onTap = {
-                        store.dispatch(MapAction.UpdateRotation(0f))
-                        smoothedBearing.value = Double.NaN; lastBearing.value = Double.NaN
-                    },
-                )
+                androidx.compose.foundation.layout.Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(4.dp),
+                ) {
+                    // The needle points to true north, so it rotates opposite the camera
+                    // bearing (MapLibre bearing is clockwise from north): bearing 90° (facing
+                    // east) → north is to the left → rotate −90°.
+                    Compass(
+                        rotation = -state.rotation,
+                        size = 56.dp,
+                        windFromDeg = if (state.flightDeck.varioConnected) state.flightDeck.windFromDeg else null,
+                        waypointBearingDeg = nextWpNav?.bearingDeg,
+                        waypointLabel = nextWpNav?.number,
+                        // Tap to reset north-up. (While a replay is track-up following, the next fix
+                        // re-orients — the gesture is for the free/idle map.)
+                        onTap = {
+                            store.dispatch(MapAction.UpdateRotation(0f))
+                            smoothedBearing.value = Double.NaN; lastBearing.value = Double.NaN
+                        },
+                    )
+                    // The whole nav read in one place (design-locked): name + distance
+                    // under the compass so direction + identity + range glance together.
+                    nextWpNav?.let {
+                        NextWaypointReadout(
+                            name = it.name.uppercase(),
+                            distanceText = formatNavDistance(it.distanceM),
+                        )
+                    }
+                }
             }
         }
 
-        if (state.selectedTaskId != null) {
+        // The planning HUD (task distance / FAI / trajectory weather) is for *planning*,
+        // not flying — it's heavy clutter in the air. Hide it once a vario/replay is
+        // streaming; the rosette + readout carry the in-flight nav read.
+        if (state.selectedTaskId != null && !state.flightDeck.varioConnected) {
             TaskPlanningHUD(
                 state = state,
                 modifier = Modifier
@@ -743,6 +800,10 @@ fun MapViewContainer(
                 modifier = Modifier.align(Alignment.Center),
             )
         }
+
+        // Tag confirmation (haptic + brief flash) when a cylinder is reached — drawn
+        // last so the flash sits on top of the whole deck.
+        com.ternparagliding.overlay.task.TagFeedbackOverlay(store = store)
 
         // Live flight-deck readout (vario / altitude / wind) when an external vario is streaming.
         if (state.flightDeck.varioConnected) {

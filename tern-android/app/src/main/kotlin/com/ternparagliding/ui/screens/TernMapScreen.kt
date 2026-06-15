@@ -120,7 +120,10 @@ fun TernMapScreen(
                         if (controlsLandscape)
                             Modifier
                                 .padding(WindowInsets.systemBars.asPaddingValues())
-                                .padding(top = 64.dp, end = 16.dp)
+                                // Clear the top-right compass + its under-readout (name/distance),
+                                // which share this corner in landscape; otherwise the gear sits on
+                                // top of the readout.
+                                .padding(top = 108.dp, end = 16.dp)
                         else Modifier.padding(16.dp)
                     ),
                 verticalArrangement = Arrangement.spacedBy(if (controlsLandscape) 6.dp else 10.dp)
@@ -138,10 +141,15 @@ fun TernMapScreen(
                 )
             }
 
+            // The bottom task-detail panel is a planning surface; in flight it just
+            // clutters the deck and collides with the vario HUD (AVG/GAIN). Hide it once
+            // a vario/replay is streaming — the rosette + readout drive nav in the air.
+            // (The tappable task ribbon will live here in Phase 2, clear of the vario HUD.)
             TaskDetailPanel(
                 modifier = Modifier.align(Alignment.BottomCenter),
                 store = store,
-                isVisible = state.selectedTaskId != null && !showTaskListScreen && !showEditWaypointScreen,
+                isVisible = state.selectedTaskId != null && !showTaskListScreen &&
+                    !showEditWaypointScreen && !state.flightDeck.varioConnected,
                 onDismiss = { store.dispatch(MapAction.DeselectTask) }
             )
 

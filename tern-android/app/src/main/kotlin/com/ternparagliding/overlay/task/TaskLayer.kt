@@ -54,7 +54,12 @@ private data class WpSpec(
  */
 @Suppress("UNCHECKED_CAST")
 @Composable
-fun TaskLayer(tasks: List<Task>, selectedWaypointId: String? = null, activeWaypointId: String? = null) {
+fun TaskLayer(
+    tasks: List<Task>,
+    selectedWaypointId: String? = null,
+    activeWaypointId: String? = null,
+    onWaypointClick: ((taskId: String, waypointId: String) -> Unit)? = null,
+) {
     val visible = tasks.filter { it.isVisible }
 
     val lineSource = rememberGeoJsonSource(
@@ -153,6 +158,22 @@ fun TaskLayer(tasks: List<Task>, selectedWaypointId: String? = null, activeWaypo
             iconImage = iconImage,
             iconSize = const(1f),
             iconAllowOverlap = const(true), // waypoints are navigation — never hide
+            onClick = onWaypointClick?.let { cb ->
+                { features ->
+                    // The tapped feature carries the taskId + waypointId TaskGeoJson wrote.
+                    // Hand both up (→ SelectWaypoint) and consume so the tap doesn't fall
+                    // through to layers below (PG spots, airspace).
+                    val props = features.firstOrNull()?.properties
+                    val taskId = (props?.get("taskId") as? kotlinx.serialization.json.JsonPrimitive)?.content
+                    val wpId = (props?.get("waypointId") as? kotlinx.serialization.json.JsonPrimitive)?.content
+                    if (taskId != null && wpId != null) {
+                        cb(taskId, wpId)
+                        org.maplibre.compose.util.ClickResult.Consume
+                    } else {
+                        org.maplibre.compose.util.ClickResult.Pass
+                    }
+                }
+            },
         )
     }
 }
