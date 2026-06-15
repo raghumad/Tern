@@ -33,6 +33,7 @@ private const val ZOOM_DETAIL = 11.0
 /** One rasterised marker per waypoint, keyed for the data-driven SymbolLayer. */
 private data class WpSpec(
     val key: String,
+    val wpId: String,
     val type: LocationType,
     val seq: Int,
     val name: String,
@@ -53,7 +54,7 @@ private data class WpSpec(
  */
 @Suppress("UNCHECKED_CAST")
 @Composable
-fun RouteLayer(routes: List<Route>, selectedWaypointId: String? = null) {
+fun RouteLayer(routes: List<Route>, selectedWaypointId: String? = null, activeWaypointId: String? = null) {
     val visible = routes.filter { it.isVisible }
 
     val lineSource = rememberGeoJsonSource(
@@ -123,19 +124,22 @@ fun RouteLayer(routes: List<Route>, selectedWaypointId: String? = null) {
             var tp = 0
             route.waypoints.mapIndexed { i, wp ->
                 val seq = if (wp.type == LocationType.TURNPOINT) ++tp else i + 1
-                WpSpec("${route.id}:${wp.id}", wp.type, seq, wp.label ?: "WP ${i + 1}", wp.radius ?: 0.0)
+                WpSpec("${route.id}:${wp.id}", wp.id, wp.type, seq, wp.displayName ?: "WP ${i + 1}", wp.radius ?: 0.0)
             }
         }
     }
     if (specs.isNotEmpty()) {
         val markerKeyExpr = feature.get("markerKey") as Expression<StringValue>
-        val iconImage = remember(specs, selectedWaypointId) {
+        val iconImage = remember(specs, selectedWaypointId, activeWaypointId) {
             val transparent = image(Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888).asImageBitmap())
+            // The active (next) waypoint and the editing-selected waypoint both
+            // get the enlarged + haloed treatment so they stand out.
+            fun highlit(s: WpSpec) = s.key == selectedWaypointId || s.wpId == activeWaypointId
             val compact = specs.map { s ->
-                case(s.key, image(renderWaypointBitmap(s.type, s.seq, s.name, selected = s.key == selectedWaypointId, detailed = false).asImageBitmap()))
+                case(s.key, image(renderWaypointBitmap(s.type, s.seq, s.name, selected = highlit(s), detailed = false).asImageBitmap()))
             }.toTypedArray()
             val detailed = specs.map { s ->
-                case(s.key, image(renderWaypointBitmap(s.type, s.seq, s.name, selected = s.key == selectedWaypointId, detailed = true, radiusM = s.radiusM).asImageBitmap()))
+                case(s.key, image(renderWaypointBitmap(s.type, s.seq, s.name, selected = highlit(s), detailed = true, radiusM = s.radiusM).asImageBitmap()))
             }.toTypedArray()
             step(
                 zoom(),

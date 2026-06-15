@@ -82,6 +82,27 @@ lands — asserting the pilot-visible outcome, not existence.
 - [ ] Verify storm-risk-along-route detection. *(Weather HUD stays deferred to
       the separate weather redesign.)*
 
+### Theme 8 — Active-waypoint navigation (buddy-style guidance)  *(IN PROGRESS)*
+The pilot's ask: "if a task is defined, the next waypoint should show up just
+like a buddy shows up on screen." Mirrors the Mezulla peer treatment.
+- [x] `Waypoint.description` (human name for a cryptic code: "B4" → "Gold's
+      Point") + `displayName`; editable in `EditWaypointScreen`.
+- [x] Active-task progress in Redux (`activeWaypointId` + `taggedWaypointIds`);
+      `TaskProgressOverlay` auto-advances the active waypoint on cylinder entry
+      (selected route = the active task).
+- [x] On-map highlight of the active waypoint (enlarged + halo, via `RouteLayer`).
+- [x] `OffScreenWaypointIndicator` — edge chip when the next waypoint is off
+      viewport: direction arrow + name/description + distance + required glide
+      ratio (when a live altitude is available). Sibling of
+      `OffScreenPeerIndicators`.
+- [ ] On-device verification on the Bir Billing replay (pending — no device
+      attached at build time). Compile + unit tests green (62 HELD / 0 BROKEN).
+- [ ] Claim-driven test: replay a task, assert the active waypoint advances on
+      cylinder entry and the off-screen chip points at it.
+- [ ] Possible follow-ups: distinct "target" styling vs editing-selection;
+      arrival-altitude judged colour (make/no-make); decouple active task from
+      selection so guidance survives dismissing the detail panel.
+
 ### Theme 7 — Claim coverage  *(woven through 1–6)*
 Each route claim (visible waypoints/cylinders, offline corridor, FAI
 correctness, edit-on-map) backed by a claim-driven test that asserts the

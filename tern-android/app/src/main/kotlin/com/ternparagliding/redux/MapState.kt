@@ -63,6 +63,14 @@ data class MapState(
     // Selected route for viewing/editing
     val selectedRouteId: String? = null,
 
+    // Active-task navigation. activeWaypointId is the next waypoint the pilot is
+    // flying to (the first not-yet-tagged point of the selected task); tagged
+    // are the ones already reached (flew into the cylinder). Together they drive
+    // the on-map target highlight and the off-screen direction chip — the
+    // buddy-style "next waypoint shows up on screen" guidance.
+    val activeWaypointId: String? = null,
+    val taggedWaypointIds: Set<String> = emptySet(),
+
     // Handedness-aware UI state - optimizes control placement for user preference
     val userPreferences: UserPreferencesState = UserPreferencesState(),
 

@@ -549,6 +549,7 @@ fun MapViewContainer(
                 com.ternparagliding.overlay.route.RouteLayer(
                     routes = visibleRoutes,
                     selectedWaypointId = state.selectedWaypoint?.let { "${it.routeId}:${it.waypointId}" },
+                    activeWaypointId = state.activeWaypointId,
                 )
             }
 
@@ -600,6 +601,27 @@ fun MapViewContainer(
         }
 
         com.ternparagliding.overlay.route.RouteProximityOverlay(store = store)
+
+        // Active-task navigation: derive the "next" waypoint + auto-advance on
+        // cylinder entry, then point at it buddy-style (on-map highlight above +
+        // off-screen edge chip below).
+        com.ternparagliding.overlay.route.TaskProgressOverlay(store = store)
+
+        val activeWaypoint = remember(state.selectedRouteId, state.activeWaypointId, state.routes) {
+            state.routes.find { it.id == state.selectedRouteId }
+                ?.waypoints?.find { it.id == state.activeWaypointId }
+        }
+        activeWaypoint?.let { wp ->
+            com.ternparagliding.overlay.route.OffScreenWaypointIndicator(
+                target = GeoPoint(wp.lat, wp.lon),
+                label = (wp.displayName ?: "WP").uppercase(),
+                roleColor = androidx.compose.ui.graphics.Color(com.ternparagliding.overlay.route.cylinderColor(wp.type)),
+                ownLocation = state.userLocation,
+                ownAltitudeM = if (state.flightDeck.varioConnected) state.flightDeck.altitudeM else null,
+                targetAltM = wp.alt,
+                cameraState = cameraState,
+            )
+        }
 
         com.ternparagliding.overlay.mezulla.OffScreenPeerIndicators(
             peers = state.peerState.peers,

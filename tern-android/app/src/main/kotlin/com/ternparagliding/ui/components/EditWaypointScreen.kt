@@ -119,6 +119,37 @@ fun EditWaypointScreen(
             }
         }
 
+        // Description — a human name for the cryptic code (e.g. "B4" → "Gold's
+        // Point"). Shown in preference to the code in the next-waypoint guidance.
+        Card(
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "Name",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                OutlinedTextField(
+                    value = waypoint.description ?: "",
+                    onValueChange = { newValue ->
+                        store.dispatch(MapAction.UpdateWaypointDescription(
+                            selectedWaypoint.routeId,
+                            selectedWaypoint.waypointId,
+                            newValue.takeIf { it.isNotBlank() }
+                        ))
+                    },
+                    label = { Text("Description (e.g. \"Gold's Point\")") },
+                    placeholder = { Text(waypoint.label ?: "") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+            }
+        }
+
         // Waypoint type selection
         Card(
             modifier = Modifier.fillMaxWidth()

@@ -242,6 +242,14 @@ internal fun handleWaypointActions(state: MapState, action: MapAction): MapState
         }
         state.copy(routes = newRoutes)
     }
+    is MapAction.UpdateWaypointDescription -> {
+        val newRoutes = state.routes.map { route ->
+            if (route.id == action.routeId) {
+                route.updateWaypoint(action.waypointId, description = action.description ?: "")
+            } else route
+        }
+        state.copy(routes = newRoutes)
+    }
     is MapAction.UpdateWaypointRadius -> {
         val newRoutes = state.routes.map { route ->
             if (route.id == action.routeId) {

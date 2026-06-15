@@ -13,6 +13,10 @@ data class Waypoint(
     val lon: Double,
     override val type: LocationType = LocationType.TURNPOINT,
     val label: String? = null,
+    /** Human-readable name for a cryptic code. Tasks ship terse codes ("B4");
+     *  the description is the place ("Gold's Point"). Shown in preference to the
+     *  code wherever there's room (e.g. the next-waypoint indicator). */
+    val description: String? = null,
     val createdAt: Instant = java.time.Instant.now(),
     val routeId: String? = null,
     val radius: Double? = com.ternparagliding.redux.RouteConstants.FAI_DEFAULT_RADIUS_METERS, // Default FAI cylinder radius in meters
@@ -20,6 +24,10 @@ data class Waypoint(
     val openTime: String? = null, // HH:mm
     val closeTime: String? = null // HH:mm
 ) : UnifiedLocation {
+    /** Best human-facing label: the description if set, else the terse code. */
+    val displayName: String?
+        get() = description?.takeIf { it.isNotBlank() } ?: label?.takeIf { it.isNotBlank() }
+
     override val coordinate: org.osmdroid.util.GeoPoint
         get() = org.osmdroid.util.GeoPoint(lat, lon)
     
@@ -100,21 +108,23 @@ data class Route(
      * Add a waypoint to this route
      */
     fun addWaypoint(
-        lat: Double, 
-        lon: Double, 
-        type: LocationType = LocationType.TURNPOINT, 
-        label: String? = null, 
-        id: String? = null, 
+        lat: Double,
+        lon: Double,
+        type: LocationType = LocationType.TURNPOINT,
+        label: String? = null,
+        id: String? = null,
         radius: Double? = com.ternparagliding.redux.RouteConstants.FAI_DEFAULT_RADIUS_METERS,
         alt: Double? = null,
         openTime: String? = null,
-        closeTime: String? = null
+        closeTime: String? = null,
+        description: String? = null
     ): Route {
         val newWaypoint = Waypoint(
             lat = lat,
             lon = lon,
             type = type,
             label = label,
+            description = description,
             routeId = this.id,
             id = id ?: UUID.randomUUID().toString(),
             radius = radius,
@@ -142,14 +152,15 @@ data class Route(
      * Update a waypoint in this route
      */
     fun updateWaypoint(
-        waypointId: String, 
-        lat: Double? = null, 
-        lon: Double? = null, 
-        type: LocationType? = null, 
+        waypointId: String,
+        lat: Double? = null,
+        lon: Double? = null,
+        type: LocationType? = null,
         radius: Double? = null,
         alt: Double? = null,
         openTime: String? = null,
-        closeTime: String? = null
+        closeTime: String? = null,
+        description: String? = null
     ): Route {
         return copy(
             waypoints = waypoints.map {
@@ -161,7 +172,8 @@ data class Route(
                         radius = radius ?: it.radius,
                         alt = alt ?: it.alt,
                         openTime = openTime ?: it.openTime,
-                        closeTime = closeTime ?: it.closeTime
+                        closeTime = closeTime ?: it.closeTime,
+                        description = description ?: it.description
                     )
                 } else it
             },

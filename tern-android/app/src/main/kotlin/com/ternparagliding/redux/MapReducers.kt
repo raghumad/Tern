@@ -65,6 +65,7 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
     is MapAction.RemoveWaypoint,
     is MapAction.UpdateWaypoint,
     is MapAction.UpdateWaypointType,
+    is MapAction.UpdateWaypointDescription,
     is MapAction.UpdateWaypointRadius,
     is MapAction.UpdateWaypointAltitude,
     is MapAction.UpdateWaypointTimeGates,
@@ -81,6 +82,11 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
     // Route Selection (RouteReducers.kt)
     is MapAction.SelectRoute,
     MapAction.DeselectRoute -> handleRouteSelectionActions(state, action)
+
+    // Active-task navigation (next-waypoint guidance)
+    is MapAction.SetActiveWaypoint -> state.copy(activeWaypointId = action.waypointId)
+    is MapAction.TagWaypoint -> state.copy(taggedWaypointIds = state.taggedWaypointIds + action.waypointId)
+    MapAction.ResetTaskProgress -> state.copy(activeWaypointId = null, taggedWaypointIds = emptySet())
 
     // Smart Suggestion (RouteReducers.kt)
     is MapAction.SetSmartSuggestion,

@@ -101,6 +101,7 @@ sealed class MapAction : TernAction {
     data class RemoveWaypoint(val routeId: String, val waypointId: String) : MapAction()
     data class UpdateWaypoint(val routeId: String, val waypointId: String, val lat: Double? = null, val lon: Double? = null, val type: LocationType? = null, val label: String? = null) : MapAction()
     data class UpdateWaypointType(val routeId: String, val waypointId: String, val type: LocationType) : MapAction()
+    data class UpdateWaypointDescription(val routeId: String, val waypointId: String, val description: String?) : MapAction()
     data class UpdateWaypointRadius(val routeId: String, val waypointId: String, val radius: Double) : MapAction()
     data class UpdateWaypointAltitude(val routeId: String, val waypointId: String, val alt: Double?) : MapAction()
     data class UpdateWaypointTimeGates(val routeId: String, val waypointId: String, val openTime: String?, val closeTime: String?) : MapAction()
@@ -117,6 +118,14 @@ sealed class MapAction : TernAction {
     // Route selection actions
     data class SelectRoute(val routeId: String) : MapAction()
     object DeselectRoute : MapAction()
+
+    // Active-task navigation actions (driven by TaskProgressOverlay)
+    /** Set the next waypoint the pilot is flying to (null = no active target). */
+    data class SetActiveWaypoint(val waypointId: String?) : MapAction()
+    /** Mark a waypoint reached (flew into its cylinder); the engine then advances. */
+    data class TagWaypoint(val waypointId: String) : MapAction()
+    /** Clear all task progress (active + tagged) — on task switch/deselect. */
+    object ResetTaskProgress : MapAction()
 
     // Smart Suggestion actions
     data class SetSmartSuggestion(val nearbyPGSpot: com.ternparagliding.utils.cache.MapOverlayCacheUtils.OverlayFeature?, val pendingWaypointCreation: GeoPoint?) : MapAction()
