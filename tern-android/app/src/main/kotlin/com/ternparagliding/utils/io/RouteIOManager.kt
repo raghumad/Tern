@@ -216,7 +216,7 @@ object RouteIOManager {
             
             val wpObj = JSONObject()
             wpObj.put("name", wp.label ?: "WP${index+1}")
-            wpObj.put("description", "")
+            wpObj.put("description", wp.description ?: "")
             wpObj.put("lat", wp.lat)
             wpObj.put("lon", wp.lon)
             if (wp.alt != null) {
@@ -272,6 +272,9 @@ object RouteIOManager {
                 val lat = wpObj.getDouble("lat")
                 val lon = wpObj.getDouble("lon")
                 val name = wpObj.optString("name", "WP$i")
+                // XCTSK carries a human description ("RUBBIO ALT TO") alongside the
+                // terse code ("D18"). Keep it — it's what the next-waypoint guidance shows.
+                val description = wpObj.optString("description", "").ifBlank { null }
                 val alt = if (wpObj.has("altSmoothed")) wpObj.getDouble("altSmoothed") else null
 
                 val type = when (typeStr) {
@@ -288,7 +291,7 @@ object RouteIOManager {
                     if (gates.length() > 0) openTime = hhmm(gates.getString(0))
                 }
 
-                waypoints.add(Waypoint(lat = lat, lon = lon, type = type, label = name, radius = radius, alt = alt, openTime = openTime))
+                waypoints.add(Waypoint(lat = lat, lon = lon, type = type, label = name, description = description, radius = radius, alt = alt, openTime = openTime))
             }
 
             // Official XCTSK marks the goal implicitly as the LAST turnpoint

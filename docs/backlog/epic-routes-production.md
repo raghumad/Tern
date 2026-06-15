@@ -95,13 +95,24 @@ like a buddy shows up on screen." Mirrors the Mezulla peer treatment.
       viewport: direction arrow + name/description + distance + required glide
       ratio (when a live altitude is available). Sibling of
       `OffScreenPeerIndicators`.
-- [ ] On-device verification on the Bir Billing replay (pending — no device
-      attached at build time). Compile + unit tests green (62 HELD / 0 BROKEN).
+- [x] XCTSK import now reads `waypoint.description` (was dropped) — and export
+      writes it back. Without this the description field had no data path.
+- [x] On-device verified (imported a real comp task, srs-2026-2-task1.xctsk):
+      the off-screen chip renders pinned to the edge with the direction arrow +
+      the human description ("RUBBIO ALT TO", not the code "D18") + distance, and
+      only appears once a GPS fix exists (the engine needs own-position).
+- [ ] Auto-advance on cylinder entry: logic only (unit) — not flight-verified,
+      since the one bundled task (Italy) isn't co-located with a replay.
 - [ ] Claim-driven test: replay a task, assert the active waypoint advances on
       cylinder entry and the off-screen chip points at it.
-- [ ] Possible follow-ups: distinct "target" styling vs editing-selection;
-      arrival-altitude judged colour (make/no-make); decouple active task from
-      selection so guidance survives dismissing the detail panel.
+- [ ] Polish:
+      - chip can overlap the right-edge dock when the target is nearly due-east
+        (distance text slid under the Share button); tighten the dock inset /
+        clamp the chip width.
+      - distinct "target" styling vs editing-selection (currently share a halo).
+      - arrival-altitude judged colour (make/no-make).
+      - decouple active task from selection so guidance survives dismissing the
+        detail panel.
 
 ### Theme 7 — Claim coverage  *(woven through 1–6)*
 Each route claim (visible waypoints/cylinders, offline corridor, FAI
