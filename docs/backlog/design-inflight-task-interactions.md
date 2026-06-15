@@ -179,6 +179,26 @@ Pilots shouldn't type a glide ratio. Instead:
 - Where the glider profile lives: a new **Pilot** section in Settings (alongside
   Connections / Units).
 
+## Readout placement (next-WP name + distance) — to decide
+
+The rosette shows direction + which WP; the name + distance still need a home.
+Three candidates:
+
+**A — under the compass** (completes the widget: direction/number above, name +
+distance just below):
+
+![A — under compass](assets/inflight/readout-A-under-compass.png)
+
+**B — in the vario HUD** (a NEXT row atop the AVG/GAIN/GS data pilots already
+watch):
+
+![B — vario HUD](assets/inflight/readout-B-vario-hud.png)
+
+**C — none persistent** — rely on the off-screen chip (when off-screen) + the
+on-map marker label (when on-screen). Least clutter, but no always-on name/dist.
+
+Lean: **A** pairs naturally with the rosette and keeps the nav widget self-contained.
+
 ## Updated phase plan
 - **Phase 0 — map tap/long-press → waypoint hit-test → selection** (prereq).
 - **Phase 1 — compass next-WP arrow** (mockup C) + tag feedback (haptic/flash) +
