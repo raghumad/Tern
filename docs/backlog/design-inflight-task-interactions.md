@@ -138,9 +138,10 @@ The compass rosette carries **three** elements, each unmistakable:
 1. **North** — the red carat.
 2. **Wind barb** — a meteorological barb (staff + feathers; feathers encode
    speed) pointing the wind, in cool blue.
-3. **Next waypoint** — the Font Awesome **`f041` map-marker pin**, rotated so its
-   **point indicates the bearing**, with the **waypoint number in the bulb**, in
-   magenta.
+3. **Next waypoint** — the Font Awesome **`f041` map-marker pin**, sized to
+   **fill the rosette**, rotated so its **point indicates the bearing**, with the
+   **waypoint number centred** in it, in magenta. (N carat + wind barb overlay on
+   top; in code the wind barb gets a thin dark outline for contrast over the pin.)
 
 ![C — compass rosette: N + wind barb + waypoint pin](assets/inflight/mockup-C-compass-rosette.png)
 
