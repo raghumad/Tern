@@ -119,6 +119,57 @@ Still open: exact placement vs the vario HUD / compass, whether the goal arrow
 should instead live *on* the compass rose, and whether B is always-visible or
 pull-up.
 
-## For discussion
-React to A vs B (or "both / neither / something else") and the placement. That
-shapes Phases 1–2. Nothing here is built yet.
+## Decisions (round 2, 2026-06-15)
+
+1. **Next-waypoint arrow lives on the compass rosette** (not a separate strip),
+   and must be **clearly differentiated from the wind needle** — by colour
+   (magenta vs blue), weight (thick vs thin), and direction (the WP arrow is a
+   bold ray pointing *out* to the bearing; the wind needle is a thin line
+   streaming *in* downwind).
+2. **Drop "goal" entirely.** Only the **next waypoint** matters. Direction +
+   final glide are always to the next waypoint's cylinder.
+3. **The task overview (ribbon, B) opens from the Task button** — a deliberate
+   button press, not a drag-up-anywhere gesture. In flight a stray drag is too
+   easy; a button is reliable with gloves and won't fire by accident.
+4. **Final glide comes from a glider profile in pilot settings** (see below),
+   the way XCTrack/others do it — not a hand-set glide ratio.
+
+![C — compass: wind vs next-WP arrow](assets/inflight/mockup-C-compass-arrows.png)
+
+So the v2 split becomes:
+- **A → folds into the compass** (mockup C) + a small readout (next WP name,
+  distance, arrival height colour-coded). *Open: where the readout sits — under
+  the compass, or a short line in the HUD.*
+- **B → the Task button opens** the task ribbon/overview; tap a dot to Go to.
+
+## Final glide via glider profile
+
+Pilots shouldn't type a glide ratio. Instead:
+- **Pilot settings → Glider:** pick your wing from a bundled database and enter
+  all-up weight; we look up its glide performance.
+- Reference pilot/wing for testing: **Niviuk Klimber 3P (85–105 kg), flown at
+  ~92 kg all-up.**
+- **Arrival height** to the next cylinder = current altitude − distance / glide
+  ratio, **wind-corrected** (head/tail wind changes effective glide a lot — we
+  already have a live wind estimate, so fold it in). Colour green if it clears
+  the cylinder, red if not.
+
+**Open questions on the glide model:**
+- Fidelity: a single **best glide ratio** per wing (simple, good enough at trim)
+  vs a full **speed-to-fly polar** (accurate across bar settings, much more data
+  per wing). Lean: start with best-L/D + wind correction; polar later.
+- **Data source** for the glider DB: bundled table keyed by model (seed with
+  common EN wings + the Klimber 3P), defaulting by EN class when a wing is
+  unknown, user-overridable.
+- Where the glider profile lives: a new **Pilot** section in Settings (alongside
+  Connections / Units).
+
+## Updated phase plan
+- **Phase 0 — map tap/long-press → waypoint hit-test → selection** (prereq).
+- **Phase 1 — compass next-WP arrow** (mockup C) + tag feedback (haptic/flash).
+- **Phase 2 — Pilot/glider profile + final-glide arrival readout** (the green/red
+  "can I make it" number).
+- **Phase 3 — Task button opens the ribbon; tap a dot to Go to;** manual
+  skip/advance.
+
+Each phase backed by a claim-driven test. Nothing built yet — still brainstorm.
