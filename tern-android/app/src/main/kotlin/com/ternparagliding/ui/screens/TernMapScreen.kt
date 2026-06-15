@@ -37,7 +37,6 @@ fun TernMapScreen(
     store: MapStore = viewModel()
 ) {
     var showSettingsSheet by remember { mutableStateOf(false) }
-    var showShareSheet by remember { mutableStateOf(false) }
     var showEditWaypointScreen by remember { mutableStateOf(false) }
     var showTaskListScreen by remember { mutableStateOf(false) }
     val state by store.state.collectAsState()
@@ -104,10 +103,10 @@ fun TernMapScreen(
                     .fillMaxWidth(),
             )
 
-            // Right-edge controls: settings, share, task, and Mezulla view mode.
-            // The five-button column is too tall to centre in a 720px-high landscape window
-            // without rising into the compass, so there it anchors at the top (below the
-            // status bar + compass) with tighter spacing; portrait keeps the centred dock.
+            // Right-edge controls: settings, recenter, task, and Mezulla view mode.
+            // (Sharing is contextual now; vario pairing lives in Settings → Connections.)
+            // In landscape the column anchors at the top (below the status bar + compass)
+            // with tighter spacing; portrait keeps the centred dock.
             val controlsLandscape =
                 LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
             Column(
@@ -131,13 +130,7 @@ fun TernMapScreen(
                     enabled = state.userLocation != null,
                     onClick = { state.userLocation?.let { store.dispatch(MapAction.UpdateCenter(it)) } },
                 )
-                ShareButton(onClick = { showShareSheet = true })
                 TaskButton(onClick = { showTaskListScreen = true })
-                VarioConnectButton(
-                    connected = state.flightDeck.varioConnected,
-                    scanning = state.flightDeck.varioScanning,
-                    onClick = { store.dispatch(MapAction.ToggleVario) },
-                )
                 MezullaViewModeButton(
                     viewMode = state.mezullaViewMode,
                     linkState = state.peerState.linkState,
@@ -186,10 +179,6 @@ fun TernMapScreen(
             demoReplay = demoReplay,
             pairingOrchestrator = activity?.pairingOrchestrator,
         )
-    }
-
-    if (showShareSheet) {
-        ShareSheet(onDismiss = { showShareSheet = false })
     }
 
     if (showTaskListScreen) {

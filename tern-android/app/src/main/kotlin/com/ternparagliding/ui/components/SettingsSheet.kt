@@ -2,6 +2,7 @@ package com.ternparagliding.ui.components
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -36,6 +37,8 @@ import com.ternparagliding.ui.screens.MAP_VIEW_SATELLITE
 import com.ternparagliding.ui.screens.MAP_VIEW_TERRAIN
 
 
+import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material.icons.filled.BluetoothConnected
 import androidx.compose.material.icons.filled.BluetoothSearching
 import androidx.compose.material.icons.filled.LinkOff
 import androidx.compose.material3.CircularProgressIndicator
@@ -60,15 +63,57 @@ fun SettingsSheet(
     ModalBottomSheet(onDismissRequest = onDismiss) {
         LazyColumn(modifier = Modifier.padding(horizontal = 16.dp).testTag("settings_list")) {
 
-            // Mezulla section — shows paired board or "scan with phone camera" hint.
-            // Pairing happens via the phone's native camera scanning the board's QR,
-            // which opens Tern through the tern:// deep link. No in-app scanner needed.
-            if (pairingOrchestrator != null) {
-                item {
+            // Connections — the two Bluetooth devices Tern pairs with, each with
+            // its live status: the XC Tracer vario (sensor link) and the Mezulla
+            // board (mesh). Connecting/pairing is infrequent, so it lives here
+            // rather than on the flight dock.
+            item {
+                Text("Connections", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
+
+                // ── XC Tracer vario (BLE sensor link) ──────────────────────
+                val varioConnected = state.flightDeck.varioConnected
+                val varioScanning = state.flightDeck.varioScanning
+                val varioTint = when {
+                    varioConnected -> Color(0xFF22C55E)
+                    varioScanning -> Color(0xFFF59E0B)
+                    else -> Color(0xFF94A3B8)
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        when {
+                            varioConnected -> Icons.Filled.BluetoothConnected
+                            varioScanning -> Icons.Filled.BluetoothSearching
+                            else -> Icons.Filled.Bluetooth
+                        },
+                        contentDescription = null, tint = varioTint,
+                    )
+                    Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
+                        Text("XC Tracer vario", fontSize = 14.sp)
+                        Text(
+                            when {
+                                varioConnected -> "Streaming"
+                                varioScanning -> "Searching…"
+                                else -> "Not connected"
+                            },
+                            fontSize = 12.sp, color = varioTint,
+                        )
+                    }
+                    OutlinedButton(
+                        onClick = { store.dispatch(com.ternparagliding.redux.MapAction.ToggleVario) },
+                        modifier = Modifier.height(40.dp).testTag("btn_toggle_vario"),
+                    ) {
+                        Text(if (varioConnected || varioScanning) "Disconnect" else "Connect", fontSize = 14.sp)
+                    }
+                }
+
+                // ── Mezulla board (mesh) — paired board or scan hint ───────
+                if (pairingOrchestrator != null) {
                     val pairingState by pairingOrchestrator.state.collectAsState()
                     val pairedNodeId = pairingOrchestrator.getPairedNodeId()
                     val pairedName = pairingOrchestrator.getPairedDeviceName()
-                    Text("Mezulla", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
                     // While the persistent BLE link is being established
                     // (post-claim, pre-link-up) show a progress row so the
                     // pilot knows we are still working and roughly how long
@@ -122,8 +167,8 @@ fun SettingsSheet(
                             modifier = Modifier.padding(vertical = 8.dp),
                         )
                     }
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
                 }
+                HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
             }
 
             item {
