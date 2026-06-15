@@ -6,11 +6,32 @@
 > sharing layer; that epic remains the "make routes actually work" layer).
 > Theme 3's "Share (QR / Android intent)" line is **superseded** by §3 below.
 
+> **Update (2026-06-15):** the full code-symbol rename is **DONE** (commit
+> `b926857`) — "route" is gone from the codebase (model, Redux, overlays, utils,
+> UI, tests; package `overlay.route` → `overlay.task`). Mesh-routing code and the
+> `route_24` drawable asset were deliberately left. The `model/Route.kt`
+> references below now read `model/Task.kt`.
+
+## Conceptual model (the user's framing)
+
+- **Waypoints are the primary thing people define.** A **Task is just an ordered
+  sequence of waypoints** plus per-waypoint details (cylinder radius, role, time
+  gates). Tasks reference/order waypoints; the waypoint is the unit.
+  *(Today waypoints are still owned inline by a Task. A shared waypoint
+  library that tasks draw from — cf. the planner "LIBRARY" tab — is the natural
+  next step, not yet built.)*
+- **The start gate defines how weather is shown along the task.** The SSS
+  open-time anchors the ETA timeline, so the per-waypoint forecast is read at the
+  time the pilot is expected to *be there* (start + cumulative leg time), not
+  "now". Hooks already exist (`waypointEtas`, `FetchWeatherForTask`); the
+  start-gate anchor is the missing input. *(Design note — not yet wired.)*
+
 ## The two decisions
 
 1. **Task-first.** This is a competition / XC tool. "Route" becomes **"Task"**
    throughout the user-facing product, and task parameters (speed section,
    cylinders, time gates) are always first-class — not hidden behind a mode.
+   **(Done.)**
 2. **No generic "Share" button.** A single "Share" affordance is confusing
    because it conflates four unrelated things. All four capabilities stay, but
    each moves to the context (the "respective settings") it belongs to. The
