@@ -186,7 +186,7 @@ private fun airspaceColorExpression(): Expression<ColorValue> {
         case("RESTRICTED", const(YELLOW)),
         case("PROHIBITED", const(ORANGE)),
         case("DANGER", const(MAGENTA)),
-        case("MILITARY", const(PURPLE)),
+        case("CTR", const(PURPLE)),
         fallback = const(RED),
     )
 }

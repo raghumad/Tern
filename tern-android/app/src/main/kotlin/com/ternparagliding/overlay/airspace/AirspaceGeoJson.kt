@@ -90,7 +90,8 @@ object AirspaceGeoJson {
             typeNum == 1 -> "RESTRICTED"
             typeNum == 2 -> "DANGER"
             typeNum == 3 -> "PROHIBITED"
-            typeNum == 4 -> "MILITARY"
+            // OpenAIP type=4 is CTR (control zone around an aerodrome), not military.
+            typeNum == 4 -> "CTR"
             // OpenAIP icaoClass is 0-indexed: 0=A, 1=B, 2=C, 3=D, 4=E, 5=F,
             // 6=G. Verified against real data — "DENVER CLASS B AREA A" carries
             // icaoClass=1. The old `1..5 -> 'A'+(n-1)` shifted every class down

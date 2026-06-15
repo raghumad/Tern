@@ -9,8 +9,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Air
-import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -71,8 +72,21 @@ fun AddWaypointButton() {
 
 @Composable
 fun ShareButton(onClick: () -> Unit) {
-    DockButton(onClick, "Share Menu") { m ->
-        Icon(Icons.Default.MoreVert, contentDescription = "Share Menu", tint = DOCK_ICON, modifier = m)
+    DockButton(onClick, "Share") { m ->
+        Icon(Icons.Default.Share, contentDescription = "Share", tint = DOCK_ICON, modifier = m)
+    }
+}
+
+/** Recenter the map on the pilot's current location. Disabled tint until a fix exists. */
+@Composable
+fun RecenterButton(enabled: Boolean, onClick: () -> Unit) {
+    DockButton(onClick, "Recenter on me") { m ->
+        Icon(
+            Icons.Default.MyLocation,
+            contentDescription = "Recenter on me",
+            tint = if (enabled) DOCK_ICON else DOCK_ICON.copy(alpha = 0.4f),
+            modifier = m,
+        )
     }
 }
 

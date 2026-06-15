@@ -1,8 +1,11 @@
 package com.ternparagliding.ui.components
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
@@ -27,14 +30,26 @@ fun Compass(
     size: Dp = 48.dp,
     /** Live wind direction (degrees the wind blows *from*); null hides the needle. */
     windFromDeg: Double? = null,
+    /** Tap-to-north: reset the map to north-up. Null = not tappable. */
+    onTap: (() -> Unit)? = null,
 ) {
     val ringColor = MaterialTheme.colorScheme.outline
     // Standard compass convention: north carat is bright red.
     val northColor = Color(0xFFFF1A1A)
 
+    val tapModifier = if (onTap != null) {
+        Modifier.clickable(
+            interactionSource = remember { MutableInteractionSource() },
+            indication = null, // no ripple on the transparent rosette
+            onClickLabel = "Reset to north",
+            onClick = onTap,
+        )
+    } else Modifier
+
     Canvas(
         modifier = modifier
             .size(size) // Use the size parameter
+            .then(tapModifier)
             .rotate(rotation)
     ) {
         val center = this.center

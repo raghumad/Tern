@@ -127,6 +127,10 @@ fun TernMapScreen(
                 verticalArrangement = Arrangement.spacedBy(if (controlsLandscape) 8.dp else 16.dp)
             ) {
                 SettingsButton(onClick = { showSettingsSheet = true })
+                RecenterButton(
+                    enabled = state.userLocation != null,
+                    onClick = { state.userLocation?.let { store.dispatch(MapAction.UpdateCenter(it)) } },
+                )
                 ShareButton(onClick = { showShareSheet = true })
                 RouteButton(onClick = { showRouteListScreen = true })
                 VarioConnectButton(

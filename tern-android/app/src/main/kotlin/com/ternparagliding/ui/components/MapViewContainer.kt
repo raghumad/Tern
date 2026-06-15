@@ -624,6 +624,12 @@ fun MapViewContainer(
                 Compass(
                     rotation = -state.rotation,
                     windFromDeg = if (state.flightDeck.varioConnected) state.flightDeck.windFromDeg else null,
+                    // Tap to reset north-up. (While a replay is track-up following, the next fix
+                    // re-orients — the gesture is for the free/idle map.)
+                    onTap = {
+                        store.dispatch(MapAction.UpdateRotation(0f))
+                        smoothedBearing.value = Double.NaN; lastBearing.value = Double.NaN
+                    },
                 )
             }
         }
