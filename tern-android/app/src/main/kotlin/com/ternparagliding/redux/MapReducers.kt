@@ -3,8 +3,8 @@ package com.ternparagliding.redux
 /**
  * Redux reducers for map functionality - organized by functional groups.
  *
- * Route/waypoint/editing/selection/long-press/smart-suggestion handlers live
- * in RouteReducers.kt; weather handlers live in WeatherReducers.kt (Phase 0c
+ * Task/waypoint/editing/selection/long-press/smart-suggestion handlers live
+ * in TaskReducers.kt; weather handlers live in WeatherReducers.kt (Phase 0c
  * god-file split). All three share the `redux` package.
  */
 fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
@@ -41,8 +41,8 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
     // Configuration & UI
     is MapAction.UpdateMapStyle,
     is MapAction.SetCompassVisible,
-    is MapAction.ToggleRoutePanelExpanded,
-    is MapAction.SetRoutePanelExpanded -> handleConfigurationAndUIActions(state, action)
+    is MapAction.ToggleTaskPanelExpanded,
+    is MapAction.SetTaskPanelExpanded -> handleConfigurationAndUIActions(state, action)
 
     // Settings & Preferences
     is MapAction.SetSettingsOverlayEnabled,
@@ -53,15 +53,15 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
     is MapAction.UpdateHandednessSource,
     is MapAction.UpdateUserPreferences -> handleUserPreferencesActions(state, action)
 
-    // Route Management (RouteReducers.kt)
-    is MapAction.AddRoute,
-    is MapAction.RemoveRoute,
-    is MapAction.UpdateRoute,
-    is MapAction.SurfaceNearbyRoutes,
-    is MapAction.ClearAllRoutes -> handleRouteActions(state, action)
+    // Task Management (TaskReducers.kt)
+    is MapAction.AddTask,
+    is MapAction.RemoveTask,
+    is MapAction.UpdateTask,
+    is MapAction.SurfaceNearbyTasks,
+    is MapAction.ClearAllTasks -> handleTaskActions(state, action)
 
-    // Waypoint Management (RouteReducers.kt)
-    is MapAction.AddWaypointToRoute,
+    // Waypoint Management (TaskReducers.kt)
+    is MapAction.AddWaypointToTask,
     is MapAction.RemoveWaypoint,
     is MapAction.UpdateWaypoint,
     is MapAction.UpdateWaypointType,
@@ -71,7 +71,7 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
     is MapAction.UpdateWaypointTimeGates,
     is MapAction.ReorderWaypoint -> handleWaypointActions(state, action)
 
-    // Interactive Editing (RouteReducers.kt)
+    // Interactive Editing (TaskReducers.kt)
     is MapAction.SelectWaypoint,
     MapAction.DeselectWaypoint,
     is MapAction.StartWaypointDrag,
@@ -79,28 +79,28 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
     MapAction.EndWaypointDrag,
     MapAction.CancelWaypointDrag -> handleInteractiveEditingActions(state, action)
 
-    // Route Selection (RouteReducers.kt)
-    is MapAction.SelectRoute,
-    MapAction.DeselectRoute -> handleRouteSelectionActions(state, action)
+    // Task Selection (TaskReducers.kt)
+    is MapAction.SelectTask,
+    MapAction.DeselectTask -> handleTaskSelectionActions(state, action)
 
     // Active-task navigation (next-waypoint guidance)
     is MapAction.SetActiveWaypoint -> state.copy(activeWaypointId = action.waypointId)
     is MapAction.TagWaypoint -> state.copy(taggedWaypointIds = state.taggedWaypointIds + action.waypointId)
     MapAction.ResetTaskProgress -> state.copy(activeWaypointId = null, taggedWaypointIds = emptySet())
 
-    // Smart Suggestion (RouteReducers.kt)
+    // Smart Suggestion (TaskReducers.kt)
     is MapAction.SetSmartSuggestion,
     is MapAction.CheckSmartSuggestion,
     MapAction.ClearSmartSuggestion -> handleSmartSuggestionActions(state, action)
 
-    // Map Interaction (RouteReducers.kt)
+    // Map Interaction (TaskReducers.kt)
     is MapAction.LongPressMap -> handleLongPressMap(state, action)
 
     // New: Airspace Collision
     is MapAction.SetAirspaceCollision -> state.copy(hasAirspaceCollision = action.hasCollision)
 
-    // Zoom to Route (Signalling action for Middleware)
-    is MapAction.ZoomToRoute -> state
+    // Zoom to Task (Signalling action for Middleware)
+    is MapAction.ZoomToTask -> state
 
     // Mezulla view mode
     is MapAction.CycleMezullaViewMode -> state.copy(
@@ -226,7 +226,7 @@ private fun handleOverlayActions(state: MapState, action: MapAction): MapState =
         val newOverlayState = when (action.type) {
             OverlayType.AIRSPACE -> state.overlayState.copy(airspaces = state.overlayState.airspaces.copy(enabled = action.enabled))
             OverlayType.PG_SPOTS -> state.overlayState.copy(pgSpots = state.overlayState.pgSpots.copy(enabled = action.enabled))
-            OverlayType.ROUTES -> state.overlayState.copy(routes = state.overlayState.routes.copy(enabled = action.enabled))
+            OverlayType.ROUTES -> state.overlayState.copy(tasks = state.overlayState.tasks.copy(enabled = action.enabled))
             OverlayType.THERMAL_HOTSPOTS -> state.overlayState.copy(thermalHotspots = state.overlayState.thermalHotspots.copy(enabled = action.enabled))
             OverlayType.MEZULLA -> state.overlayState // Mezulla has no toggle in OverlayState; always on when peers exist
         }
@@ -236,7 +236,7 @@ private fun handleOverlayActions(state: MapState, action: MapAction): MapState =
         val newOverlayState = when (action.type) {
             OverlayType.AIRSPACE -> state.overlayState.copy(airspaces = action.config)
             OverlayType.PG_SPOTS -> state.overlayState.copy(pgSpots = action.config)
-            OverlayType.ROUTES -> state.overlayState.copy(routes = action.config)
+            OverlayType.ROUTES -> state.overlayState.copy(tasks = action.config)
             OverlayType.THERMAL_HOTSPOTS -> state.overlayState.copy(thermalHotspots = action.config)
             OverlayType.MEZULLA -> state.overlayState // No per-type config for Mezulla
         }
@@ -272,8 +272,8 @@ private fun handleCacheActions(state: MapState, action: MapAction): MapState = w
 private fun handleConfigurationAndUIActions(state: MapState, action: MapAction): MapState = when (action) {
     is MapAction.UpdateMapStyle -> state.copy(mapStyle = action.style)
     is MapAction.SetCompassVisible -> state.copy(compassVisible = action.visible)
-    MapAction.ToggleRoutePanelExpanded -> state.copy(isRoutePanelExpanded = !state.isRoutePanelExpanded)
-    is MapAction.SetRoutePanelExpanded -> state.copy(isRoutePanelExpanded = action.expanded)
+    MapAction.ToggleTaskPanelExpanded -> state.copy(isTaskPanelExpanded = !state.isTaskPanelExpanded)
+    is MapAction.SetTaskPanelExpanded -> state.copy(isTaskPanelExpanded = action.expanded)
     else -> state
 }
 

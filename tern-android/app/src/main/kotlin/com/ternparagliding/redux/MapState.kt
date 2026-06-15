@@ -3,7 +3,7 @@ package com.ternparagliding.redux
 import org.osmdroid.util.GeoPoint
 
 import com.ternparagliding.mezulla.redux.PeerState
-import com.ternparagliding.model.Route
+import com.ternparagliding.model.Task
 import com.ternparagliding.model.TernBoundingBox
 import kotlinx.serialization.json.JsonObject
 import org.maplibre.spatialk.geojson.FeatureCollection
@@ -18,7 +18,7 @@ data class MapState(
     val center: GeoPoint? = null,
     val zoom: Double = MapConstants.DEFAULT_ZOOM_LEVEL,
     val pendingBoundingBox: TernBoundingBox? = null,
-    val isRoutePanelExpanded: Boolean = true, // Strategic Auto-Minimize
+    val isTaskPanelExpanded: Boolean = true, // Strategic Auto-Minimize
 
     // Location state
     val isLocationReady: Boolean = false,
@@ -54,14 +54,14 @@ data class MapState(
     // Settings state - user preferences and configuration
     val settingsState: SettingsState = SettingsState(),
 
-    // Route state - cached routes for display
-    val routes: List<Route> = emptyList(),
+    // Task state - cached tasks for display
+    val tasks: List<Task> = emptyList(),
 
-    // Route editing state - for interactive waypoint editing
+    // Task editing state - for interactive waypoint editing
     val selectedWaypoint: WaypointSelection? = null,
 
-    // Selected route for viewing/editing
-    val selectedRouteId: String? = null,
+    // Selected task for viewing/editing
+    val selectedTaskId: String? = null,
 
     // Active-task navigation. activeWaypointId is the next waypoint the pilot is
     // flying to (the first not-yet-tagged point of the selected task); tagged
@@ -155,7 +155,7 @@ enum class GpsStatus(
  * Waypoint selection state for interactive editing
  */
 data class WaypointSelection(
-    val routeId: String,
+    val taskId: String,
     val waypointId: String,
     val isDragging: Boolean = false,
     val originalLat: Double? = null,
@@ -197,7 +197,7 @@ data class OverlayConfig(
 data class OverlayState(
     val airspaces: OverlayConfig = OverlayConfig(enabled = true),
     val pgSpots: OverlayConfig = OverlayConfig(enabled = true),
-    val routes: OverlayConfig = OverlayConfig(enabled = true),
+    val tasks: OverlayConfig = OverlayConfig(enabled = true),
     // Thermal hotspots (kk7.ch) — off by default; fetched on demand when enabled.
     val thermalHotspots: OverlayConfig = OverlayConfig(enabled = false)
 )

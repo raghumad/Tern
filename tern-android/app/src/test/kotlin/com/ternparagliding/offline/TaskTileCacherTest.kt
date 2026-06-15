@@ -1,19 +1,19 @@
 package com.ternparagliding.offline
 
 import com.google.common.truth.Truth.assertThat
-import com.ternparagliding.model.Route
+import com.ternparagliding.model.Task
 import com.ternparagliding.model.TernBoundingBox
 import com.ternparagliding.model.Waypoint
 import com.ternparagliding.model.LocationType
 import org.junit.jupiter.api.Test
 
 /**
- * Tests for the bounding-box + padding computations used by RouteTileCacher.
+ * Tests for the bounding-box + padding computations used by TaskTileCacher.
  *
  * These are pure-math tests (no Android context needed) that verify the
  * spatial reasoning is correct before any MapLibre API is touched.
  */
-class RouteTileCacherTest {
+class TaskTileCacherTest {
 
     // ---------- TernBoundingBox.withPaddingKm ----------
 
@@ -75,16 +75,16 @@ class RouteTileCacherTest {
         assertThat(padded.maxLon).isEqualTo(box.maxLon)
     }
 
-    // ---------- Route.extent ----------
+    // ---------- Task.extent ----------
 
     @Test
-    fun `route extent covers all waypoints`() {
-        val route = Route(name = "Test")
+    fun `task extent covers all waypoints`() {
+        val task = Task(name = "Test")
             .addWaypoint(45.0, 6.0, LocationType.TURNPOINT, "A")
             .addWaypoint(46.0, 7.0, LocationType.TURNPOINT, "B")
             .addWaypoint(44.5, 5.5, LocationType.TURNPOINT, "C")
 
-        val extent = route.extent!!
+        val extent = task.extent!!
 
         assertThat(extent.minLat).isEqualTo(44.5)
         assertThat(extent.maxLat).isEqualTo(46.0)
@@ -93,17 +93,17 @@ class RouteTileCacherTest {
     }
 
     @Test
-    fun `route with no waypoints has null extent`() {
-        val route = Route(name = "Empty")
-        assertThat(route.extent).isNull()
+    fun `task with no waypoints has null extent`() {
+        val task = Task(name = "Empty")
+        assertThat(task.extent).isNull()
     }
 
     @Test
-    fun `route extent with single waypoint is a zero-size box`() {
-        val route = Route(name = "Single")
+    fun `task extent with single waypoint is a zero-size box`() {
+        val task = Task(name = "Single")
             .addWaypoint(45.0, 6.0, LocationType.TURNPOINT, "Only")
 
-        val extent = route.extent!!
+        val extent = task.extent!!
         assertThat(extent.minLat).isEqualTo(45.0)
         assertThat(extent.maxLat).isEqualTo(45.0)
         assertThat(extent.minLon).isEqualTo(6.0)
@@ -111,11 +111,11 @@ class RouteTileCacherTest {
     }
 
     @Test
-    fun `single-waypoint route padded by 10km still produces valid box`() {
-        val route = Route(name = "Single")
+    fun `single-waypoint task padded by 10km still produces valid box`() {
+        val task = Task(name = "Single")
             .addWaypoint(45.0, 6.0, LocationType.TURNPOINT, "Only")
 
-        val padded = route.extent!!.withPaddingKm(RouteTileCacher.PADDING_KM)
+        val padded = task.extent!!.withPaddingKm(TaskTileCacher.PADDING_KM)
 
         // The padded box should have non-zero area
         assertThat(padded.heightLat).isGreaterThan(0.0)
@@ -129,7 +129,7 @@ class RouteTileCacherTest {
 
     @Test
     fun `CacheProgress fraction is zero when no resources required`() {
-        val progress = RouteTileCacher.CacheProgress(
+        val progress = TaskTileCacher.CacheProgress(
             completedResources = 0,
             requiredResources = 0,
             completedBytes = 0,
@@ -140,7 +140,7 @@ class RouteTileCacherTest {
 
     @Test
     fun `CacheProgress fraction calculates correctly`() {
-        val progress = RouteTileCacher.CacheProgress(
+        val progress = TaskTileCacher.CacheProgress(
             completedResources = 50,
             requiredResources = 200,
             completedBytes = 1024,
@@ -152,7 +152,7 @@ class RouteTileCacherTest {
     @Test
     fun `CacheProgress fraction is clamped to 1`() {
         // Edge case: completed > required (can happen if estimate was low)
-        val progress = RouteTileCacher.CacheProgress(
+        val progress = TaskTileCacher.CacheProgress(
             completedResources = 250,
             requiredResources = 200,
             completedBytes = 1024,

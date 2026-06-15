@@ -186,11 +186,11 @@ class WeatherClaimsTest {
             daily = emptyList(),
             hourly = listOf(period(wx(windSpeed = 12.0), System.currentTimeMillis())),
         )
-        weatherCache.cacheWeather("route-1", loc, fc)
+        weatherCache.cacheWeather("task-1", loc, fc)
 
         assertTrue(
             "a cached forecast must be retrievable offline",
-            weatherCache.queryNearbyWeather("route-1", loc, 10.0).isNotEmpty(),
+            weatherCache.queryNearbyWeather("task-1", loc, 10.0).isNotEmpty(),
         )
     }
 

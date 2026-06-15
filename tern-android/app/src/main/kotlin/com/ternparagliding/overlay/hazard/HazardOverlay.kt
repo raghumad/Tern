@@ -7,7 +7,7 @@ import androidx.compose.runtime.remember
 import com.ternparagliding.redux.MapStore
 
 /**
- * Composable bridge: reads route waypoints and their weather forecasts
+ * Composable bridge: reads task waypoints and their weather forecasts
  * from Redux, classifies each into a [HazardLevel], and feeds the
  * hazardous ones to [HazardLayer] for GPU rendering.
  *
@@ -23,8 +23,8 @@ fun HazardOverlay(
 ) {
     val state by store.state.collectAsState()
 
-    val sites = remember(state.routes, state.weatherState.waypointWeathers) {
-        hazardSitesFrom(state.routes, state.weatherState.waypointWeathers)
+    val sites = remember(state.tasks, state.weatherState.waypointWeathers) {
+        hazardSitesFrom(state.tasks, state.weatherState.waypointWeathers)
     }
 
     HazardLayer(featureCollection = hazardSitesToGeoJson(sites))

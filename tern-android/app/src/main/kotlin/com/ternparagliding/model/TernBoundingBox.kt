@@ -2,7 +2,7 @@ package com.ternparagliding.model
 
 /**
  * Platform-agnostic bounding box for spatial area representation.
- * Used for Redux-driven viewport updates (Zoom to Route).
+ * Used for Redux-driven viewport updates (Zoom to Task).
  */
 data class TernBoundingBox(
     val minLat: Double,

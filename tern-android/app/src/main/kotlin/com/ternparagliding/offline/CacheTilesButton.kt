@@ -34,25 +34,25 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.ternparagliding.model.Route
+import com.ternparagliding.model.Task
 import kotlinx.coroutines.launch
 
 /**
- * A button that downloads offline map tiles for the given route.
+ * A button that downloads offline map tiles for the given task.
  *
  * Shows progress while downloading and a completion indicator when done.
  * Per project convention: storage is free, so we download without asking.
  */
 @Composable
 fun CacheTilesButton(
-    route: Route,
+    task: Task,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val cacher = remember(context) { RouteTileCacher(context) }
+    val cacher = remember(context) { TaskTileCacher(context) }
 
-    var progress by remember { mutableStateOf<RouteTileCacher.CacheProgress?>(null) }
+    var progress by remember { mutableStateOf<TaskTileCacher.CacheProgress?>(null) }
     var isDownloading by remember { mutableStateOf(false) }
     var isComplete by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -70,7 +70,7 @@ fun CacheTilesButton(
                     errorMessage = null
                     scope.launch {
                         try {
-                            cacher.cacheRoute(route).collect { p ->
+                            cacher.cacheTask(task).collect { p ->
                                 progress = p
                                 if (p.isComplete) {
                                     isDownloading = false

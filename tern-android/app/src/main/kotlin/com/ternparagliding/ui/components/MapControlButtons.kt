@@ -103,11 +103,11 @@ fun VarioConnectButton(connected: Boolean, scanning: Boolean, onClick: () -> Uni
 }
 
 @Composable
-fun RouteButton(onClick: () -> Unit) {
-    DockButton(onClick, "Route Management") { m ->
+fun TaskButton(onClick: () -> Unit) {
+    DockButton(onClick, "Task Management") { m ->
         Icon(
             painter = androidx.compose.ui.res.painterResource(id = com.ternparagliding.R.drawable.route_24),
-            contentDescription = "Route Management",
+            contentDescription = "Task Management",
             tint = DOCK_ICON,
             modifier = m,
         )

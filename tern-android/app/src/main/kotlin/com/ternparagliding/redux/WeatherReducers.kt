@@ -48,14 +48,14 @@ fun weatherReducer(state: MapState, action: WeatherActions): MapState = when (ac
         state.copy(weatherState = newWeatherState)
     }
 
-    // Route Waypoint Weather
-    is WeatherActions.FetchWeatherForRoute -> {
-        // We could track fetching state per route here if needed,
+    // Task Waypoint Weather
+    is WeatherActions.FetchWeatherForTask -> {
+        // We could track fetching state per task here if needed,
         // but for now, we'll just let the middleware handle it silently.
         state
     }
 
-    is WeatherActions.RouteWeatherFetched -> {
+    is WeatherActions.TaskWeatherFetched -> {
         val newWaypointWeathers = state.weatherState.waypointWeathers + action.waypointForecasts
         val newWaypointEtas = state.weatherState.waypointEtas + action.etas
         val newWeatherState = state.weatherState.copy(

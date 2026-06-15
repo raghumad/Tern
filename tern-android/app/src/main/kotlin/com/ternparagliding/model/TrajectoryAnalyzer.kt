@@ -5,7 +5,7 @@ import kotlin.math.*
 
 /**
  * TrajectoryAnalyzer: Core paragliding logic for 4D flight path analysis.
- * Calculates Estimated Time of Arrival (ETA) for each waypoint in a route.
+ * Calculates Estimated Time of Arrival (ETA) for each waypoint in a task.
  */
 object TrajectoryAnalyzer {
 
@@ -13,38 +13,38 @@ object TrajectoryAnalyzer {
     private const val EARTH_RADIUS_KM = 6371.0
 
     /**
-     * Calculate ETAs for all waypoints in a route.
-     * @param route The planned route
+     * Calculate ETAs for all waypoints in a task.
+     * @param task The planned task
      * @param averageSpeedKnots Pilot's estimated ground speed in knots
      * @param startTime Start time timestamp (ms). Defaults to current time.
      * @return Map of Waypoint ID to ETA timestamp (ms)
      */
     fun calculateETAs(
-        route: Route,
+        task: Task,
         averageSpeedKnots: Double,
         startTime: Long = System.currentTimeMillis()
     ): Map<String, Long> {
         trackAllocation("TrajectoryAnalyzer.calculateETAs", 256L)
         
-        if (route.waypoints.isEmpty()) return emptyMap()
+        if (task.waypoints.isEmpty()) return emptyMap()
         
         val etas = mutableMapOf<String, Long>()
         val speedKmh = averageSpeedKnots * KNOTS_TO_KMH
         
         // Start waypoint is at startTime
         var currentTime = startTime
-        etas[route.waypoints[0].id] = currentTime
+        etas[task.waypoints[0].id] = currentTime
         
         if (speedKmh <= 0.1) {
             // If speed is negligible, all ETAs are effectively "unknown" or far future
             // but for UI continuity, we'll mark them as startTime
-            route.waypoints.drop(1).forEach { etas[it.id] = startTime }
+            task.waypoints.drop(1).forEach { etas[it.id] = startTime }
             return etas
         }
 
-        for (i in 0 until route.waypoints.size - 1) {
-            val start = route.waypoints[i]
-            val end = route.waypoints[i + 1]
+        for (i in 0 until task.waypoints.size - 1) {
+            val start = task.waypoints[i]
+            val end = task.waypoints[i + 1]
             
             val distanceKm = calculateDistance(start.lat, start.lon, end.lat, end.lon)
             val timeToNextHours = distanceKm / speedKmh

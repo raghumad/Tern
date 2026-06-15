@@ -12,7 +12,7 @@ import kotlinx.coroutines.flow.map
  *
  * Loads any saved prefs on start (dispatching them into the store), then observes
  * `state.settingsState` and writes through on every change. Observer, not
- * middleware, for the same reason as [RoutePersistence]: it must see the final
+ * middleware, for the same reason as [TaskPersistence]: it must see the final
  * reduced state, not the pre-reducer value.
  */
 object SettingsPersistence {

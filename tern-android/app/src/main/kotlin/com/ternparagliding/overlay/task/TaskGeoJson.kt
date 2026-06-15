@@ -1,7 +1,7 @@
-package com.ternparagliding.overlay.route
+package com.ternparagliding.overlay.task
 
 import com.ternparagliding.model.LocationType
-import com.ternparagliding.model.Route
+import com.ternparagliding.model.Task
 import com.ternparagliding.model.Waypoint
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -14,26 +14,26 @@ import org.maplibre.spatialk.geojson.Position
 import kotlin.math.cos
 
 /**
- * Pure functions that convert [Route] model objects into GeoJSON
+ * Pure functions that convert [Task] model objects into GeoJSON
  * structures consumable by MapLibre sources. No Android dependencies,
  * no side effects -- trivially testable.
  */
-object RouteGeoJson {
+object TaskGeoJson {
 
     /**
      * Builds a [FeatureCollection] containing one [LineString] feature
-     * per visible route. The route polyline source.
+     * per visible task. The task polyline source.
      */
-    fun routeLines(routes: List<Route>): FeatureCollection<LineString, JsonObject> {
-        val features = routes
+    fun taskLines(tasks: List<Task>): FeatureCollection<LineString, JsonObject> {
+        val features = tasks
             .filter { it.isVisible && it.waypoints.size >= 2 }
-            .map { route ->
-                val positions = route.waypoints.map { wp ->
+            .map { task ->
+                val positions = task.waypoints.map { wp ->
                     Position(wp.lon, wp.lat)
                 }
                 Feature(
                     LineString(positions),
-                    JsonObject(mapOf("routeId" to JsonPrimitive(route.id))),
+                    JsonObject(mapOf("taskId" to JsonPrimitive(task.id))),
                 )
             }
         return FeatureCollection(features)
@@ -41,22 +41,22 @@ object RouteGeoJson {
 
     /**
      * Builds a [FeatureCollection] of [Point] features for every
-     * waypoint in visible routes. Each feature carries properties
+     * waypoint in visible tasks. Each feature carries properties
      * the SymbolLayer uses for labeling:
      *   - `name`: waypoint label (or "WP {index}")
      *   - `type`: the [LocationType] name (LAUNCH, SSS, ESS, TURNPOINT, GOAL, LANDING)
      *   - `label`: combined "name \n type" for the text-field expression
      *   - `waypointId`: for click handling
-     *   - `routeId`: parent route
+     *   - `taskId`: parent task
      */
-    fun waypointPoints(routes: List<Route>): FeatureCollection<Point, JsonObject> {
-        val features = routes
+    fun waypointPoints(tasks: List<Task>): FeatureCollection<Point, JsonObject> {
+        val features = tasks
             .filter { it.isVisible }
-            .flatMap { route ->
+            .flatMap { task ->
                 var tpSeq = 0
-                route.waypoints.mapIndexed { index, wp ->
+                task.waypoints.mapIndexed { index, wp ->
                     val seq = if (wp.type == LocationType.TURNPOINT) ++tpSeq else index + 1
-                    waypointFeature(wp, index, route.id, seq)
+                    waypointFeature(wp, index, task.id, seq)
                 }
             }
         return FeatureCollection(features)
@@ -70,7 +70,7 @@ object RouteGeoJson {
     internal fun waypointFeature(
         wp: Waypoint,
         index: Int,
-        routeId: String,
+        taskId: String,
         seq: Int = index + 1,
     ): Feature<Point, JsonObject> {
         val displayName = wp.label ?: "WP ${index + 1}"
@@ -83,8 +83,8 @@ object RouteGeoJson {
                     "type" to JsonPrimitive(typeName),
                     "label" to JsonPrimitive("$displayName\n$typeName"),
                     "waypointId" to JsonPrimitive(wp.id),
-                    "routeId" to JsonPrimitive(routeId),
-                    "markerKey" to JsonPrimitive("$routeId:${wp.id}"),
+                    "taskId" to JsonPrimitive(taskId),
+                    "markerKey" to JsonPrimitive("$taskId:${wp.id}"),
                     "seq" to JsonPrimitive(seq),
                     "radius" to JsonPrimitive(wp.radius ?: 0.0),
                 )
@@ -98,11 +98,11 @@ object RouteGeoJson {
      *   - `type`: [LocationType] name (drives the role colour)
      *   - `radius`: metres
      */
-    fun routeCylinders(routes: List<Route>): FeatureCollection<Polygon, JsonObject> {
-        val features = routes
+    fun taskCylinders(tasks: List<Task>): FeatureCollection<Polygon, JsonObject> {
+        val features = tasks
             .filter { it.isVisible }
-            .flatMap { route ->
-                route.waypoints.mapNotNull { wp ->
+            .flatMap { task ->
+                task.waypoints.mapNotNull { wp ->
                     val r = wp.radius ?: return@mapNotNull null
                     if (r <= 0.0) return@mapNotNull null
                     Feature(
@@ -125,12 +125,12 @@ object RouteGeoJson {
      *   - `legKm`: leg distance in km
      *   - `label`: formatted ("25 km" / "850 m")
      */
-    fun legMidpoints(routes: List<Route>): FeatureCollection<Point, JsonObject> {
-        val features = routes
+    fun legMidpoints(tasks: List<Task>): FeatureCollection<Point, JsonObject> {
+        val features = tasks
             .filter { it.isVisible && it.waypoints.size >= 2 }
-            .flatMap { route ->
-                val legs = route.legDistances
-                route.waypoints.zipWithNext().mapIndexed { i, (a, b) ->
+            .flatMap { task ->
+                val legs = task.legDistances
+                task.waypoints.zipWithNext().mapIndexed { i, (a, b) ->
                     val midLat = (a.lat + b.lat) / 2.0
                     val midLon = (a.lon + b.lon) / 2.0
                     val km = legs.getOrNull(i) ?: 0.0
@@ -172,13 +172,13 @@ object RouteGeoJson {
     }
 
     /**
-     * Wraps all waypoints from visible routes as [RouteWaypointCandidate]s
+     * Wraps all waypoints from visible tasks as [TaskWaypointCandidate]s
      * for the overlay prioritizer.
      */
-    fun waypointCandidates(routes: List<Route>): List<RouteWaypointCandidate> =
-        routes
+    fun waypointCandidates(tasks: List<Task>): List<TaskWaypointCandidate> =
+        tasks
             .filter { it.isVisible }
-            .flatMap { route ->
-                route.waypoints.map { RouteWaypointCandidate(it) }
+            .flatMap { task ->
+                task.waypoints.map { TaskWaypointCandidate(it) }
             }
 }

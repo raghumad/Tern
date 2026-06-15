@@ -15,7 +15,7 @@ import com.google.zxing.MultiFormatReader
 import com.google.zxing.MultiFormatWriter
 import com.google.zxing.RGBLuminanceSource
 import com.google.zxing.common.HybridBinarizer
-import com.ternparagliding.model.Route
+import com.ternparagliding.model.Task
 import com.ternparagliding.model.Waypoint
 import com.ternparagliding.model.LocationType
 import org.json.JSONObject
@@ -24,23 +24,23 @@ import java.io.FileOutputStream
 import java.io.InputStream
 import java.util.UUID
 import java.time.Instant
-import com.ternparagliding.redux.RouteConstants
+import com.ternparagliding.redux.TaskConstants
 
-object RouteIOManager {
+object TaskIOManager {
 
     private const val QR_SIZE = 512
 
     /**
-     * Generate a QR Code Bitmap from a Route
+     * Generate a QR Code Bitmap from a Task
      */
     /**
-     * Generate a QR Code Bitmap from a Route (XCTSK Compressed)
+     * Generate a QR Code Bitmap from a Task (XCTSK Compressed)
      */
-    fun generateQRCode(route: Route): Bitmap? {
-        val routeJson = generateXctskCompressed(route)
+    fun generateQRCode(task: Task): Bitmap? {
+        val taskJson = generateXctskCompressed(task)
         return try {
             val bitMatrix = MultiFormatWriter().encode(
-                routeJson,
+                taskJson,
                 BarcodeFormat.QR_CODE,
                 QR_SIZE,
                 QR_SIZE
@@ -61,16 +61,16 @@ object RouteIOManager {
     }
 
     /**
-     * Decode a Route from a QR Code Bitmap
+     * Decode a Task from a QR Code Bitmap
      */
-    fun decodeQRCode(bitmap: Bitmap): Route? {
+    fun decodeQRCode(bitmap: Bitmap): Task? {
         return try {
             val intArray = IntArray(bitmap.width * bitmap.height)
             bitmap.getPixels(intArray, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
             val source = RGBLuminanceSource(bitmap.width, bitmap.height, intArray)
             val binaryBitmap = BinaryBitmap(HybridBinarizer(source))
             val result = MultiFormatReader().decode(binaryBitmap)
-            importRouteFromQrString(result.text)
+            importTaskFromQrString(result.text)
         } catch (e: Exception) {
             e.printStackTrace()
             null
@@ -78,29 +78,29 @@ object RouteIOManager {
     }
 
     /**
-     * Import a Route from a QR Code JSON String (XCTSK Compressed or Legacy)
+     * Import a Task from a QR Code JSON String (XCTSK Compressed or Legacy)
      */
-    fun importRouteFromQrString(jsonString: String): Route? {
+    fun importTaskFromQrString(jsonString: String): Task? {
         return if (jsonString.contains("\"z\":")) {
             parseXctskCompressed(jsonString)
         } else {
-            deserializeRouteFromJson(jsonString)
+            deserializeTaskFromJson(jsonString)
         }
     }
 
     /**
-     * Share a Route as a file (XCTSK or CUP)
+     * Share a Task as a file (XCTSK or CUP)
      */
-    fun shareRouteFile(context: Context, route: Route, format: String = "xctsk") {
-        android.util.Log.d("RouteIOManager", "Sharing route: ${route.name} in format: $format")
-        val fileName = "${route.name.replace(" ", "_")}.$format"
+    fun shareTaskFile(context: Context, task: Task, format: String = "xctsk") {
+        android.util.Log.d("TaskIOManager", "Sharing task: ${task.name} in format: $format")
+        val fileName = "${task.name.replace(" ", "_")}.$format"
         val file = File(context.cacheDir, fileName)
         
         try {
             FileOutputStream(file).use { fos ->
                 val content = when (format) {
-                    "xctsk" -> generateXctskContent(route)
-                    "cup" -> generateCupContent(route)
+                    "xctsk" -> generateXctskContent(task)
+                    "cup" -> generateCupContent(task)
                     else -> ""
                 }
                 fos.write(content.toByteArray())
@@ -117,7 +117,7 @@ object RouteIOManager {
                 putExtra(Intent.EXTRA_STREAM, uri)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
-            context.startActivity(Intent.createChooser(intent, "Share Route"))
+            context.startActivity(Intent.createChooser(intent, "Share Task"))
 
         } catch (e: Exception) {
             e.printStackTrace()
@@ -125,9 +125,9 @@ object RouteIOManager {
     }
 
     /**
-     * Import a Route from a URI
+     * Import a Task from a URI
      */
-    fun importRouteFromUri(context: Context, uri: Uri): Route? {
+    fun importTaskFromUri(context: Context, uri: Uri): Task? {
         return try {
             context.contentResolver.openInputStream(uri)?.use { inputStream ->
                 // Simple detection based on file extension or content could be added
@@ -149,10 +149,10 @@ object RouteIOManager {
 
 
 
-    private fun deserializeRouteFromJson(jsonString: String): Route? {
+    private fun deserializeTaskFromJson(jsonString: String): Task? {
         return try {
             val json = JSONObject(jsonString)
-            val name = json.optString("n", "Imported Route")
+            val name = json.optString("n", "Imported Task")
             val waypointsArray = json.getJSONArray("w")
             val waypoints = mutableListOf<Waypoint>()
             
@@ -163,7 +163,7 @@ object RouteIOManager {
                 val typeStr = wpJson.optString("t", "TURNPOINT")
                 val type = try { LocationType.valueOf(typeStr) } catch (e: Exception) { LocationType.TURNPOINT }
                 val label = wpJson.optString("l").ifEmpty { null }
-                val radius = wpJson.optDouble("r", RouteConstants.FAI_DEFAULT_RADIUS_METERS)
+                val radius = wpJson.optDouble("r", TaskConstants.FAI_DEFAULT_RADIUS_METERS)
                 val alt = if (wpJson.has("a")) wpJson.getDouble("a") else null
                 val openTime = wpJson.optString("o").ifEmpty { null }
                 val closeTime = wpJson.optString("c").ifEmpty { null }
@@ -180,7 +180,7 @@ object RouteIOManager {
                 ))
             }
             
-            Route(
+            Task(
                 id = UUID.randomUUID().toString(),
                 name = name,
                 waypoints = waypoints,
@@ -193,7 +193,7 @@ object RouteIOManager {
         }
     }
 
-    fun generateXctskContent(route: Route): String {
+    fun generateXctskContent(task: Task): String {
         // Verbose XCTSK (XCTrack Task)
         val json = JSONObject()
         json.put("taskType", "CLASSIC")
@@ -201,7 +201,7 @@ object RouteIOManager {
         json.put("earthModel", "WGS84")
         
         val turnpoints = org.json.JSONArray()
-        route.waypoints.forEachIndexed { index, wp ->
+        task.waypoints.forEachIndexed { index, wp ->
             val tp = JSONObject()
             // Map Type
             tp.put("type", when(wp.type) {
@@ -212,7 +212,7 @@ object RouteIOManager {
                 else -> "TURNPOINT" // Default
             })
             
-            tp.put("radius", wp.radius ?: RouteConstants.FAI_DEFAULT_RADIUS_METERS)
+            tp.put("radius", wp.radius ?: TaskConstants.FAI_DEFAULT_RADIUS_METERS)
             
             val wpObj = JSONObject()
             wpObj.put("name", wp.label ?: "WP${index+1}")
@@ -241,7 +241,7 @@ object RouteIOManager {
         json.put("turnpoints", turnpoints)
         
         // Goal Deadline
-        val goalWp = route.waypoints.find { it.type == LocationType.GOAL }
+        val goalWp = task.waypoints.find { it.type == LocationType.GOAL }
         if (goalWp?.closeTime != null) {
             val goalObj = JSONObject()
             goalObj.put("type", "CYLINDER")
@@ -257,7 +257,7 @@ object RouteIOManager {
         return json.toString()
     }
 
-    fun parseXctskContent(content: String): Route? {
+    fun parseXctskContent(content: String): Task? {
         return try {
             val json = JSONObject(content)
             val turnpoints = json.getJSONArray("turnpoints")
@@ -266,7 +266,7 @@ object RouteIOManager {
             for (i in 0 until turnpoints.length()) {
                 val tp = turnpoints.getJSONObject(i)
                 val typeStr = tp.optString("type", "TURNPOINT")
-                val radius = tp.optDouble("radius", RouteConstants.FAI_DEFAULT_RADIUS_METERS)
+                val radius = tp.optDouble("radius", TaskConstants.FAI_DEFAULT_RADIUS_METERS)
 
                 val wpObj = tp.getJSONObject("waypoint")
                 val lat = wpObj.getDouble("lat")
@@ -320,7 +320,7 @@ object RouteIOManager {
                 if (idx >= 0) waypoints[idx] = waypoints[idx].copy(closeTime = hhmm(deadline))
             }
 
-            Route(id = UUID.randomUUID().toString(), name = "Imported XCTSK", waypoints = waypoints)
+            Task(id = UUID.randomUUID().toString(), name = "Imported XCTSK", waypoints = waypoints)
         } catch (e: Exception) {
             e.printStackTrace()
             null
@@ -330,14 +330,14 @@ object RouteIOManager {
     /** "13:15:00Z" / "13:15:00" → "13:15". */
     private fun hhmm(s: String): String = if (s.length >= 5) s.substring(0, 5) else s
 
-    private fun generateXctskCompressed(route: Route): String {
+    private fun generateXctskCompressed(task: Task): String {
         // XCTSK Compressed (QR Code) - Matches iOS saveXCTSKqr
         val json = JSONObject()
         json.put("taskType", "CLASSIC")
         json.put("version", 2)
         
         val tArray = org.json.JSONArray()
-        route.waypoints.forEachIndexed { index, wp ->
+        task.waypoints.forEachIndexed { index, wp ->
             val tp = JSONObject()
             
             // Encode Polyline: lat, lon, alt, radius
@@ -364,7 +364,7 @@ object RouteIOManager {
         json.put("e", 0) // Earth model WGS84
         
         // SSS Time Gates
-        val sssWp = route.waypoints.find { it.type == LocationType.SSS }
+        val sssWp = task.waypoints.find { it.type == LocationType.SSS }
         if (sssWp?.openTime != null) {
             val sObj = JSONObject()
             val gArray = org.json.JSONArray()
@@ -375,7 +375,7 @@ object RouteIOManager {
         }
         
         // Goal Deadline
-        val goalWp = route.waypoints.find { it.type == LocationType.GOAL }
+        val goalWp = task.waypoints.find { it.type == LocationType.GOAL }
         if (goalWp?.closeTime != null) {
             val gObj = JSONObject()
             gObj.put("d", "${goalWp.closeTime}:00")
@@ -386,7 +386,7 @@ object RouteIOManager {
         return json.toString()
     }
 
-    private fun parseXctskCompressed(jsonString: String): Route? {
+    private fun parseXctskCompressed(jsonString: String): Task? {
         return try {
             val json = JSONObject(jsonString)
             val tArray = json.getJSONArray("t")
@@ -405,7 +405,7 @@ object RouteIOManager {
                 val lat = if (values.isNotEmpty()) values[0] / 1e5 else 0.0
                 val lon = if (values.size > 1) values[1] / 1e5 else 0.0
                 val alt = if (values.size > 2) values[2].toDouble() else 0.0
-                val radius = if (values.size > 3) values[3].toDouble() else RouteConstants.FAI_DEFAULT_RADIUS_METERS
+                val radius = if (values.size > 3) values[3].toDouble() else TaskConstants.FAI_DEFAULT_RADIUS_METERS
                 
                 var type = when(typeCode) {
                     2 -> LocationType.SSS
@@ -445,19 +445,19 @@ object RouteIOManager {
                 }
             }
 
-            Route(id = UUID.randomUUID().toString(), name = "Imported Task", waypoints = waypoints)
+            Task(id = UUID.randomUUID().toString(), name = "Imported Task", waypoints = waypoints)
         } catch (e: Exception) {
             e.printStackTrace()
             null
         }
     }
 
-    private fun generateCupContent(route: Route): String {
+    private fun generateCupContent(task: Task): String {
         // Basic CUP generation (Comma Separated)
         // Name,Code,Country,Lat,Lon,Elev,Style,RwDir,RwLen,Freq,Desc
         val sb = StringBuilder()
         sb.append("name,code,country,lat,lon,elev,style,rwdir,rwlen,freq,desc\n")
-        route.waypoints.forEachIndexed { index, wp ->
+        task.waypoints.forEachIndexed { index, wp ->
             val latStr = convertToCupCoord(wp.lat, true)
             val lonStr = convertToCupCoord(wp.lon, false)
             sb.append("\"${wp.label ?: "WP${index+1}"}\",,,$latStr,$lonStr,,1,,,,\n")
@@ -478,7 +478,7 @@ object RouteIOManager {
         return String.format("%02d%06.3f%s", degrees, minutes, suffix)
     }
 
-    private fun parseCupContent(content: String): Route? {
+    private fun parseCupContent(content: String): Task? {
         val waypoints = mutableListOf<Waypoint>()
         val lines = content.lines()
         
@@ -515,7 +515,7 @@ object RouteIOManager {
                         type = type,
                         label = name,
                         alt = alt,
-                        radius = RouteConstants.FAI_DEFAULT_RADIUS_METERS // Default radius
+                        radius = TaskConstants.FAI_DEFAULT_RADIUS_METERS // Default radius
                     ))
                 }
             } catch (e: Exception) {
@@ -526,9 +526,9 @@ object RouteIOManager {
         
         if (waypoints.isEmpty()) return null
         
-        return Route(
+        return Task(
             id = UUID.randomUUID().toString(),
-            name = "Imported CUP Route",
+            name = "Imported CUP Task",
             waypoints = waypoints,
             createdAt = Instant.now(),
             updatedAt = Instant.now()

@@ -4,7 +4,7 @@ import org.osmdroid.util.GeoPoint
 
 import com.ternparagliding.mezulla.redux.PeerAction
 import com.ternparagliding.model.Waypoint
-import com.ternparagliding.model.Route
+import com.ternparagliding.model.Task
 import com.ternparagliding.model.LocationType
 import com.ternparagliding.model.TernBoundingBox
 import kotlinx.serialization.json.JsonObject
@@ -88,36 +88,36 @@ sealed class MapAction : TernAction {
     // User preferences actions
     data class UpdateUserPreferences(val preferences: UserPreferencesState) : MapAction()
 
-    // Route actions
-    data class AddRoute(val route: Route) : MapAction()
-    data class RemoveRoute(val routeId: String) : MapAction()
-    data class UpdateRoute(val route: Route) : MapAction()
-    /** Merge nearby preplanned routes (from the spatial RouteCache) into the active set. */
-    data class SurfaceNearbyRoutes(val routes: List<Route>) : MapAction()
-    object ClearAllRoutes : MapAction()
+    // Task actions
+    data class AddTask(val task: Task) : MapAction()
+    data class RemoveTask(val taskId: String) : MapAction()
+    data class UpdateTask(val task: Task) : MapAction()
+    /** Merge nearby preplanned tasks (from the spatial TaskCache) into the active set. */
+    data class SurfaceNearbyTasks(val tasks: List<Task>) : MapAction()
+    object ClearAllTasks : MapAction()
 
-    // Waypoint actions (for multi-waypoint routes)
-    data class AddWaypointToRoute(val routeId: String, val lat: Double, val lon: Double, val type: LocationType = LocationType.TURNPOINT, val label: String? = null, val id: String? = null) : MapAction()
-    data class RemoveWaypoint(val routeId: String, val waypointId: String) : MapAction()
-    data class UpdateWaypoint(val routeId: String, val waypointId: String, val lat: Double? = null, val lon: Double? = null, val type: LocationType? = null, val label: String? = null) : MapAction()
-    data class UpdateWaypointType(val routeId: String, val waypointId: String, val type: LocationType) : MapAction()
-    data class UpdateWaypointDescription(val routeId: String, val waypointId: String, val description: String?) : MapAction()
-    data class UpdateWaypointRadius(val routeId: String, val waypointId: String, val radius: Double) : MapAction()
-    data class UpdateWaypointAltitude(val routeId: String, val waypointId: String, val alt: Double?) : MapAction()
-    data class UpdateWaypointTimeGates(val routeId: String, val waypointId: String, val openTime: String?, val closeTime: String?) : MapAction()
-    data class ReorderWaypoint(val routeId: String, val fromIndex: Int, val toIndex: Int) : MapAction()
+    // Waypoint actions (for multi-waypoint tasks)
+    data class AddWaypointToTask(val taskId: String, val lat: Double, val lon: Double, val type: LocationType = LocationType.TURNPOINT, val label: String? = null, val id: String? = null) : MapAction()
+    data class RemoveWaypoint(val taskId: String, val waypointId: String) : MapAction()
+    data class UpdateWaypoint(val taskId: String, val waypointId: String, val lat: Double? = null, val lon: Double? = null, val type: LocationType? = null, val label: String? = null) : MapAction()
+    data class UpdateWaypointType(val taskId: String, val waypointId: String, val type: LocationType) : MapAction()
+    data class UpdateWaypointDescription(val taskId: String, val waypointId: String, val description: String?) : MapAction()
+    data class UpdateWaypointRadius(val taskId: String, val waypointId: String, val radius: Double) : MapAction()
+    data class UpdateWaypointAltitude(val taskId: String, val waypointId: String, val alt: Double?) : MapAction()
+    data class UpdateWaypointTimeGates(val taskId: String, val waypointId: String, val openTime: String?, val closeTime: String?) : MapAction()
+    data class ReorderWaypoint(val taskId: String, val fromIndex: Int, val toIndex: Int) : MapAction()
 
     // Interactive editing actions (Phase 7.1)
-    data class SelectWaypoint(val routeId: String, val waypointId: String) : MapAction()
+    data class SelectWaypoint(val taskId: String, val waypointId: String) : MapAction()
     object DeselectWaypoint : MapAction()
-    data class StartWaypointDrag(val routeId: String, val waypointId: String) : MapAction()
+    data class StartWaypointDrag(val taskId: String, val waypointId: String) : MapAction()
     data class UpdateWaypointDrag(val lat: Double, val lon: Double) : MapAction()
     object EndWaypointDrag : MapAction()
     object CancelWaypointDrag : MapAction()
 
-    // Route selection actions
-    data class SelectRoute(val routeId: String) : MapAction()
-    object DeselectRoute : MapAction()
+    // Task selection actions
+    data class SelectTask(val taskId: String) : MapAction()
+    object DeselectTask : MapAction()
 
     // Active-task navigation actions (driven by TaskProgressOverlay)
     /** Set the next waypoint the pilot is flying to (null = no active target). */
@@ -140,11 +140,11 @@ sealed class MapAction : TernAction {
     ) : MapAction()
     data class SetAirspaceCollision(val hasCollision: Boolean) : MapAction()
     data class UpdateBoundingBox(val box: TernBoundingBox?) : MapAction()
-    data class ZoomToRoute(val routeId: String) : MapAction()
+    data class ZoomToTask(val taskId: String) : MapAction()
 
     // UI State Actions
-    object ToggleRoutePanelExpanded : MapAction()
-    data class SetRoutePanelExpanded(val expanded: Boolean) : MapAction()
+    object ToggleTaskPanelExpanded : MapAction()
+    data class SetTaskPanelExpanded(val expanded: Boolean) : MapAction()
 
     // Mezulla view mode
     object CycleMezullaViewMode : MapAction()
@@ -183,10 +183,10 @@ sealed class WeatherActions : TernAction {
     data class FetchWeatherForSpots(val spots: List<Triple<String, Double, Double>>) : WeatherActions()
     data class SpotsWeatherFetched(val forecasts: Map<String, com.ternparagliding.utils.io.WeatherForecast>) : WeatherActions()
 
-    // Weather data fetching for Routes/Waypoints
-    data class FetchWeatherForRoute(val routeId: String) : WeatherActions()
-    data class RouteWeatherFetched(
-        val routeId: String, 
+    // Weather data fetching for Tasks/Waypoints
+    data class FetchWeatherForTask(val taskId: String) : WeatherActions()
+    data class TaskWeatherFetched(
+        val taskId: String, 
         val waypointForecasts: Map<String, com.ternparagliding.utils.io.WeatherForecast>,
         val etas: Map<String, Long> = emptyMap()
     ) : WeatherActions()

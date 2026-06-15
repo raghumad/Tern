@@ -29,9 +29,9 @@ object MapConstants {
     const val DEFAULT_ZOOM_LEVEL = 8.0
 }
 
-// Route Management Constants
-object RouteConstants {
-    /** Maximum number of routes allowed (10-route limit) */
+// Task Management Constants
+object TaskConstants {
+    /** Maximum number of tasks allowed (10-task limit) */
     const val MAX_ROUTES = 10
 
     /** Default FAI cylinder radius in meters (Source of Truth) */

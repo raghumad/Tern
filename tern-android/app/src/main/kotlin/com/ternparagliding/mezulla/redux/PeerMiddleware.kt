@@ -16,7 +16,7 @@ import java.time.Instant
  * Takes a `dispatch` lambda rather than depending directly on
  * [com.ternparagliding.redux.MapStore] so the middleware is testable
  * without a ViewModel. In production, the caller wires `dispatch` to
- * `MapStore.dispatch(PeerAction)`, which routes through the sub-reducer
+ * `MapStore.dispatch(PeerAction)`, which tasks through the sub-reducer
  * into [com.ternparagliding.redux.MapState.peerState].
  *
  * Threading: [start] launches a single collector coroutine on the

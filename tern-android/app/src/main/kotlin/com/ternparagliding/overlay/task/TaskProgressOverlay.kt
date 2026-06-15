@@ -1,4 +1,4 @@
-package com.ternparagliding.overlay.route
+package com.ternparagliding.overlay.task
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -17,17 +17,17 @@ private const val DEFAULT_CYLINDER_RADIUS_M = 400.0
 /**
  * Drives active-task navigation: which waypoint is "next" and when the pilot has
  * reached one. No map layer — it only feeds Redux (`activeWaypointId` /
- * `taggedWaypointIds`), which `RouteLayer` (on-map target highlight) and
+ * `taggedWaypointIds`), which `TaskLayer` (on-map target highlight) and
  * `OffScreenWaypointIndicator` (the buddy-style edge chip) then render.
  *
  * Rules (auto-advance on cylinder entry):
- *  - The active task is the **selected** route. Switching/clearing it resets
+ *  - The active task is the **selected** task. Switching/clearing it resets
  *    progress.
  *  - The next waypoint is the first one not yet tagged.
  *  - When the pilot's position falls within the next waypoint's cylinder radius,
  *    it's tagged and the engine advances to the following waypoint.
  *
- * Mirrors [RouteProximityOverlay]'s layer-less, position-driven pattern: a
+ * Mirrors [TaskProximityOverlay]'s layer-less, position-driven pattern: a
  * conflated snapshot flow guarantees forward progress without re-keying on every
  * fix. Keyed on position + selection + tagged set so a fresh tag re-evaluates
  * immediately (cascading through any cylinders the pilot is already inside).
@@ -38,26 +38,26 @@ fun TaskProgressOverlay(store: MapStore) {
     val latestState = rememberUpdatedState(state)
 
     LaunchedEffect(Unit) {
-        var lastRouteId: String? = null
+        var lastTaskId: String? = null
 
         snapshotFlow {
             val s = latestState.value
-            Triple(s.userLocation, s.selectedRouteId, s.taggedWaypointIds)
+            Triple(s.userLocation, s.selectedTaskId, s.taggedWaypointIds)
         }
             .conflate()
-            .collect { (own, routeId, tagged) ->
+            .collect { (own, taskId, tagged) ->
                 // Task switched (or cleared) → wipe progress and re-derive next tick.
-                if (routeId != lastRouteId) {
-                    lastRouteId = routeId
+                if (taskId != lastTaskId) {
+                    lastTaskId = taskId
                     store.dispatch(MapAction.ResetTaskProgress)
                     return@collect
                 }
 
                 val st = latestState.value
-                val route = routeId?.let { id -> st.routes.find { it.id == id } } ?: return@collect
-                if (own == null || route.waypoints.isEmpty()) return@collect
+                val task = taskId?.let { id -> st.tasks.find { it.id == id } } ?: return@collect
+                if (own == null || task.waypoints.isEmpty()) return@collect
 
-                val next = route.waypoints.firstOrNull { it.id !in tagged }
+                val next = task.waypoints.firstOrNull { it.id !in tagged }
                 if (next == null) {
                     // Task complete — no active target.
                     if (st.activeWaypointId != null) store.dispatch(MapAction.SetActiveWaypoint(null))

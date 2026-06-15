@@ -1,4 +1,4 @@
-package com.ternparagliding.overlay.route
+package com.ternparagliding.overlay.task
 
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -8,11 +8,11 @@ import android.graphics.Typeface
 import com.ternparagliding.model.LocationType
 
 /**
- * Rasterises route waypoint markers + leg-distance pills as icon bitmaps.
+ * Rasterises task waypoint markers + leg-distance pills as icon bitmaps.
  * Drawn with Canvas (no Nerd Font / sprite) so they render on every map style
  * — the `textField`/`marker-15` approach drew nothing on Tern's raster styles.
  *
- * Cylinder-centric design: the FAI cylinder ring (drawn by RouteLayer) is the
+ * Cylinder-centric design: the FAI cylinder ring (drawn by TaskLayer) is the
  * waypoint's identity; the marker here is a small role-coloured centre + short
  * code, with the name/radius shown only at the detailed (zoomed-in) tier.
  */
@@ -82,7 +82,7 @@ internal fun renderWaypointBitmap(
     // Detailed pill = name [ radius-glyph  radius-value ]. The glyph (a small
     // circle with a radius line) conveys "radius" instead of an "r" prefix.
     val showRadius = detailed && radiusM != null && radiusM > 0
-    val radiusText = if (showRadius) RouteGeoJson.formatKm((radiusM ?: 0.0) / 1000.0) else ""
+    val radiusText = if (showRadius) TaskGeoJson.formatKm((radiusM ?: 0.0) / 1000.0) else ""
     val namePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = AndroidColor.WHITE; textSize = 11f * S
         typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD); textAlign = Paint.Align.LEFT
@@ -150,7 +150,7 @@ private fun drawRadiusGlyph(c: Canvas, left: Float, cy: Float, size: Float) {
     })
 }
 
-/** A leg-distance pill ("25 km") that sits on the route line at the leg midpoint. */
+/** A leg-distance pill ("25 km") that sits on the task line at the leg midpoint. */
 internal fun renderLegPillBitmap(text: String): Bitmap {
     val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = AndroidColor.WHITE; textSize = 10f * S

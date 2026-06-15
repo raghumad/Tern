@@ -15,7 +15,7 @@ import com.ternparagliding.utils.geo.CountryUtils
  * showed data in tests that injected it.
  *
  * Hooked to BOTH map-centre actions: [MapAction.UpdateCenter] (programmatic
- * moves — GPS first-fix recenter, route framing) AND
+ * moves — GPS first-fix recenter, task framing) AND
  * [MapAction.UpdateMapMovement] (the gesture→Redux feedback dispatched when the
  * pilot *drags* the map). The latter is essential: dragging never produces an
  * UpdateCenter, so keying only on UpdateCenter meant panning across a border

@@ -30,7 +30,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.Card
-import com.ternparagliding.model.Route
+import com.ternparagliding.model.Task
 import com.ternparagliding.model.Waypoint
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Divider
@@ -57,7 +57,7 @@ import androidx.compose.ui.window.Dialog
 import com.ternparagliding.redux.MapAction
 import com.ternparagliding.redux.MapStore
 import com.ternparagliding.redux.WeatherActions
-import com.ternparagliding.utils.io.RouteIOManager
+import com.ternparagliding.utils.io.TaskIOManager
 import androidx.compose.runtime.LaunchedEffect
 import java.time.Instant
 import java.time.ZoneId
@@ -69,27 +69,27 @@ enum class PlanningTab {
 }
 
 @Composable
-fun RouteDetailPanel(
+fun TaskDetailPanel(
     modifier: Modifier = Modifier,
     store: MapStore,
     isVisible: Boolean,
     onDismiss: () -> Unit
 ) {
     val state by store.state.collectAsState()
-    val selectedRouteId = state.selectedRouteId
-    val route = state.routes.find { it.id == selectedRouteId }
+    val selectedTaskId = state.selectedTaskId
+    val task = state.tasks.find { it.id == selectedTaskId }
     val context = LocalContext.current
     val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     var activeTab by remember(isVisible) { mutableStateOf(PlanningTab.DETAILS) }
     var showQrDialog by remember { mutableStateOf(false) }
 
-    LaunchedEffect(selectedRouteId) {
-        if (selectedRouteId != null) {
-            store.dispatch(WeatherActions.FetchWeatherForRoute(selectedRouteId))
+    LaunchedEffect(selectedTaskId) {
+        if (selectedTaskId != null) {
+            store.dispatch(WeatherActions.FetchWeatherForTask(selectedTaskId))
         }
     }
 
-    if (showQrDialog && route != null) {
+    if (showQrDialog && task != null) {
         Dialog(onDismissRequest = { showQrDialog = false }) {
             Card(
                 modifier = Modifier
@@ -102,22 +102,22 @@ fun RouteDetailPanel(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = "Scan to Import Route",
+                        text = "Scan to Import Task",
                         style = MaterialTheme.typography.titleMedium,
                         modifier = Modifier.padding(bottom = 16.dp)
                     )
-                    val qrBitmap = remember(route) { RouteIOManager.generateQRCode(route) }
+                    val qrBitmap = remember(task) { TaskIOManager.generateQRCode(task) }
                     if (qrBitmap != null) {
                         Image(
                             bitmap = qrBitmap.asImageBitmap(),
-                            contentDescription = "Route QR Code",
+                            contentDescription = "Task QR Code",
                             modifier = Modifier.size(250.dp)
                         )
                     } else {
                         Text("Error generating QR Code")
                     }
                     Spacer(modifier = Modifier.height(16.dp))
-                    Text(route.name, style = MaterialTheme.typography.bodyLarge)
+                    Text(task.name, style = MaterialTheme.typography.bodyLarge)
                 }
             }
         }
@@ -133,7 +133,7 @@ fun RouteDetailPanel(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp)
-                .testTag("RouteDetailPanel"),
+                .testTag("TaskDetailPanel"),
             elevation = CardDefaults.cardElevation(defaultElevation = 12.dp),
             colors = CardDefaults.cardColors(
                 // Using theme tokens for background
@@ -145,9 +145,9 @@ fun RouteDetailPanel(
                     .fillMaxWidth()
                     .padding(16.dp)
             ) {
-                // Determine Aggregated Route Health for SSA Mode
-                val hasStormRisk = remember(route, state.weatherState) {
-                    route?.waypoints?.any { wp -> 
+                // Determine Aggregated Task Health for SSA Mode
+                val hasStormRisk = remember(task, state.weatherState) {
+                    task?.waypoints?.any { wp -> 
                         state.weatherState.waypointWeathers[wp.id]?.let { 
                             it.hasConvectiveDanger() || it.hasThunderstorm() 
                         } ?: false
@@ -158,21 +158,21 @@ fun RouteDetailPanel(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .testTag(if (state.isRoutePanelExpanded) "TEA_Header" else "SSA_Header")
+                        .testTag(if (state.isTaskPanelExpanded) "TEA_Header" else "SSA_Header")
                         .clickable { 
-                            if (route != null) {
+                            if (task != null) {
                                 haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-                                store.dispatch(MapAction.ToggleRoutePanelExpanded)
+                                store.dispatch(MapAction.ToggleTaskPanelExpanded)
                             }
                         },
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (route != null) {
+                    if (task != null) {
                         Column(modifier = Modifier.weight(1f)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = route.name,
+                                    text = task.name,
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.ExtraBold,
                                     color = Color.White
@@ -194,7 +194,7 @@ fun RouteDetailPanel(
                                 }
                             }
                             Text(
-                                text = "${"%.1f".format(route.totalDistanceKm)} km | ${route.estimatedFlightTimeMinutes} min",
+                                text = "${"%.1f".format(task.totalDistanceKm)} km | ${task.estimatedFlightTimeMinutes} min",
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.SemiBold,
                                 color = Color.White.copy(alpha = 0.7f)
@@ -202,7 +202,7 @@ fun RouteDetailPanel(
                         }
                     } else {
                         Text(
-                            "Route Planner",
+                            "Task Planner",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.ExtraBold,
                             color = Color.White,
@@ -211,11 +211,11 @@ fun RouteDetailPanel(
                     }
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (route != null) {
-                            IconButton(onClick = { store.dispatch(MapAction.ToggleRoutePanelExpanded) }) {
+                        if (task != null) {
+                            IconButton(onClick = { store.dispatch(MapAction.ToggleTaskPanelExpanded) }) {
                                 Icon(
-                                    imageVector = if (state.isRoutePanelExpanded) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowUp,
-                                    contentDescription = if (state.isRoutePanelExpanded) "Collapse" else "Expand",
+                                    imageVector = if (state.isTaskPanelExpanded) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowUp,
+                                    contentDescription = if (state.isTaskPanelExpanded) "Collapse" else "Expand",
                                     tint = Color.White
                                 )
                             }
@@ -254,7 +254,7 @@ fun RouteDetailPanel(
                     }
                 }
 
-                if (state.isRoutePanelExpanded || route == null) {
+                if (state.isTaskPanelExpanded || task == null) {
                     Spacer(modifier = Modifier.height(8.dp))
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                     Spacer(modifier = Modifier.height(16.dp))
@@ -282,17 +282,17 @@ fun RouteDetailPanel(
 
                     when (activeTab) {
                         PlanningTab.DETAILS -> {
-                            if (route != null) {
-                                RouteDetailsContent(route, state, store, onDismiss, onShowQr = { showQrDialog = true })
+                            if (task != null) {
+                                TaskDetailsContent(task, state, store, onDismiss, onShowQr = { showQrDialog = true })
                             } else {
-                                Text("No route selected. Tap on map to start planning.", style = MaterialTheme.typography.bodyMedium)
+                                Text("No task selected. Tap on map to start planning.", style = MaterialTheme.typography.bodyMedium)
                             }
                         }
                         PlanningTab.SEARCH -> {
-                            RouteSearchContent(store)
+                            TaskSearchContent(store)
                         }
                         PlanningTab.LIBRARY -> {
-                            RouteLibraryContent(store)
+                            TaskLibraryContent(store)
                         }
                     }
                 }

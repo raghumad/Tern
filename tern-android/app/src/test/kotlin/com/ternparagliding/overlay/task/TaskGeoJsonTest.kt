@@ -1,14 +1,14 @@
-package com.ternparagliding.overlay.route
+package com.ternparagliding.overlay.task
 
 import com.ternparagliding.model.LocationType
-import com.ternparagliding.model.Route
+import com.ternparagliding.model.Task
 import com.ternparagliding.model.Waypoint
 import com.ternparagliding.overlay.priority.OverlayKind
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-class RouteGeoJsonTest {
+class TaskGeoJsonTest {
 
     // -- Fixtures ---------------------------------------------------------
 
@@ -20,8 +20,8 @@ class RouteGeoJsonTest {
         id: String = "wp-${lat.hashCode()}-${lon.hashCode()}",
     ) = Waypoint(id = id, lat = lat, lon = lon, type = type, label = label)
 
-    private val aravisRoute = Route(
-        id = "route-aravis",
+    private val aravisTask = Task(
+        id = "task-aravis",
         name = "Aravis XC",
         waypoints = listOf(
             waypoint(45.86, 6.48, LocationType.LAUNCH, "Planfait", id = "wp-launch"),
@@ -32,24 +32,24 @@ class RouteGeoJsonTest {
         ),
     )
 
-    private val singleWpRoute = Route(
-        id = "route-single",
+    private val singleWpTask = Task(
+        id = "task-single",
         name = "Single WP",
         waypoints = listOf(
             waypoint(46.0, 7.0, LocationType.LAUNCH, "Solo"),
         ),
     )
 
-    private val emptyRoute = Route(id = "route-empty", name = "Empty", waypoints = emptyList())
+    private val emptyTask = Task(id = "task-empty", name = "Empty", waypoints = emptyList())
 
-    private val hiddenRoute = aravisRoute.copy(id = "route-hidden", isVisible = false)
+    private val hiddenTask = aravisTask.copy(id = "task-hidden", isVisible = false)
 
-    // -- routeLines -------------------------------------------------------
+    // -- taskLines -------------------------------------------------------
 
     @Test
-    fun `routeLines produces one LineString per visible multi-waypoint route`() {
-        val fc = RouteGeoJson.routeLines(listOf(aravisRoute, singleWpRoute, emptyRoute))
-        assertEquals("only aravisRoute has >= 2 waypoints", 1, fc.features.size)
+    fun `taskLines produces one LineString per visible multi-waypoint task`() {
+        val fc = TaskGeoJson.taskLines(listOf(aravisTask, singleWpTask, emptyTask))
+        assertEquals("only aravisTask has >= 2 waypoints", 1, fc.features.size)
 
         val lineFeature = fc.features.first()
         val coords = lineFeature.geometry.coordinates
@@ -60,61 +60,61 @@ class RouteGeoJsonTest {
     }
 
     @Test
-    fun `routeLines skips hidden routes`() {
-        val fc = RouteGeoJson.routeLines(listOf(hiddenRoute))
+    fun `taskLines skips hidden tasks`() {
+        val fc = TaskGeoJson.taskLines(listOf(hiddenTask))
         assertTrue(fc.features.isEmpty())
     }
 
     @Test
-    fun `routeLines empty input produces empty collection`() {
-        val fc = RouteGeoJson.routeLines(emptyList())
+    fun `taskLines empty input produces empty collection`() {
+        val fc = TaskGeoJson.taskLines(emptyList())
         assertTrue(fc.features.isEmpty())
     }
 
     @Test
-    fun `routeLines feature carries routeId property`() {
-        val fc = RouteGeoJson.routeLines(listOf(aravisRoute))
+    fun `taskLines feature carries taskId property`() {
+        val fc = TaskGeoJson.taskLines(listOf(aravisTask))
         val props = fc.features.first().properties
-        assertEquals("route-aravis", props["routeId"]?.toString()?.trim('"'))
+        assertEquals("task-aravis", props["taskId"]?.toString()?.trim('"'))
     }
 
     // -- waypointPoints ---------------------------------------------------
 
     @Test
-    fun `waypointPoints produces one Point per waypoint in visible routes`() {
-        val fc = RouteGeoJson.waypointPoints(listOf(aravisRoute))
+    fun `waypointPoints produces one Point per waypoint in visible tasks`() {
+        val fc = TaskGeoJson.waypointPoints(listOf(aravisTask))
         assertEquals(5, fc.features.size)
     }
 
     @Test
-    fun `waypointPoints skips hidden routes`() {
-        val fc = RouteGeoJson.waypointPoints(listOf(hiddenRoute))
+    fun `waypointPoints skips hidden tasks`() {
+        val fc = TaskGeoJson.waypointPoints(listOf(hiddenTask))
         assertTrue(fc.features.isEmpty())
     }
 
     @Test
-    fun `waypointPoints single-waypoint routes produce one feature`() {
-        val fc = RouteGeoJson.waypointPoints(listOf(singleWpRoute))
+    fun `waypointPoints single-waypoint tasks produce one feature`() {
+        val fc = TaskGeoJson.waypointPoints(listOf(singleWpTask))
         assertEquals(1, fc.features.size)
     }
 
     @Test
-    fun `waypointFeature carries name, type, label, waypointId, routeId`() {
+    fun `waypointFeature carries name, type, label, waypointId, taskId`() {
         val wp = waypoint(45.86, 6.48, LocationType.LAUNCH, "Planfait", id = "wp-1")
-        val feature = RouteGeoJson.waypointFeature(wp, 0, "route-1")
+        val feature = TaskGeoJson.waypointFeature(wp, 0, "task-1")
 
         val props = feature.properties
         assertEquals("\"Planfait\"", props["name"].toString())
         assertEquals("\"LAUNCH\"", props["type"].toString())
         assertEquals("\"Planfait\\nLAUNCH\"", props["label"].toString())
         assertEquals("\"wp-1\"", props["waypointId"].toString())
-        assertEquals("\"route-1\"", props["routeId"].toString())
+        assertEquals("\"task-1\"", props["taskId"].toString())
     }
 
     @Test
     fun `waypointFeature defaults label to WP index when label is null`() {
         val wp = waypoint(45.0, 6.0, LocationType.TURNPOINT, label = null, id = "wp-x")
-        val feature = RouteGeoJson.waypointFeature(wp, 2, "r")
+        val feature = TaskGeoJson.waypointFeature(wp, 2, "r")
         val props = feature.properties
         assertEquals("\"WP 3\"", props["name"].toString())
     }
@@ -122,7 +122,7 @@ class RouteGeoJsonTest {
     @Test
     fun `waypointFeature point coordinates are lon,lat`() {
         val wp = waypoint(45.86, 6.48, LocationType.LAUNCH, "Planfait", id = "wp-1")
-        val feature = RouteGeoJson.waypointFeature(wp, 0, "route-1")
+        val feature = TaskGeoJson.waypointFeature(wp, 0, "task-1")
         assertEquals(6.48, feature.geometry.longitude, 1e-9)
         assertEquals(45.86, feature.geometry.latitude, 1e-9)
     }
@@ -131,20 +131,20 @@ class RouteGeoJsonTest {
 
     @Test
     fun `waypointCandidates wraps each waypoint as ROUTE_WAYPOINT candidate`() {
-        val candidates = RouteGeoJson.waypointCandidates(listOf(aravisRoute))
+        val candidates = TaskGeoJson.waypointCandidates(listOf(aravisTask))
         assertEquals(5, candidates.size)
         assertTrue(candidates.all { it.kind == OverlayKind.ROUTE_WAYPOINT })
     }
 
     @Test
-    fun `waypointCandidates skips hidden routes`() {
-        val candidates = RouteGeoJson.waypointCandidates(listOf(hiddenRoute))
+    fun `waypointCandidates skips hidden tasks`() {
+        val candidates = TaskGeoJson.waypointCandidates(listOf(hiddenTask))
         assertTrue(candidates.isEmpty())
     }
 
     @Test
     fun `waypointCandidates position matches waypoint coordinates`() {
-        val candidates = RouteGeoJson.waypointCandidates(listOf(singleWpRoute))
+        val candidates = TaskGeoJson.waypointCandidates(listOf(singleWpTask))
         val c = candidates.single()
         assertEquals(46.0, c.position.latitudeDeg, 1e-9)
         assertEquals(7.0, c.position.longitudeDeg, 1e-9)
@@ -152,37 +152,37 @@ class RouteGeoJsonTest {
 
     @Test
     fun `waypointCandidates preserves original waypoint reference`() {
-        val candidates = RouteGeoJson.waypointCandidates(listOf(aravisRoute))
-        assertEquals(aravisRoute.waypoints[0], candidates[0].waypoint)
+        val candidates = TaskGeoJson.waypointCandidates(listOf(aravisTask))
+        assertEquals(aravisTask.waypoints[0], candidates[0].waypoint)
     }
 
-    // -- Multiple routes --------------------------------------------------
+    // -- Multiple tasks --------------------------------------------------
 
     @Test
-    fun `multiple visible routes produce combined waypoint set`() {
-        val route2 = Route(
-            id = "route-2",
-            name = "Route 2",
+    fun `multiple visible tasks produce combined waypoint set`() {
+        val task2 = Task(
+            id = "task-2",
+            name = "Task 2",
             waypoints = listOf(
                 waypoint(46.0, 7.0, LocationType.LAUNCH, "Start2", id = "wp-2-1"),
                 waypoint(46.1, 7.1, LocationType.GOAL, "End2", id = "wp-2-2"),
             ),
         )
-        val fc = RouteGeoJson.waypointPoints(listOf(aravisRoute, route2))
+        val fc = TaskGeoJson.waypointPoints(listOf(aravisTask, task2))
         assertEquals(7, fc.features.size) // 5 + 2
     }
 
     @Test
-    fun `multiple routes produce multiple line features`() {
-        val route2 = Route(
-            id = "route-2",
-            name = "Route 2",
+    fun `multiple tasks produce multiple line features`() {
+        val task2 = Task(
+            id = "task-2",
+            name = "Task 2",
             waypoints = listOf(
                 waypoint(46.0, 7.0, LocationType.LAUNCH, "Start2", id = "wp-2-1"),
                 waypoint(46.1, 7.1, LocationType.GOAL, "End2", id = "wp-2-2"),
             ),
         )
-        val fc = RouteGeoJson.routeLines(listOf(aravisRoute, route2))
+        val fc = TaskGeoJson.taskLines(listOf(aravisTask, task2))
         assertEquals(2, fc.features.size)
     }
 }

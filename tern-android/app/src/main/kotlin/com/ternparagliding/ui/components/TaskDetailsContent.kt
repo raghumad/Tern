@@ -32,25 +32,25 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.ternparagliding.model.Route
+import com.ternparagliding.model.Task
 import com.ternparagliding.redux.MapAction
 import com.ternparagliding.redux.MapStore
-import com.ternparagliding.utils.io.RouteIOManager
+import com.ternparagliding.utils.io.TaskIOManager
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlin.math.roundToInt
 
 /**
- * The DETAILS tab of the route planner: share/QR actions and the per-waypoint
+ * The DETAILS tab of the task planner: share/QR actions and the per-waypoint
  * list with weather/ETA/hazard badges and reorder/delete controls.
  *
- * Split out of RouteDetailPanel.kt (Phase 0c god-file split). Same
- * ui.components package, so RouteDetailPanel's call site is unchanged.
+ * Split out of TaskDetailPanel.kt (Phase 0c god-file split). Same
+ * ui.components package, so TaskDetailPanel's call site is unchanged.
  */
 @Composable
-fun RouteDetailsContent(
-    route: Route,
+fun TaskDetailsContent(
+    task: Task,
     state: com.ternparagliding.redux.MapState,
     store: MapStore,
     onDismiss: () -> Unit,
@@ -64,8 +64,8 @@ fun RouteDetailsContent(
             horizontalArrangement = Arrangement.End,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = { RouteIOManager.shareRouteFile(context, route) }) {
-                Icon(androidx.compose.material.icons.Icons.Default.Share, contentDescription = "Share Route")
+            IconButton(onClick = { TaskIOManager.shareTaskFile(context, task) }) {
+                Icon(androidx.compose.material.icons.Icons.Default.Share, contentDescription = "Share Task")
             }
             IconButton(onClick = onShowQr) {
                 Icon(androidx.compose.material.icons.Icons.Default.QrCode, contentDescription = "Show QR Code")
@@ -77,12 +77,12 @@ fun RouteDetailsContent(
         Spacer(modifier = Modifier.height(12.dp))
 
         Text(
-            text = "Waypoints (${route.waypoints.size})",
+            text = "Waypoints (${task.waypoints.size})",
             style = MaterialTheme.typography.titleMedium,
             modifier = Modifier.padding(bottom = 8.dp)
         )
 
-        if (route.waypoints.isEmpty()) {
+        if (task.waypoints.isEmpty()) {
             Text(
                 text = "Tap on the map to add waypoints",
                 style = MaterialTheme.typography.bodyMedium,
@@ -97,7 +97,7 @@ fun RouteDetailsContent(
                     .testTag("WaypointList"),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                itemsIndexed(route.waypoints) { index, waypoint ->
+                itemsIndexed(task.waypoints) { index, waypoint ->
                     val weatherData = state.weatherState.waypointWeathers[waypoint.id]
                     val etaTimestamp = state.weatherState.waypointEtas[waypoint.id]
 
@@ -192,7 +192,7 @@ fun RouteDetailsContent(
                                 // Move Up
                                 IconButton(
                                     onClick = {
-                                        store.dispatch(MapAction.ReorderWaypoint(route.id, index, index - 1))
+                                        store.dispatch(MapAction.ReorderWaypoint(task.id, index, index - 1))
                                     },
                                     enabled = index > 0,
                                     modifier = Modifier.size(32.dp)
@@ -207,9 +207,9 @@ fun RouteDetailsContent(
                                 // Move Down
                                 IconButton(
                                     onClick = {
-                                        store.dispatch(MapAction.ReorderWaypoint(route.id, index, index + 1))
+                                        store.dispatch(MapAction.ReorderWaypoint(task.id, index, index + 1))
                                     },
-                                    enabled = index < route.waypoints.size - 1,
+                                    enabled = index < task.waypoints.size - 1,
                                     modifier = Modifier.size(32.dp)
                                 ) {
                                     Icon(
@@ -221,7 +221,7 @@ fun RouteDetailsContent(
 
                                 IconButton(
                                     onClick = {
-                                        store.dispatch(MapAction.RemoveWaypoint(route.id, waypoint.id))
+                                        store.dispatch(MapAction.RemoveWaypoint(task.id, waypoint.id))
                                     },
                                     modifier = Modifier.size(32.dp)
                                 ) {

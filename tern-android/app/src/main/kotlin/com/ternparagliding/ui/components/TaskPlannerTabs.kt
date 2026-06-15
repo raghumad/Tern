@@ -30,17 +30,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
-import com.ternparagliding.model.Route
+import com.ternparagliding.model.Task
 import com.ternparagliding.redux.MapAction
 import com.ternparagliding.redux.MapStore
 
 /**
- * The SEARCH and LIBRARY tabs of the route planner (currently pilot-centric
- * mocks). Split out of RouteDetailPanel.kt (Phase 0c god-file split); same
- * ui.components package, so RouteDetailPanel's call sites are unchanged.
+ * The SEARCH and LIBRARY tabs of the task planner (currently pilot-centric
+ * mocks). Split out of TaskDetailPanel.kt (Phase 0c god-file split); same
+ * ui.components package, so TaskDetailPanel's call sites are unchanged.
  */
 @Composable
-fun RouteSearchContent(store: MapStore) {
+fun TaskSearchContent(store: MapStore) {
     var searchQuery by remember { mutableStateOf("") }
 
     // Pilot-Centric Search Mock
@@ -55,7 +55,7 @@ fun RouteSearchContent(store: MapStore) {
             value = searchQuery,
             onValueChange = { searchQuery = it },
             placeholder = { Text("Search PG Spots (e.g. Golden)") },
-            modifier = Modifier.fillMaxWidth().testTag("RouteSearchField"),
+            modifier = Modifier.fillMaxWidth().testTag("TaskSearchField"),
             singleLine = true,
             leadingIcon = { Icon(androidx.compose.material.icons.Icons.Default.Search, contentDescription = null) },
             colors = TextFieldDefaults.colors(
@@ -93,12 +93,12 @@ fun RouteSearchContent(store: MapStore) {
 }
 
 @Composable
-fun RouteLibraryContent(store: MapStore) {
-    // Mock Library Routes
-    val libraryRoutes = listOf(
-        Route(id = "lib_1", name = "Lookout Classic XC", waypoints = emptyList()),
-        Route(id = "lib_2", name = "Boulder Canyon Run", waypoints = emptyList()),
-        Route(id = "lib_3", name = "Golden Record Attempt", waypoints = emptyList())
+fun TaskLibraryContent(store: MapStore) {
+    // Mock Library Tasks
+    val libraryTasks = listOf(
+        Task(id = "lib_1", name = "Lookout Classic XC", waypoints = emptyList()),
+        Task(id = "lib_2", name = "Boulder Canyon Run", waypoints = emptyList()),
+        Task(id = "lib_3", name = "Golden Record Attempt", waypoints = emptyList())
     )
 
     Column {
@@ -106,13 +106,13 @@ fun RouteLibraryContent(store: MapStore) {
         Spacer(modifier = Modifier.height(8.dp))
 
         LazyColumn(modifier = Modifier.heightIn(max = 240.dp)) {
-            itemsIndexed(libraryRoutes) { _, route ->
+            itemsIndexed(libraryTasks) { _, task ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable {
-                            store.dispatch(MapAction.AddRoute(route))
-                            store.dispatch(MapAction.SelectRoute(route.id))
+                            store.dispatch(MapAction.AddTask(task))
+                            store.dispatch(MapAction.SelectTask(task.id))
                         }
                         .padding(vertical = 12.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -121,7 +121,7 @@ fun RouteLibraryContent(store: MapStore) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(androidx.compose.material.icons.Icons.Default.Description, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(modifier = Modifier.width(12.dp))
-                        Text(route.name, style = MaterialTheme.typography.bodyMedium)
+                        Text(task.name, style = MaterialTheme.typography.bodyMedium)
                     }
                     Icon(androidx.compose.material.icons.Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }

@@ -18,7 +18,7 @@ import org.osmdroid.util.GeoPoint
 
 /**
  * Middleware handling side-effects for Aviation Weather fetching.
- * Handles both Route Waypoint weather and PG Spot weather.
+ * Handles both Task Waypoint weather and PG Spot weather.
  * Aviation-grade architecture separation from UI components.
  */
 class WeatherMiddleware(
@@ -34,7 +34,7 @@ class WeatherMiddleware(
         if (action is WeatherActions) {
             val state = store.state.value
             when (action) {
-                is WeatherActions.FetchWeatherForRoute -> fetchRouteWeather(state, action.routeId, store)
+                is WeatherActions.FetchWeatherForTask -> fetchTaskWeather(state, action.taskId, store)
                 is WeatherActions.FetchWeatherForPGSpot -> fetchPGSpotWeather(action, store)
                 is WeatherActions.FetchWeatherForSpots -> fetchBatchWeatherForSpots(action, store)
                 else -> {} 
@@ -127,18 +127,18 @@ class WeatherMiddleware(
         }
     }
 
-    private fun fetchRouteWeather(state: MapState, routeId: String, store: MapStore) {
-        val route = state.routes.find { it.id == routeId } ?: return
+    private fun fetchTaskWeather(state: MapState, taskId: String, store: MapStore) {
+        val task = state.tasks.find { it.id == taskId } ?: return
 
         // Calculate 4D Trajectory ETAs (default 15 knots paragliding speed)
-        val etas = TrajectoryAnalyzer.calculateETAs(route, 15.0)
+        val etas = TrajectoryAnalyzer.calculateETAs(task, 15.0)
 
         coroutineScope.launch {
             val waypointForecasts = mutableMapOf<String, WeatherForecast>()
 
             // CACHE PASS: Check cache for all waypoints first
             val cacheMissWaypoints = mutableListOf<com.ternparagliding.model.Waypoint>()
-            route.waypoints.forEach { waypoint ->
+            task.waypoints.forEach { waypoint ->
                 val cached = weatherCache.queryNearbyWeather(waypoint.lat, waypoint.lon)
                 if (cached != null) {
                     val eta = etas[waypoint.id] ?: System.currentTimeMillis()
@@ -169,12 +169,12 @@ class WeatherMiddleware(
                         }
                     }
                 } catch (e: Exception) {
-                    Log.e("WeatherMiddleware", "Batch weather fetch failed for route $routeId", e)
+                    Log.e("WeatherMiddleware", "Batch weather fetch failed for task $taskId", e)
                 }
             }
 
             if (waypointForecasts.isNotEmpty()) {
-                store.dispatch(WeatherActions.RouteWeatherFetched(routeId, waypointForecasts, etas))
+                store.dispatch(WeatherActions.TaskWeatherFetched(taskId, waypointForecasts, etas))
             }
         }
     }

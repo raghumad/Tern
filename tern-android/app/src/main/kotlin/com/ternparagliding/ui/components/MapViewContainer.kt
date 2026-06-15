@@ -132,16 +132,16 @@ fun MapViewContainer(
     // Register middleware
     LaunchedEffect(store) {
         store.addMiddleware(com.ternparagliding.redux.MapMiddleware(context.applicationContext))
-        store.addMiddleware(com.ternparagliding.redux.RoutePlanningMiddleware(context.applicationContext))
+        store.addMiddleware(com.ternparagliding.redux.TaskPlanningMiddleware(context.applicationContext))
         store.addMiddleware(com.ternparagliding.redux.WeatherMiddleware())
         store.addMiddleware(com.ternparagliding.redux.CountryPreloadMiddleware(context.applicationContext))
     }
 
-    // Persist routes
+    // Persist tasks
     LaunchedEffect(store) {
-        com.ternparagliding.redux.RoutePersistence.observe(
+        com.ternparagliding.redux.TaskPersistence.observe(
             store,
-            com.ternparagliding.utils.cache.CacheManager.routeCache,
+            com.ternparagliding.utils.cache.CacheManager.taskCache,
         )
     }
 
@@ -327,7 +327,7 @@ fun MapViewContainer(
         }
         Log.i(TAG, "deck replay '$id': buddies=${buddyNodes.value.keys}, playback=${buddyPlayback.value != null}")
         // Pre-centre on the flight's first fix *before* the fix flood. Otherwise, if the map is far
-        // away (e.g. browsing elsewhere), the per-fix recomposition over dense en-route airspace
+        // away (e.g. browsing elsewhere), the per-fix recomposition over dense en-task airspace
         // starves the main thread before the camera can travel there — and it never arrives.
         flight.fixes.firstOrNull { it.fixValid }?.let { f0 ->
             store.dispatch(MapAction.UpdateCenter(GeoPoint(f0.latitude, f0.longitude)))
@@ -543,12 +543,12 @@ fun MapViewContainer(
             // overlapped at TopEnd on rotation. Keep the logo + attribution (OSM/Esri legal).
             options = MapOptions(ornamentOptions = OrnamentOptions(isCompassEnabled = false)),
         ) {
-            // Route overlay
-            val visibleRoutes = state.routes.filter { it.isVisible }
-            if (visibleRoutes.isNotEmpty()) {
-                com.ternparagliding.overlay.route.RouteLayer(
-                    routes = visibleRoutes,
-                    selectedWaypointId = state.selectedWaypoint?.let { "${it.routeId}:${it.waypointId}" },
+            // Task overlay
+            val visibleTasks = state.tasks.filter { it.isVisible }
+            if (visibleTasks.isNotEmpty()) {
+                com.ternparagliding.overlay.task.TaskLayer(
+                    tasks = visibleTasks,
+                    selectedWaypointId = state.selectedWaypoint?.let { "${it.taskId}:${it.waypointId}" },
                     activeWaypointId = state.activeWaypointId,
                 )
             }
@@ -600,22 +600,22 @@ fun MapViewContainer(
             )
         }
 
-        com.ternparagliding.overlay.route.RouteProximityOverlay(store = store)
+        com.ternparagliding.overlay.task.TaskProximityOverlay(store = store)
 
         // Active-task navigation: derive the "next" waypoint + auto-advance on
         // cylinder entry, then point at it buddy-style (on-map highlight above +
         // off-screen edge chip below).
-        com.ternparagliding.overlay.route.TaskProgressOverlay(store = store)
+        com.ternparagliding.overlay.task.TaskProgressOverlay(store = store)
 
-        val activeWaypoint = remember(state.selectedRouteId, state.activeWaypointId, state.routes) {
-            state.routes.find { it.id == state.selectedRouteId }
+        val activeWaypoint = remember(state.selectedTaskId, state.activeWaypointId, state.tasks) {
+            state.tasks.find { it.id == state.selectedTaskId }
                 ?.waypoints?.find { it.id == state.activeWaypointId }
         }
         activeWaypoint?.let { wp ->
-            com.ternparagliding.overlay.route.OffScreenWaypointIndicator(
+            com.ternparagliding.overlay.task.OffScreenWaypointIndicator(
                 target = GeoPoint(wp.lat, wp.lon),
                 label = (wp.displayName ?: "WP").uppercase(),
-                roleColor = androidx.compose.ui.graphics.Color(com.ternparagliding.overlay.route.cylinderColor(wp.type)),
+                roleColor = androidx.compose.ui.graphics.Color(com.ternparagliding.overlay.task.cylinderColor(wp.type)),
                 ownLocation = state.userLocation,
                 ownAltitudeM = if (state.flightDeck.varioConnected) state.flightDeck.altitudeM else null,
                 targetAltM = wp.alt,
@@ -662,8 +662,8 @@ fun MapViewContainer(
             }
         }
 
-        if (state.selectedRouteId != null) {
-            RoutePlanningHUD(
+        if (state.selectedTaskId != null) {
+            TaskPlanningHUD(
                 state = state,
                 modifier = Modifier
                     .align(Alignment.TopStart)

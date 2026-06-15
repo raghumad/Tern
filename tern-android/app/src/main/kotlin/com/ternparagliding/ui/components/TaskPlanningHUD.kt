@@ -18,7 +18,7 @@ import androidx.compose.material.icons.filled.Shield
 import kotlin.math.roundToInt
 
 /**
- * Route Planning HUD - Aviation-Grade Overlay
+ * Task Planning HUD - Aviation-Grade Overlay
  * Displays critical flight metrics, weather, and sync status.
  *
  * Design Philosophy:
@@ -27,26 +27,26 @@ import kotlin.math.roundToInt
  * - Micro-animations for sync status
  */
 @Composable
-fun RoutePlanningHUD(
+fun TaskPlanningHUD(
     state: MapState,
     modifier: Modifier = Modifier
 ) {
-    val selectedRouteId = state.selectedRouteId
-    val route = state.routes.find { it.id == selectedRouteId } ?: return
+    val selectedTaskId = state.selectedTaskId
+    val task = state.tasks.find { it.id == selectedTaskId } ?: return
 
     // HUD Content
     Card(
         modifier = modifier
             .padding(16.dp)
             .widthIn(max = 240.dp)
-            .testTag("RoutePlanningHUD"),
+            .testTag("TaskPlanningHUD"),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface // Aviation-Grade: Use theme surface (AeroSlate)
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 12.dp) // Heavier shadow for glare resistance
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            // Section: Route Metrics
+            // Section: Task Metrics
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -58,7 +58,7 @@ fun RoutePlanningHUD(
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f)
                     )
                     Text(
-                        "${"%.1f".format(route.totalDistanceKm)} km",
+                        "${"%.1f".format(task.totalDistanceKm)} km",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface,
@@ -72,7 +72,7 @@ fun RoutePlanningHUD(
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f)
                     )
                     Text(
-                        "%.1f".format(route.faiPoints),
+                        "%.1f".format(task.faiPoints),
                         style = MaterialTheme.typography.titleLarge,
                         color = MaterialTheme.colorScheme.primary, // AeroNeonCyan
                         fontWeight = FontWeight.Bold,
@@ -132,7 +132,7 @@ fun RoutePlanningHUD(
             }
 
             // Weather Data for Goal
-            val goalWaypoint = route.waypoints.find { it.type == com.ternparagliding.model.LocationType.GOAL }
+            val goalWaypoint = task.waypoints.find { it.type == com.ternparagliding.model.LocationType.GOAL }
             val goalWeather = goalWaypoint?.let { state.weatherState.waypointWeathers[it.id] }
             val goalEta = goalWaypoint?.let { state.weatherState.waypointEtas[it.id] }
             

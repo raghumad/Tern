@@ -1,6 +1,6 @@
 package com.ternparagliding.overlay.hazard
 
-import com.ternparagliding.model.Route
+import com.ternparagliding.model.Task
 import com.ternparagliding.utils.io.WeatherForecast
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -44,15 +44,15 @@ fun classifyHazard(forecast: WeatherForecast?): HazardLevel? = when {
 }
 
 /**
- * Joins route waypoints with their weather forecasts and emits a hazard
+ * Joins task waypoints with their weather forecasts and emits a hazard
  * site for every waypoint whose forecast is convective or stormy. Benign
  * waypoints are dropped.
  */
 fun hazardSitesFrom(
-    routes: List<Route>,
+    tasks: List<Task>,
     waypointWeathers: Map<String, WeatherForecast>,
 ): List<HazardSite> =
-    routes.flatMap { it.waypoints }.mapNotNull { wp ->
+    tasks.flatMap { it.waypoints }.mapNotNull { wp ->
         val level = classifyHazard(waypointWeathers[wp.id]) ?: return@mapNotNull null
         HazardSite(wp.lat, wp.lon, wp.label ?: "", level)
     }

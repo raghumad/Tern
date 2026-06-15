@@ -36,8 +36,8 @@ fun EditWaypointScreen(
     }
 
     // Find the selected waypoint data
-    val route = state.routes.find { it.id == selectedWaypoint.routeId }
-    val waypoint = route?.waypoints?.find { it.id == selectedWaypoint.waypointId }
+    val task = state.tasks.find { it.id == selectedWaypoint.taskId }
+    val waypoint = task?.waypoints?.find { it.id == selectedWaypoint.waypointId }
 
     if (waypoint == null) {
         onDismiss()
@@ -55,7 +55,7 @@ fun EditWaypointScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        store.dispatch(MapAction.RemoveWaypoint(selectedWaypoint.routeId, selectedWaypoint.waypointId))
+                        store.dispatch(MapAction.RemoveWaypoint(selectedWaypoint.taskId, selectedWaypoint.waypointId))
                         showDeleteDialog = false
                         onDismiss()
                     }
@@ -137,7 +137,7 @@ fun EditWaypointScreen(
                     value = waypoint.description ?: "",
                     onValueChange = { newValue ->
                         store.dispatch(MapAction.UpdateWaypointDescription(
-                            selectedWaypoint.routeId,
+                            selectedWaypoint.taskId,
                             selectedWaypoint.waypointId,
                             newValue.takeIf { it.isNotBlank() }
                         ))
@@ -173,7 +173,7 @@ fun EditWaypointScreen(
                             selected = waypoint.type == type,
                             onClick = {
                                 store.dispatch(MapAction.UpdateWaypointType(
-                                    selectedWaypoint.routeId,
+                                    selectedWaypoint.taskId,
                                     selectedWaypoint.waypointId,
                                     type
                                 ))
@@ -216,7 +216,7 @@ fun EditWaypointScreen(
                     onValueChange = { newValue ->
                         val alt = newValue.toDoubleOrNull()
                         store.dispatch(MapAction.UpdateWaypointAltitude(
-                            selectedWaypoint.routeId,
+                            selectedWaypoint.taskId,
                             selectedWaypoint.waypointId,
                             alt
                         ))
@@ -235,7 +235,7 @@ fun EditWaypointScreen(
                         value = waypoint.openTime ?: "",
                         onValueChange = { newValue ->
                             store.dispatch(MapAction.UpdateWaypointTimeGates(
-                                selectedWaypoint.routeId,
+                                selectedWaypoint.taskId,
                                 selectedWaypoint.waypointId,
                                 newValue.takeIf { it.isNotBlank() },
                                 waypoint.closeTime
@@ -249,7 +249,7 @@ fun EditWaypointScreen(
                         value = waypoint.closeTime ?: "",
                         onValueChange = { newValue ->
                             store.dispatch(MapAction.UpdateWaypointTimeGates(
-                                selectedWaypoint.routeId,
+                                selectedWaypoint.taskId,
                                 selectedWaypoint.waypointId,
                                 waypoint.openTime,
                                 newValue.takeIf { it.isNotBlank() }
@@ -262,12 +262,12 @@ fun EditWaypointScreen(
                 }
                 
                 OutlinedTextField(
-                    value = waypoint.radius?.toString() ?: "RouteConstants.FAI_DEFAULT_RADIUS_METERS",
+                    value = waypoint.radius?.toString() ?: "TaskConstants.FAI_DEFAULT_RADIUS_METERS",
                     onValueChange = { newValue ->
                         val radius = newValue.toDoubleOrNull()
                         if (radius != null) {
                             store.dispatch(MapAction.UpdateWaypointRadius(
-                                selectedWaypoint.routeId,
+                                selectedWaypoint.taskId,
                                 selectedWaypoint.waypointId,
                                 radius
                             ))

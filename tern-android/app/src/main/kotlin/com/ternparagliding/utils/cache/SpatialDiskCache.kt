@@ -73,8 +73,8 @@ class SpatialDiskCache(
      * Drop this cache's on-disk data if it was written by an older schema (e.g.
      * before per-region bounds + populated centroids), forcing a one-time
      * re-download. Safe per cache type: each lives in its own dir, so clearing
-     * airspace/PG-spot does NOT touch routes (user data) or weather/hotspots.
-     * Callers that hold re-downloadable data invoke this; routes must not.
+     * airspace/PG-spot does NOT touch tasks (user data) or weather/hotspots.
+     * Callers that hold re-downloadable data invoke this; tasks must not.
      */
     fun clearIfSchemaChanged(currentVersion: Int) {
         val stored = try {
@@ -136,7 +136,7 @@ class SpatialDiskCache(
                 MapOverlayCacheUtils.readIndexHeader(indexData)?.let { regionHeaders[regionId] = it }
                 MapOverlayCacheUtils.deserializeIndexBinary(indexData)
             } else {
-                // Legacy JSON index (e.g. a route not yet re-written): read it
+                // Legacy JSON index (e.g. a task not yet re-written): read it
                 // directly — no header bbox, lazily upgraded to binary on next write.
                 objectMapper.readValue(
                     String(indexData, Charsets.UTF_8),
@@ -208,7 +208,7 @@ class SpatialDiskCache(
 
         // Try to load spatial index to verify it's not corrupted (accept either
         // the binary TSI2 format or a legacy JSON index — the latter stays
-        // readable so a format bump never strands user data like routes).
+        // readable so a format bump never strands user data like tasks).
         try {
             val indexData = indexFile.readBytes()
             if (MapOverlayCacheUtils.isBinaryIndex(indexData)) {

@@ -56,7 +56,7 @@ class WeatherCacheTest {
 
     @Test
     fun `cacheWeather stores forecast and queryNearbyWeather retrieves it`() {
-        val id = "test_route"
+        val id = "test_task"
         val location = GeoPoint(47.0, 8.0)
         
         // Create dummy forecast using utils.WeatherForecast
@@ -87,7 +87,7 @@ class WeatherCacheTest {
 
     @Test
     fun `queryNearbyWeather returns empty for distant location`() {
-        val id = "test_route_2"
+        val id = "test_task_2"
         val location = GeoPoint(47.0, 8.0)
         val forecast = WeatherForecast(
             current = null,

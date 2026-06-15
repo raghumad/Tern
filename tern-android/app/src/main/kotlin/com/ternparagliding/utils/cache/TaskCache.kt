@@ -5,8 +5,8 @@ import android.content.Context
 import android.util.Log
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.ternparagliding.model.Route
-import com.ternparagliding.redux.RouteConstants
+import com.ternparagliding.model.Task
+import com.ternparagliding.redux.TaskConstants
 import com.ternparagliding.model.Waypoint
 import org.osmdroid.util.GeoPoint
 import java.io.*
@@ -15,79 +15,79 @@ import java.nio.channels.FileChannel
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Cache manager for route data using FlexBuffers and Hilbert indexing
- * Mimics AirspaceCache pattern but optimized for route-centric data
+ * Cache manager for task data using FlexBuffers and Hilbert indexing
+ * Mimics AirspaceCache pattern but optimized for task-centric data
  */
-class RouteCache(
+class TaskCache(
     context: Context,
-    private val diskCache: SpatialDiskCache = SpatialDiskCache(context, "route", ROUTE_CACHE_HOURS)
+    private val diskCache: SpatialDiskCache = SpatialDiskCache(context, "task", ROUTE_CACHE_HOURS)
 ) {
 
     companion object {
-        const val ROUTE_CACHE_HOURS = Int.MAX_VALUE  // Permanent (Never automatically expire user-created routes)
-        private const val TAG = "RouteCache"
+        const val ROUTE_CACHE_HOURS = Int.MAX_VALUE  // Permanent (Never automatically expire user-created tasks)
+        private const val TAG = "TaskCache"
         private const val HILBERT_BITS_PRECISION = 32
         private const val MAX_DISTANCE_METERS_PER_MILE = 1609.34
     }
 
     /**
-     * Check if route data is cached and not too old
+     * Check if task data is cached and not too old
      */
-    fun isCached(routeId: String): Boolean {
-        return diskCache.isCached(routeId)
+    fun isCached(taskId: String): Boolean {
+        return diskCache.isCached(taskId)
     }
 
     /**
-     * Get cached route
+     * Get cached task
      */
-    fun getCachedRoute(routeId: String): Route? {
-        val features = diskCache.getCachedFeatures(routeId) ?: return null
+    fun getCachedTask(taskId: String): Task? {
+        val features = diskCache.getCachedFeatures(taskId) ?: return null
         if (features.isEmpty()) return null
 
-        return reconstructRouteFromFeatures(routeId, features)
+        return reconstructTaskFromFeatures(taskId, features)
     }
 
     /**
-     * Cache route data using FlexBuffers + Hilbert spatial indexing
+     * Cache task data using FlexBuffers + Hilbert spatial indexing
      */
-    fun cacheRoute(route: Route) {
+    fun cacheTask(task: Task) {
         try {
-            if (route.waypoints.isEmpty()) {
-                Log.w(TAG, "No waypoints to cache for route ${route.id}")
+            if (task.waypoints.isEmpty()) {
+                Log.w(TAG, "No waypoints to cache for task ${task.id}")
                 return
             }
 
-            // Convert route to overlay features for spatial indexing
-            val routeFeatures = convertRouteToFeatures(route)
+            // Convert task to overlay features for spatial indexing
+            val taskFeatures = convertTaskToFeatures(task)
 
             // Delegate caching to SpatialDiskCache
-            diskCache.cacheFeatures(route.id, routeFeatures)
+            diskCache.cacheFeatures(task.id, taskFeatures)
 
-            Log.d(TAG, "Cached route ${route.id} with ${route.waypoints.size} waypoints")
+            Log.d(TAG, "Cached task ${task.id} with ${task.waypoints.size} waypoints")
 
         } catch (e: Exception) {
-            Log.e(TAG, "Error caching route ${route.id}", e)
+            Log.e(TAG, "Error caching task ${task.id}", e)
         }
     }
 
     /**
-     * Query routes within distance of center point
+     * Query tasks within distance of center point
      */
-    fun queryNearbyRoutes(center: GeoPoint, maxDistanceMiles: Double, maxRoutes: Int = 10): List<Route> {
+    fun queryNearbyTasks(center: GeoPoint, maxDistanceMiles: Double, maxTasks: Int = 10): List<Task> {
         try {
-            val nearbyRoutes = mutableListOf<Route>()
-            val routeIds = diskCache.cacheIndex.keys.toList()
+            val nearbyTasks = mutableListOf<Task>()
+            val taskIds = diskCache.cacheIndex.keys.toList()
 
-            for (routeId in routeIds) {
-                if (nearbyRoutes.size >= maxRoutes) break
+            for (taskId in taskIds) {
+                if (nearbyTasks.size >= maxTasks) break
 
-                // For routes, we check if *any* waypoint is nearby.
-                // SpatialDiskCache.queryNearby returns features (waypoints), not whole routes.
-                // So we can use queryNearby to find relevant route IDs, OR just iterate cached routes.
-                // Given routes are "long" objects, spatial query on waypoints is better.
+                // For tasks, we check if *any* waypoint is nearby.
+                // SpatialDiskCache.queryNearby returns features (waypoints), not whole tasks.
+                // So we can use queryNearby to find relevant task IDs, OR just iterate cached tasks.
+                // Given tasks are "long" objects, spatial query on waypoints is better.
                 
                 // Use in-memory filtering to bypass potential SpatialDiskCache issues
-                val allFeatures = diskCache.getCachedFeatures(routeId)
+                val allFeatures = diskCache.getCachedFeatures(taskId)
                 if (allFeatures != null) {
                     val maxDistanceMeters = maxDistanceMiles * MAX_DISTANCE_METERS_PER_MILE
                     
@@ -100,52 +100,52 @@ class RouteCache(
                     }
                     
                     if (hasNearby) {
-                        // If any waypoint is nearby, load the full route
-                        val route = reconstructRouteFromFeatures(routeId, allFeatures)
-                        if (route != null) {
-                            nearbyRoutes.add(route)
+                        // If any waypoint is nearby, load the full task
+                        val task = reconstructTaskFromFeatures(taskId, allFeatures)
+                        if (task != null) {
+                            nearbyTasks.add(task)
                         }
                     }
                 }
             }
 
-            Log.d(TAG, "Found ${nearbyRoutes.size} routes within ${maxDistanceMiles} miles")
-            return nearbyRoutes
+            Log.d(TAG, "Found ${nearbyTasks.size} tasks within ${maxDistanceMiles} miles")
+            return nearbyTasks
 
         } catch (e: Exception) {
-            Log.e(TAG, "Error querying nearby routes", e)
+            Log.e(TAG, "Error querying nearby tasks", e)
             return emptyList()
         }
     }
 
     /**
-     * Clear cached data for a specific route
+     * Clear cached data for a specific task
      */
-    fun clearCacheForRoute(routeId: String) {
-        diskCache.clearCacheForRegion(routeId)
+    fun clearCacheForTask(taskId: String) {
+        diskCache.clearCacheForRegion(taskId)
     }
 
     /**
-     * Clear all cached route data
+     * Clear all cached task data
      */
     fun clearCache() {
         diskCache.clearAll()
     }
 
     /**
-     * Get all cached routes
+     * Get all cached tasks
      */
-    fun getAllCachedRoutes(): List<Route> {
-        val cachedRoutes = mutableListOf<Route>()
-        val routeIds = diskCache.cacheIndex.keys.toList()
+    fun getAllCachedTasks(): List<Task> {
+        val cachedTasks = mutableListOf<Task>()
+        val taskIds = diskCache.cacheIndex.keys.toList()
 
-        for (routeId in routeIds) {
-            val route = getCachedRoute(routeId)
-            if (route != null) {
-                cachedRoutes.add(route)
+        for (taskId in taskIds) {
+            val task = getCachedTask(taskId)
+            if (task != null) {
+                cachedTasks.add(task)
             }
         }
-        return cachedRoutes
+        return cachedTasks
     }
 
     /**
@@ -153,29 +153,29 @@ class RouteCache(
      */
     fun getCacheStats(): Map<String, Any> {
         return diskCache.getStats().mapKeys { 
-            if (it.key == "cacheName") "type" else "route${it.key.replaceFirstChar { c -> c.uppercase() }}" 
+            if (it.key == "cacheName") "type" else "task${it.key.replaceFirstChar { c -> c.uppercase() }}" 
         }
     }
 
     // ================= PRIVATE HELPERS =================
 
     /**
-     * Reconstruct route from overlay features
+     * Reconstruct task from overlay features
      */
-    private fun reconstructRouteFromFeatures(routeId: String, features: List<MapOverlayCacheUtils.OverlayFeature>): Route? {
+    private fun reconstructTaskFromFeatures(taskId: String, features: List<MapOverlayCacheUtils.OverlayFeature>): Task? {
         try {
             if (features.isEmpty()) return null
 
-            // Expect a single LineString feature containing all route data
+            // Expect a single LineString feature containing all task data
             val feature = features.first()
             val properties = feature.feature["properties"] as? Map<*, *>
-            val routeName = properties?.get("routeName") as? String ?: "Reconstructed Route"
+            val taskName = properties?.get("taskName") as? String ?: "Reconstructed Task"
             val isVisible = properties?.get("isVisible") as? Boolean ?: true
-            // Use the route id stored in the feature, not the [routeId] param:
-            // SpatialDiskCache uppercases the region key, so queryNearbyRoutes
+            // Use the task id stored in the feature, not the [taskId] param:
+            // SpatialDiskCache uppercases the region key, so queryNearbyTasks
             // passes an uppercased id. The stored property preserves the
-            // original case so a round-tripped route keeps its identity.
-            val realRouteId = properties?.get("routeId") as? String ?: routeId
+            // original case so a round-tripped task keeps its identity.
+            val realTaskId = properties?.get("taskId") as? String ?: taskId
             
             val waypointsList = properties?.get("waypoints") as? List<*>
             
@@ -209,16 +209,16 @@ class RouteCache(
                                 alt = alt,
                                 openTime = openTime,
                                 closeTime = closeTime,
-                                routeId = realRouteId
+                                taskId = realTaskId
                             )
                         } else null
                     } else null
                 }
 
                 if (waypoints.isNotEmpty()) {
-                    return Route(
-                        id = realRouteId,
-                        name = routeName,
+                    return Task(
+                        id = realTaskId,
+                        name = taskName,
                         waypoints = waypoints,
                         isVisible = isVisible
                     )
@@ -227,29 +227,29 @@ class RouteCache(
             
             return null
         } catch (e: Exception) {
-            Log.e(TAG, "Error reconstructing route from features: ${e.message}")
+            Log.e(TAG, "Error reconstructing task from features: ${e.message}")
             return null
         }
     }
 
     /**
-     * Convert route to overlay features for spatial indexing
+     * Convert task to overlay features for spatial indexing
      */
-    private fun convertRouteToFeatures(route: Route): List<MapOverlayCacheUtils.OverlayFeature> {
-        if (route.waypoints.isEmpty()) return emptyList()
+    private fun convertTaskToFeatures(task: Task): List<MapOverlayCacheUtils.OverlayFeature> {
+        if (task.waypoints.isEmpty()) return emptyList()
 
-        // Create a single LineString feature for the entire route
-        val coordinates = route.waypoints.map { listOf(it.lon, it.lat) }
+        // Create a single LineString feature for the entire task
+        val coordinates = task.waypoints.map { listOf(it.lon, it.lat) }
         
         // Serialize waypoints metadata
-        val waypointsMetadata = route.waypoints.map { wp ->
+        val waypointsMetadata = task.waypoints.map { wp ->
             mapOf(
                 "id" to wp.id,
                 "lat" to wp.lat,
                 "lon" to wp.lon,
                 "type" to wp.type.name,
                 "label" to (wp.label ?: ""),
-                "radius" to (wp.radius ?: RouteConstants.FAI_DEFAULT_RADIUS_METERS),
+                "radius" to (wp.radius ?: TaskConstants.FAI_DEFAULT_RADIUS_METERS),
                 "alt" to (wp.alt ?: 0.0),
                 "openTime" to (wp.openTime ?: ""),
                 "closeTime" to (wp.closeTime ?: "")
@@ -263,9 +263,9 @@ class RouteCache(
                 "coordinates" to coordinates
             ),
             "properties" to mapOf(
-                "routeId" to route.id,
-                "routeName" to route.name,
-                "isVisible" to route.isVisible,
+                "taskId" to task.id,
+                "taskName" to task.name,
+                "isVisible" to task.isVisible,
                 "waypoints" to waypointsMetadata
             )
         )
@@ -273,17 +273,17 @@ class RouteCache(
         // Compute centroid of the LineString for indexing
         @Suppress("UNCHECKED_CAST")
         val centroid = OverlayGeoJsonParser.computeCentroid(featureData["geometry"] as Map<String, Any>) 
-            ?: GeoPoint(route.waypoints[0].lat, route.waypoints[0].lon) // Fallback to first point
+            ?: GeoPoint(task.waypoints[0].lat, task.waypoints[0].lon) // Fallback to first point
 
         val hilbertIndex = MapOverlayCacheUtils.computeHilbertIndex(centroid, HILBERT_BITS_PRECISION)
 
         return listOf(
             MapOverlayCacheUtils.OverlayFeature(
-                internalId = route.id,
+                internalId = task.id,
                 feature = featureData,
                 centroid = centroid,
                 hilbertIndex = hilbertIndex,
-                overlayType = "route"
+                overlayType = "task"
             )
         )
     }

@@ -52,7 +52,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
 
         // M2: airspace overlay manager initialization will go here
         // M3: PG spot overlay manager initialization will go here
-        // M4: route overlay manager initialization will go here
+        // M4: task overlay manager initialization will go here
         // M5: Mezulla overlay manager initialization will go here
     }
 

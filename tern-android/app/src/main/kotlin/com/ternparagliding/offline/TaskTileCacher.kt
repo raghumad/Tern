@@ -2,7 +2,7 @@ package com.ternparagliding.offline
 
 import android.content.Context
 import android.util.Log
-import com.ternparagliding.model.Route
+import com.ternparagliding.model.Task
 import com.ternparagliding.model.TernBoundingBox
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -15,17 +15,17 @@ import org.maplibre.android.offline.OfflineRegionStatus
 import org.maplibre.android.offline.OfflineTilePyramidRegionDefinition
 
 /**
- * Downloads map tiles for a route's bounding area so the pilot can fly
+ * Downloads map tiles for a task's bounding area so the pilot can fly
  * with a fully offline map.
  *
  * Design principles (from Tern project memory):
  *   - Storage is free: download aggressively, never ask.
- *   - ~10 km padding around the route extent ensures the pilot has
- *     coverage even when drifting off-route in thermals.
+ *   - ~10 km padding around the task extent ensures the pilot has
+ *     coverage even when drifting off-task in thermals.
  *   - Zoom range 8-16 gives overview context (z8) down to landing-field
  *     detail (z16).
  */
-class RouteTileCacher(private val context: Context) {
+class TaskTileCacher(private val context: Context) {
 
     /** Progress snapshot emitted while tiles download. */
     data class CacheProgress(
@@ -42,18 +42,18 @@ class RouteTileCacher(private val context: Context) {
     }
 
     /**
-     * Begin downloading tiles for [route].
+     * Begin downloading tiles for [task].
      *
      * Returns a cold [Flow] of [CacheProgress] that completes when
      * the download finishes (or errors). Collecting the flow triggers the
      * download; cancelling the collector cancels it.
      */
-    fun cacheRoute(route: Route): Flow<CacheProgress> {
-        val bbox = route.extent
+    fun cacheTask(task: Task): Flow<CacheProgress> {
+        val bbox = task.extent
             ?: return kotlinx.coroutines.flow.flowOf(
                 CacheProgress(0, 0, 0, true)
             )
-        return cacheBoundingBox(bbox, regionName = "route-${route.id}")
+        return cacheBoundingBox(bbox, regionName = "task-${task.id}")
     }
 
     /**
@@ -136,12 +136,12 @@ class RouteTileCacher(private val context: Context) {
     }
 
     companion object {
-        private const val TAG = "RouteTileCacher"
+        private const val TAG = "TaskTileCacher"
 
         /** OpenFreeMap Liberty style — same as MapViewContainer. */
         const val STYLE_URL = "https://tiles.openfreemap.org/styles/liberty"
 
-        /** Pad the route bounding box by this many km in each direction. */
+        /** Pad the task bounding box by this many km in each direction. */
         const val PADDING_KM = 10.0
 
         /** Overview zoom (country-level context). */

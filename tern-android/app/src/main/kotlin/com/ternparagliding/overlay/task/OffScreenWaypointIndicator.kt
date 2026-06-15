@@ -1,4 +1,4 @@
-package com.ternparagliding.overlay.route
+package com.ternparagliding.overlay.task
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background

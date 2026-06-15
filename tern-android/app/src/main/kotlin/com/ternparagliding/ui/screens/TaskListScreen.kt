@@ -50,8 +50,8 @@ import com.journeyapps.barcodescanner.ScanOptions
 import com.ternparagliding.R
 import com.ternparagliding.redux.MapAction
 import com.ternparagliding.redux.MapStore
-import com.ternparagliding.model.Route
-import com.ternparagliding.utils.io.RouteIOManager
+import com.ternparagliding.model.Task
+import com.ternparagliding.utils.io.TaskIOManager
 import java.time.Instant
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -59,27 +59,27 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 @Composable
-fun RouteListScreen(
+fun TaskListScreen(
     modifier: Modifier = Modifier,
     store: MapStore,
-    onRouteSelected: () -> Unit = {}, // Callback to navigate to map screen
+    onTaskSelected: () -> Unit = {}, // Callback to navigate to map screen
     onDismiss: () -> Unit = {} // Callback to dismiss the screen
 ) {
     val state by store.state.collectAsState()
-    val routes = state.routes
-    val selectedRouteId = state.selectedRouteId
+    val tasks = state.tasks
+    val selectedTaskId = state.selectedTaskId
     val context = LocalContext.current
     val mapCenter = state.center
 
-    // Filter routes based on viewport (simple distance check < 200km from center)
-    val filteredRoutes = remember(routes, mapCenter) {
+    // Filter tasks based on viewport (simple distance check < 200km from center)
+    val filteredTasks = remember(tasks, mapCenter) {
         val centerLat = mapCenter?.latitude ?: 0.0
         val centerLon = mapCenter?.longitude ?: 0.0
-        if (mapCenter == null) return@remember routes // Show all if center unknown
+        if (mapCenter == null) return@remember tasks // Show all if center unknown
 
-        routes.filter { route ->
-            if (route.waypoints.isEmpty()) return@filter true // Keep empty routes visible
-            route.waypoints.any { wp ->
+        tasks.filter { task ->
+            if (task.waypoints.isEmpty()) return@filter true // Keep empty tasks visible
+            task.waypoints.any { wp ->
                 calculateDistance(wp.lat, wp.lon, centerLat, centerLon) < 200.0
             }
         }
@@ -88,11 +88,11 @@ fun RouteListScreen(
     // File Picker for Import
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let {
-            val importedRoute = RouteIOManager.importRouteFromUri(context, it)
-            if (importedRoute != null) {
-                store.dispatch(MapAction.AddRoute(importedRoute))
-                store.dispatch(MapAction.SelectRoute(importedRoute.id))
-                onRouteSelected()
+            val importedTask = TaskIOManager.importTaskFromUri(context, it)
+            if (importedTask != null) {
+                store.dispatch(MapAction.AddTask(importedTask))
+                store.dispatch(MapAction.SelectTask(importedTask.id))
+                onTaskSelected()
             }
         }
     }
@@ -100,23 +100,23 @@ fun RouteListScreen(
     // QR Scanner
     val scanLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
         if (result.contents != null) {
-            val importedRoute = RouteIOManager.importRouteFromQrString(result.contents)
-            if (importedRoute != null) {
-                store.dispatch(MapAction.AddRoute(importedRoute))
-                store.dispatch(MapAction.SelectRoute(importedRoute.id))
-                onRouteSelected()
+            val importedTask = TaskIOManager.importTaskFromQrString(result.contents)
+            if (importedTask != null) {
+                store.dispatch(MapAction.AddTask(importedTask))
+                store.dispatch(MapAction.SelectTask(importedTask.id))
+                onTaskSelected()
             }
         }
     }
 
     // State for delete confirmation dialog
     var showDeleteDialog by remember { mutableStateOf(false) }
-    var routeToDelete by remember { mutableStateOf<String?>(null) }
+    var taskToDelete by remember { mutableStateOf<String?>(null) }
 
     // State for rename dialog
     var showRenameDialog by remember { mutableStateOf(false) }
-    var routeToRename by remember { mutableStateOf<Route?>(null) }
-    var newRouteName by remember { mutableStateOf("") }
+    var taskToRename by remember { mutableStateOf<Task?>(null) }
+    var newTaskName by remember { mutableStateOf("") }
 
     Box(
         modifier = modifier
@@ -147,18 +147,18 @@ fun RouteListScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Routes",
+                text = "Tasks",
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold
             )
             Row {
                 IconButton(onClick = { importLauncher.launch(arrayOf("*/*")) }) {
-                    Icon(Icons.Default.Upload, contentDescription = "Import Route")
+                    Icon(Icons.Default.Upload, contentDescription = "Import Task")
                 }
                 IconButton(onClick = {
                     val options = ScanOptions()
                     options.setDesiredBarcodeFormats(ScanOptions.QR_CODE)
-                    options.setPrompt("Scan a Route QR Code")
+                    options.setPrompt("Scan a Task QR Code")
                     options.setBeepEnabled(false)
                     scanLauncher.launch(options)
                 }) {
@@ -167,7 +167,7 @@ fun RouteListScreen(
             }
         }
 
-        if (filteredRoutes.isEmpty()) {
+        if (filteredTasks.isEmpty()) {
             // Empty state
             Column(
                 modifier = Modifier.fillMaxSize(),
@@ -175,13 +175,13 @@ fun RouteListScreen(
                 verticalArrangement = Arrangement.Center
             ) {
                 Text(
-                    text = "No nearby routes found",
+                    text = "No nearby tasks found",
                     style = MaterialTheme.typography.titleMedium,
                     textAlign = TextAlign.Center
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "Create a new route or pan the map to see others",
+                    text = "Create a new task or pan the map to see others",
                     style = MaterialTheme.typography.bodyMedium,
                     textAlign = TextAlign.Center,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -189,14 +189,14 @@ fun RouteListScreen(
                 Spacer(modifier = Modifier.height(16.dp))
                 TextButton(
                     onClick = {
-                        // Create a new empty route with default name
-                        val newRoute = Route(name = "New Route ${routes.size + 1}")
-                        store.dispatch(MapAction.AddRoute(newRoute))
-                        store.dispatch(MapAction.SelectRoute(newRoute.id))
-                        onRouteSelected()
+                        // Create a new empty task with default name
+                        val newTask = Task(name = "New Task ${tasks.size + 1}")
+                        store.dispatch(MapAction.AddTask(newTask))
+                        store.dispatch(MapAction.SelectTask(newTask.id))
+                        onTaskSelected()
                     }
                 ) {
-                    Text("Create New Route")
+                    Text("Create New Task")
                 }
             }
         } else {
@@ -205,8 +205,8 @@ fun RouteListScreen(
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(filteredRoutes) { route ->
-                    val isSelected = selectedRouteId == route.id
+                items(filteredTasks) { task ->
+                    val isSelected = selectedTaskId == task.id
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -214,8 +214,8 @@ fun RouteListScreen(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null
                             ) {
-                                store.dispatch(MapAction.SelectRoute(route.id))
-                                onRouteSelected()
+                                store.dispatch(MapAction.SelectTask(task.id))
+                                onTaskSelected()
                             },
                         elevation = CardDefaults.cardElevation(
                             defaultElevation = if (isSelected) 8.dp else 2.dp
@@ -238,7 +238,7 @@ fun RouteListScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = route.name,
+                                    text = task.name,
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
                                     modifier = Modifier.weight(1f)
@@ -246,23 +246,23 @@ fun RouteListScreen(
                                 Row {
                                     IconButton(
                                         onClick = {
-                                            val updatedRoute = route.copy(
-                                                isVisible = !route.isVisible,
+                                            val updatedTask = task.copy(
+                                                isVisible = !task.isVisible,
                                                 updatedAt = Instant.now()
                                             )
-                                            store.dispatch(MapAction.UpdateRoute(updatedRoute))
+                                            store.dispatch(MapAction.UpdateTask(updatedTask))
                                         }
                                     ) {
                                         Icon(
-                                            imageVector = if (route.isVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                            contentDescription = if (route.isVisible) "Hide route" else "Show route",
+                                            imageVector = if (task.isVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                            contentDescription = if (task.isVisible) "Hide task" else "Show task",
                                             tint = MaterialTheme.colorScheme.primary
                                         )
                                     }
                                     IconButton(
                                         onClick = {
-                                            routeToRename = route
-                                            newRouteName = route.name
+                                            taskToRename = task
+                                            newTaskName = task.name
                                             showRenameDialog = true
                                         }
                                     ) {
@@ -275,19 +275,19 @@ fun RouteListScreen(
                                             // I'll leave it as is for now to avoid breaking if R.drawable.edit isn't there.
                                             // Actually, I'll use Icons.Default.Edit if I add the import.
                                             // I'll just keep the existing painterResource for now.
-                                            contentDescription = "Rename route",
+                                            contentDescription = "Rename task",
                                             tint = MaterialTheme.colorScheme.primary
                                         )
                                     }
                                     IconButton(
                                         onClick = {
-                                            routeToDelete = route.id
+                                            taskToDelete = task.id
                                             showDeleteDialog = true
                                         }
                                     ) {
                                         Icon(
                                             painter = painterResource(id = R.drawable.outbox_alt_24),
-                                            contentDescription = "Delete route",
+                                            contentDescription = "Delete task",
                                             tint = MaterialTheme.colorScheme.error
                                         )
                                     }
@@ -299,15 +299,15 @@ fun RouteListScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text(
-                                    text = "${"%.2f".format(route.totalDistanceKm)} km",
+                                    text = "${"%.2f".format(task.totalDistanceKm)} km",
                                     style = MaterialTheme.typography.bodyMedium
                                 )
                                 Text(
-                                    text = "${route.estimatedFlightTimeMinutes} min",
+                                    text = "${task.estimatedFlightTimeMinutes} min",
                                     style = MaterialTheme.typography.bodyMedium
                                 )
                                 Text(
-                                    text = "${route.waypoints.size} WPs",
+                                    text = "${task.waypoints.size} WPs",
                                     style = MaterialTheme.typography.bodyMedium
                                 )
                             }
@@ -317,7 +317,7 @@ fun RouteListScreen(
             }
         }
 
-        // Floating Action Button for creating new routes
+        // Floating Action Button for creating new tasks
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -326,16 +326,16 @@ fun RouteListScreen(
         ) {
              FloatingActionButton(
                 onClick = {
-                    // Create a new empty route with default name
-                    val newRoute = Route(name = "New Route ${routes.size + 1}")
-                    store.dispatch(MapAction.AddRoute(newRoute))
-                    store.dispatch(MapAction.SelectRoute(newRoute.id))
-                    onRouteSelected()
+                    // Create a new empty task with default name
+                    val newTask = Task(name = "New Task ${tasks.size + 1}")
+                    store.dispatch(MapAction.AddTask(newTask))
+                    store.dispatch(MapAction.SelectTask(newTask.id))
+                    onTaskSelected()
                 }
             ) {
                 Icon(
                     painter = painterResource(id = R.drawable.route_24),
-                    contentDescription = "Create New Route"
+                    contentDescription = "Create New Task"
                 )
             }
         }
@@ -344,28 +344,28 @@ fun RouteListScreen(
 }
 
     // Delete confirmation dialog
-    if (showDeleteDialog && routeToDelete != null) {
-        val routeName = routes.find { it.id == routeToDelete }?.name ?: "Unknown Route"
+    if (showDeleteDialog && taskToDelete != null) {
+        val taskName = tasks.find { it.id == taskToDelete }?.name ?: "Unknown Task"
 
         AlertDialog(
             onDismissRequest = {
                 showDeleteDialog = false
-                routeToDelete = null
+                taskToDelete = null
             },
             title = {
-                Text(text = "Delete Route")
+                Text(text = "Delete Task")
             },
             text = {
-                Text(text = "Are you sure you want to delete \"$routeName\"? This action cannot be undone.")
+                Text(text = "Are you sure you want to delete \"$taskName\"? This action cannot be undone.")
             },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        routeToDelete?.let { routeId ->
-                            store.dispatch(MapAction.RemoveRoute(routeId))
+                        taskToDelete?.let { taskId ->
+                            store.dispatch(MapAction.RemoveTask(taskId))
                         }
                         showDeleteDialog = false
-                        routeToDelete = null
+                        taskToDelete = null
                     }
                 ) {
                     Text(text = "Delete", color = MaterialTheme.colorScheme.error)
@@ -375,7 +375,7 @@ fun RouteListScreen(
                 TextButton(
                     onClick = {
                         showDeleteDialog = false
-                        routeToDelete = null
+                        taskToDelete = null
                     }
                 ) {
                     Text(text = "Cancel")
@@ -385,24 +385,24 @@ fun RouteListScreen(
     }
 
     // Rename dialog
-    if (showRenameDialog && routeToRename != null) {
+    if (showRenameDialog && taskToRename != null) {
         AlertDialog(
             onDismissRequest = {
                 showRenameDialog = false
-                routeToRename = null
-                newRouteName = ""
+                taskToRename = null
+                newTaskName = ""
             },
             title = {
-                Text(text = "Rename Route")
+                Text(text = "Rename Task")
             },
             text = {
                 Column {
-                    Text(text = "Enter a new name for the route:")
+                    Text(text = "Enter a new name for the task:")
                     Spacer(modifier = Modifier.height(8.dp))
                     OutlinedTextField(
-                        value = newRouteName,
-                        onValueChange = { newRouteName = it },
-                        label = { Text("Route Name") },
+                        value = newTaskName,
+                        onValueChange = { newTaskName = it },
+                        label = { Text("Task Name") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -411,21 +411,21 @@ fun RouteListScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        val trimmedName = newRouteName.trim()
+                        val trimmedName = newTaskName.trim()
                         if (trimmedName.isNotEmpty()) {
-                            routeToRename?.let { route ->
-                                val updatedRoute = route.copy(
+                            taskToRename?.let { task ->
+                                val updatedTask = task.copy(
                                     name = trimmedName,
                                     updatedAt = Instant.now()
                                 )
-                                store.dispatch(MapAction.UpdateRoute(updatedRoute))
+                                store.dispatch(MapAction.UpdateTask(updatedTask))
                             }
                             showRenameDialog = false
-                            routeToRename = null
-                            newRouteName = ""
+                            taskToRename = null
+                            newTaskName = ""
                         }
                     },
-                    enabled = newRouteName.trim().isNotEmpty()
+                    enabled = newTaskName.trim().isNotEmpty()
                 ) {
                     Text(text = "Rename")
                 }
@@ -434,8 +434,8 @@ fun RouteListScreen(
                 TextButton(
                     onClick = {
                         showRenameDialog = false
-                        routeToRename = null
-                        newRouteName = ""
+                        taskToRename = null
+                        newTaskName = ""
                     }
                 ) {
                     Text(text = "Cancel")

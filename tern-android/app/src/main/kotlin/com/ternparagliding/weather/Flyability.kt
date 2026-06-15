@@ -11,7 +11,7 @@ import com.ternparagliding.utils.io.WeatherForecast
  * the overall verdict is simply the worst factor, and every reason is shown.
  * Removing the unknown means showing the *why* and letting the pilot judge —
  * a 25 kt day is fine for one pilot and a no-go for another, so the limits are
- * configurable. Works at a point (the pilot's site); the route layer applies it
+ * configurable. Works at a point (the pilot's site); the task layer applies it
  * per-waypoint.
  */
 

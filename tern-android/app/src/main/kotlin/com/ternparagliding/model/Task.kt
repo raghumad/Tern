@@ -1,11 +1,11 @@
 package com.ternparagliding.model
 
-import com.ternparagliding.redux.RouteConstants
+import com.ternparagliding.redux.TaskConstants
 import java.time.Instant
 import java.util.UUID
 
 /**
- * Waypoint model for paragliding route planning.
+ * Waypoint model for paragliding task planning.
  */
 data class Waypoint(
     override val id: String = UUID.randomUUID().toString(),
@@ -18,8 +18,8 @@ data class Waypoint(
      *  code wherever there's room (e.g. the next-waypoint indicator). */
     val description: String? = null,
     val createdAt: Instant = java.time.Instant.now(),
-    val routeId: String? = null,
-    val radius: Double? = com.ternparagliding.redux.RouteConstants.FAI_DEFAULT_RADIUS_METERS, // Default FAI cylinder radius in meters
+    val taskId: String? = null,
+    val radius: Double? = com.ternparagliding.redux.TaskConstants.FAI_DEFAULT_RADIUS_METERS, // Default FAI cylinder radius in meters
     val alt: Double? = null, // Altitude in meters
     val openTime: String? = null, // HH:mm
     val closeTime: String? = null // HH:mm
@@ -42,26 +42,26 @@ data class Waypoint(
         
     override val metadata: Map<String, Any>
         get() = mapOf(
-            "routeId" to (routeId ?: ""),
+            "taskId" to (taskId ?: ""),
             "createdAt" to createdAt.toString(),
             "radius" to (radius ?: 0.0)
         )
 }
 
 /**
- * Route model for paragliding route planning.
- * Routes own their waypoints with strong relationships.
+ * Task model for paragliding task planning.
+ * Tasks own their waypoints with strong relationships.
  */
-data class Route(
+data class Task(
     val id: String = UUID.randomUUID().toString(),
-    val name: String = "New Route",
+    val name: String = "New Task",
     val waypoints: List<Waypoint> = emptyList(),
     val createdAt: Instant = Instant.now(),
     val updatedAt: Instant = Instant.now(),
     val isVisible: Boolean = true
 ) {
     init {
-        com.ternparagliding.utils.diagnostics.trackAllocation("Route", 128L + waypoints.size * 64L)
+        com.ternparagliding.utils.diagnostics.trackAllocation("Task", 128L + waypoints.size * 64L)
     }
 
     // Computed properties derived from waypoints
@@ -74,15 +74,15 @@ data class Route(
     val legDistances: List<Double>
         get() = calculateLegDistances()
 
-    val routeType: RouteType
-        get() = calculateRouteType()
+    val taskType: TaskType
+        get() = calculateTaskType()
 
     val faiPoints: Double
         get() = calculateFaiPoints()
 
     /**
-     * The bounding box encompassing all waypoints in this route.
-     * Returns null if route is empty.
+     * The bounding box encompassing all waypoints in this task.
+     * Returns null if task is empty.
      */
     val extent: TernBoundingBox?
         get() {
@@ -102,10 +102,10 @@ data class Route(
             return TernBoundingBox(minLat, minLon, maxLat, maxLon)
         }
 
-    enum class RouteType { OPEN_DISTANCE, FLAT_TRIANGLE, FAI_TRIANGLE }
+    enum class TaskType { OPEN_DISTANCE, FLAT_TRIANGLE, FAI_TRIANGLE }
 
     /**
-     * Add a waypoint to this route
+     * Add a waypoint to this task
      */
     fun addWaypoint(
         lat: Double,
@@ -113,19 +113,19 @@ data class Route(
         type: LocationType = LocationType.TURNPOINT,
         label: String? = null,
         id: String? = null,
-        radius: Double? = com.ternparagliding.redux.RouteConstants.FAI_DEFAULT_RADIUS_METERS,
+        radius: Double? = com.ternparagliding.redux.TaskConstants.FAI_DEFAULT_RADIUS_METERS,
         alt: Double? = null,
         openTime: String? = null,
         closeTime: String? = null,
         description: String? = null
-    ): Route {
+    ): Task {
         val newWaypoint = Waypoint(
             lat = lat,
             lon = lon,
             type = type,
             label = label,
             description = description,
-            routeId = this.id,
+            taskId = this.id,
             id = id ?: UUID.randomUUID().toString(),
             radius = radius,
             alt = alt,
@@ -139,9 +139,9 @@ data class Route(
     }
 
     /**
-     * Remove a waypoint from this route
+     * Remove a waypoint from this task
      */
-    fun removeWaypoint(waypointId: String): Route {
+    fun removeWaypoint(waypointId: String): Task {
         return copy(
             waypoints = waypoints.filter { it.id != waypointId },
             updatedAt = Instant.now()
@@ -149,7 +149,7 @@ data class Route(
     }
 
     /**
-     * Update a waypoint in this route
+     * Update a waypoint in this task
      */
     fun updateWaypoint(
         waypointId: String,
@@ -161,7 +161,7 @@ data class Route(
         openTime: String? = null,
         closeTime: String? = null,
         description: String? = null
-    ): Route {
+    ): Task {
         return copy(
             waypoints = waypoints.map {
                 if (it.id == waypointId) {
@@ -182,9 +182,9 @@ data class Route(
     }
 
     /**
-     * Reorder a waypoint in this route
+     * Reorder a waypoint in this task
      */
-    fun reorderWaypoint(fromIndex: Int, toIndex: Int): Route {
+    fun reorderWaypoint(fromIndex: Int, toIndex: Int): Task {
         if (fromIndex < 0 || fromIndex >= waypoints.size || toIndex < 0 || toIndex >= waypoints.size || fromIndex == toIndex) {
             return this
         }
@@ -221,8 +221,8 @@ data class Route(
         return legs
     }
 
-    private fun calculateRouteType(): RouteType {
-        if (waypoints.size < 3) return RouteType.OPEN_DISTANCE
+    private fun calculateTaskType(): TaskType {
+        if (waypoints.size < 3) return TaskType.OPEN_DISTANCE
         
         val start = waypoints.first()
         val end = waypoints.last()
@@ -231,25 +231,25 @@ data class Route(
 
         if (isClosedLoop && waypoints.size == 4) {
              val legs = legDistances
-             if (legs.size < 3) return RouteType.OPEN_DISTANCE
+             if (legs.size < 3) return TaskType.OPEN_DISTANCE
              
              val totalTriDist = legs.sum()
              val shortest = legs.minOrNull() ?: 0.0
              if (shortest >= 0.28 * totalTriDist) {
-                 return RouteType.FAI_TRIANGLE
+                 return TaskType.FAI_TRIANGLE
              } else {
-                 return RouteType.FLAT_TRIANGLE
+                 return TaskType.FLAT_TRIANGLE
              }
         }
-        return RouteType.OPEN_DISTANCE
+        return TaskType.OPEN_DISTANCE
     }
 
     private fun calculateFaiPoints(): Double {
         val dist = totalDistanceKm
-        return when (routeType) {
-            RouteType.FAI_TRIANGLE -> dist * 2.0
-            RouteType.FLAT_TRIANGLE -> dist * 1.5
-            RouteType.OPEN_DISTANCE -> dist
+        return when (taskType) {
+            TaskType.FAI_TRIANGLE -> dist * 2.0
+            TaskType.FLAT_TRIANGLE -> dist * 1.5
+            TaskType.OPEN_DISTANCE -> dist
         }
     }
 
@@ -265,13 +265,13 @@ data class Route(
     }
 
     companion object {
-        fun fromWaypoints(name: String, waypoints: List<Waypoint>): Route {
-            val routeId = UUID.randomUUID().toString()
-            val routeWaypoints = waypoints.map { it.copy(routeId = routeId) }
-            return Route(
-                id = routeId,
+        fun fromWaypoints(name: String, waypoints: List<Waypoint>): Task {
+            val taskId = UUID.randomUUID().toString()
+            val taskWaypoints = waypoints.map { it.copy(taskId = taskId) }
+            return Task(
+                id = taskId,
                 name = name,
-                waypoints = routeWaypoints
+                waypoints = taskWaypoints
             )
         }
     }

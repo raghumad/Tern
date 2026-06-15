@@ -39,7 +39,7 @@ fun TernMapScreen(
     var showSettingsSheet by remember { mutableStateOf(false) }
     var showShareSheet by remember { mutableStateOf(false) }
     var showEditWaypointScreen by remember { mutableStateOf(false) }
-    var showRouteListScreen by remember { mutableStateOf(false) }
+    var showTaskListScreen by remember { mutableStateOf(false) }
     val state by store.state.collectAsState()
     val isLocationReady = state.isLocationReady
     val gpsStatus = state.gpsStatus
@@ -104,7 +104,7 @@ fun TernMapScreen(
                     .fillMaxWidth(),
             )
 
-            // Right-edge controls: settings, share, route, and Mezulla view mode.
+            // Right-edge controls: settings, share, task, and Mezulla view mode.
             // The five-button column is too tall to centre in a 720px-high landscape window
             // without rising into the compass, so there it anchors at the top (below the
             // status bar + compass) with tighter spacing; portrait keeps the centred dock.
@@ -132,7 +132,7 @@ fun TernMapScreen(
                     onClick = { state.userLocation?.let { store.dispatch(MapAction.UpdateCenter(it)) } },
                 )
                 ShareButton(onClick = { showShareSheet = true })
-                RouteButton(onClick = { showRouteListScreen = true })
+                TaskButton(onClick = { showTaskListScreen = true })
                 VarioConnectButton(
                     connected = state.flightDeck.varioConnected,
                     scanning = state.flightDeck.varioScanning,
@@ -145,11 +145,11 @@ fun TernMapScreen(
                 )
             }
 
-            RouteDetailPanel(
+            TaskDetailPanel(
                 modifier = Modifier.align(Alignment.BottomCenter),
                 store = store,
-                isVisible = state.selectedRouteId != null && !showRouteListScreen && !showEditWaypointScreen,
-                onDismiss = { store.dispatch(MapAction.DeselectRoute) }
+                isVisible = state.selectedTaskId != null && !showTaskListScreen && !showEditWaypointScreen,
+                onDismiss = { store.dispatch(MapAction.DeselectTask) }
             )
 
             AnimatedVisibility(
@@ -192,11 +192,11 @@ fun TernMapScreen(
         ShareSheet(onDismiss = { showShareSheet = false })
     }
 
-    if (showRouteListScreen) {
-        RouteListScreen(
+    if (showTaskListScreen) {
+        TaskListScreen(
             store = store,
-            onRouteSelected = { showRouteListScreen = false },
-            onDismiss = { showRouteListScreen = false }
+            onTaskSelected = { showTaskListScreen = false },
+            onDismiss = { showTaskListScreen = false }
         )
     }
 
@@ -213,13 +213,13 @@ fun TernMapScreen(
     // Smart First Waypoint Suggestion
     var showLaunchSuggestion by remember { mutableStateOf<com.ternparagliding.model.Waypoint?>(null) }
 
-    LaunchedEffect(state.selectedRouteId) {
-        val route = state.routes.find { it.id == state.selectedRouteId }
-        if (route != null && route.waypoints.isEmpty()) {
-            // Find nearest launch from other routes
+    LaunchedEffect(state.selectedTaskId) {
+        val task = state.tasks.find { it.id == state.selectedTaskId }
+        if (task != null && task.waypoints.isEmpty()) {
+            // Find nearest launch from other tasks
             val center = state.center
             if (center != null) {
-                val nearestLaunch = state.routes.flatMap { it.waypoints }
+                val nearestLaunch = state.tasks.flatMap { it.waypoints }
                     .filter { it.type == com.ternparagliding.model.LocationType.LAUNCH }
                     .minByOrNull { calculateDistance(it.lat, it.lon, center.latitude, center.longitude) }
 
@@ -241,10 +241,10 @@ fun TernMapScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        state.selectedRouteId?.let { routeId ->
+                        state.selectedTaskId?.let { taskId ->
                             showLaunchSuggestion?.let { wp ->
-                                store.dispatch(MapAction.AddWaypointToRoute(
-                                    routeId = routeId,
+                                store.dispatch(MapAction.AddWaypointToTask(
+                                    taskId = taskId,
                                     lat = wp.lat,
                                     lon = wp.lon,
                                     type = com.ternparagliding.model.LocationType.LAUNCH,

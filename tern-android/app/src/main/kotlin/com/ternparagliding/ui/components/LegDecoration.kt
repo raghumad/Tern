@@ -17,8 +17,8 @@ import com.ternparagliding.ui.theme.AeroSlate
 import com.ternparagliding.ui.theme.AeroNeonCyan
 
 /**
- * Route Leg Decoration Composable (RFC 005)
- * Provides high-contrast labels for route segments (distance and optional ETA).
+ * Task Leg Decoration Composable (RFC 005)
+ * Provides high-contrast labels for task segments (distance and optional ETA).
  */
 @Composable
 fun LegDecoration(

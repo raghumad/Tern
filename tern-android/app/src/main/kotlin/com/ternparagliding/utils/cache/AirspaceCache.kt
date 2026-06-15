@@ -20,7 +20,7 @@ class AirspaceCache(context: Context) {
          * the current format). v2 added per-region bounds + populated centroids;
          * v3 (=3) switched to the binary TSI2 index (bbox in the header, no
          * sidecar) + Hilbert-ordered .flex. Safe — airspace data is
-         * re-downloadable; only the airspace dir is cleared, never routes.
+         * re-downloadable; only the airspace dir is cleared, never tasks.
          */
         const val CACHE_SCHEMA_VERSION = 3
     }

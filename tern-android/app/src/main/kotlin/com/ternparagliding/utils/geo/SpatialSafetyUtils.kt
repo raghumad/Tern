@@ -24,9 +24,9 @@ object SpatialSafetyUtils {
     }
 
     /**
-     * Checks if a route (list of points) intersects any of the provided airspaces.
+     * Checks if a task (list of points) intersects any of the provided airspaces.
      */
-    fun checkRouteCollision(points: List<GeoPoint>, airspaces: List<OverlayFeature>): Boolean {
+    fun checkTaskCollision(points: List<GeoPoint>, airspaces: List<OverlayFeature>): Boolean {
         return airspaces.any { airspace ->
             val classType = airspace.getStringProperty("class") ?: ""
             if (classType in listOf("A", "B", "C")) {

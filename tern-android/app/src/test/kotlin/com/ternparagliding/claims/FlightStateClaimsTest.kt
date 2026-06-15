@@ -447,7 +447,7 @@ class FlightStateClaimsTest {
         assertEquals("and the northern/eastern extreme", 46.2, box.north, 1e-9)
         assertEquals(7.3, box.east, 1e-9)
 
-        // No route, no buddy → a point box around the pilot.
+        // No task, no buddy → a point box around the pilot.
         val solo = FlightCamera.framingBox(own)
         assertTrue(solo.contains(own))
         assertEquals(own.lat, solo.south, 1e-9)

@@ -120,7 +120,7 @@ class WeatherCache(private val context: Context) {
     )
 
     /**
-     * Cache weather forecast for a specific location (e.g. Route centroid or PG Spot)
+     * Cache weather forecast for a specific location (e.g. Task centroid or PG Spot)
      */
     fun cacheWeather(id: String, location: GeoPoint, forecast: WeatherForecast) {
         try {
@@ -165,7 +165,7 @@ class WeatherCache(private val context: Context) {
         }
     }
     
-    // cacheRouteWeather removed to avoid type mismatch (Model vs Utils Forecast)
+    // cacheTaskWeather removed to avoid type mismatch (Model vs Utils Forecast)
     // TrajectoryAnalyzer handles caching of source data point-by-point.
     
     /**

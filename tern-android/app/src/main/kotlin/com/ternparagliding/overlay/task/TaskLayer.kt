@@ -1,4 +1,4 @@
-package com.ternparagliding.overlay.route
+package com.ternparagliding.overlay.task
 
 import android.graphics.Bitmap
 import androidx.compose.runtime.Composable
@@ -7,7 +7,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.unit.dp
 import com.ternparagliding.model.LocationType
-import com.ternparagliding.model.Route
+import com.ternparagliding.model.Task
 import org.maplibre.compose.expressions.ast.Expression
 import org.maplibre.compose.expressions.dsl.case
 import org.maplibre.compose.expressions.dsl.const
@@ -23,7 +23,7 @@ import org.maplibre.compose.expressions.value.StringValue
 import org.maplibre.compose.sources.GeoJsonData
 import org.maplibre.compose.sources.rememberGeoJsonSource
 
-// Tern cockpit palette -- route line is neon cyan over a dark casing.
+// Tern cockpit palette -- task line is neon cyan over a dark casing.
 private val ROUTE_LINE_COLOR = Color(0xFF00E5FF)
 private val ROUTE_CASING_COLOR = Color(0xCC0A1417)
 
@@ -41,10 +41,10 @@ private data class WpSpec(
 )
 
 /**
- * Renders routes on a MapLibre map, cylinder-centric:
+ * Renders tasks on a MapLibre map, cylinder-centric:
  *  - **FAI cylinder** fill + ring per waypoint (role-coloured) — the
  *    waypoint's identity on the ground.
- *  - **Route line** (neon cyan) over a dark casing.
+ *  - **Task line** (neon cyan) over a dark casing.
  *  - **Leg-distance pills** on the line at each leg midpoint ("25 km").
  *  - **Waypoint markers** — small role-coloured centre + short code, growing
  *    to name + radius when zoomed in (icon bitmaps, since glyph `textField`
@@ -54,20 +54,20 @@ private data class WpSpec(
  */
 @Suppress("UNCHECKED_CAST")
 @Composable
-fun RouteLayer(routes: List<Route>, selectedWaypointId: String? = null, activeWaypointId: String? = null) {
-    val visible = routes.filter { it.isVisible }
+fun TaskLayer(tasks: List<Task>, selectedWaypointId: String? = null, activeWaypointId: String? = null) {
+    val visible = tasks.filter { it.isVisible }
 
     val lineSource = rememberGeoJsonSource(
-        data = remember(routes) { GeoJsonData.Features(RouteGeoJson.routeLines(routes)) },
+        data = remember(tasks) { GeoJsonData.Features(TaskGeoJson.taskLines(tasks)) },
     )
     val cylinderSource = rememberGeoJsonSource(
-        data = remember(routes) { GeoJsonData.Features(RouteGeoJson.routeCylinders(routes)) },
+        data = remember(tasks) { GeoJsonData.Features(TaskGeoJson.taskCylinders(tasks)) },
     )
     val legSource = rememberGeoJsonSource(
-        data = remember(routes) { GeoJsonData.Features(RouteGeoJson.legMidpoints(routes)) },
+        data = remember(tasks) { GeoJsonData.Features(TaskGeoJson.legMidpoints(tasks)) },
     )
     val pointSource = rememberGeoJsonSource(
-        data = remember(routes) { GeoJsonData.Features(RouteGeoJson.waypointPoints(routes)) },
+        data = remember(tasks) { GeoJsonData.Features(TaskGeoJson.waypointPoints(tasks)) },
     )
 
     val typeExpr = feature.get("type") as Expression<StringValue>
@@ -76,32 +76,32 @@ fun RouteLayer(routes: List<Route>, selectedWaypointId: String? = null, activeWa
 
     // ── FAI cylinders (drawn first, beneath everything) ──────────────────
     org.maplibre.compose.layers.FillLayer(
-        id = "route-cylinder-fill",
+        id = "task-cylinder-fill",
         source = cylinderSource,
         color = cylinderFill,
     )
     org.maplibre.compose.layers.LineLayer(
-        id = "route-cylinder-ring",
+        id = "task-cylinder-ring",
         source = cylinderSource,
         color = cylinderRing,
         width = const(2.dp),
     )
 
-    // ── Route line: dark casing then neon line ───────────────────────────
+    // ── Task line: dark casing then neon line ───────────────────────────
     org.maplibre.compose.layers.LineLayer(
-        id = "route-line-casing", source = lineSource,
+        id = "task-line-casing", source = lineSource,
         color = const(ROUTE_CASING_COLOR), width = const(4.5.dp),
         cap = const(LineCap.Round), join = const(LineJoin.Round),
     )
     org.maplibre.compose.layers.LineLayer(
-        id = "route-line", source = lineSource,
+        id = "task-line", source = lineSource,
         color = const(ROUTE_LINE_COLOR), width = const(2.5.dp),
         cap = const(LineCap.Round), join = const(LineJoin.Round),
     )
 
     // ── Leg-distance pills on the line ───────────────────────────────────
-    val legLabels = remember(routes) {
-        RouteGeoJson.legMidpoints(routes).features
+    val legLabels = remember(tasks) {
+        TaskGeoJson.legMidpoints(tasks).features
             .mapNotNull { (it.properties?.get("label") as? kotlinx.serialization.json.JsonPrimitive)?.content }
             .filter { it.isNotBlank() }.distinct()
     }
@@ -113,18 +113,18 @@ fun RouteLayer(routes: List<Route>, selectedWaypointId: String? = null, activeWa
             switch(labelExpr, *cases, fallback = transparent)
         }
         org.maplibre.compose.layers.SymbolLayer(
-            id = "route-leg-pills", source = legSource,
+            id = "task-leg-pills", source = legSource,
             iconImage = legIcon, iconAllowOverlap = const(false),
         )
     }
 
     // ── Waypoint markers (zoom-adaptive, cylinder-centric) ───────────────
-    val specs = remember(routes) {
-        visible.flatMap { route ->
+    val specs = remember(tasks) {
+        visible.flatMap { task ->
             var tp = 0
-            route.waypoints.mapIndexed { i, wp ->
+            task.waypoints.mapIndexed { i, wp ->
                 val seq = if (wp.type == LocationType.TURNPOINT) ++tp else i + 1
-                WpSpec("${route.id}:${wp.id}", wp.id, wp.type, seq, wp.displayName ?: "WP ${i + 1}", wp.radius ?: 0.0)
+                WpSpec("${task.id}:${wp.id}", wp.id, wp.type, seq, wp.displayName ?: "WP ${i + 1}", wp.radius ?: 0.0)
             }
         }
     }
@@ -148,7 +148,7 @@ fun RouteLayer(routes: List<Route>, selectedWaypointId: String? = null, activeWa
             )
         }
         org.maplibre.compose.layers.SymbolLayer(
-            id = "route-waypoints",
+            id = "task-waypoints",
             source = pointSource,
             iconImage = iconImage,
             iconSize = const(1f),

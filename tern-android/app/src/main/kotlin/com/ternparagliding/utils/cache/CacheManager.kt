@@ -23,9 +23,9 @@ object CacheManager {
         PGSpotCache(appContext)
     }
 
-    val routeCache: RouteCache by lazy {
+    val taskCache: TaskCache by lazy {
         ensureInitialized()
-        RouteCache(appContext)
+        TaskCache(appContext)
     }
 
     val weatherCache: WeatherCache by lazy {
@@ -67,7 +67,7 @@ object CacheManager {
         return mapOf(
             "airspaceCache" to airspaceCache.getCacheStats(),
             "pgSpotCache" to pgSpotCache.getCacheStats(),
-            "routeCache" to routeCache.getCacheStats(),
+            "taskCache" to taskCache.getCacheStats(),
             "weatherCache" to weatherCache.getCacheStats()
         )
     }
@@ -79,7 +79,7 @@ object CacheManager {
         if (::appContext.isInitialized) {
             airspaceCache.clearCache()
             pgSpotCache.clearCache()
-            routeCache.clearCache()
+            taskCache.clearCache()
             weatherCache.clearCache()
             Log.d("CacheManager", "All caches cleared")
         }
