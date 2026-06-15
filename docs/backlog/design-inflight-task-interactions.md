@@ -204,12 +204,22 @@ on-map marker label (when on-screen). Least clutter, but no always-on name/dist.
 which WP + name + distance), so the pilot never glances at two corners.
 
 ## Updated phase plan
-- **Phase 0 — map tap/long-press → waypoint hit-test → selection** (prereq).
-- **Phase 1 — compass next-WP arrow** (mockup C) + tag feedback (haptic/flash) +
-  next-WP readout (**name + distance**; no arrival height yet).
-- **Phase 2 — Task button opens the ribbon; tap a dot to Go to;** manual
-  skip/advance.
+- **Phase 0 — map tap → waypoint hit-test → selection** ✅ **BUILT** (commit
+  7494a62). TaskLayer's waypoint SymbolLayer hit-tests taps → SelectWaypoint.
+- **Phase 1 — compass rosette + tag feedback + readout** ✅ **BUILT** (7494a62).
+  Rosette (red N · amber wind spanning · cyan WP badge with upright on-top ordinal
+  + bearing tail); name+distance readout under the compass; haptic+flash on tag.
+  Planning HUD + task-detail panel hidden in flight; landscape dock cleared.
+- **Phase 2 — task ribbon + manual overrides** ✅ **BUILT** (6762240). Task
+  button opens a modal ribbon (done/active/upcoming dots + NEXT read); tap a dot
+  to **Go to**, plus **Skip** and **Back**. New Redux GoToWaypoint retargets by
+  tagging predecessors. Verified on the Bir Billing replay.
 - **Phase 3 (DEFERRED) — Pilot/glider profile + final-glide arrival readout** (the
   green/red "can I make it" number). Backlog; taken up later.
 
-Each phase backed by a claim-driven test. Nothing built yet — still brainstorm.
+Each phase is backed by a claim-driven test (TaskNavClaimsTest +
+TaskOverrideClaimsTest: 7 HELD / 0 BROKEN).
+
+> **Next:** review the **task & waypoint workflows** (creation, selection,
+> import, the list-vs-ribbon routing, where waypoints live) — flagged by the
+> pilot to follow Phase 2.
