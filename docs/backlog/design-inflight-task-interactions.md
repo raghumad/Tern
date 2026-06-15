@@ -1,8 +1,11 @@
 # Design brainstorm: in-flight task interactions
 
-> **Status: BRAINSTORM (2026-06-15) — not approved, not started.** This is for a
-> round of discussion before any implementation. Mockups are annotations over
-> *real* app screenshots (Bir Billing bench replay) so we can feel the layout.
+> **Status: DESIGN LOCKED (2026-06-15) — ready to build Phase 0/1.** Brainstorm
+> complete. Decisions: compass rosette (red N · amber wind · cyan WP badge with
+> bold number + tail = bearing); next-WP readout **under the compass** (name +
+> distance); task ribbon opens from the **Task button**; final glide / glider
+> profile **deferred**. Mockups are annotations over real Bir Billing replay
+> frames. Tag feedback default = **haptic buzz + brief flash**.
 
 ## What this is about
 
@@ -197,7 +200,8 @@ watch):
 **C — none persistent** — rely on the off-screen chip (when off-screen) + the
 on-map marker label (when on-screen). Least clutter, but no always-on name/dist.
 
-Lean: **A** pairs naturally with the rosette and keeps the nav widget self-contained.
+**DECIDED: A — under the compass.** One place for the whole nav read (direction +
+which WP + name + distance), so the pilot never glances at two corners.
 
 ## Updated phase plan
 - **Phase 0 — map tap/long-press → waypoint hit-test → selection** (prereq).
