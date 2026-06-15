@@ -89,6 +89,36 @@ name/description, distance, ETA, required glide, progress (2 of 5).
 Each phase backed by a claim-driven test (replay a task, assert the pilot-visible
 outcome), same as `TaskNavClaimsTest`.
 
+## Direction explorations (v2 — the floating card was too dialog-y)
+
+The first card felt like a dialog bolted onto a busy screen. These two are
+instrument-native and complementary (not either/or):
+
+### A — Top nav strip: "which way + can I make it?"
+A slim header: a magenta **goal arrow** (fly toward it), the next waypoint, the
+distance/ETA, and the **arrival height** colour-coded (green = arrives above the
+cylinder, red = won't make it). Answers the two in-flight questions in one glance,
+reusing language pilots know (goal pointer + final glide). No floating box.
+
+![A — top strip](assets/inflight/mockup-A-top-strip.png)
+
+### B — Task ribbon: "where am I in the task?"
+The whole task as a transit-style progress bar along the bottom: a dot per
+waypoint, completed legs green, current leg cyan, a "you-are-here" marker, next
+WP + distance. **Tap a dot to Go to** it (retarget) — interaction lives on the
+thing itself, no popup.
+
+![B — task ribbon](assets/inflight/mockup-B-task-ribbon.png)
+
+**They combine well:** A is the always-on glance (direction + final glide); B is
+the tappable overview + retarget surface (could be collapsed to a thin bar,
+expanding on tap). Together they replace both the floating card *and* the
+tap-popup from v1.
+
+Still open: exact placement vs the vario HUD / compass, whether the goal arrow
+should instead live *on* the compass rose, and whether B is always-visible or
+pull-up.
+
 ## For discussion
-Pick the card direction (Q1) and the tap model (Q2) first — they shape Phases 1–2.
-Everything else can follow. Nothing here is built yet.
+React to A vs B (or "both / neither / something else") and the placement. That
+shapes Phases 1–2. Nothing here is built yet.
