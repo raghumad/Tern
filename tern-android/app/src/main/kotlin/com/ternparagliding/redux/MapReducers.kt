@@ -21,8 +21,7 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
     is MapAction.UpdateCenter,
     is MapAction.UpdateZoom,
     is MapAction.UpdateMapMovement,
-    is MapAction.UpdateBoundingBox,
-    is MapAction.RequestRecenter -> handleMapViewportActions(state, action)
+    is MapAction.UpdateBoundingBox -> handleMapViewportActions(state, action)
 
     // Overlay Management
     is MapAction.SetOverlayEnabled,
@@ -207,11 +206,9 @@ private fun handleMapViewportActions(state: MapState, action: MapAction): MapSta
         rotation = action.rotation ?: state.rotation,
         center = action.center ?: state.center,
         zoom = action.zoom ?: state.zoom,
-        pendingBoundingBox = null, // Clear to prevent continuous fighting
-        recenterTarget = null      // recenter consumed once the camera has settled
+        pendingBoundingBox = null // Clear to prevent continuous fighting
     )
     is MapAction.UpdateBoundingBox -> state.copy(pendingBoundingBox = action.box)
-    is MapAction.RequestRecenter -> state.copy(recenterTarget = action.target)
     else -> state
 }
 

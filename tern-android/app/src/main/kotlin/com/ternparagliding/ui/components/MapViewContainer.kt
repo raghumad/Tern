@@ -382,7 +382,13 @@ fun MapViewContainer(
             .map { Triple(it.center, it.zoom, it.rotation) }
             .distinctUntilChanged()
             .collectLatest { (center, zoom, rotation) ->
-                if (cameraState.moveReason != CameraMoveReason.GESTURE) {
+                // Only stand down while the user is *actively* gesturing. moveReason is sticky — it
+                // reports the *last* move's reason and stays GESTURE long after a drag ends — so
+                // gating on it alone permanently blocks programmatic drives (recenter, and the
+                // replay follow-cam) until some other move happens. isCameraMoving is the live signal.
+                val userGesturing = cameraState.isCameraMoving &&
+                    cameraState.moveReason == CameraMoveReason.GESTURE
+                if (!userGesturing) {
                     center?.let {
                         val target = CameraPosition(
                             target = Position(longitude = it.longitude, latitude = it.latitude),
@@ -399,37 +405,6 @@ fun MapViewContainer(
                         if (farJump) cameraState.position = target else cameraState.animateTo(target)
                         lastDriven = it
                     }
-                }
-            }
-    }
-
-    // Handle one-shot recenter (the recenter button). Animates regardless of moveReason — a manual
-    // drag leaves moveReason == GESTURE, which the main Redux→MapLibre effect skips, so a plain
-    // UpdateCenter wouldn't move the camera back. Syncs + clears via UpdateMapMovement.
-    LaunchedEffect(store) {
-        store.state
-            .map { it.recenterTarget }
-            .distinctUntilChanged()
-            .collectLatest { target ->
-                if (target != null) {
-                    val cur = runCatching { cameraState.position }.getOrNull()
-                    val zoom = cur?.zoom ?: store.state.value.zoom
-                    val bearing = cur?.bearing ?: store.state.value.rotation.toDouble()
-                    cameraState.animateTo(
-                        CameraPosition(
-                            target = Position(longitude = target.longitude, latitude = target.latitude),
-                            zoom = zoom,
-                            bearing = bearing,
-                        )
-                    )
-                    val settled = runCatching { cameraState.position }.getOrNull()
-                    store.dispatch(
-                        MapAction.UpdateMapMovement(
-                            rotation = settled?.bearing?.toFloat() ?: state.rotation,
-                            center = settled?.let { GeoPoint(it.target.latitude, it.target.longitude) } ?: target,
-                            zoom = settled?.zoom ?: zoom,
-                        )
-                    )
                 }
             }
     }

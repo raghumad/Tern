@@ -30,8 +30,6 @@ sealed class MapAction : TernAction {
     // Map viewport actions
     data class UpdateRotation(val rotation: Float) : MapAction()
     data class UpdateCenter(val center: GeoPoint) : MapAction()
-    /** One-shot: recenter the map on [target], overriding the gesture guard. */
-    data class RequestRecenter(val target: GeoPoint) : MapAction()
     data class UpdateZoom(val zoom: Double) : MapAction()
 
     // Combined map movement action for performance optimization
