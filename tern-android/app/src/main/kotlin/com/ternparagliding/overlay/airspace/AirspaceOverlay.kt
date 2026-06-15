@@ -123,7 +123,10 @@ fun AirspaceOverlay(
             }
     }
 
-    AirspaceLayer(featureCollection = featureCollection)
+    // Honour the Settings toggle. We keep the collector above running (so re-enabling is instant)
+    // but feed the layer an empty collection when airspaces are switched off.
+    val enabled = state.overlayState.airspaces.enabled
+    AirspaceLayer(featureCollection = if (enabled) featureCollection else AirspaceGeoJson.empty())
 }
 
 /**

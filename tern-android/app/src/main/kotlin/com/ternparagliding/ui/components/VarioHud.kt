@@ -24,19 +24,18 @@ import com.ternparagliding.flight.FlightMetrics
 import com.ternparagliding.redux.FlightDeckState
 import com.ternparagliding.redux.PositionSource
 import com.ternparagliding.redux.SettingsState
-import com.ternparagliding.ui.theme.TernFontFamily
 import com.ternparagliding.units.UnitPrefs
 import com.ternparagliding.units.Units
 import com.ternparagliding.weather.octantOf
 import kotlin.math.roundToInt
 
 private const val MS_TO_KNOTS = 1.943844
-private val GRUPPO = TernFontFamily.gruppo
+private val GRUPPO = DeckColors.font
 private val DECK_SHADOW = Shadow(color = Color(0xFF000000), offset = Offset(1.5f, 1.5f), blurRadius = 6f)
 private val SHADOW_STYLE = TextStyle(shadow = DECK_SHADOW)
-// Readability over bright terrain: bright label/value text on a slightly more opaque panel.
-private val LABEL_COLOR = Color(0xFFC7CDD6)   // muted but clearly legible
-private val VALUE_COLOR = Color(0xFFECEEF1)   // near-white for neutral readings
+// Deck capsule-text rule (see DeckColors): bright value, slightly-quieter-but-bright labels/units.
+private val LABEL_COLOR = DeckColors.label
+private val VALUE_COLOR = DeckColors.value
 
 /**
  * Glanceable flight-deck readout — the **secondary** panel. Instantaneous climb and altitude are
