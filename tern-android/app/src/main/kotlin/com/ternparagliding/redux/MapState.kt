@@ -18,6 +18,9 @@ data class MapState(
     val center: GeoPoint? = null,
     val zoom: Double = MapConstants.DEFAULT_ZOOM_LEVEL,
     val pendingBoundingBox: TernBoundingBox? = null,
+    // One-shot recenter request (e.g. the recenter button). Handled by the camera effect, then
+    // cleared by UpdateMapMovement — like pendingBoundingBox — so it overrides the GESTURE guard.
+    val recenterTarget: GeoPoint? = null,
     val isRoutePanelExpanded: Boolean = true, // Strategic Auto-Minimize
 
     // Location state

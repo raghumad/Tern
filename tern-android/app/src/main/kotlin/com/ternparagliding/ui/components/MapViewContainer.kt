@@ -403,6 +403,37 @@ fun MapViewContainer(
             }
     }
 
+    // Handle one-shot recenter (the recenter button). Animates regardless of moveReason — a manual
+    // drag leaves moveReason == GESTURE, which the main Redux→MapLibre effect skips, so a plain
+    // UpdateCenter wouldn't move the camera back. Syncs + clears via UpdateMapMovement.
+    LaunchedEffect(store) {
+        store.state
+            .map { it.recenterTarget }
+            .distinctUntilChanged()
+            .collectLatest { target ->
+                if (target != null) {
+                    val cur = runCatching { cameraState.position }.getOrNull()
+                    val zoom = cur?.zoom ?: store.state.value.zoom
+                    val bearing = cur?.bearing ?: store.state.value.rotation.toDouble()
+                    cameraState.animateTo(
+                        CameraPosition(
+                            target = Position(longitude = target.longitude, latitude = target.latitude),
+                            zoom = zoom,
+                            bearing = bearing,
+                        )
+                    )
+                    val settled = runCatching { cameraState.position }.getOrNull()
+                    store.dispatch(
+                        MapAction.UpdateMapMovement(
+                            rotation = settled?.bearing?.toFloat() ?: state.rotation,
+                            center = settled?.let { GeoPoint(it.target.latitude, it.target.longitude) } ?: target,
+                            zoom = settled?.zoom ?: zoom,
+                        )
+                    )
+                }
+            }
+    }
+
     // Handle pending bounding box
     LaunchedEffect(store) {
         store.state

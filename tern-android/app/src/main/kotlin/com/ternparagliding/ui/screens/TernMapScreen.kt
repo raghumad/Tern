@@ -129,7 +129,7 @@ fun TernMapScreen(
                 SettingsButton(onClick = { showSettingsSheet = true })
                 RecenterButton(
                     enabled = state.userLocation != null,
-                    onClick = { state.userLocation?.let { store.dispatch(MapAction.UpdateCenter(it)) } },
+                    onClick = { state.userLocation?.let { store.dispatch(MapAction.RequestRecenter(it)) } },
                 )
                 ShareButton(onClick = { showShareSheet = true })
                 RouteButton(onClick = { showRouteListScreen = true })
