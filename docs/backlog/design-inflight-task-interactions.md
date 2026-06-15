@@ -141,7 +141,7 @@ The compass rosette carries **three** elements, each unmistakable:
    Amber is the near-complement of the cyan badge → maximum contrast; the red
    north carat is a small distinct shape, so the three never blur together.
 3. **Next waypoint** — a **cyan circular badge** that fills the rosette with the
-   **waypoint number centred** (cut-out style) and a **pointed tail** that
+   **bold, high-contrast number centred** and a **pointed tail** that
    rotates so it **points the bearing**. (N carat + wind arrow overlay on top.)
 
 ![C — compass rosette: N + wind barb + waypoint pin](assets/inflight/mockup-C-compass-rosette.png)
