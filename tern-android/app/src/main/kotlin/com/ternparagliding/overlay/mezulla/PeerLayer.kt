@@ -60,9 +60,14 @@ fun PeerLayer(
     lastEventTime: Instant,
     ownLocation: GeoPoint? = null,
     nerdFont: Typeface? = null,
+    labelFont: Typeface? = null,
     altitudeUnit: String = "m",
 ) {
-    val bundle = remember(peers, viewMode, lastEventTime, ownLocation, altitudeUnit) {
+    // Note: ownLocation is deliberately NOT a remember key. It changes on every own-ship fix
+    // (~8/s in replay), and re-keying here would rebuild every peer bitmap that often and starve
+    // the UI thread. The bundle (and its relative alt/distance) instead refreshes on peer events
+    // (throttled upstream) using whatever ownLocation is current then — at most a few hundred ms stale.
+    val bundle = remember(peers, viewMode, lastEventTime, altitudeUnit) {
         buildPeerBundle(peers, viewMode, lastEventTime, ownLocation, altitudeUnit)
     }
 
@@ -75,15 +80,15 @@ fun PeerLayer(
     @Suppress("UNCHECKED_CAST")
     val markerImage = feature.get("markerImage") as Expression<StringValue>
 
-    val iconImage = remember(bundle, nerdFont) {
+    val iconImage = remember(bundle, nerdFont, labelFont) {
         val transparent = image(
             Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888).asImageBitmap()
         )
         val fullCases = bundle.specs.map { spec ->
-            case(spec.imageName, image(renderMarkerBitmap(spec, nerdFont).asImageBitmap()))
+            case(spec.imageName, image(renderMarkerBitmap(spec, nerdFont, labelFont).asImageBitmap()))
         }.toTypedArray()
         val compactCases = bundle.specs.map { spec ->
-            case(spec.imageName, image(renderCompactBitmap(spec, nerdFont).asImageBitmap()))
+            case(spec.imageName, image(renderCompactBitmap(spec, nerdFont, labelFont).asImageBitmap()))
         }.toTypedArray()
         step(
             zoom(),
@@ -125,19 +130,21 @@ private fun drawTrackArrow(c: Canvas, cx: Float, cy: Float, rimR: Float, trackDe
  * callsign band and bottom status band are equal height), so the map symbol
  * anchors the geo point on the puck with the default CENTER anchor.
  */
-internal fun renderMarkerBitmap(spec: MarkerSpec, nerdFont: Typeface?): Bitmap {
+internal fun renderMarkerBitmap(spec: MarkerSpec, nerdFont: Typeface?, labelFont: Typeface? = null): Bitmap {
     android.util.Log.i("PeerLayer",
         "render: callsign='${spec.callsign}' track=${spec.trackDegrees} " +
         "dalt='${spec.deltaAltText}' dist='${spec.distanceText}' bottom='${spec.bottomText}'")
 
+    // Match the off-screen indicator chips: Gruppo when available, bold-default otherwise.
+    val textFace = labelFont ?: Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
     val callsignPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = AndroidColor.WHITE; textSize = 13f * S
-        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        typeface = textFace
         textAlign = Paint.Align.CENTER
     }
     val valuePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = AndroidColor.WHITE; textSize = 12f * S
-        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        typeface = textFace
     }
     val glyphPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = AndroidColor.WHITE; textSize = 15f * S; typeface = nerdFont
@@ -154,7 +161,7 @@ internal fun renderMarkerBitmap(spec: MarkerSpec, nerdFont: Typeface?): Bitmap {
     }
     val btmPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = spec.bottomColor; textSize = 10f * S
-        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        typeface = textFace
         textAlign = Paint.Align.CENTER
     }
 
@@ -239,10 +246,10 @@ internal fun renderMarkerBitmap(spec: MarkerSpec, nerdFont: Typeface?): Bitmap {
  * vertically centred (matching [renderMarkerBitmap]) so the anchor is stable
  * across the zoom swap.
  */
-internal fun renderCompactBitmap(spec: MarkerSpec, nerdFont: Typeface?): Bitmap {
+internal fun renderCompactBitmap(spec: MarkerSpec, nerdFont: Typeface?, labelFont: Typeface? = null): Bitmap {
     val tagPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = AndroidColor.WHITE; textSize = 9f * S
-        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        typeface = labelFont ?: Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         textAlign = Paint.Align.CENTER
     }
     val glyphPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {

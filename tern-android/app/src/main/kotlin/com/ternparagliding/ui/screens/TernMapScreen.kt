@@ -115,9 +115,12 @@ fun TernMapScreen(
                     .padding(innerPadding)
                     .align(if (controlsLandscape) Alignment.TopEnd else Alignment.CenterEnd)
                     .then(
+                        // systemBars (not just statusBars): in landscape the nav bar moves to the
+                        // right edge and would otherwise sit on top of these buttons, making them
+                        // un-tappable. Inset from it so the whole dock stays in the app bounds.
                         if (controlsLandscape)
                             Modifier
-                                .padding(WindowInsets.statusBars.asPaddingValues())
+                                .padding(WindowInsets.systemBars.asPaddingValues())
                                 .padding(top = 64.dp, end = 16.dp)
                         else Modifier.padding(16.dp)
                     ),

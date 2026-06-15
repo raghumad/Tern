@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -185,8 +186,15 @@ fun MapViewContainer(
     // scenario + buddy node-numbers are chosen per flight by [deckBuddies].
     val buddyPlayback = remember { androidx.compose.runtime.mutableStateOf<com.ternparagliding.sim.swarm.SwarmPlayback?>(null) }
     val buddyNodes = remember { androidx.compose.runtime.mutableStateOf<Map<com.ternparagliding.sim.swarm.PilotId, Long>>(emptyMap()) }
+    // Throttle buddy injection: each PeerPositionReceived rebuilds the peer bundle + re-renders the
+    // marker bitmaps, so dispatching one per replay fix (~8/s) starves the UI thread. Real LoRa
+    // buddies update every few seconds anyway — cap at ~3/s (wall clock) to keep the deck smooth.
+    val lastBuddyDriveMs = remember { androidx.compose.runtime.mutableLongStateOf(0L) }
     fun driveBuddies(timeMs: Long) {
         val pb = buddyPlayback.value ?: return
+        val nowReal = android.os.SystemClock.uptimeMillis()
+        if (nowReal - lastBuddyDriveMs.longValue < 300L) return
+        lastBuddyDriveMs.longValue = nowReal
         val t = java.time.Instant.ofEpochMilli(timeMs)
         buddyNodes.value.forEach { (pilot, node) ->
             val pos = pb.currentPosition(pilot, t) ?: return@forEach // null = pre-launch / landed
@@ -318,6 +326,13 @@ fun MapViewContainer(
             }
         }
         Log.i(TAG, "deck replay '$id': buddies=${buddyNodes.value.keys}, playback=${buddyPlayback.value != null}")
+        // Pre-centre on the flight's first fix *before* the fix flood. Otherwise, if the map is far
+        // away (e.g. browsing elsewhere), the per-fix recomposition over dense en-route airspace
+        // starves the main thread before the camera can travel there — and it never arrives.
+        flight.fixes.firstOrNull { it.fixValid }?.let { f0 ->
+            store.dispatch(MapAction.UpdateCenter(GeoPoint(f0.latitude, f0.longitude)))
+            store.dispatch(MapAction.UpdateZoom(com.ternparagliding.flight.FlightCamera.GLIDE_SLOW_ZOOM))
+        }
         store.dispatch(MapAction.SetVarioLinkState(connected = true, scanning = false))
         try {
             com.ternparagliding.flight.IgcReplaySource(flight).fixes().collect { onDeckFix(it) }
@@ -366,16 +381,18 @@ fun MapViewContainer(
             .collectLatest { (center, zoom, rotation) ->
                 if (cameraState.moveReason != CameraMoveReason.GESTURE) {
                     center?.let {
-                        cameraState.animateTo(
-                            CameraPosition(
-                                target = Position(
-                                    longitude = it.longitude,
-                                    latitude = it.latitude,
-                                ),
-                                zoom = zoom,
-                                bearing = rotation.toDouble(),
-                            )
+                        val target = CameraPosition(
+                            target = Position(longitude = it.longitude, latitude = it.latitude),
+                            zoom = zoom,
+                            bearing = rotation.toDouble(),
                         )
+                        // Snap (don't animate) across large jumps — e.g. a bench replay starting
+                        // while the map is on the far side of the world. animateTo would be cancelled
+                        // by the next fix every ~125ms and never traverse the gap, freezing the camera.
+                        val cur = cameraState.position.target
+                        val farJump = kotlin.math.abs(cur.latitude - it.latitude) > 2.0 ||
+                            kotlin.math.abs(cur.longitude - it.longitude) > 2.0
+                        if (farJump) cameraState.position = target else cameraState.animateTo(target)
                     }
                 }
             }
@@ -551,12 +568,16 @@ fun MapViewContainer(
                     ctx, com.ternparagliding.R.font.jetbrains_mono_nerd_regular
                 )
             }
+            val gruppoFont = remember {
+                androidx.core.content.res.ResourcesCompat.getFont(ctx, com.ternparagliding.R.font.gruppo_regular)
+            }
             com.ternparagliding.overlay.mezulla.PeerLayer(
                 peers = state.peerState.peers,
                 viewMode = state.mezullaViewMode,
                 lastEventTime = state.peerState.lastEventTime,
                 ownLocation = state.userLocation,
                 nerdFont = nerdFont,
+                labelFont = gruppoFont,
                 altitudeUnit = state.settingsState.altitudeUnit,
             )
         }
@@ -575,7 +596,9 @@ fun MapViewContainer(
         androidx.compose.foundation.layout.Row(
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(WindowInsets.statusBars.asPaddingValues())
+                // systemBars (not just statusBars): in landscape the nav bar moves to the right
+                // edge, so the compass must inset from it too or it sits under an un-tappable bar.
+                .padding(WindowInsets.systemBars.asPaddingValues())
                 .padding(COMPASS_PADDING),
             horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -639,6 +662,8 @@ fun MapViewContainer(
                 settings = state.settingsState,
                 modifier = Modifier
                     .align(if (landscape) Alignment.BottomEnd else Alignment.BottomStart)
+                    // Clear the system bars (right-edge nav bar in landscape, bottom nav in portrait).
+                    .padding(WindowInsets.systemBars.asPaddingValues())
                     .padding(if (landscape) 16.dp else 24.dp),
             )
         }

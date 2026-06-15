@@ -65,10 +65,10 @@ fun AltitudeVarioTape(
         modifier = modifier
             .clip(RoundedCornerShape(10.dp))
             .background(DeckColors.panel(0.34f))
-            .width(88.dp)
+            .width(98.dp)
             .height(tapeHeight),
     ) {
-        Canvas(Modifier.size(88.dp, tapeHeight)) {
+        Canvas(Modifier.size(98.dp, tapeHeight)) {
             val w = size.width
             val h = size.height
             val cy = h / 2f
@@ -139,24 +139,39 @@ fun AltitudeVarioTape(
                 drawPath(tri, DeckColors.reference)
             }
 
-            // ── Unit headers ──
+            // ── Unit header (vario, top-left) ──
             text(varioUnit, 2.dp.toPx(), 12.dp.toPx(), mkPaint(8.sp.toPx(), DeckColors.unitColor, android.graphics.Paint.Align.LEFT))
 
-            // ── Centre reference line + current-altitude box (number + unit subscript) ──
-            drawLine(DeckColors.primary, Offset(w * 0.40f, cy), Offset(w, cy), strokeWidth = 2.dp.toPx())
-            val numPaint = mkPaint(16.sp.toPx(), DeckColors.primary, android.graphics.Paint.Align.LEFT, shadow = false)
-            val uPaint = mkPaint(9.sp.toPx(), DeckColors.unitColor, android.graphics.Paint.Align.LEFT, shadow = false)
-            val numStr = "${curDisp.roundToInt()}"
-            val numW = numPaint.measureText(numStr)
-            val gap = 2.dp.toPx()
-            val uW = uPaint.measureText(altSym)
-            val padX = 5.dp.toPx(); val boxH = 22.dp.toPx()
-            val boxW = numW + gap + uW + 2 * padX
-            val boxLeft = w - boxW
-            drawRect(DeckColors.panel(0.95f), topLeft = Offset(boxLeft, cy - boxH / 2), size = Size(boxW, boxH))
-            drawRect(DeckColors.primary, topLeft = Offset(boxLeft, cy - boxH / 2), size = Size(boxW, boxH), style = Stroke(1.dp.toPx()))
-            text(numStr, boxLeft + padX, cy + numPaint.textSize * 0.35f, numPaint)
-            text(altSym, boxLeft + padX + numW + gap, cy + numPaint.textSize * 0.35f + 2.dp.toPx(), uPaint)
+            // A boxed readout with the unit as a *bottom-aligned* subscript: the number and the
+            // smaller unit share one baseline, so the unit sits on the number's bottom (not floating).
+            // Returns the box's left edge so callers can keep boxes from overlapping.
+            fun valueBox(numStr: String, unit: String?, numColor: Color, numSp: Float, anchorRight: Boolean, maxRight: Float): Float {
+                val numPaint = mkPaint(numSp, numColor, android.graphics.Paint.Align.LEFT, shadow = false)
+                val uPaint = mkPaint(numSp * 0.6f, DeckColors.unitColor, android.graphics.Paint.Align.LEFT, shadow = false)
+                val gap = if (unit != null) 2.dp.toPx() else 0f
+                val numW = numPaint.measureText(numStr)
+                val uW = unit?.let { uPaint.measureText(it) } ?: 0f
+                val padX = 5.dp.toPx(); val boxH = 22.dp.toPx()
+                val boxW = numW + gap + uW + 2 * padX
+                val boxLeft = if (anchorRight) w - boxW else 0f
+                if (!anchorRight && boxLeft + boxW > maxRight) return boxLeft // skip if it would collide
+                val baseline = cy + numPaint.textSize * 0.35f
+                drawRect(DeckColors.panel(0.95f), topLeft = Offset(boxLeft, cy - boxH / 2), size = Size(boxW, boxH))
+                drawRect(numColor, topLeft = Offset(boxLeft, cy - boxH / 2), size = Size(boxW, boxH), style = Stroke(1.dp.toPx()))
+                text(numStr, boxLeft + padX, baseline, numPaint)
+                unit?.let { text(it, boxLeft + padX + numW + gap, baseline, uPaint) } // SAME baseline → bottom-aligned
+                return boxLeft
+            }
+            fun varioNum(ms: Double): String =
+                if (varioUnit == "ft/min") "%+d".format(Units.varioValue(ms, varioUnit).roundToInt())
+                else "%+.1f".format(ms)
+
+            // ── Current altitude (right) — number + ft/m subscript ──
+            val altLeft = valueBox("${curDisp.roundToInt()}", altSym, DeckColors.primary, 16.sp.toPx(), anchorRight = true, maxRight = w)
+            // ── Current climb (left, colour-coded) — the instantaneous vario number lives on the
+            //    tape now that the HUD no longer repeats it. Kept clear of the altitude box.
+            val vColor = when { climb > 0.1 -> DeckColors.lift; climb < -0.1 -> DeckColors.sink; else -> DeckColors.primary }
+            valueBox(varioNum(climb), null, vColor, 15.sp.toPx(), anchorRight = false, maxRight = altLeft - 3.dp.toPx())
         }
     }
 }

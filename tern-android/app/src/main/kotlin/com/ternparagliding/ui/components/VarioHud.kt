@@ -16,12 +16,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.BaselineShift
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ternparagliding.flight.FlightMetrics
@@ -36,8 +32,11 @@ import kotlin.math.roundToInt
 
 private const val MS_TO_KNOTS = 1.943844
 private val GRUPPO = TernFontFamily.gruppo
-private val DECK_SHADOW = Shadow(color = Color(0xDD000000), offset = Offset(1.5f, 1.5f), blurRadius = 5f)
+private val DECK_SHADOW = Shadow(color = Color(0xFF000000), offset = Offset(1.5f, 1.5f), blurRadius = 6f)
 private val SHADOW_STYLE = TextStyle(shadow = DECK_SHADOW)
+// Readability over bright terrain: bright label/value text on a slightly more opaque panel.
+private val LABEL_COLOR = Color(0xFFC7CDD6)   // muted but clearly legible
+private val VALUE_COLOR = Color(0xFFECEEF1)   // near-white for neutral readings
 
 /**
  * Glanceable flight-deck readout — the **secondary** panel. Instantaneous climb and altitude are
@@ -66,7 +65,7 @@ fun VarioHud(deck: FlightDeckState, settings: SettingsState, modifier: Modifier 
         modifier = modifier
             .width(196.dp)
             .clip(RoundedCornerShape(12.dp))
-            .background(DeckColors.panel(0.34f))
+            .background(DeckColors.panel(0.62f))
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
@@ -79,16 +78,21 @@ fun VarioHud(deck: FlightDeckState, settings: SettingsState, modifier: Modifier 
         deck.altitudeM?.let { alt ->
             deck.takeoffDatumM?.let { datum ->
                 val gain = FlightMetrics.heightAboveTakeoff(alt, datum)
-                MetricRow("GAIN", "${Units.altitudeValue(gain, prefs.altitude).roundToInt()}", altSym, DeckColors.neutral)
+                MetricRow("GAIN", "${Units.altitudeValue(gain, prefs.altitude).roundToInt()}", altSym, VALUE_COLOR)
             }
         }
 
         // Ground speed.
         deck.groundSpeedMs?.let { gs ->
-            MetricRow("GS", "${Units.speedValue(gs * MS_TO_KNOTS, prefs.speed).roundToInt()}", speedSym, DeckColors.neutral)
-            // Glide ratio (only meaningful while gliding, i.e. sinking).
-            deck.climbMs?.let { c ->
-                FlightMetrics.glideRatio(gs, c)?.let { ld -> MetricRow("L/D", "%.1f".format(ld), null, DeckColors.neutral) }
+            MetricRow("GS", "${Units.speedValue(gs * MS_TO_KNOTS, prefs.speed).roundToInt()}", speedSym, VALUE_COLOR)
+            // Glide ratio — always shown so the row never jumps. It's only meaningful while
+            // gliding (sinking); when climbing we show a climb glyph instead of a bogus ratio.
+            val climb = deck.climbMs
+            val ld = climb?.let { FlightMetrics.glideRatio(gs, it) }
+            when {
+                ld != null -> MetricRow("L/D", "%.1f".format(ld), null, VALUE_COLOR)
+                climb != null && climb > 0.2 -> MetricRow("L/D", "▲ climb", null, DeckColors.lift)
+                else -> MetricRow("L/D", "—", null, VALUE_COLOR)
             }
         }
 
@@ -106,10 +110,10 @@ fun VarioHud(deck: FlightDeckState, settings: SettingsState, modifier: Modifier 
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(
                 if (deck.positionSource == PositionSource.XC_TRACER) "◉ XC TRACER" else "◉ PHONE",
-                color = DeckColors.neutral, fontSize = 13.sp, fontFamily = GRUPPO, style = SHADOW_STYLE,
+                color = LABEL_COLOR, fontSize = 13.sp, fontFamily = GRUPPO, style = SHADOW_STYLE,
             )
             deck.batteryPct?.let {
-                Text("🔋$it%", color = DeckColors.neutral, fontSize = 13.sp, fontFamily = GRUPPO, style = SHADOW_STYLE)
+                Text("🔋$it%", color = LABEL_COLOR, fontSize = 13.sp, fontFamily = GRUPPO, style = SHADOW_STYLE)
             }
         }
     }
@@ -134,26 +138,30 @@ private fun MetricRow(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.Bottom,
     ) {
-        Text(label, color = DeckColors.unitColor, fontSize = 13.sp, fontFamily = GRUPPO, style = SHADOW_STYLE)
-        Text(
-            text = buildAnnotatedString {
-                append(value)
-                if (unit != null) {
-                    withStyle(
-                        SpanStyle(
-                            fontSize = (valueSizeSp * 0.62f).sp,
-                            baselineShift = BaselineShift.Subscript,
-                            color = DeckColors.unitColor,
-                        ),
-                    ) { append(" $unit") }
-                }
-            },
-            color = color,
-            fontSize = valueSizeSp.sp,
-            fontFamily = GRUPPO,
-            fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
-            style = SHADOW_STYLE,
-        )
+        Text(label, color = LABEL_COLOR, fontSize = 13.sp, fontFamily = GRUPPO, style = SHADOW_STYLE)
+        // Number + unit aligned by baseline: since the units have no descenders, baseline alignment
+        // puts the smaller unit's bottom on the number's bottom — a clean bottom-aligned suffix.
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(
+                value,
+                color = color,
+                fontSize = valueSizeSp.sp,
+                fontFamily = GRUPPO,
+                fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
+                style = SHADOW_STYLE,
+                modifier = Modifier.alignByBaseline(),
+            )
+            if (unit != null) {
+                Text(
+                    " $unit",
+                    color = DeckColors.unitColor,
+                    fontSize = (valueSizeSp * 0.62f).sp,
+                    fontFamily = GRUPPO,
+                    style = SHADOW_STYLE,
+                    modifier = Modifier.alignByBaseline(),
+                )
+            }
+        }
     }
 }
 
