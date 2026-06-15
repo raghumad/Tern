@@ -86,6 +86,18 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
     // Active-task navigation (next-waypoint guidance)
     is MapAction.SetActiveWaypoint -> state.copy(activeWaypointId = action.waypointId)
     is MapAction.TagWaypoint -> state.copy(taggedWaypointIds = state.taggedWaypointIds + action.waypointId)
+    is MapAction.GoToWaypoint -> {
+        // Retarget out of sequence: tag everything before the target, untag the
+        // target + everything after, and make it active. The progress engine
+        // (first-untagged = next) then agrees and resumes auto-advance from here.
+        val task = state.tasks.find { it.id == action.taskId }
+        val idx = task?.waypoints?.indexOfFirst { it.id == action.waypointId } ?: -1
+        if (task == null || idx < 0) state
+        else state.copy(
+            taggedWaypointIds = task.waypoints.take(idx).map { it.id }.toSet(),
+            activeWaypointId = action.waypointId,
+        )
+    }
     MapAction.ResetTaskProgress -> state.copy(activeWaypointId = null, taggedWaypointIds = emptySet())
 
     // Smart Suggestion (TaskReducers.kt)

@@ -39,6 +39,7 @@ fun TernMapScreen(
     var showSettingsSheet by remember { mutableStateOf(false) }
     var showEditWaypointScreen by remember { mutableStateOf(false) }
     var showTaskListScreen by remember { mutableStateOf(false) }
+    var showTaskRibbon by remember { mutableStateOf(false) }
     val state by store.state.collectAsState()
     val isLocationReady = state.isLocationReady
     val gpsStatus = state.gpsStatus
@@ -133,7 +134,12 @@ fun TernMapScreen(
                     enabled = state.userLocation != null,
                     onClick = { state.userLocation?.let { store.dispatch(MapAction.UpdateCenter(it)) } },
                 )
-                TaskButton(onClick = { showTaskListScreen = true })
+                // A task in play → open the in-flight ribbon (overview + retarget);
+                // otherwise the list to pick/create one.
+                TaskButton(onClick = {
+                    if (state.selectedTaskId != null) showTaskRibbon = true
+                    else showTaskListScreen = true
+                })
                 MezullaViewModeButton(
                     viewMode = state.mezullaViewMode,
                     linkState = state.peerState.linkState,
@@ -186,6 +192,17 @@ fun TernMapScreen(
             store = store,
             demoReplay = demoReplay,
             pairingOrchestrator = activity?.pairingOrchestrator,
+        )
+    }
+
+    if (showTaskRibbon && state.selectedTaskId != null) {
+        TaskRibbonSheet(
+            store = store,
+            onDismiss = { showTaskRibbon = false },
+            onManageTasks = {
+                showTaskRibbon = false
+                showTaskListScreen = true
+            },
         )
     }
 

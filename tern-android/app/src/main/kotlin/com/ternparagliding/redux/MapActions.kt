@@ -124,6 +124,10 @@ sealed class MapAction : TernAction {
     data class SetActiveWaypoint(val waypointId: String?) : MapAction()
     /** Mark a waypoint reached (flew into its cylinder); the engine then advances. */
     data class TagWaypoint(val waypointId: String) : MapAction()
+    /** Manual retarget (Phase 2 "Go to"): make [waypointId] the active target out of
+     *  sequence by tagging every waypoint before it and un-tagging it + everything
+     *  after. Auto-advance then resumes from there on cylinder entry. */
+    data class GoToWaypoint(val taskId: String, val waypointId: String) : MapAction()
     /** Clear all task progress (active + tagged) — on task switch/deselect. */
     object ResetTaskProgress : MapAction()
 
