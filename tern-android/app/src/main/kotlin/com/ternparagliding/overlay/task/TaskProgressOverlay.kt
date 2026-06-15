@@ -9,10 +9,6 @@ import androidx.compose.runtime.snapshotFlow
 import com.ternparagliding.redux.MapAction
 import com.ternparagliding.redux.MapStore
 import kotlinx.coroutines.flow.conflate
-import org.osmdroid.util.GeoPoint
-
-/** Fallback cylinder radius when a waypoint doesn't carry one (m). */
-private const val DEFAULT_CYLINDER_RADIUS_M = 400.0
 
 /**
  * Drives active-task navigation: which waypoint is "next" and when the pilot has
@@ -57,16 +53,14 @@ fun TaskProgressOverlay(store: MapStore) {
                 val task = taskId?.let { id -> st.tasks.find { it.id == id } } ?: return@collect
                 if (own == null || task.waypoints.isEmpty()) return@collect
 
-                val next = task.waypoints.firstOrNull { it.id !in tagged }
+                val next = TaskNavigator.nextWaypoint(task, tagged)
                 if (next == null) {
                     // Task complete — no active target.
                     if (st.activeWaypointId != null) store.dispatch(MapAction.SetActiveWaypoint(null))
                     return@collect
                 }
 
-                val distM = own.distanceToAsDouble(GeoPoint(next.lat, next.lon))
-                val radiusM = next.radius?.takeIf { it > 0 } ?: DEFAULT_CYLINDER_RADIUS_M
-                if (distM <= radiusM) {
+                if (TaskNavigator.isReached(own, next)) {
                     store.dispatch(MapAction.TagWaypoint(next.id)) // re-emits → advances
                 } else if (st.activeWaypointId != next.id) {
                     store.dispatch(MapAction.SetActiveWaypoint(next.id))

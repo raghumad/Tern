@@ -118,6 +118,39 @@ private fun deckBuddies(
     }
 }
 
+/** Stable id so re-running the demo overwrites rather than accumulates. */
+private const val BIR_DEMO_TASK_ID = "demo-birbilling-task"
+
+/**
+ * A demo task for the Bir Billing bench replay so the next-waypoint guidance has
+ * something to drive. Cylinder centres are sampled *from the flown track*, so the
+ * replayed position genuinely flies through each one (auto-advance fires) — and
+ * each carries a cryptic code + a human description to show the readable name.
+ */
+private fun birBillingDemoTask(flight: com.ternparagliding.sim.igc.IgcFlight): com.ternparagliding.model.Task {
+    val pts = flight.fixes.filter { it.fixValid }
+    fun at(frac: Double) = pts[(pts.size * frac).toInt().coerceIn(0, pts.lastIndex)]
+    data class Wp(val frac: Double, val code: String, val desc: String, val type: com.ternparagliding.model.LocationType, val r: Double)
+    val plan = listOf(
+        Wp(0.02, "T01", "Bir Takeoff", com.ternparagliding.model.LocationType.LAUNCH, 400.0),
+        Wp(0.30, "S02", "Billing Start", com.ternparagliding.model.LocationType.SSS, 1000.0),
+        Wp(0.55, "B03", "Chamera Ridge", com.ternparagliding.model.LocationType.TURNPOINT, 2000.0),
+        Wp(0.80, "B04", "Dharamshala Spur", com.ternparagliding.model.LocationType.TURNPOINT, 2000.0),
+        Wp(0.97, "G05", "Bir Landing", com.ternparagliding.model.LocationType.GOAL, 1000.0),
+    )
+    return com.ternparagliding.model.Task(
+        id = BIR_DEMO_TASK_ID,
+        name = "Bir Billing Demo Task",
+        waypoints = plan.map { w ->
+            val f = at(w.frac)
+            com.ternparagliding.model.Waypoint(
+                lat = f.latitude, lon = f.longitude, type = w.type,
+                label = w.code, description = w.desc, radius = w.r,
+            )
+        },
+    )
+}
+
 @Composable
 fun MapViewContainer(
     modifier: Modifier = Modifier,
@@ -334,11 +367,22 @@ fun MapViewContainer(
             store.dispatch(MapAction.UpdateZoom(com.ternparagliding.flight.FlightCamera.GLIDE_SLOW_ZOOM))
         }
         store.dispatch(MapAction.SetVarioLinkState(connected = true, scanning = false))
+        // Bir Billing carries a demo task so the next-waypoint guidance has a
+        // target to advance through as the replay flies its cylinders.
+        val demoTask = if (id == "birbilling") birBillingDemoTask(flight) else null
+        demoTask?.let {
+            store.dispatch(MapAction.AddTask(it))
+            store.dispatch(MapAction.SelectTask(it.id))
+        }
         try {
             com.ternparagliding.flight.IgcReplaySource(flight).fixes().collect { onDeckFix(it) }
         } finally {
             buddyPlayback.value = null // stop driving buddies on end/cancel
             buddyNodes.value = emptyMap()
+            demoTask?.let {
+                store.dispatch(MapAction.DeselectTask)
+                store.dispatch(MapAction.RemoveTask(it.id))
+            }
         }
         store.dispatch(MapAction.UpdateRotation(0f)) // natural end → north-up
         store.dispatch(MapAction.StopDeckReplay)     // and reset the deck
