@@ -136,10 +136,10 @@ pull-up.
 
 The compass rosette carries **three** elements, each unmistakable:
 1. **North** — the red carat.
-2. **Wind** — an arrow that **spans the whole rosette** (rim → through centre →
-   opposite rim), arrowhead pointing downwind, matching the app's existing
-   compass needle. Drawn **white/neutral** (with a dark casing) so it stays
-   distinct now that the waypoint badge is cyan.
+2. **Wind** — an **amber** arrow that **spans the whole rosette** (rim → through
+   centre → opposite rim), arrowhead pointing downwind, with a dark casing.
+   Amber is the near-complement of the cyan badge → maximum contrast; the red
+   north carat is a small distinct shape, so the three never blur together.
 3. **Next waypoint** — a **cyan circular badge** that fills the rosette with the
    **waypoint number centred** (cut-out style) and a **pointed tail** that
    rotates so it **points the bearing**. (N carat + wind arrow overlay on top.)
