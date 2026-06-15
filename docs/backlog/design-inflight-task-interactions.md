@@ -152,7 +152,12 @@ So the v2 split becomes:
   the compass, or a short line in the HUD.*
 - **B → the Task button opens** the task ribbon/overview; tap a dot to Go to.
 
-## Final glide via glider profile
+## Final glide via glider profile  — ⏸ DEFERRED (backlog)
+
+> **Parked 2026-06-15.** Final glide / L/D and the glider profile are deferred —
+> taken up later. The compass + tap interactions ship without arrival height; the
+> next-WP readout shows **name + distance only** for now (no green/red "can I
+> make it" number until this lands).
 
 Pilots shouldn't type a glide ratio. Instead:
 - **Pilot settings → Glider:** pick your wing from a bundled database and enter
@@ -176,10 +181,11 @@ Pilots shouldn't type a glide ratio. Instead:
 
 ## Updated phase plan
 - **Phase 0 — map tap/long-press → waypoint hit-test → selection** (prereq).
-- **Phase 1 — compass next-WP arrow** (mockup C) + tag feedback (haptic/flash).
-- **Phase 2 — Pilot/glider profile + final-glide arrival readout** (the green/red
-  "can I make it" number).
-- **Phase 3 — Task button opens the ribbon; tap a dot to Go to;** manual
+- **Phase 1 — compass next-WP arrow** (mockup C) + tag feedback (haptic/flash) +
+  next-WP readout (**name + distance**; no arrival height yet).
+- **Phase 2 — Task button opens the ribbon; tap a dot to Go to;** manual
   skip/advance.
+- **Phase 3 (DEFERRED) — Pilot/glider profile + final-glide arrival readout** (the
+  green/red "can I make it" number). Backlog; taken up later.
 
 Each phase backed by a claim-driven test. Nothing built yet — still brainstorm.
