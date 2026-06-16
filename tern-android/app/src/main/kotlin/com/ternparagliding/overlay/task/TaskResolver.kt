@@ -38,4 +38,30 @@ object TaskResolver {
         val byId = library.associateBy { it.id }
         return tasks.map { resolve(it, byId) }
     }
+
+    /**
+     * Stage B3 — bind an *imported* task's points to the library by **code** (the
+     * comp-day flow: load the issued waypoints, then load the day's task → it links
+     * to them). An unlinked point whose code matches a library entry gets that
+     * link stamped; everything else (already-linked, or no code match) is left
+     * as-is so it stays flyable from the task file's own coordinates.
+     */
+    fun bindToLibrary(task: Task, library: List<LibraryWaypoint>): Task {
+        if (library.isEmpty()) return task
+        val byCode = library.associateBy { it.code.trim().uppercase() }
+        var changed = false
+        val bound = task.waypoints.map { wp ->
+            if (wp.libraryWaypointId != null) return@map wp
+            val code = (wp.label ?: wp.description)?.trim()?.uppercase()
+            val lib = code?.let { byCode[it] }
+            if (lib != null) { changed = true; wp.copy(libraryWaypointId = lib.id) } else wp
+        }
+        return if (changed) task.copy(waypoints = bound) else task
+    }
+
+    /** A point that *references* the library but whose entry is gone (deleted /
+     *  wrong set imported). The resolver still flies it from the stored copy, but
+     *  the UI should flag it so the pilot knows the position may be stale. */
+    fun isMissingLink(wp: com.ternparagliding.model.Waypoint, library: List<LibraryWaypoint>): Boolean =
+        wp.libraryWaypointId != null && library.none { it.id == wp.libraryWaypointId }
 }

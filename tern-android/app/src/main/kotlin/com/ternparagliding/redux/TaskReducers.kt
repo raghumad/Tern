@@ -175,6 +175,17 @@ internal fun handleTaskActions(state: MapState, action: MapAction): MapState = w
         val updatedSelection = updateSelectionAfterTaskChange(state.selectedWaypoint, limitedTasks, action.task.id)
         state.copy(tasks = limitedTasks, selectedWaypoint = updatedSelection)
     }
+    is MapAction.AddImportedTask -> {
+        // Bind the imported task's points to the library by code before adding, so
+        // the resolver links them to the issued waypoints (Stage B3).
+        val bound = com.ternparagliding.overlay.task.TaskResolver.bindToLibrary(action.task, state.waypointLibrary)
+        val newTasks = state.tasks + bound
+        val limitedTasks = if (newTasks.size > TaskConstants.MAX_ROUTES) {
+            newTasks.sortedByDescending { it.createdAt }.take(TaskConstants.MAX_ROUTES)
+        } else newTasks
+        val updatedSelection = updateSelectionAfterTaskChange(state.selectedWaypoint, limitedTasks, bound.id)
+        state.copy(tasks = limitedTasks, selectedWaypoint = updatedSelection)
+    }
     is MapAction.RemoveTask -> {
         val newTasks = state.tasks.filter { it.id != action.taskId }
         val updatedSelection = state.selectedWaypoint?.takeIf { it.taskId != action.taskId }

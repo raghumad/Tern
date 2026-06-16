@@ -100,6 +100,9 @@ sealed class MapAction : TernAction {
 
     // Task actions
     data class AddTask(val task: Task) : MapAction()
+    /** Stage B3 — add an imported task, first binding its points to the library by
+     *  code (comp-day round-trip: issued waypoints + the day's task file). */
+    data class AddImportedTask(val task: Task) : MapAction()
     data class RemoveTask(val taskId: String) : MapAction()
     data class UpdateTask(val task: Task) : MapAction()
     /** Merge nearby preplanned tasks (from the spatial TaskCache) into the active set. */

@@ -92,7 +92,7 @@ fun TaskListScreen(
         uri?.let {
             val importedTask = TaskIOManager.importTaskFromUri(context, it)
             if (importedTask != null) {
-                store.dispatch(MapAction.AddTask(importedTask))
+                store.dispatch(MapAction.AddImportedTask(importedTask))
                 store.dispatch(MapAction.SelectTask(importedTask.id))
                 onTaskSelected()
             }
@@ -104,7 +104,7 @@ fun TaskListScreen(
         if (result.contents != null) {
             val importedTask = TaskIOManager.importTaskFromQrString(result.contents)
             if (importedTask != null) {
-                store.dispatch(MapAction.AddTask(importedTask))
+                store.dispatch(MapAction.AddImportedTask(importedTask))
                 store.dispatch(MapAction.SelectTask(importedTask.id))
                 onTaskSelected()
             }

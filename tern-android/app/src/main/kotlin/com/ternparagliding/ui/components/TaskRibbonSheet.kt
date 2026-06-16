@@ -50,6 +50,7 @@ import org.osmdroid.util.GeoPoint
 
 private val TAGGED_GREEN = Color(0xFF22C55E)
 private val ACTIVE_CYAN = Color(0xFF1FE3DE)
+private val MISSING_AMBER = Color(0xFFFBBF24)
 
 /**
  * Phase 2 — the in-flight **task ribbon**, opened deliberately from the Task button
@@ -171,6 +172,7 @@ fun TaskRibbonSheet(
                         ordinal = i + 1,
                         isTagged = wp.id in tagged,
                         isActive = wp.id == activeId,
+                        isMissing = com.ternparagliding.overlay.task.TaskResolver.isMissingLink(wp, state.waypointLibrary),
                         onClick = { store.dispatch(MapAction.GoToWaypoint(task.id, wp.id)) },
                     )
                 }
@@ -228,10 +230,13 @@ private fun WaypointDot(
     ordinal: Int,
     isTagged: Boolean,
     isActive: Boolean,
+    isMissing: Boolean,
     onClick: () -> Unit,
 ) {
     val role = Color(cylinderColor(wp.type))
-    val code = wp.label?.takeIf { it.isNotBlank() } ?: ordinal.toString()
+    // The dot shows the ordinal (metro-style) — comp codes like "LW049" don't fit a
+    // 40dp dot. Role colour conveys type; the code/name reads in the NEXT line + on tap.
+    val seq = ordinal.toString()
     Box(contentAlignment = Alignment.Center) {
         val base = Modifier
             .size(40.dp)
@@ -240,7 +245,7 @@ private fun WaypointDot(
             isActive -> Box(
                 base.background(role, CircleShape).border(3.dp, ACTIVE_CYAN, CircleShape),
                 contentAlignment = Alignment.Center,
-            ) { Text(code, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp) }
+            ) { Text(seq, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp) }
 
             isTagged -> Box(
                 base.background(role.copy(alpha = 0.55f), CircleShape),
@@ -250,7 +255,18 @@ private fun WaypointDot(
             else -> Box(
                 base.border(2.dp, role.copy(alpha = 0.8f), CircleShape),
                 contentAlignment = Alignment.Center,
-            ) { Text(code, color = role, fontWeight = FontWeight.Bold, fontSize = 15.sp) }
+            ) { Text(seq, color = role, fontWeight = FontWeight.Bold, fontSize = 16.sp) }
+        }
+        // Reference to a library waypoint that's no longer present — flying a
+        // possibly-stale stored position. Flag it with an amber "!" badge.
+        if (isMissing) {
+            Box(
+                Modifier
+                    .size(16.dp)
+                    .align(Alignment.TopEnd)
+                    .background(MISSING_AMBER, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) { Text("!", color = Color(0xFF06262B), fontWeight = FontWeight.Bold, fontSize = 11.sp) }
         }
     }
 }

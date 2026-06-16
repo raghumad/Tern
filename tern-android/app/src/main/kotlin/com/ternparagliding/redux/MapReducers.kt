@@ -55,6 +55,7 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
 
     // Task Management (TaskReducers.kt)
     is MapAction.AddTask,
+    is MapAction.AddImportedTask,
     is MapAction.RemoveTask,
     is MapAction.UpdateTask,
     is MapAction.SurfaceNearbyTasks,
