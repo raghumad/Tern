@@ -642,6 +642,10 @@ fun MapViewContainer(
                 cameraState = cameraState,
             )
 
+            // Standalone waypoint library — first-class map markers (tap → weather/
+            // Flyability), the same treatment PG spots get.
+            com.ternparagliding.overlay.waypoint.WaypointLibraryOverlay(store = store)
+
             // Thermal-hotspot overlay (kk7.ch) — colour-coded reliability dots
             com.ternparagliding.overlay.thermal.ThermalHotspotOverlay(
                 store = store,
