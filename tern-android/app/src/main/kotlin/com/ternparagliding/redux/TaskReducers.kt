@@ -217,6 +217,28 @@ internal fun handleWaypointActions(state: MapState, action: MapAction): MapState
         }
         state.copy(tasks = newTasks)
     }
+    is MapAction.AddLibraryWaypointsToTask -> {
+        // Append the chosen library waypoints (in pick order), stamping the
+        // libraryWaypointId link + carrying the code/name/alt across. Default role
+        // TURNPOINT; the pilot sets roles/cylinders/gates in the per-point editor.
+        val byId = state.waypointLibrary.associateBy { it.id }
+        val picked = action.waypointIds.mapNotNull { byId[it] }
+        val newTasks = state.tasks.map { task ->
+            if (task.id != action.taskId) task
+            else picked.fold(task) { acc, wp ->
+                acc.addWaypoint(
+                    lat = wp.lat,
+                    lon = wp.lon,
+                    type = LocationType.TURNPOINT,
+                    label = wp.code,
+                    description = wp.name,
+                    alt = wp.alt,
+                    libraryWaypointId = wp.id,
+                )
+            }
+        }
+        state.copy(tasks = newTasks)
+    }
     is MapAction.RemoveWaypoint -> {
         val newTasks = state.tasks.map { task ->
             if (task.id == action.taskId) task.removeWaypoint(action.waypointId) else task

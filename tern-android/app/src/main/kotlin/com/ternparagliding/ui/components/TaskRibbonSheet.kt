@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -68,6 +69,7 @@ fun TaskRibbonSheet(
     store: MapStore,
     onDismiss: () -> Unit,
     onManageTasks: () -> Unit,
+    onAddFromLibrary: () -> Unit,
 ) {
     val state by store.state.collectAsState()
     val task: Task = state.tasks.find { it.id == state.selectedTaskId } ?: return
@@ -103,6 +105,22 @@ fun TaskRibbonSheet(
             }
 
             Spacer(Modifier.height(8.dp))
+
+            if (task.waypoints.isEmpty()) {
+                // A freshly created task — guide the pilot straight to the library.
+                Text(
+                    "No waypoints in this task yet.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 15.sp,
+                )
+                Spacer(Modifier.height(12.dp))
+                Button(onClick = onAddFromLibrary, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Add from library")
+                }
+                return@Column
+            }
 
             // Next-WP read (name + distance), or task-complete.
             if (active != null) {
@@ -156,7 +174,16 @@ fun TaskRibbonSheet(
                 }
             }
 
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(16.dp))
+
+            // Add more waypoints from the library.
+            OutlinedButton(onClick = onAddFromLibrary, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Add from library")
+            }
+
+            Spacer(Modifier.height(12.dp))
 
             // Manual overrides: Back (revert) and Skip (advance).
             Row(

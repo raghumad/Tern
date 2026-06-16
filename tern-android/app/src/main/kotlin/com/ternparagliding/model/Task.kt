@@ -17,6 +17,11 @@ data class Waypoint(
      *  the description is the place ("Gold's Point"). Shown in preference to the
      *  code wherever there's room (e.g. the next-waypoint indicator). */
     val description: String? = null,
+    /** Link to a [LibraryWaypoint] this task point came from (Stage B reference
+     *  model). When set, the resolver prefers the library's identity (position,
+     *  code, name, alt); null = an ad-hoc point (map long-press) that owns its
+     *  own coordinates. */
+    val libraryWaypointId: String? = null,
     val createdAt: Instant = java.time.Instant.now(),
     val taskId: String? = null,
     val radius: Double? = com.ternparagliding.redux.TaskConstants.FAI_DEFAULT_RADIUS_METERS, // Default FAI cylinder radius in meters
@@ -117,7 +122,8 @@ data class Task(
         alt: Double? = null,
         openTime: String? = null,
         closeTime: String? = null,
-        description: String? = null
+        description: String? = null,
+        libraryWaypointId: String? = null
     ): Task {
         val newWaypoint = Waypoint(
             lat = lat,
@@ -125,6 +131,7 @@ data class Task(
             type = type,
             label = label,
             description = description,
+            libraryWaypointId = libraryWaypointId,
             taskId = this.id,
             id = id ?: UUID.randomUUID().toString(),
             radius = radius,

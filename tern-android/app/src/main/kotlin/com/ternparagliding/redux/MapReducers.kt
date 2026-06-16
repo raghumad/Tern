@@ -76,6 +76,7 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
 
     // Waypoint Management (TaskReducers.kt)
     is MapAction.AddWaypointToTask,
+    is MapAction.AddLibraryWaypointsToTask,
     is MapAction.RemoveWaypoint,
     is MapAction.UpdateWaypoint,
     is MapAction.UpdateWaypointType,

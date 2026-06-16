@@ -108,6 +108,9 @@ sealed class MapAction : TernAction {
 
     // Waypoint actions (for multi-waypoint tasks)
     data class AddWaypointToTask(val taskId: String, val lat: Double, val lon: Double, val type: LocationType = LocationType.TURNPOINT, val label: String? = null, val id: String? = null) : MapAction()
+    /** Stage B — append library waypoints (by id, in the given order) to a task,
+     *  stamping the libraryWaypointId link so the resolver can prefer library identity. */
+    data class AddLibraryWaypointsToTask(val taskId: String, val waypointIds: List<String>) : MapAction()
     data class RemoveWaypoint(val taskId: String, val waypointId: String) : MapAction()
     data class UpdateWaypoint(val taskId: String, val waypointId: String, val lat: Double? = null, val lon: Double? = null, val type: LocationType? = null, val label: String? = null) : MapAction()
     data class UpdateWaypointType(val taskId: String, val waypointId: String, val type: LocationType) : MapAction()
