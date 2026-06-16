@@ -76,6 +76,46 @@ class WaypointParserClaimsTest {
         assertThat(b01.alt!!).isWithin(1.0).of(2400.0) // 7874 ft → ~2400 m
     }
 
+    /** **CLAIM.** A FormatGEO .wpt imports (GpsDump / airtribune "FS" export):
+     *  "CODE  N DD MM SS  W DDD MM SS  ELEV  DESC". Real lcc26 sample, incl. a
+     *  West (negative) longitude. */
+    @Test
+    fun `formatgeo wpt parses dms rows with west longitude`() {
+        val wpt = """
+            ${'$'}FormatGEO
+            LW049     N 54 46 12.11    W 02 33 00.90    578   LW049
+            BS001     N 54 27 24.84    W 03 01 07.41    69    Grasmere LZ
+        """.trimIndent()
+
+        val wps = WaypointFileParser.parse("lcc26-coaching.FS.wpt", wpt)
+
+        assertThat(wps).hasSize(2)
+        val lw049 = wps.first { it.code == "LW049" }
+        assertThat(lw049.lat).isWithin(1e-4).of(54.7700)   // N 54°46'12"
+        assertThat(lw049.lon).isWithin(1e-4).of(-2.5503)   // W 02°33'01" → negative
+        assertThat(lw049.alt!!).isWithin(1.0).of(578.0)
+        val bs001 = wps.first { it.code == "BS001" }
+        assertThat(bs001.name).isEqualTo("Grasmere LZ")     // multi-word description
+    }
+
+    /** **CLAIM.** A SeeYou .cup with West/negative longitudes parses (lcc26 sample). */
+    @Test
+    fun `cup parses west longitude`() {
+        val cup = """
+            name,code,country,lat,lon,elev,style,rwdir,rwlen,freq,desc
+            "LW049",LW049,,5446.202N,00233.015W,578.0m,1,,,,"LW049"
+        """.trimIndent()
+
+        val wps = WaypointFileParser.parse("lcc26-coaching.SeeYou.cup", cup)
+
+        assertThat(wps).hasSize(1)
+        assertThat(wps[0].lat).isWithin(1e-4).of(54.7700)
+        assertThat(wps[0].lon).isWithin(1e-4).of(-2.5503)  // 002°33.015'W → negative
+        // name == code in this file → displayName falls back to the code (no redundant name).
+        assertThat(wps[0].name).isNull()
+        assertThat(wps[0].displayName).isEqualTo("LW049")
+    }
+
     /** **CLAIM.** A CompeGPS .wpt imports ("W code A lat lon ... alt desc"). */
     @Test
     fun `compegps wpt parses W rows`() {

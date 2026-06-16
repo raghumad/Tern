@@ -27,6 +27,7 @@ object WaypointFileParser {
         val head = content.take(2000)
         return when {
             head.contains("<gpx", ignoreCase = true) || head.contains("<wpt", ignoreCase = true) -> parseGpx(content)
+            head.contains("\$FormatGEO", ignoreCase = true) -> parseFormatGeo(content)
             head.contains("OziExplorer", ignoreCase = true) -> parseWpt(content)
             head.lineSequence().any { it.trimStart().startsWith("W ") || it.trimStart().startsWith("W\t") } -> parseWpt(content)
             head.contains("name", ignoreCase = true) && head.contains("code", ignoreCase = true) -> parseCup(content)
@@ -69,10 +70,41 @@ object WaypointFileParser {
         return if (hemi == 'S' || hemi == 'W') -dd else dd
     }
 
-    // ── WPT (OziExplorer or CompeGPS) ────────────────────────────────────────
-    fun parseWpt(content: String): List<LibraryWaypoint> =
-        if (content.lineSequence().any { it.trimStart().startsWith("W ") || it.trimStart().startsWith("W\t") })
-            parseCompeGpsWpt(content) else parseOziWpt(content)
+    // ── WPT (FormatGEO, OziExplorer, or CompeGPS) ────────────────────────────
+    fun parseWpt(content: String): List<LibraryWaypoint> = when {
+        content.contains("\$FormatGEO", ignoreCase = true) -> parseFormatGeo(content)
+        content.lineSequence().any { it.trimStart().startsWith("W ") || it.trimStart().startsWith("W\t") } -> parseCompeGpsWpt(content)
+        else -> parseOziWpt(content)
+    }
+
+    // FormatGEO (GpsDump / comp organisers — the "FS" .wpt airtribune issues):
+    //   $FormatGEO
+    //   CODE      N DD MM SS.ss   W DDD MM SS.ss   ELEV   DESC...
+    private fun parseFormatGeo(content: String): List<LibraryWaypoint> {
+        val out = mutableListOf<LibraryWaypoint>()
+        for (raw in content.lines()) {
+            val line = raw.trim()
+            if (line.isEmpty() || line.startsWith("$")) continue // $FormatGEO header / comments
+            val t = line.split(Regex("\\s+"))
+            if (t.size < 9) continue
+            val code = t[0]
+            val lat = dms(t[1], t[2], t[3], t[4]) ?: continue   // N DD MM SS
+            val lon = dms(t[5], t[6], t[7], t[8]) ?: continue   // W DDD MM SS
+            val alt = t.getOrNull(9)?.toDoubleOrNull()
+            val desc = if (t.size > 10) t.drop(10).joinToString(" ").trim().ifBlank { null } else null
+            out += libWp(code = code, name = desc, lat = lat, lon = lon, alt = alt)
+        }
+        return dedupe(out)
+    }
+
+    /** "N", "54", "46", "12.11" → 54.770…° (signed by hemisphere). */
+    private fun dms(hemi: String, deg: String, min: String, sec: String): Double? {
+        val d = deg.toDoubleOrNull() ?: return null
+        val m = min.toDoubleOrNull() ?: return null
+        val s = sec.toDoubleOrNull() ?: return null
+        val v = d + m / 60.0 + s / 3600.0
+        return if (hemi.uppercase() == "S" || hemi.uppercase() == "W") -v else v
+    }
 
     // OziExplorer: 4 header lines, then CSV rows:
     //   number,name,lat(dd),lon(dd),date,symbol,...,description(idx10),...,alt-ft(idx14)
