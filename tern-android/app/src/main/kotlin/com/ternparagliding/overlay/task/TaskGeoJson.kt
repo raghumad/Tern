@@ -105,8 +105,10 @@ object TaskGeoJson {
                 task.waypoints.mapNotNull { wp ->
                     val r = wp.radius ?: return@mapNotNull null
                     if (r <= 0.0) return@mapNotNull null
+                    val ring = circlePositions(wp.lat, wp.lon, r)
+                    if (ring.size < 4) return@mapNotNull null // degenerate (e.g. near a pole)
                     Feature(
-                        Polygon(listOf(circlePositions(wp.lat, wp.lon, r))),
+                        Polygon(listOf(ring)),
                         JsonObject(
                             mapOf(
                                 "type" to JsonPrimitive(wp.type.name),
@@ -161,13 +163,20 @@ object TaskGeoJson {
     ): List<Position> {
         val mPerDegLat = 111_320.0
         val mPerDegLon = mPerDegLat * cos(Math.toRadians(centerLat))
+        // Guard against a degenerate longitude scale near the poles (cos→0).
+        if (mPerDegLon == 0.0 || mPerDegLon.isNaN()) return emptyList()
         val ring = ArrayList<Position>(segments + 1)
-        for (i in 0..segments) {
+        for (i in 0 until segments) {
             val a = 2.0 * Math.PI * i / segments
             val dLat = radiusMeters * cos(a) / mPerDegLat
             val dLon = radiusMeters * Math.sin(a) / mPerDegLon
             ring.add(Position(centerLon + dLon, centerLat + dLat))
         }
+        // Close the ring EXACTLY (reuse the first point). Computing the closing
+        // point from angle 2π instead leaves a sub-ULP gap (sin 2π ≈ -2.4e-16) that
+        // isn't absorbed by rounding near lon/lat 0 — MapLibre then rejects the
+        // polygon as "not closed" and the whole map composition crashes.
+        if (ring.isNotEmpty()) ring.add(ring[0])
         return ring
     }
 
