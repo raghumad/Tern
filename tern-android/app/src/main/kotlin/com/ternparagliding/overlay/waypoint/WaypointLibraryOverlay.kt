@@ -22,6 +22,7 @@ import com.ternparagliding.weather.SiteContext
 @Composable
 fun WaypointLibraryOverlay(store: MapStore) {
     val state by store.state.collectAsState()
+    if (!state.overlayState.waypoints.enabled) return
     val library = state.waypointLibrary
     if (library.isEmpty()) return
 

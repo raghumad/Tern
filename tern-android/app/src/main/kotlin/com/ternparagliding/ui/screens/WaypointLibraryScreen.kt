@@ -147,7 +147,16 @@ fun WaypointLibraryScreen(
                 } else {
                     LazyColumn(Modifier.fillMaxWidth().weight(1f).padding(horizontal = 8.dp)) {
                         items(filtered, key = { it.id }) { wp ->
-                            WaypointRow(wp = wp, onDelete = { store.dispatch(MapAction.RemoveLibraryWaypoint(wp.id)) })
+                            WaypointRow(
+                                wp = wp,
+                                onLocate = {
+                                    // Centre the map on the waypoint and close the library so it's visible.
+                                    store.dispatch(MapAction.UpdateCenter(org.osmdroid.util.GeoPoint(wp.lat, wp.lon)))
+                                    store.dispatch(MapAction.UpdateZoom(13.0))
+                                    onDismiss()
+                                },
+                                onDelete = { store.dispatch(MapAction.RemoveLibraryWaypoint(wp.id)) },
+                            )
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                         }
                     }
@@ -164,9 +173,12 @@ fun WaypointLibraryScreen(
 }
 
 @Composable
-private fun WaypointRow(wp: LibraryWaypoint, onDelete: () -> Unit) {
+private fun WaypointRow(wp: LibraryWaypoint, onLocate: () -> Unit, onDelete: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 10.dp),
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onLocate) // tap the row → locate on the map
+            .padding(horizontal = 8.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {

@@ -216,6 +216,8 @@ data class OverlayState(
     val airspaces: OverlayConfig = OverlayConfig(enabled = true),
     val pgSpots: OverlayConfig = OverlayConfig(enabled = true),
     val tasks: OverlayConfig = OverlayConfig(enabled = true),
+    // Standalone waypoint library markers — on by default (the pilot imported them).
+    val waypoints: OverlayConfig = OverlayConfig(enabled = true),
     // Thermal hotspots (kk7.ch) — off by default; fetched on demand when enabled.
     val thermalHotspots: OverlayConfig = OverlayConfig(enabled = false)
 )

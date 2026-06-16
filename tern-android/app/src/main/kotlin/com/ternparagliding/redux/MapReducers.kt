@@ -314,6 +314,7 @@ private fun handleSettingsActions(state: MapState, action: MapAction): MapState 
             "airspaces" -> state.overlayState.copy(airspaces = state.overlayState.airspaces.copy(enabled = action.enabled))
             "hotspots" -> state.overlayState.copy(thermalHotspots = state.overlayState.thermalHotspots.copy(enabled = action.enabled))
             "pgspots" -> state.overlayState.copy(pgSpots = state.overlayState.pgSpots.copy(enabled = action.enabled))
+            "waypoints" -> state.overlayState.copy(waypoints = state.overlayState.waypoints.copy(enabled = action.enabled))
             else -> state.overlayState
         }
         state.copy(overlayState = newOverlayState)

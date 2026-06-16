@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AirplanemodeActive
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Tornado
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -203,6 +204,15 @@ fun SettingsSheet(
                         contentDescription = "PGSpots",
                         modifier = Modifier.size(24.dp)
                     )
+                }
+                SettingsToggleRow(
+                    text = "Waypoints",
+                    isChecked = state.overlayState.waypoints.enabled,
+                    onCheckedChange = { enabled ->
+                        store.dispatch(com.ternparagliding.redux.MapAction.SetSettingsOverlayEnabled("waypoints", enabled))
+                    }
+                ) {
+                    Icon(Icons.Filled.Place, contentDescription = "Waypoints")
                 }
                 HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
             }
