@@ -8,6 +8,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import com.ternparagliding.redux.MapAction
 import com.ternparagliding.redux.MapStore
+import com.ternparagliding.redux.resolvedTasks
 import kotlinx.coroutines.flow.conflate
 
 /**
@@ -50,7 +51,9 @@ fun TaskProgressOverlay(store: MapStore) {
                 }
 
                 val st = latestState.value
-                val task = taskId?.let { id -> st.tasks.find { it.id == id } } ?: return@collect
+                // Resolve library references so reach detection uses the live library
+                // position (Stage B2), not a possibly-stale stored copy.
+                val task = taskId?.let { id -> st.resolvedTasks().find { it.id == id } } ?: return@collect
                 if (own == null || task.waypoints.isEmpty()) return@collect
 
                 val next = TaskNavigator.nextWaypoint(task, tagged)

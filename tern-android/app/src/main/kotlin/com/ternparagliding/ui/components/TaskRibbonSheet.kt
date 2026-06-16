@@ -44,6 +44,7 @@ import com.ternparagliding.model.Waypoint
 import com.ternparagliding.overlay.task.cylinderColor
 import com.ternparagliding.redux.MapAction
 import com.ternparagliding.redux.MapStore
+import com.ternparagliding.redux.resolvedSelectedTask
 import com.ternparagliding.ui.theme.TernFontFamily
 import org.osmdroid.util.GeoPoint
 
@@ -72,7 +73,8 @@ fun TaskRibbonSheet(
     onAddFromLibrary: () -> Unit,
 ) {
     val state by store.state.collectAsState()
-    val task: Task = state.tasks.find { it.id == state.selectedTaskId } ?: return
+    // Resolve library references so the ribbon shows live library identity (Stage B2).
+    val task: Task = state.resolvedSelectedTask() ?: return
     val tagged = state.taggedWaypointIds
     val activeId = state.activeWaypointId
     val own = state.userLocation

@@ -29,6 +29,8 @@ import com.ternparagliding.model.LocationType
 import com.ternparagliding.overlay.airspace.AirspaceOverlay
 import com.ternparagliding.redux.MapAction
 import com.ternparagliding.redux.MapStore
+import com.ternparagliding.redux.resolvedSelectedTask
+import com.ternparagliding.redux.resolvedTasks
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -607,8 +609,9 @@ fun MapViewContainer(
             // overlapped at TopEnd on rotation. Keep the logo + attribution (OSM/Esri legal).
             options = MapOptions(ornamentOptions = OrnamentOptions(isCompassEnabled = false)),
         ) {
-            // Task overlay
-            val visibleTasks = state.tasks.filter { it.isVisible }
+            // Task overlay — resolve library references so linked points render at
+            // their current library position/identity (Stage B2).
+            val visibleTasks = state.resolvedTasks().filter { it.isVisible }
             if (visibleTasks.isNotEmpty()) {
                 com.ternparagliding.overlay.task.TaskLayer(
                     tasks = visibleTasks,
@@ -676,8 +679,8 @@ fun MapViewContainer(
         // off-screen edge chip below).
         com.ternparagliding.overlay.task.TaskProgressOverlay(store = store)
 
-        val activeWaypoint = remember(state.selectedTaskId, state.activeWaypointId, state.tasks) {
-            state.tasks.find { it.id == state.selectedTaskId }
+        val activeWaypoint = remember(state.selectedTaskId, state.activeWaypointId, state.tasks, state.waypointLibrary) {
+            state.resolvedSelectedTask()
                 ?.waypoints?.find { it.id == state.activeWaypointId }
         }
         activeWaypoint?.let { wp ->
@@ -705,12 +708,12 @@ fun MapViewContainer(
         // bearing/distance to the active waypoint and its task ordinal + place name.
         // Driven by the plain GPS fix (state.userLocation) so it works with or without
         // a vario, exactly like the off-screen chip.
-        val nextWpNav = remember(activeWaypoint, state.userLocation, state.selectedTaskId, state.tasks) {
+        val nextWpNav = remember(activeWaypoint, state.userLocation, state.selectedTaskId, state.tasks, state.waypointLibrary) {
             val wp = activeWaypoint
             val own = state.userLocation
             if (wp == null || own == null) null
             else {
-                val task = state.tasks.find { it.id == state.selectedTaskId }
+                val task = state.resolvedSelectedTask()
                 val ordinal = task?.waypoints?.indexOfFirst { it.id == wp.id }?.takeIf { it >= 0 }?.plus(1)
                 val target = GeoPoint(wp.lat, wp.lon)
                 NextWpNav(

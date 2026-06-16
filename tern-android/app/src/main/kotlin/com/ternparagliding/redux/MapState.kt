@@ -109,6 +109,19 @@ data class MapState(
     val flightDeck: FlightDeckState = FlightDeckState(),
 )
 
+/**
+ * Tasks with their library references resolved (Stage B2): linked task points take
+ * their identity (position/code/name/alt) from the current [waypointLibrary], so
+ * editing/re-importing a library waypoint flows into every task using it. Read
+ * paths (map rendering, nav, ribbon) should consume this, not raw [MapState.tasks].
+ */
+fun MapState.resolvedTasks(): List<Task> =
+    com.ternparagliding.overlay.task.TaskResolver.resolveAll(tasks, waypointLibrary)
+
+/** The selected task, with library references resolved. */
+fun MapState.resolvedSelectedTask(): Task? =
+    selectedTaskId?.let { id -> resolvedTasks().find { it.id == id } }
+
 /** Which sensor is currently the authority for own-position (battery/quality ladder). */
 enum class PositionSource { PHONE, XC_TRACER }
 

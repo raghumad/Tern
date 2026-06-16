@@ -10,6 +10,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.ternparagliding.redux.MapState
+import com.ternparagliding.redux.resolvedSelectedTask
 import com.ternparagliding.ui.theme.AeroGlass
 import com.ternparagliding.ui.theme.AeroSlate
 import androidx.compose.material.icons.Icons
@@ -31,8 +32,8 @@ fun TaskPlanningHUD(
     state: MapState,
     modifier: Modifier = Modifier
 ) {
-    val selectedTaskId = state.selectedTaskId
-    val task = state.tasks.find { it.id == selectedTaskId } ?: return
+    // Resolve library references so distance/geometry reflect the live library (Stage B2).
+    val task = state.resolvedSelectedTask() ?: return
 
     // HUD Content
     Card(

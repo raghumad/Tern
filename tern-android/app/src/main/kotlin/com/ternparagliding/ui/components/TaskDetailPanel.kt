@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.ternparagliding.redux.MapAction
 import com.ternparagliding.redux.MapStore
+import com.ternparagliding.redux.resolvedSelectedTask
 import com.ternparagliding.redux.WeatherActions
 import com.ternparagliding.utils.io.TaskIOManager
 import androidx.compose.runtime.LaunchedEffect
@@ -77,7 +78,8 @@ fun TaskDetailPanel(
 ) {
     val state by store.state.collectAsState()
     val selectedTaskId = state.selectedTaskId
-    val task = state.tasks.find { it.id == selectedTaskId }
+    // Resolve library references so the panel reflects the live library (Stage B2).
+    val task = state.resolvedSelectedTask()
     val context = LocalContext.current
     val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     var activeTab by remember(isVisible) { mutableStateOf(PlanningTab.DETAILS) }
