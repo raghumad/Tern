@@ -284,6 +284,45 @@ class MeshPacketCodecTest {
         assertThat(loraBoolField(configBytes, fieldNumber = 1)).isTrue()
     }
 
+    // ---------- MyNodeInfo (admin addressing) tests ----------
+
+    @Test
+    fun `decodeMyNodeNum reads the board node number from a FromRadio my_info frame`() {
+        // FromRadio { my_info = MyNodeInfo { my_node_num = 0x0fb88838 } }
+        // (proto3 uint32 → varint).
+        val myInfo = ProtoWriter().apply { writeVarintField(fieldNumber = 1, value = 0x0fb88838L) }.toByteArray()
+        val frame = ProtoWriter().apply { writeMessage(3, myInfo) }.toByteArray()
+
+        assertThat(MeshPacketCodec.decodeMyNodeNum(frame)).isEqualTo(0x0fb88838L)
+    }
+
+    @Test
+    fun `decodeMyNodeNum tolerates a fixed32-encoded my_node_num`() {
+        // Defensive: survive proto drift if a firmware encodes my_node_num as fixed32.
+        val myInfo = ProtoWriter().apply { writeFixed32(1, 0x0fb88838L) }.toByteArray()
+        val frame = ProtoWriter().apply { writeMessage(3, myInfo) }.toByteArray()
+
+        assertThat(MeshPacketCodec.decodeMyNodeNum(frame)).isEqualTo(0x0fb88838L)
+    }
+
+    @Test
+    fun `decodeMyNodeNum returns null for a non-my_info frame`() {
+        // An ordinary position packet says nothing about the board's own node.
+        val frame = buildFromRadioWithMeshPacket(
+            fromNodeNumber = antoineNodeNumber,
+            rxTime = rxTime,
+            portNum = MeshPacketCodec.PORT_POSITION_APP,
+            payload = MeshPacketCodec.encodePositionPayload(pos),
+        )
+
+        assertThat(MeshPacketCodec.decodeMyNodeNum(frame)).isNull()
+    }
+
+    @Test
+    fun `decodeMyNodeNum returns null for an empty frame`() {
+        assertThat(MeshPacketCodec.decodeMyNodeNum(ByteArray(0))).isNull()
+    }
+
     // ---------- helpers ----------
 
     /**

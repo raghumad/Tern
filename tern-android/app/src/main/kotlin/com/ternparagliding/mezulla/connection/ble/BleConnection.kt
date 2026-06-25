@@ -75,9 +75,9 @@ class BleConnection internal constructor(
      * that leaves the board half-open. Used by T2/T3.
      */
     override suspend fun rebootBoardForTest(rebootSeconds: Int) {
-        val boardNode = pairedBoardId?.removePrefix("!")?.toLongOrNull(16)
+        val boardNode = adminTargetNode()
         if (boardNode == null) {
-            android.util.Log.w("BleConnection", "rebootBoardForTest: no pairedBoardId — cannot address admin reboot")
+            android.util.Log.w("BleConnection", "rebootBoardForTest: no board node yet — cannot address admin reboot")
             return
         }
         val bytes = MeshPacketCodec.encodeToRadioReboot(boardNode, allocatePacketId(), rebootSeconds)
@@ -100,9 +100,9 @@ class BleConnection internal constructor(
             android.util.Log.w("BleConnection", "setTeam: link not UP ($linkState) — ignoring")
             return false
         }
-        val boardNode = pairedBoardId?.removePrefix("!")?.toLongOrNull(16)
+        val boardNode = adminTargetNode()
         if (boardNode == null) {
-            android.util.Log.w("BleConnection", "setTeam: no pairedBoardId — cannot address admin set_channel")
+            android.util.Log.w("BleConnection", "setTeam: no board node yet — cannot address admin set_channel")
             return false
         }
         val bytes = MeshPacketCodec.encodeToRadioSetChannel(boardNode, allocatePacketId(), name, psk)
@@ -130,9 +130,9 @@ class BleConnection internal constructor(
             android.util.Log.w("BleConnection", "setRegion: link not UP ($linkState) — ignoring")
             return false
         }
-        val boardNode = pairedBoardId?.removePrefix("!")?.toLongOrNull(16)
+        val boardNode = adminTargetNode()
         if (boardNode == null) {
-            android.util.Log.w("BleConnection", "setRegion: no pairedBoardId — cannot address admin set_config")
+            android.util.Log.w("BleConnection", "setRegion: no board node yet — cannot address admin set_config")
             return false
         }
         val bytes = MeshPacketCodec.encodeToRadioSetLoraConfig(boardNode, allocatePacketId(), regionCode)
@@ -188,6 +188,45 @@ class BleConnection internal constructor(
     @Volatile
     var boardRegion: Int? = null
         private set
+
+    /**
+     * The board's own node number, as reported in its `MyNodeInfo` during the
+     * handshake. This is the **authoritative** address for local admin commands
+     * (set_team / set_region / reboot): the firmware handles an admin packet
+     * locally only when `to` matches its own node number — otherwise it routes
+     * it out as a PKI direct message and drops it for lack of a key (NAK /
+     * Error=39), so the command never applies. The QR/pairing-derived
+     * [pairedBoardId] can disagree (observed on LilyGo/ESP32, whose QR
+     * advertises a node that differs from the firmware's real nodeNum), which is
+     * exactly why set_team was silently dropped. [adminTargetNode] prefers this
+     * value. Null until the my_info frame has been seen on this connection.
+     * Volatile: written from the transport-event coroutine, read from the
+     * setTeam / setRegion callers.
+     */
+    @Volatile
+    var boardNodeNumber: Long? = null
+        private set
+
+    /**
+     * The node number to address local admin commands to. Prefers the board's
+     * self-reported [boardNodeNumber] (from MyNodeInfo); falls back to the
+     * QR/pairing-derived [pairedBoardId] until the handshake reports it. Logs
+     * when the two disagree — that mismatch is what made admin packets get
+     * dropped as remote PKI DMs.
+     */
+    private fun adminTargetNode(): Long? {
+        val paired = pairedBoardId?.removePrefix("!")?.toLongOrNull(16)
+        val reported = boardNodeNumber
+        if (reported != null && paired != null && reported != paired) {
+            android.util.Log.w(
+                "BleConnection",
+                "admin target: board reports node 0x${reported.toString(16)} but pairedBoardId is " +
+                    "0x${paired.toString(16)} — using the board's reported node (admin to the QR node " +
+                    "is dropped as a remote DM)",
+            )
+        }
+        return reported ?: paired
+    }
 
     override fun events(): Flow<MeshEvent> = _events.asSharedFlow()
 
@@ -284,6 +323,10 @@ class BleConnection internal constructor(
                 // reconcile region to the pilot's GPS fix. Cheap on hot frames:
                 // a position packet is one tag read + one skip before null.
                 MeshPacketCodec.decodeLoraRegion(event.bytes)?.let { boardRegion = it }
+                // Capture the board's own node number from MyNodeInfo so we
+                // address admin commands (set_team / set_region) to the real
+                // node, not the QR-derived id which can be wrong (LilyGo).
+                MeshPacketCodec.decodeMyNodeNum(event.bytes)?.let { boardNodeNumber = it }
                 val decoded = MeshPacketCodec.decodeFromRadio(event.bytes) ?: return
                 // Internal handshake signal — fire the awaiting deferred
                 // BEFORE emitting to consumers so the handshake driver

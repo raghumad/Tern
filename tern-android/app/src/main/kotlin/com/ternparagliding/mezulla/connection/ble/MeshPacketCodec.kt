@@ -90,8 +90,12 @@ internal object MeshPacketCodec {
 
     // FromRadio variant field numbers.
     private const val F_FROMRADIO_PACKET = 2
+    private const val F_FROMRADIO_MY_INFO = 3
     private const val F_FROMRADIO_NODE_INFO = 4
     private const val F_FROMRADIO_CONFIG = 5
+
+    // MyNodeInfo field numbers (subset) — see meshtastic/mesh.proto.
+    private const val F_MYNODEINFO_MY_NODE_NUM = 1
 
     // ToRadio variant field numbers.
     private const val F_TORADIO_PACKET = 1
@@ -205,6 +209,56 @@ internal object MeshPacketCodec {
             reader.skipField(wire)
         }
         return null
+    }
+
+    /**
+     * Read the board's own node number from a `FromRadio.my_info` (MyNodeInfo)
+     * frame, streamed once near the start of the handshake config bundle.
+     *
+     * This is the **authoritative** address for local admin commands
+     * (`set_channel` / `set_config`): the firmware handles an admin packet
+     * locally only when `to` equals its own node number — otherwise it routes
+     * the packet out as a PKI direct message and, lacking a key for that
+     * "destination", drops it (NAK / Error=39). The QR/pairing-derived board id
+     * can disagree with the real node number (observed on LilyGo/ESP32, whose
+     * QR advertises a node that differs from the firmware's actual nodeNum), so
+     * we prefer this value for admin addressing (see
+     * [com.ternparagliding.mezulla.connection.ble.BleConnection]).
+     *
+     * Returns the node number, or null when this frame isn't a my_info frame.
+     * Tolerant of either varint (proto3 `uint32`) or fixed32 encoding for
+     * `my_node_num` to survive firmware proto drift.
+     */
+    fun decodeMyNodeNum(fromRadioBytes: ByteArray): Long? {
+        if (fromRadioBytes.isEmpty()) return null
+        val reader = ProtoReader(fromRadioBytes)
+        while (reader.hasMore()) {
+            val tag = reader.readTag()
+            val field = tag ushr 3
+            val wire = tag and 0x7
+            if (field == F_FROMRADIO_MY_INFO && wire == Proto.WIRE_LENGTH_DELIMITED) {
+                return decodeMyNodeNumFromMyInfo(reader.readLengthDelimited())
+            }
+            reader.skipField(wire)
+        }
+        return null
+    }
+
+    /** Pull `my_node_num` out of a `MyNodeInfo` body. */
+    private fun decodeMyNodeNumFromMyInfo(bytes: ByteArray): Long? {
+        val reader = ProtoReader(bytes)
+        var num: Long? = null
+        while (reader.hasMore()) {
+            val tag = reader.readTag()
+            val field = tag ushr 3
+            val wire = tag and 0x7
+            when {
+                field == F_MYNODEINFO_MY_NODE_NUM && wire == Proto.WIRE_VARINT -> num = reader.readVarint()
+                field == F_MYNODEINFO_MY_NODE_NUM && wire == Proto.WIRE_FIXED32 -> num = reader.readFixed32()
+                else -> reader.skipField(wire)
+            }
+        }
+        return num
     }
 
     /** Pull `lora.region` out of a `Config` body, or null if this Config isn't the LoRa variant. */
