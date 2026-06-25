@@ -1,0 +1,1522 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx
+  version="1.0"
+  creator="GPSBabel - http://www.gpsbabel.org"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns="http://www.topografix.com/GPX/1/0"
+  xsi:schemaLocation="http://www.topografix.com/GPX/1/0 http://www.topografix.com/GPX/1/0/gpx.xsd">
+<time>2026-06-12T00:56:36Z</time>
+<bounds minlat="45.000326820" minlon="-124.625793078" maxlat="50.688836739" maxlon="-115.665524489"/>
+<wpt lat="48.477851886" lon="-120.849778547">
+  <ele>909.700000</ele>
+  <name>GR201</name>
+  <cmt>GR201</cmt>
+  <desc>GR201</desc>
+</wpt>
+<wpt lat="48.249474282" lon="-120.845100051">
+  <ele>1980.700000</ele>
+  <name>GR301</name>
+  <cmt>GR301</cmt>
+  <desc>GR301</desc>
+</wpt>
+<wpt lat="48.021579678" lon="-120.847420677">
+  <ele>1182.300000</ele>
+  <name>GR401</name>
+  <cmt>GR401</cmt>
+  <desc>GR401</desc>
+</wpt>
+<wpt lat="47.805959314" lon="-120.839101239">
+  <ele>1756.500000</ele>
+  <name>GR501</name>
+  <cmt>GR501</cmt>
+  <desc>GR501</desc>
+</wpt>
+<wpt lat="47.572688876" lon="-120.826667365">
+  <ele>1614.800000</ele>
+  <name>GR601</name>
+  <cmt>GR601</cmt>
+  <desc>GR601</desc>
+</wpt>
+<wpt lat="47.340059201" lon="-120.823240297">
+  <ele>1004.000000</ele>
+  <name>GR701</name>
+  <cmt>GR701</cmt>
+  <desc>GR701</desc>
+</wpt>
+<wpt lat="47.146062504" lon="-120.815554897">
+  <ele>677.400000</ele>
+  <name>GR801</name>
+  <cmt>GR801</cmt>
+  <desc>GR801</desc>
+</wpt>
+<wpt lat="46.931018431" lon="-120.797428331">
+  <ele>1088.600000</ele>
+  <name>GR901</name>
+  <cmt>GR901</cmt>
+  <desc>GR901</desc>
+</wpt>
+<wpt lat="48.732450463" lon="-119.508991672">
+  <ele>700.500000</ele>
+  <name>GR104</name>
+  <cmt>GR104</cmt>
+  <desc>GR104</desc>
+</wpt>
+<wpt lat="48.739655650" lon="-119.128499424">
+  <ele>1324.400000</ele>
+  <name>GR105</name>
+  <cmt>GR105</cmt>
+  <desc>GR105</desc>
+</wpt>
+<wpt lat="48.739846423" lon="-118.801488327">
+  <ele>1220.600000</ele>
+  <name>GR106</name>
+  <cmt>GR106</cmt>
+  <desc>GR106</desc>
+</wpt>
+<wpt lat="48.745324971" lon="-118.494077504">
+  <ele>1576.100000</ele>
+  <name>GR107</name>
+  <cmt>GR107</cmt>
+  <desc>GR107</desc>
+</wpt>
+<wpt lat="48.747220584" lon="-118.198677431">
+  <ele>1069.000000</ele>
+  <name>GR108</name>
+  <cmt>GR108</cmt>
+  <desc>GR108</desc>
+</wpt>
+<wpt lat="48.747630762" lon="-117.930458285">
+  <ele>906.300000</ele>
+  <name>GR109</name>
+  <cmt>GR109</cmt>
+  <desc>GR109</desc>
+</wpt>
+<wpt lat="48.498077405" lon="-120.335750172">
+  <ele>1243.400000</ele>
+  <name>GR202</name>
+  <cmt>GR202</cmt>
+  <desc>GR202</desc>
+</wpt>
+<wpt lat="48.503118993" lon="-119.899132132">
+  <ele>2187.900000</ele>
+  <name>GR203</name>
+  <cmt>GR203</cmt>
+  <desc>GR203</desc>
+</wpt>
+<wpt lat="48.504993162" lon="-119.500274225">
+  <ele>266.200000</ele>
+  <name>GR204</name>
+  <cmt>GR204</cmt>
+  <desc>GR204</desc>
+</wpt>
+<wpt lat="48.501159069" lon="-119.113883873">
+  <ele>1645.000000</ele>
+  <name>GR205</name>
+  <cmt>GR205</cmt>
+  <desc>GR205</desc>
+</wpt>
+<wpt lat="48.502742278" lon="-118.778453181">
+  <ele>1127.000000</ele>
+  <name>GR206</name>
+  <cmt>GR206</cmt>
+  <desc>GR206</desc>
+</wpt>
+<wpt lat="48.509654800" lon="-118.464951736">
+  <ele>1862.400000</ele>
+  <name>GR207</name>
+  <cmt>GR207</cmt>
+  <desc>GR207</desc>
+</wpt>
+<wpt lat="48.513705470" lon="-118.160231573">
+  <ele>390.300000</ele>
+  <name>GR208</name>
+  <cmt>GR208</cmt>
+  <desc>GR208</desc>
+</wpt>
+<wpt lat="48.511451372" lon="-117.868130930">
+  <ele>638.200000</ele>
+  <name>GR209</name>
+  <cmt>GR209</cmt>
+  <desc>GR209</desc>
+</wpt>
+<wpt lat="48.256945345" lon="-120.348748498">
+  <ele>2102.200000</ele>
+  <name>GR302</name>
+  <cmt>GR302</cmt>
+  <desc>GR302</desc>
+</wpt>
+<wpt lat="48.267886905" lon="-119.891003251">
+  <ele>979.300000</ele>
+  <name>GR303</name>
+  <cmt>GR303</cmt>
+  <desc>GR303</desc>
+</wpt>
+<wpt lat="48.264988120" lon="-119.492977965">
+  <ele>887.800000</ele>
+  <name>GR304</name>
+  <cmt>GR304</cmt>
+  <desc>GR304</desc>
+</wpt>
+<wpt lat="48.272036011" lon="-119.098510616">
+  <ele>1174.400000</ele>
+  <name>GR305</name>
+  <cmt>GR305</cmt>
+  <desc>GR305</desc>
+</wpt>
+<wpt lat="48.271491432" lon="-118.740436436">
+  <ele>1077.500000</ele>
+  <name>GR306</name>
+  <cmt>GR306</cmt>
+  <desc>GR306</desc>
+</wpt>
+<wpt lat="48.269839552" lon="-118.422684013">
+  <ele>817.800000</ele>
+  <name>GR307</name>
+  <cmt>GR307</cmt>
+  <desc>GR307</desc>
+</wpt>
+<wpt lat="48.273697701" lon="-118.093910648">
+  <ele>905.700000</ele>
+  <name>GR308</name>
+  <cmt>GR308</cmt>
+  <desc>GR308</desc>
+</wpt>
+<wpt lat="48.274592853" lon="-117.816530575">
+  <ele>998.900000</ele>
+  <name>GR309</name>
+  <cmt>GR309</cmt>
+  <desc>GR309</desc>
+</wpt>
+<wpt lat="48.747082105" lon="-117.612922001">
+  <ele>1178.400000</ele>
+  <name>GR110</name>
+  <cmt>GR110</cmt>
+  <desc>GR110</desc>
+</wpt>
+<wpt lat="48.515856565" lon="-117.571732794">
+  <ele>1221.300000</ele>
+  <name>GR210</name>
+  <cmt>GR210</cmt>
+  <desc>GR210</desc>
+</wpt>
+<wpt lat="48.269440432" lon="-117.495873297">
+  <ele>1129.800000</ele>
+  <name>GR310</name>
+  <cmt>GR310</cmt>
+  <desc>GR310</desc>
+</wpt>
+<wpt lat="48.960679152" lon="-121.235940302">
+  <ele>2060.200000</ele>
+  <name>GR000</name>
+  <cmt>GR000</cmt>
+  <desc>GR000</desc>
+</wpt>
+<wpt lat="48.722023958" lon="-121.221264472">
+  <ele>1405.800000</ele>
+  <name>GR100</name>
+  <cmt>GR100</cmt>
+  <desc>GR100</desc>
+</wpt>
+<wpt lat="48.476729394" lon="-121.225890881">
+  <ele>457.300000</ele>
+  <name>GR200</name>
+  <cmt>GR200</cmt>
+  <desc>GR200</desc>
+</wpt>
+<wpt lat="48.232106713" lon="-121.210396839">
+  <ele>1574.200000</ele>
+  <name>GR300</name>
+  <cmt>GR300</cmt>
+  <desc>GR300</desc>
+</wpt>
+<wpt lat="48.012865405" lon="-121.198871113">
+  <ele>1461.600000</ele>
+  <name>GR400</name>
+  <cmt>GR400</cmt>
+  <desc>GR400</desc>
+</wpt>
+<wpt lat="47.793941821" lon="-121.190053590">
+  <ele>1422.900000</ele>
+  <name>GR500</name>
+  <cmt>GR500</cmt>
+  <desc>GR500</desc>
+</wpt>
+<wpt lat="47.562094798" lon="-121.174268602">
+  <ele>2280.100000</ele>
+  <name>GR600</name>
+  <cmt>GR600</cmt>
+  <desc>GR600</desc>
+</wpt>
+<wpt lat="47.338331901" lon="-121.169257422">
+  <ele>1397.800000</ele>
+  <name>GR700</name>
+  <cmt>GR700</cmt>
+  <desc>GR700</desc>
+</wpt>
+<wpt lat="47.132464588" lon="-121.156467282">
+  <ele>1666.600000</ele>
+  <name>GR800</name>
+  <cmt>GR800</cmt>
+  <desc>GR800</desc>
+</wpt>
+<wpt lat="46.912309330" lon="-121.152094503">
+  <ele>1516.300000</ele>
+  <name>GR900</name>
+  <cmt>GR900</cmt>
+  <desc>GR900</desc>
+</wpt>
+<wpt lat="48.041085010" lon="-117.519134533">
+  <ele>722.000000</ele>
+  <name>GR410</name>
+  <cmt>GR410</cmt>
+  <desc>GR410</desc>
+</wpt>
+<wpt lat="48.031201015" lon="-120.355520109">
+  <ele>336.000000</ele>
+  <name>GR402</name>
+  <cmt>GR402</cmt>
+  <desc>GR402</desc>
+</wpt>
+<wpt lat="47.810064754" lon="-120.355902758">
+  <ele>775.400000</ele>
+  <name>GR502</name>
+  <cmt>GR502</cmt>
+  <desc>GR502</desc>
+</wpt>
+<wpt lat="47.576057412" lon="-120.353616573">
+  <ele>509.000000</ele>
+  <name>GR602</name>
+  <cmt>GR602</cmt>
+  <desc>GR602</desc>
+</wpt>
+<wpt lat="48.030578595" lon="-119.872533778">
+  <ele>302.000000</ele>
+  <name>GR403</name>
+  <cmt>GR403</cmt>
+  <desc>GR403</desc>
+</wpt>
+<wpt lat="47.811956317" lon="-119.863515712">
+  <ele>894.600000</ele>
+  <name>GR503</name>
+  <cmt>GR503</cmt>
+  <desc>GR503</desc>
+</wpt>
+<wpt lat="48.038327963" lon="-119.482587213">
+  <ele>711.800000</ele>
+  <name>GR404</name>
+  <cmt>GR404</cmt>
+  <desc>GR404</desc>
+</wpt>
+<wpt lat="47.807855295" lon="-119.474781414">
+  <ele>657.000000</ele>
+  <name>GR504</name>
+  <cmt>GR504</cmt>
+  <desc>GR504</desc>
+</wpt>
+<wpt lat="47.583270414" lon="-119.852540809">
+  <ele>709.100000</ele>
+  <name>GR603</name>
+  <cmt>GR603</cmt>
+  <desc>GR603</desc>
+</wpt>
+<wpt lat="47.591752905" lon="-119.463550896">
+  <ele>787.700000</ele>
+  <name>GR604</name>
+  <cmt>GR604</cmt>
+  <desc>GR604</desc>
+</wpt>
+<wpt lat="48.050197163" lon="-119.097845880">
+  <ele>795.600000</ele>
+  <name>GR405</name>
+  <cmt>GR405</cmt>
+  <desc>GR405</desc>
+</wpt>
+<wpt lat="48.045609174" lon="-118.701293178">
+  <ele>767.100000</ele>
+  <name>GR406</name>
+  <cmt>GR406</cmt>
+  <desc>GR406</desc>
+</wpt>
+<wpt lat="48.047610811" lon="-118.377582820">
+  <ele>422.200000</ele>
+  <name>GR407</name>
+  <cmt>GR407</cmt>
+  <desc>GR407</desc>
+</wpt>
+<wpt lat="48.058413351" lon="-118.062830899">
+  <ele>1333.900000</ele>
+  <name>GR408</name>
+  <cmt>GR408</cmt>
+  <desc>GR408</desc>
+</wpt>
+<wpt lat="48.053376740" lon="-117.772358202">
+  <ele>639.800000</ele>
+  <name>GR409</name>
+  <cmt>GR409</cmt>
+  <desc>GR409</desc>
+</wpt>
+<wpt lat="47.348355668" lon="-120.381158223">
+  <ele>824.700000</ele>
+  <name>GR702</name>
+  <cmt>GR702</cmt>
+  <desc>GR702</desc>
+</wpt>
+<wpt lat="47.139024686" lon="-120.397598219">
+  <ele>1095.700000</ele>
+  <name>GR802</name>
+  <cmt>GR802</cmt>
+  <desc>GR802</desc>
+</wpt>
+<wpt lat="46.934017165" lon="-120.395460050">
+  <ele>495.800000</ele>
+  <name>GR902</name>
+  <cmt>GR902</cmt>
+  <desc>GR902</desc>
+</wpt>
+<wpt lat="47.348817707" lon="-119.857172046">
+  <ele>646.700000</ele>
+  <name>GR703</name>
+  <cmt>GR703</cmt>
+  <desc>GR703</desc>
+</wpt>
+<wpt lat="47.354910748" lon="-119.461706749">
+  <ele>362.000000</ele>
+  <name>GR704</name>
+  <cmt>GR704</cmt>
+  <desc>GR704</desc>
+</wpt>
+<wpt lat="47.150151467" lon="-119.858558129">
+  <ele>381.700000</ele>
+  <name>GR803</name>
+  <cmt>GR803</cmt>
+  <desc>GR803</desc>
+</wpt>
+<wpt lat="47.157316674" lon="-119.468329909">
+  <ele>356.300000</ele>
+  <name>GR804</name>
+  <cmt>GR804</cmt>
+  <desc>GR804</desc>
+</wpt>
+<wpt lat="46.928149973" lon="-119.861574585">
+  <ele>316.000000</ele>
+  <name>GR903</name>
+  <cmt>GR903</cmt>
+  <desc>GR903</desc>
+</wpt>
+<wpt lat="46.930697620" lon="-119.470067349">
+  <ele>354.800000</ele>
+  <name>GR904</name>
+  <cmt>GR904</cmt>
+  <desc>GR904</desc>
+</wpt>
+<wpt lat="47.801218798" lon="-119.096105300">
+  <ele>725.000000</ele>
+  <name>GR505</name>
+  <cmt>GR505</cmt>
+  <desc>GR505</desc>
+</wpt>
+<wpt lat="47.589297871" lon="-119.090066257">
+  <ele>572.300000</ele>
+  <name>GR605</name>
+  <cmt>GR605</cmt>
+  <desc>GR605</desc>
+</wpt>
+<wpt lat="47.363654728" lon="-119.086381720">
+  <ele>469.500000</ele>
+  <name>GR705</name>
+  <cmt>GR705</cmt>
+  <desc>GR705</desc>
+</wpt>
+<wpt lat="47.157797763" lon="-119.080406393">
+  <ele>382.600000</ele>
+  <name>GR805</name>
+  <cmt>GR805</cmt>
+  <desc>GR805</desc>
+</wpt>
+<wpt lat="46.930436396" lon="-119.081239322">
+  <ele>379.200000</ele>
+  <name>GR905</name>
+  <cmt>GR905</cmt>
+  <desc>GR905</desc>
+</wpt>
+<wpt lat="47.810819829" lon="-118.707723813">
+  <ele>703.800000</ele>
+  <name>GR506</name>
+  <cmt>GR506</cmt>
+  <desc>GR506</desc>
+</wpt>
+<wpt lat="47.589561764" lon="-118.708018578">
+  <ele>636.000000</ele>
+  <name>GR606</name>
+  <cmt>GR606</cmt>
+  <desc>GR606</desc>
+</wpt>
+<wpt lat="47.354789933" lon="-118.715087952">
+  <ele>553.600000</ele>
+  <name>GR706</name>
+  <cmt>GR706</cmt>
+  <desc>GR706</desc>
+</wpt>
+<wpt lat="47.153536281" lon="-118.714964815">
+  <ele>539.600000</ele>
+  <name>GR806</name>
+  <cmt>GR806</cmt>
+  <desc>GR806</desc>
+</wpt>
+<wpt lat="46.928256194" lon="-118.706134063">
+  <ele>525.700000</ele>
+  <name>GR906</name>
+  <cmt>GR906</cmt>
+  <desc>GR906</desc>
+</wpt>
+<wpt lat="47.804018436" lon="-118.377234947">
+  <ele>648.500000</ele>
+  <name>GR507</name>
+  <cmt>GR507</cmt>
+  <desc>GR507</desc>
+</wpt>
+<wpt lat="47.593078110" lon="-118.384085295">
+  <ele>714.600000</ele>
+  <name>GR607</name>
+  <cmt>GR607</cmt>
+  <desc>GR607</desc>
+</wpt>
+<wpt lat="47.356766617" lon="-118.376117791">
+  <ele>637.600000</ele>
+  <name>GR707</name>
+  <cmt>GR707</cmt>
+  <desc>GR707</desc>
+</wpt>
+<wpt lat="47.157532205" lon="-118.365944074">
+  <ele>587.600000</ele>
+  <name>GR807</name>
+  <cmt>GR807</cmt>
+  <desc>GR807</desc>
+</wpt>
+<wpt lat="46.931145035" lon="-118.364944335">
+  <ele>523.400000</ele>
+  <name>GR907</name>
+  <cmt>GR907</cmt>
+  <desc>GR907</desc>
+</wpt>
+<wpt lat="47.802462449" lon="-118.058121689">
+  <ele>500.800000</ele>
+  <name>GR508</name>
+  <cmt>GR508</cmt>
+  <desc>GR508</desc>
+</wpt>
+<wpt lat="47.596979798" lon="-118.056147540">
+  <ele>757.600000</ele>
+  <name>GR608</name>
+  <cmt>GR608</cmt>
+  <desc>GR608</desc>
+</wpt>
+<wpt lat="47.363050648" lon="-118.049546814">
+  <ele>679.200000</ele>
+  <name>GR708</name>
+  <cmt>GR708</cmt>
+  <desc>GR708</desc>
+</wpt>
+<wpt lat="47.153328675" lon="-118.045792859">
+  <ele>560.000000</ele>
+  <name>GR808</name>
+  <cmt>GR808</cmt>
+  <desc>GR808</desc>
+</wpt>
+<wpt lat="46.945574248" lon="-118.042007426">
+  <ele>475.100000</ele>
+  <name>GR908</name>
+  <cmt>GR908</cmt>
+  <desc>GR908</desc>
+</wpt>
+<wpt lat="47.805400462" lon="-117.742505046">
+  <ele>636.000000</ele>
+  <name>GR509</name>
+  <cmt>GR509</cmt>
+  <desc>GR509</desc>
+</wpt>
+<wpt lat="47.599096043" lon="-117.741936101">
+  <ele>729.800000</ele>
+  <name>GR609</name>
+  <cmt>GR609</cmt>
+  <desc>GR609</desc>
+</wpt>
+<wpt lat="47.359256850" lon="-117.736876755">
+  <ele>665.900000</ele>
+  <name>GR709</name>
+  <cmt>GR709</cmt>
+  <desc>GR709</desc>
+</wpt>
+<wpt lat="47.158701668" lon="-117.725314900">
+  <ele>589.200000</ele>
+  <name>GR809</name>
+  <cmt>GR809</cmt>
+  <desc>GR809</desc>
+</wpt>
+<wpt lat="46.936927573" lon="-117.722906897">
+  <ele>501.100000</ele>
+  <name>GR909</name>
+  <cmt>GR909</cmt>
+  <desc>GR909</desc>
+</wpt>
+<wpt lat="47.799752303" lon="-117.465057383">
+  <ele>770.600000</ele>
+  <name>GR510</name>
+  <cmt>GR510</cmt>
+  <desc>GR510</desc>
+</wpt>
+<wpt lat="47.600750726" lon="-117.450296974">
+  <ele>693.200000</ele>
+  <name>GR610</name>
+  <cmt>GR610</cmt>
+  <desc>GR610</desc>
+</wpt>
+<wpt lat="47.358102738" lon="-117.420799926">
+  <ele>780.000000</ele>
+  <name>GR710</name>
+  <cmt>GR710</cmt>
+  <desc>GR710</desc>
+</wpt>
+<wpt lat="47.153157754" lon="-117.421758291">
+  <ele>730.000000</ele>
+  <name>GR810</name>
+  <cmt>GR810</cmt>
+  <desc>GR810</desc>
+</wpt>
+<wpt lat="46.933284857" lon="-117.423072081">
+  <ele>587.700000</ele>
+  <name>GR910</name>
+  <cmt>GR910</cmt>
+  <desc>GR910</desc>
+</wpt>
+<wpt lat="47.641889000" lon="-120.216250000">
+  <ele>234.100000</ele>
+  <name>ORNDLZ</name>
+  <cmt>ORNDLZ</cmt>
+  <desc>ORNDLZ</desc>
+</wpt>
+<wpt lat="47.677338000" lon="-120.205292000">
+  <ele>218.200000</ele>
+  <name>ENTLZ</name>
+  <cmt>ENTLZ</cmt>
+  <desc>ENTLZ</desc>
+</wpt>
+<wpt lat="47.705507000" lon="-120.202488000">
+  <ele>219.500000</ele>
+  <name>DRGALZ</name>
+  <cmt>DRGALZ</cmt>
+  <desc>DRGALZ</desc>
+</wpt>
+<wpt lat="47.813223000" lon="-119.925398000">
+  <ele>879.800000</ele>
+  <name>HOBINN</name>
+  <cmt>HOBINN</cmt>
+  <desc>HOBINN</desc>
+</wpt>
+<wpt lat="47.809853000" lon="-119.941363000">
+  <ele>947.900000</ele>
+  <name>TONGUE</name>
+  <cmt>TONGUE</cmt>
+  <desc>TONGUE</desc>
+</wpt>
+<wpt lat="47.848193000" lon="-119.900566000">
+  <ele>889.500000</ele>
+  <name>ANGELR</name>
+  <cmt>ANGELR</cmt>
+  <desc>ANGELR</desc>
+</wpt>
+<wpt lat="47.771327000" lon="-119.972524000">
+  <ele>849.300000</ele>
+  <name>PYRAMD</name>
+  <cmt>PYRAMD</cmt>
+  <desc>PYRAMD</desc>
+</wpt>
+<wpt lat="47.790023000" lon="-119.910576000">
+  <ele>929.900000</ele>
+  <name>G12RD</name>
+  <cmt>G12RD</cmt>
+  <desc>G12RD</desc>
+</wpt>
+<wpt lat="47.763014000" lon="-120.168399000">
+  <ele>219.700000</ele>
+  <name>SUNCLZ</name>
+  <cmt>SUNCLZ</cmt>
+  <desc>SUNCLZ</desc>
+</wpt>
+<wpt lat="47.770770000" lon="-120.127267000">
+  <ele>246.500000</ele>
+  <name>SANDLZ</name>
+  <cmt>SANDLZ</cmt>
+  <desc>SANDLZ</desc>
+</wpt>
+<wpt lat="47.617382000" lon="-119.282999000">
+  <ele>490.100000</ele>
+  <name>COULLZ</name>
+  <cmt>COULLZ</cmt>
+  <desc>COULLZ</desc>
+</wpt>
+<wpt lat="47.861505000" lon="-119.978124000">
+  <ele>979.700000</ele>
+  <name>DEERMT</name>
+  <cmt>DEERMT</cmt>
+  <desc>DEERMT</desc>
+</wpt>
+<wpt lat="47.836786000" lon="-119.981840000">
+  <ele>391.400000</ele>
+  <name>VOLCMP</name>
+  <cmt>VOLCMP</cmt>
+  <desc>VOLCMP</desc>
+</wpt>
+<wpt lat="47.842614000" lon="-119.995197000">
+  <ele>400.100000</ele>
+  <name>WALMLZ</name>
+  <cmt>WALMLZ</cmt>
+  <desc>WALMLZ</desc>
+</wpt>
+<wpt lat="49.288700880" lon="-123.096654213">
+  <ele>7.500000</ele>
+  <name>VANCVR</name>
+  <cmt>VANCVR</cmt>
+  <desc>VANCVR</desc>
+</wpt>
+<wpt lat="47.685236000" lon="-120.266350000">
+  <ele>905.300000</ele>
+  <name>DKMESA</name>
+  <cmt>DKMESA</cmt>
+  <desc>DKMESA</desc>
+</wpt>
+<wpt lat="47.766204000" lon="-118.716055000">
+  <ele>672.000000</ele>
+  <name>WILBLZ</name>
+  <cmt>WILBLZ</cmt>
+  <desc>WILBLZ</desc>
+</wpt>
+<wpt lat="47.903360985" lon="-124.625793078">
+  <ele>32.100000</ele>
+  <name>LAPUSH</name>
+  <cmt>LAPUSH</cmt>
+  <desc>LAPUSH</desc>
+</wpt>
+<wpt lat="45.450502814" lon="-123.801241445">
+  <ele>17.700000</ele>
+  <name>TILAMK</name>
+  <cmt>TILAMK</cmt>
+  <desc>TILAMK</desc>
+</wpt>
+<wpt lat="45.000326820" lon="-120.201138661">
+  <ele>847.700000</ele>
+  <name>FOSSIL</name>
+  <cmt>FOSSIL</cmt>
+  <desc>FOSSIL</desc>
+</wpt>
+<wpt lat="45.264288307" lon="-115.665524489">
+  <ele>1854.600000</ele>
+  <name>WARREN</name>
+  <cmt>WARREN</cmt>
+  <desc>WARREN</desc>
+</wpt>
+<wpt lat="48.001355961" lon="-115.757941635">
+  <ele>790.200000</ele>
+  <name>NOXON</name>
+  <cmt>NOXON</cmt>
+  <desc>NOXON</desc>
+</wpt>
+<wpt lat="49.668326565" lon="-115.970508320">
+  <ele>1065.400000</ele>
+  <name>KIMBRL</name>
+  <cmt>KIMBRL</cmt>
+  <desc>KIMBRL</desc>
+</wpt>
+<wpt lat="50.268440683" lon="-119.228752624">
+  <ele>496.000000</ele>
+  <name>VERNON</name>
+  <cmt>VERNON</cmt>
+  <desc>VERNON</desc>
+</wpt>
+<wpt lat="50.320781580" lon="-122.792359518">
+  <ele>209.800000</ele>
+  <name>PEMBTN</name>
+  <cmt>PEMBTN</cmt>
+  <desc>PEMBTN</desc>
+</wpt>
+<wpt lat="46.220799930" lon="-119.058445380">
+  <ele>121.900000</ele>
+  <name>KENWCK</name>
+  <cmt>KENWCK</cmt>
+  <desc>KENWCK</desc>
+</wpt>
+<wpt lat="45.520270465" lon="-122.629314914">
+  <ele>53.100000</ele>
+  <name>PRTLND</name>
+  <cmt>PRTLND</cmt>
+  <desc>PRTLND</desc>
+</wpt>
+<wpt lat="47.263193881" lon="-122.391065771">
+  <ele>4.300000</ele>
+  <name>TACOMA</name>
+  <cmt>TACOMA</cmt>
+  <desc>TACOMA</desc>
+</wpt>
+<wpt lat="46.491715391" lon="-115.805175704">
+  <ele>969.700000</ele>
+  <name>PIERCE</name>
+  <cmt>PIERCE</cmt>
+  <desc>PIERCE</desc>
+</wpt>
+<wpt lat="46.684811555" lon="-123.735191571">
+  <ele>3.700000</ele>
+  <name>RAYMND</name>
+  <cmt>RAYMND</cmt>
+  <desc>RAYMND</desc>
+</wpt>
+<wpt lat="45.327557677" lon="-118.070415474">
+  <ele>840.500000</ele>
+  <name>LAGRND</name>
+  <cmt>LAGRND</cmt>
+  <desc>LAGRND</desc>
+</wpt>
+<wpt lat="50.688836739" lon="-120.281890401">
+  <ele>407.900000</ele>
+  <name>KAMLOP</name>
+  <cmt>KAMLOP</cmt>
+  <desc>KAMLOP</desc>
+</wpt>
+<wpt lat="45.364644474" lon="-121.687092162">
+  <ele>2706.800000</ele>
+  <name>MTHOOD</name>
+  <cmt>MTHOOD</cmt>
+  <desc>MTHOOD</desc>
+</wpt>
+<wpt lat="46.207003506" lon="-121.484235660">
+  <ele>3578.200000</ele>
+  <name>MTADAM</name>
+  <cmt>MTADAM</cmt>
+  <desc>MTADAM</desc>
+</wpt>
+<wpt lat="46.202334022" lon="-122.189044249">
+  <ele>1989.500000</ele>
+  <name>STHELN</name>
+  <cmt>STHELN</cmt>
+  <desc>STHELN</desc>
+</wpt>
+<wpt lat="46.599971093" lon="-120.509182213">
+  <ele>325.100000</ele>
+  <name>YAKIMA</name>
+  <cmt>YAKIMA</cmt>
+  <desc>YAKIMA</desc>
+</wpt>
+<wpt lat="47.483023522" lon="-120.708853476">
+  <ele>1381.200000</ele>
+  <name>CORNER</name>
+  <cmt>CORNER</cmt>
+  <desc>CORNER</desc>
+</wpt>
+<wpt lat="47.737769431" lon="-120.367931250">
+  <ele>389.000000</ele>
+  <name>ARDNVR</name>
+  <cmt>ARDNVR</cmt>
+  <desc>ARDNVR</desc>
+</wpt>
+<wpt lat="47.896671051" lon="-120.352803235">
+  <ele>2145.000000</ele>
+  <name>STRMMT</name>
+  <cmt>STRMMT</cmt>
+  <desc>STRMMT</desc>
+</wpt>
+<wpt lat="48.332730000" lon="-120.058170000">
+  <ele>493.000000</ele>
+  <name>Twispb</name>
+  <cmt>Twispb</cmt>
+  <desc>Twispb</desc>
+</wpt>
+<wpt lat="47.524033666" lon="-120.466226227">
+  <ele>237.200000</ele>
+  <name>CASHLZ</name>
+  <cmt>CASHLZ</cmt>
+  <desc>CASHLZ</desc>
+</wpt>
+<wpt lat="48.473900000" lon="-120.180817000">
+  <ele>531.000000</ele>
+  <name>WINTHR</name>
+  <cmt>WINTHR</cmt>
+  <desc>WINTHR</desc>
+</wpt>
+<wpt lat="47.998383000" lon="-120.373683000">
+  <ele>1930.900000</ele>
+  <name>BARNEY</name>
+  <cmt>BARNEY</cmt>
+  <desc>BARNEY</desc>
+</wpt>
+<wpt lat="47.961183000" lon="-120.163233000">
+  <ele>1056.900000</ele>
+  <name>JULY4T</name>
+  <cmt>JULY4T</cmt>
+  <desc>JULY4T</desc>
+</wpt>
+<wpt lat="48.350483000" lon="-120.094433000">
+  <ele>480.100000</ele>
+  <name>SMOKEJ</name>
+  <cmt>SMOKEJ</cmt>
+  <desc>SMOKEJ</desc>
+</wpt>
+<wpt lat="48.130083000" lon="-120.003067000">
+  <ele>344.300000</ele>
+  <name>METHOW</name>
+  <cmt>METHOW</cmt>
+  <desc>METHOW</desc>
+</wpt>
+<wpt lat="48.595100000" lon="-120.401833000">
+  <ele>643.500000</ele>
+  <name>MAZAMA</name>
+  <cmt>MAZAMA</cmt>
+  <desc>MAZAMA</desc>
+</wpt>
+<wpt lat="47.513800000" lon="-120.476633000">
+  <ele>255.400000</ele>
+  <name>CASHME</name>
+  <cmt>CASHME</cmt>
+  <desc>CASHME</desc>
+</wpt>
+<wpt lat="47.912583000" lon="-120.265683000">
+  <ele>1677.600000</ele>
+  <name>SLIDEP</name>
+  <cmt>SLIDEP</cmt>
+  <desc>SLIDEP</desc>
+</wpt>
+<wpt lat="47.844450000" lon="-120.270650000">
+  <ele>1600.200000</ele>
+  <name>FOREST</name>
+  <cmt>FOREST</cmt>
+  <desc>FOREST</desc>
+</wpt>
+<wpt lat="48.091250000" lon="-120.336817000">
+  <ele>1872.700000</ele>
+  <name>NELSON</name>
+  <cmt>NELSON</cmt>
+  <desc>NELSON</desc>
+</wpt>
+<wpt lat="48.057317000" lon="-120.128983000">
+  <ele>1630.100000</ele>
+  <name>SQUAWC</name>
+  <cmt>SQUAWC</cmt>
+  <desc>SQUAWC</desc>
+</wpt>
+<wpt lat="48.525667000" lon="-120.657567000">
+  <ele>1657.000000</ele>
+  <name>WAPASS</name>
+  <cmt>WAPASS</cmt>
+  <desc>WAPASS</desc>
+</wpt>
+<wpt lat="48.604050000" lon="-120.490483000">
+  <ele>1589.900000</ele>
+  <name>DRIVEW</name>
+  <cmt>DRIVEW</cmt>
+  <desc>DRIVEW</desc>
+</wpt>
+<wpt lat="47.815467000" lon="-119.512517000">
+  <ele>676.700000</ele>
+  <name>172RDK</name>
+  <cmt>172RDK</cmt>
+  <desc>172RDK</desc>
+</wpt>
+<wpt lat="48.616800000" lon="-120.604133000">
+  <ele>2200.800000</ele>
+  <name>DELANC</name>
+  <cmt>DELANC</cmt>
+  <desc>DELANC</desc>
+</wpt>
+<wpt lat="48.942791000" lon="-119.422956000">
+  <ele>282.600000</ele>
+  <name>OROVlZ</name>
+  <cmt>OROVLZ</cmt>
+  <desc>OROVLZ</desc>
+</wpt>
+<wpt lat="47.623650000" lon="-119.347433000">
+  <ele>534.500000</ele>
+  <name>17H2</name>
+  <cmt>17H2</cmt>
+  <desc>17H2</desc>
+</wpt>
+<wpt lat="47.873417000" lon="-119.685117000">
+  <ele>711.400000</ele>
+  <name>18NERC</name>
+  <cmt>18NERC</cmt>
+  <desc>18NERC</desc>
+</wpt>
+<wpt lat="48.004183000" lon="-119.776967000">
+  <ele>887.900000</ele>
+  <name>27NWAN</name>
+  <cmt>27NWAN</cmt>
+  <desc>27NWAN</desc>
+</wpt>
+<wpt lat="47.728683000" lon="-119.877817000">
+  <ele>820.700000</ele>
+  <name>8NWFNW</name>
+  <cmt>8NWFNW</cmt>
+  <desc>8NWFNW</desc>
+</wpt>
+<wpt lat="47.865600000" lon="-119.944700000">
+  <ele>384.000000</ele>
+  <name>AIRPRT</name>
+  <cmt>AIRPRT</cmt>
+  <desc>AIRPRT</desc>
+</wpt>
+<wpt lat="47.707167000" lon="-118.943233000">
+  <ele>603.800000</ele>
+  <name>ALMIRA</name>
+  <cmt>ALMIRA</cmt>
+  <desc>ALMIRA</desc>
+</wpt>
+<wpt lat="47.562367000" lon="-120.173167000">
+  <ele>1166.300000</ele>
+  <name>BADGRN</name>
+  <cmt>BADGRN</cmt>
+  <desc>BADGRN</desc>
+</wpt>
+<wpt lat="47.684867000" lon="-119.648500000">
+  <ele>650.500000</ele>
+  <name>BERGNE</name>
+  <cmt>BERGNE</cmt>
+  <desc>BERGNE</desc>
+</wpt>
+<wpt lat="47.581850000" lon="-120.393800000">
+  <ele>1504.700000</ele>
+  <name>BRCHMT</name>
+  <cmt>BRCHMT</cmt>
+  <desc>BRCHMT</desc>
+</wpt>
+<wpt lat="48.104150000" lon="-119.721917000">
+  <ele>279.800000</ele>
+  <name>BREWAP</name>
+  <cmt>BREWAP</cmt>
+  <desc>BREWAP</desc>
+</wpt>
+<wpt lat="48.092783000" lon="-119.785333000">
+  <ele>241.300000</ele>
+  <name>BREWST</name>
+  <cmt>BREWST</cmt>
+  <desc>BREWST</desc>
+</wpt>
+<wpt lat="48.002833000" lon="-119.651900000">
+  <ele>262.000000</ele>
+  <name>BRIDPT</name>
+  <cmt>BRIDPT</cmt>
+  <desc>BRIDPT</desc>
+</wpt>
+<wpt lat="47.816317000" lon="-119.735633000">
+  <ele>776.800000</ele>
+  <name>BUMPRD</name>
+  <cmt>BUMPRD</cmt>
+  <desc>BUMPRD</desc>
+</wpt>
+<wpt lat="47.806933000" lon="-120.034300000">
+  <ele>1165.700000</ele>
+  <name>BUTTE</name>
+  <cmt>BUTTE</cmt>
+  <desc>BUTTE</desc>
+</wpt>
+<wpt lat="47.613533000" lon="-119.249833000">
+  <ele>543.500000</ele>
+  <name>COULEE</name>
+  <cmt>COULEE</cmt>
+  <desc>COULEE</desc>
+</wpt>
+<wpt lat="47.759600000" lon="-118.511817000">
+  <ele>742.500000</ele>
+  <name>CRESTN</name>
+  <cmt>CRESTN</cmt>
+  <desc>CRESTN</desc>
+</wpt>
+<wpt lat="47.654250000" lon="-118.166417000">
+  <ele>737.200000</ele>
+  <name>DAVPRT</name>
+  <cmt>DAVPRT</cmt>
+  <desc>DAVPRT</desc>
+</wpt>
+<wpt lat="46.797250000" lon="-116.557467000">
+  <ele>875.600000</ele>
+  <name>DEARY</name>
+  <cmt>DEARY</cmt>
+  <desc>DEARY</desc>
+</wpt>
+<wpt lat="47.792950000" lon="-119.978183000">
+  <ele>400.000000</ele>
+  <name>DNGR01</name>
+  <cmt>DNGR01</cmt>
+  <desc>DNGR01</desc>
+</wpt>
+<wpt lat="47.623017000" lon="-120.008617000">
+  <ele>741.500000</ele>
+  <name>DOUGLS</name>
+  <cmt>DOUGLS</cmt>
+  <desc>DOUGLS</desc>
+</wpt>
+<wpt lat="47.626167000" lon="-119.332717000">
+  <ele>486.500000</ele>
+  <name>DRYFAL</name>
+  <cmt>DRYFAL</cmt>
+  <desc>DRYFAL</desc>
+</wpt>
+<wpt lat="47.666950000" lon="-120.219083000">
+  <ele>219.100000</ele>
+  <name>ENTIAT</name>
+  <cmt>ENTIAT</cmt>
+  <desc>ENTIAT</desc>
+</wpt>
+<wpt lat="47.305217000" lon="-119.516550000">
+  <ele>383.100000</ele>
+  <name>EPHRTA</name>
+  <cmt>EPHRTA</cmt>
+  <desc>EPHRTA</desc>
+</wpt>
+<wpt lat="47.612383000" lon="-119.813267000">
+  <ele>736.500000</ele>
+  <name>FARMER</name>
+  <cmt>FARMER</cmt>
+  <desc>FARMER</desc>
+</wpt>
+<wpt lat="47.553967000" lon="-119.876383000">
+  <ele>692.800000</ele>
+  <name>FSW4SW</name>
+  <cmt>FSW4SW</cmt>
+  <desc>FSW4SW</desc>
+</wpt>
+<wpt lat="47.795933000" lon="-120.257250000">
+  <ele>1061.300000</ele>
+  <name>GOMNPK</name>
+  <cmt>GOMNPK</cmt>
+  <desc>GOMNPK</desc>
+</wpt>
+<wpt lat="47.757517000" lon="-119.813683000">
+  <ele>838.900000</ele>
+  <name>H17210</name>
+  <cmt>H17210</cmt>
+  <desc>H17210</desc>
+</wpt>
+<wpt lat="47.656233000" lon="-119.813333000">
+  <ele>778.200000</ele>
+  <name>H1723N</name>
+  <cmt>H1723N</cmt>
+  <desc>H1723N</desc>
+</wpt>
+<wpt lat="47.815483000" lon="-119.470217000">
+  <ele>659.600000</ele>
+  <name>H172MN</name>
+  <cmt>H172MN</cmt>
+  <desc>H172MN</desc>
+</wpt>
+<wpt lat="47.742667000" lon="-119.362883000">
+  <ele>691.700000</ele>
+  <name>H17BCK</name>
+  <cmt>H17BCK</cmt>
+  <desc>H17BCK</desc>
+</wpt>
+<wpt lat="47.975383000" lon="-119.159983000">
+  <ele>730.100000</ele>
+  <name>H17BRK</name>
+  <cmt>H17BRK</cmt>
+  <desc>H17BRK</desc>
+</wpt>
+<wpt lat="47.480267000" lon="-118.250667000">
+  <ele>668.000000</ele>
+  <name>HARRTN</name>
+  <cmt>HARRTN</cmt>
+  <desc>HARRTN</desc>
+</wpt>
+<wpt lat="47.686900000" lon="-119.109900000">
+  <ele>580.900000</ele>
+  <name>HARTLN</name>
+  <cmt>HARTLN</cmt>
+  <desc>HARTLN</desc>
+</wpt>
+<wpt lat="47.804150000" lon="-120.038617000">
+  <ele>1127.200000</ele>
+  <name>LAUNCH</name>
+  <cmt>LAUNCH</cmt>
+  <desc>LAUNCH</desc>
+</wpt>
+<wpt lat="47.921550000" lon="-119.386433000">
+  <ele>601.200000</ele>
+  <name>LEAHY</name>
+  <cmt>LEAHY</cmt>
+  <desc>LEAHY</desc>
+</wpt>
+<wpt lat="47.801850000" lon="-119.876267000">
+  <ele>894.500000</ele>
+  <name>LONEPN</name>
+  <cmt>LONEPN</cmt>
+  <desc>LONEPN</desc>
+</wpt>
+<wpt lat="47.602317000" lon="-120.661200000">
+  <ele>365.200000</ele>
+  <name>LVNWTH</name>
+  <cmt>LVNWTH</cmt>
+  <desc>LVNWTH</desc>
+</wpt>
+<wpt lat="47.817683000" lon="-119.643417000">
+  <ele>693.300000</ele>
+  <name>MANSFL</name>
+  <cmt>MANSFL</cmt>
+  <desc>MANSFL</desc>
+</wpt>
+<wpt lat="47.814067000" lon="-119.807217000">
+  <ele>805.300000</ele>
+  <name>MCNMAN</name>
+  <cmt>MCNMAN</cmt>
+  <desc>MCNMAN</desc>
+</wpt>
+<wpt lat="47.761217000" lon="-119.640517000">
+  <ele>666.800000</ele>
+  <name>MNSWTG</name>
+  <cmt>MNSWTG</cmt>
+  <desc>MNSWTG</desc>
+</wpt>
+<wpt lat="47.329850000" lon="-118.698700000">
+  <ele>469.900000</ele>
+  <name>ODESSA</name>
+  <cmt>ODESSA</cmt>
+  <desc>ODESSA</desc>
+</wpt>
+<wpt lat="48.369800000" lon="-119.564267000">
+  <ele>263.100000</ele>
+  <name>OKANGN</name>
+  <cmt>OKANGN</cmt>
+  <desc>OKANGN</desc>
+</wpt>
+<wpt lat="48.409283000" lon="-119.519467000">
+  <ele>257.100000</ele>
+  <name>OMAK</name>
+  <cmt>OMAK</cmt>
+  <desc>OMAK</desc>
+</wpt>
+<wpt lat="47.622633000" lon="-120.226617000">
+  <ele>233.300000</ele>
+  <name>ORONDO</name>
+  <cmt>ORONDO</cmt>
+  <desc>ORONDO</desc>
+</wpt>
+<wpt lat="46.915100000" lon="-117.070950000">
+  <ele>781.300000</ele>
+  <name>PALOUS</name>
+  <cmt>PALOUS</cmt>
+  <desc>PALOUS</desc>
+</wpt>
+<wpt lat="47.398583000" lon="-120.206767000">
+  <ele>373.600000</ele>
+  <name>PANGFL</name>
+  <cmt>PANGFL</cmt>
+  <desc>PANGFL</desc>
+</wpt>
+<wpt lat="48.062117000" lon="-119.885433000">
+  <ele>244.200000</ele>
+  <name>PATERO</name>
+  <cmt>PATERO</cmt>
+  <desc>PATERO</desc>
+</wpt>
+<wpt lat="47.554633000" lon="-119.790867000">
+  <ele>752.400000</ele>
+  <name>RDBRD4</name>
+  <cmt>RDBRD4</cmt>
+  <desc>RDBRD4</desc>
+</wpt>
+<wpt lat="47.428550000" lon="-119.704283000">
+  <ele>508.500000</ele>
+  <name>SAGE23</name>
+  <cmt>SAGE23</cmt>
+  <desc>SAGE23</desc>
+</wpt>
+<wpt lat="47.813600000" lon="-119.361567000">
+  <ele>659.200000</ele>
+  <name>SIMSCR</name>
+  <cmt>SIMSCR</cmt>
+  <desc>SIMSCR</desc>
+</wpt>
+<wpt lat="47.798667000" lon="-119.985033000">
+  <ele>221.400000</ele>
+  <name>SOCCER</name>
+  <cmt>SOCCER</cmt>
+  <desc>SOCCER</desc>
+</wpt>
+<wpt lat="47.699650000" lon="-119.491483000">
+  <ele>672.500000</ele>
+  <name>STAHER</name>
+  <cmt>STAHER</cmt>
+  <desc>STAHER</desc>
+</wpt>
+<wpt lat="47.032400000" lon="-117.296700000">
+  <ele>1098.400000</ele>
+  <name>STEPTO</name>
+  <cmt>STEPTO</cmt>
+  <desc>STEPTO</desc>
+</wpt>
+<wpt lat="47.087883000" lon="-117.587800000">
+  <ele>607.600000</ele>
+  <name>STJOHN</name>
+  <cmt>STJOHN</cmt>
+  <desc>STJOHN</desc>
+</wpt>
+<wpt lat="47.912617000" lon="-120.092550000">
+  <ele>706.400000</ele>
+  <name>SWANAS</name>
+  <cmt>SWANAS</cmt>
+  <desc>SWANAS</desc>
+</wpt>
+<wpt lat="47.573033000" lon="-120.488783000">
+  <ele>1248.500000</ele>
+  <name>TBTSMT</name>
+  <cmt>TBTSMT</cmt>
+  <desc>TBTSMT</desc>
+</wpt>
+<wpt lat="48.726367000" lon="-119.465417000">
+  <ele>399.100000</ele>
+  <name>TONAAP</name>
+  <cmt>TONAAP</cmt>
+  <desc>TONAAP</desc>
+</wpt>
+<wpt lat="47.612633000" lon="-119.770183000">
+  <ele>763.000000</ele>
+  <name>US2ANW</name>
+  <cmt>US2ANW</cmt>
+  <desc>US2ANW</desc>
+</wpt>
+<wpt lat="47.612633000" lon="-119.877233000">
+  <ele>752.400000</ele>
+  <name>US2FNW</name>
+  <cmt>US2FNW</cmt>
+  <desc>US2FNW</desc>
+</wpt>
+<wpt lat="47.608133000" lon="-119.490033000">
+  <ele>726.900000</ele>
+  <name>US2LSE</name>
+  <cmt>US2LSE</cmt>
+  <desc>US2LSE</desc>
+</wpt>
+<wpt lat="47.601600000" lon="-119.619433000">
+  <ele>681.400000</ele>
+  <name>US2WTH</name>
+  <cmt>US2WTH</cmt>
+  <desc>US2WTH</desc>
+</wpt>
+<wpt lat="47.655733000" lon="-120.059567000">
+  <ele>804.800000</ele>
+  <name>WATERV</name>
+  <cmt>WATERV</cmt>
+  <desc>WATERV</desc>
+</wpt>
+<wpt lat="47.757383000" lon="-118.740317000">
+  <ele>665.000000</ele>
+  <name>WILBUR</name>
+  <cmt>WILBUR</cmt>
+  <desc>WILBUR</desc>
+</wpt>
+<wpt lat="47.702483000" lon="-119.810133000">
+  <ele>764.400000</ele>
+  <name>WITHRW</name>
+  <cmt>WITHRW</cmt>
+  <desc>WITHRW</desc>
+</wpt>
+<wpt lat="47.469383000" lon="-119.598367000">
+  <ele>597.700000</ele>
+  <name>WTHPIX</name>
+  <cmt>WTHPIX</cmt>
+  <desc>WTHPIX</desc>
+</wpt>
+<wpt lat="47.478979373" lon="-120.215502958">
+  <ele>1044.900000</ele>
+  <name>BADGLN</name>
+  <cmt>BADGLN</cmt>
+  <desc>BADGLN</desc>
+</wpt>
+<wpt lat="47.601570741" lon="-120.670157167">
+  <ele>372.200000</ele>
+  <name>LVNWLZ</name>
+  <cmt>LVNWLZ</cmt>
+  <desc>LVNWLZ</desc>
+</wpt>
+<wpt lat="47.602134213" lon="-120.699280094">
+  <ele>1191.800000</ele>
+  <name>TUMWLN</name>
+  <cmt>TUMWLN</cmt>
+  <desc>TUMWLN</desc>
+</wpt>
+<wpt lat="47.580228627" lon="-120.685949085">
+  <ele>864.400000</ele>
+  <name>ICICLN</name>
+  <cmt>ICICLN</cmt>
+  <desc>ICICLN</desc>
+</wpt>
+<wpt lat="47.292465679" lon="-120.399871021">
+  <ele>1403.600000</ele>
+  <name>MSNRDG</name>
+  <cmt>MSNRDG</cmt>
+  <desc>MSNRDG</desc>
+</wpt>
+<wpt lat="47.821044306" lon="-120.726601081">
+  <ele>591.300000</ele>
+  <name>LKWNLZ</name>
+  <cmt>LKWNLZ</cmt>
+  <desc>LKWNLZ</desc>
+</wpt>
+<wpt lat="47.878796736" lon="-120.142701380">
+  <ele>339.300000</ele>
+  <name>MANSLZ</name>
+  <cmt>MANSLZ</cmt>
+  <desc>MANSLZ</desc>
+</wpt>
+<wpt lat="47.250483000" lon="-119.845708000">
+  <ele>406.700000</ele>
+  <name>QUINLZ</name>
+  <cmt>QUINLZ</cmt>
+  <desc>QUINLZ</desc>
+</wpt>
+<wpt lat="46.829617388" lon="-119.895168646">
+  <ele>152.200000</ele>
+  <name>SADLLZ</name>
+  <cmt>SADLLZ</cmt>
+  <desc>SADLLZ</desc>
+</wpt>
+<wpt lat="48.955250593" lon="-120.868935292">
+  <ele>1857.600000</ele>
+  <name>GR001</name>
+  <cmt>GR001</cmt>
+  <desc>GR001</desc>
+</wpt>
+<wpt lat="48.954265765" lon="-120.330303562">
+  <ele>1921.100000</ele>
+  <name>GR002</name>
+  <cmt>GR002</cmt>
+  <desc>GR002</desc>
+</wpt>
+<wpt lat="48.954430481" lon="-119.896100506">
+  <ele>1942.600000</ele>
+  <name>GR003</name>
+  <cmt>GR003</cmt>
+  <desc>GR003</desc>
+</wpt>
+<wpt lat="48.956023011" lon="-119.520157155">
+  <ele>601.500000</ele>
+  <name>GR004</name>
+  <cmt>GR004</cmt>
+  <desc>GR004</desc>
+</wpt>
+<wpt lat="48.949344229" lon="-119.145379485">
+  <ele>1257.000000</ele>
+  <name>GR005</name>
+  <cmt>GR005</cmt>
+  <desc>GR005</desc>
+</wpt>
+<wpt lat="48.951520852" lon="-118.804151659">
+  <ele>899.400000</ele>
+  <name>GR006</name>
+  <cmt>GR006</cmt>
+  <desc>GR006</desc>
+</wpt>
+<wpt lat="48.949888878" lon="-118.521650687">
+  <ele>773.000000</ele>
+  <name>GR007</name>
+  <cmt>GR007</cmt>
+  <desc>GR007</desc>
+</wpt>
+<wpt lat="48.954504219" lon="-118.221114793">
+  <ele>545.100000</ele>
+  <name>GR008</name>
+  <cmt>GR008</cmt>
+  <desc>GR008</desc>
+</wpt>
+<wpt lat="48.968578377" lon="-117.976623420">
+  <ele>805.800000</ele>
+  <name>GR009</name>
+  <cmt>GR009</cmt>
+  <desc>GR009</desc>
+</wpt>
+<wpt lat="48.969323487" lon="-117.684754149">
+  <ele>415.800000</ele>
+  <name>GR010</name>
+  <cmt>GR010</cmt>
+  <desc>GR010</desc>
+</wpt>
+<wpt lat="48.725335170" lon="-120.325927991">
+  <ele>2142.800000</ele>
+  <name>GR102</name>
+  <cmt>GR102</cmt>
+  <desc>GR102</desc>
+</wpt>
+<wpt lat="48.729485698" lon="-119.895441071">
+  <ele>1797.000000</ele>
+  <name>GR103</name>
+  <cmt>GR103</cmt>
+  <desc>GR103</desc>
+</wpt>
+<wpt lat="48.723939953" lon="-120.851892241">
+  <ele>799.600000</ele>
+  <name>GR101</name>
+  <cmt>GR101</cmt>
+  <desc>GR101</desc>
+</wpt>
+<wpt lat="48.702246000" lon="-119.448312000">
+  <ele>1247.000000</ele>
+  <name>A01125</name>
+  <cmt>A01125</cmt>
+  <desc>A01125</desc>
+</wpt>
+<wpt lat="46.858747000" lon="-117.420451000">
+  <ele>2146.000000</ele>
+  <name>A01215</name>
+  <cmt>A01215</cmt>
+  <desc>A01215</desc>
+</wpt>
+<wpt lat="47.124578000" lon="-118.389847000">
+  <ele>1791.000000</ele>
+  <name>A02179</name>
+  <cmt>A02179</cmt>
+  <desc>A02179</desc>
+</wpt>
+<wpt lat="47.296009000" lon="-117.983552000">
+  <ele>1906.000000</ele>
+  <name>A03191</name>
+  <cmt>A03191</cmt>
+  <desc>A03191</desc>
+</wpt>
+<wpt lat="46.920555000" lon="-116.971987000">
+  <ele>749.000000</ele>
+  <name>PALOLZ</name>
+  <cmt>PALOLZ</cmt>
+  <desc>PALOLZ</desc>
+</wpt>
+<wpt lat="46.920555000" lon="-116.971987000">
+  <ele>2469.000000</ele>
+  <name>POTLLZ</name>
+  <cmt>POTLLZ</cmt>
+  <desc>POTLLZ</desc>
+</wpt>
+<wpt lat="48.701904000" lon="-119.447752000">
+  <ele>273.000000</ele>
+  <name>TONALZ</name>
+  <cmt>TONALZ</cmt>
+  <desc>TONALZ</desc>
+</wpt>
+<wpt lat="46.858747000" lon="-117.420451000">
+  <ele>651.000000</ele>
+  <name>WHITLZ</name>
+  <cmt>WHITLZ</cmt>
+  <desc>WHITLZ</desc>
+</wpt>
+<wpt lat="47.124578000" lon="-118.389847000">
+  <ele>541.000000</ele>
+  <name>RITZLZ</name>
+  <cmt>RITZLZ</cmt>
+  <desc>RITZLZ</desc>
+</wpt>
+<wpt lat="47.296009000" lon="-117.983552000">
+  <ele>581.000000</ele>
+  <name>SPRALZ</name>
+  <cmt>SPRALZ</cmt>
+  <desc>SPRALZ</desc>
+</wpt>
+<wpt lat="46.885700000" lon="-117.077534000">
+  <ele>786.000000</ele>
+  <name>DALELZ</name>
+  <cmt>DALELZ</cmt>
+  <desc>DALELZ</desc>
+</wpt>
+</gpx>

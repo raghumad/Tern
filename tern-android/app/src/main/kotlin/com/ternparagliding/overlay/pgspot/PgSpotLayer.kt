@@ -68,7 +68,7 @@ fun PgSpotLayer(
     }
 
     val source = rememberGeoJsonSource(
-        data = GeoJsonData.Features(featureCollection),
+        data = GeoJsonData.Features(com.ternparagliding.utils.geo.GeoJsonSafe.sanitize(featureCollection)),
     )
 
     val names = remember(featureCollection) {

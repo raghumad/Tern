@@ -11,8 +11,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AirplanemodeActive
-import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Tornado
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -23,9 +23,24 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.foundation.clickable
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.foundation.layout.Spacer
+import com.ternparagliding.device.BleDeviceScanner
+import com.ternparagliding.device.DeviceType
+import com.ternparagliding.device.ScanCandidate
+import com.ternparagliding.mezulla.connection.LinkState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -46,6 +61,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import com.ternparagliding.device.ConnectionEvent
 import com.ternparagliding.mezulla.demo.AravisDemoReplay
 import com.ternparagliding.mezulla.pairing.PairingOrchestrator
 import com.ternparagliding.mezulla.pairing.PairingState
@@ -60,6 +76,23 @@ fun SettingsSheet(
 ) {
     val state by store.state.collectAsState()
     val settingsState = state.settingsState
+    var showAddDevice by remember { mutableStateOf(false) }
+
+    // Team plumbing: create/join just record the team *intent*; the reconcile step in
+    // MapViewContainer writes it to the board (set_team) when the link is up. So this works offline.
+    val ctx = LocalContext.current
+    val clipboard = LocalClipboardManager.current
+
+    if (showAddDevice) {
+        AddDeviceDialog(
+            onPickVario = { candidate ->
+                // Remembering a vario un-pauses it (reducer), so it auto-connects + self-heals.
+                store.dispatch(com.ternparagliding.redux.MapAction.SetRememberedVario(candidate.mac, candidate.name))
+                showAddDevice = false
+            },
+            onDismiss = { showAddDevice = false },
+        )
+    }
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         LazyColumn(modifier = Modifier.padding(horizontal = 16.dp).testTag("settings_list")) {
@@ -71,43 +104,59 @@ fun SettingsSheet(
             item {
                 Text("Connections", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
 
-                // ── XC Tracer vario (BLE sensor link) ──────────────────────
+                // ── XC Tracer vario — shown once the pilot has added THEIR device ──
                 val varioConnected = state.flightDeck.varioConnected
                 val varioScanning = state.flightDeck.varioScanning
+                val rememberedMac = settingsState.rememberedVarioMac
+                val rememberedName = settingsState.rememberedVarioName
+                val varioPaused = settingsState.varioPaused
                 val varioTint = when {
                     varioConnected -> Color(0xFF22C55E)
                     varioScanning -> Color(0xFFF59E0B)
                     else -> Color(0xFF94A3B8)
                 }
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        when {
-                            varioConnected -> Icons.Filled.BluetoothConnected
-                            varioScanning -> Icons.Filled.BluetoothSearching
-                            else -> Icons.Filled.Bluetooth
-                        },
-                        contentDescription = null, tint = varioTint,
-                    )
-                    Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
-                        Text("XC Tracer vario", fontSize = 14.sp)
-                        Text(
-                            when {
-                                varioConnected -> "Streaming"
-                                varioScanning -> "Searching…"
-                                else -> "Not connected"
-                            },
-                            fontSize = 12.sp, color = varioTint,
-                        )
-                    }
-                    OutlinedButton(
-                        onClick = { store.dispatch(com.ternparagliding.redux.MapAction.ToggleVario) },
-                        modifier = Modifier.height(40.dp).testTag("btn_toggle_vario"),
+                if (rememberedMac != null) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(if (varioConnected || varioScanning) "Disconnect" else "Connect", fontSize = 14.sp)
+                        Icon(
+                            when {
+                                varioConnected -> Icons.Filled.BluetoothConnected
+                                varioScanning -> Icons.Filled.BluetoothSearching
+                                else -> Icons.Filled.Bluetooth
+                            },
+                            contentDescription = null, tint = varioTint,
+                        )
+                        Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
+                            // Name the *specific* remembered device (with its MAC tail) so the
+                            // pilot knows this is THEIRS, not whichever was closest.
+                            Text("${rememberedName ?: "XC Tracer"}  ··${BleDeviceScanner.macTail(rememberedMac)}", fontSize = 14.sp)
+                            Text(
+                                when {
+                                    varioConnected -> "Streaming"
+                                    varioScanning -> "Searching…"
+                                    varioPaused -> "Paused"
+                                    else -> "Saved — reconnecting…"
+                                },
+                                fontSize = 12.sp, color = varioTint,
+                            )
+                        }
+                        OutlinedButton(
+                            // A remembered vario runs by default; this pauses/resumes it.
+                            onClick = { store.dispatch(com.ternparagliding.redux.MapAction.SetVarioPaused(!varioPaused)) },
+                            modifier = Modifier.height(40.dp).testTag("btn_toggle_vario"),
+                        ) {
+                            Text(if (varioPaused) "Connect" else "Disconnect", fontSize = 14.sp)
+                        }
                     }
+                    TextButton(
+                        onClick = { store.dispatch(com.ternparagliding.redux.MapAction.SetRememberedVario(null, null)) },
+                        modifier = Modifier.testTag("btn_forget_vario"),
+                    ) { Text("Forget / choose another", fontSize = 12.sp, color = Color(0xFF94A3B8)) }
+
+                    // Connection log — status + every drop/heal, so the pilot can see it healed.
+                    VarioConnectionLog(state.flightDeck.connectionEvents)
                 }
 
                 // ── Mezulla board (mesh) — paired board or scan hint ───────
@@ -139,36 +188,92 @@ fun SettingsSheet(
                         }
                     }
                     if (pairedNodeId != null) {
+                        // "007_6184" → "Mezulla 007" — friendly, drops the noisy suffix.
+                        val boardLabel = (pairedName ?: pairedNodeId).substringBefore("_")
+                            .let { "Mezulla $it" }
+                        // Live link status + battery, mirroring the vario row.
+                        val linkUp = state.peerState.linkState == LinkState.UP
+                        val boardTint = if (linkUp) Color(0xFF22C55E) else Color(0xFFF59E0B)
+                        val boardNode = runCatching { pairedNodeId.toLong(16) }.getOrNull()
+                        val boardBattery = boardNode?.let { state.peerState.peers[it]?.lastTelemetry?.batteryPercent }
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Icon(Icons.Filled.BluetoothSearching, contentDescription = null, tint = Color(0xFF4CAF50))
-                            Text(
-                                pairedName ?: pairedNodeId,
-                                modifier = Modifier.weight(1f).padding(start = 12.dp),
-                                fontSize = 14.sp,
+                            Icon(
+                                if (linkUp) Icons.Filled.BluetoothConnected else Icons.Filled.BluetoothSearching,
+                                contentDescription = null, tint = boardTint,
                             )
+                            Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
+                                Text(boardLabel, fontSize = 14.sp)
+                                Text(if (linkUp) "Connected" else "Reconnecting…", fontSize = 12.sp, color = boardTint)
+                            }
+                            // Battery (when the board reports telemetry), like the vario's 🔋.
+                            // Meshtastic reports 101 for "on external/USB power" — show that
+                            // plainly rather than a confusing "101%".
+                            boardBattery?.let {
+                                val label = if (it > 100) "🔌 ext" else "🔋$it%"
+                                Text(label, fontSize = 13.sp, color = Color(0xFF94A3B8), modifier = Modifier.padding(end = 8.dp))
+                            }
+                            // Forget sits inline beside the board name, matching the vario row.
+                            OutlinedButton(
+                                onClick = {
+                                    pairingOrchestrator.forgetBoard()
+                                    onDismiss()
+                                },
+                                modifier = Modifier.height(40.dp).testTag("btn_forget_board"),
+                            ) { Text("Forget", fontSize = 14.sp) }
                         }
-                        OutlinedButton(
-                            onClick = {
-                                pairingOrchestrator.forgetBoard()
-                                onDismiss()
+
+                        // ── Team (the board's PRIMARY channel) — create / share / join ──
+                        // Create/join record *intent* (works offline); MapViewContainer's reconcile
+                        // effect writes it to the board on the next live link.
+                        MezullaTeamSection(
+                            teamName = settingsState.teamName,
+                            teamShareLink = settingsState.teamShareLink,
+                            applied = settingsState.teamShareLink != null &&
+                                settingsState.teamShareLink == settingsState.teamAppliedLink,
+                            linkUp = linkUp,
+                            onCreate = { name ->
+                                if (name.isNotBlank()) {
+                                    val team = com.ternparagliding.mezulla.pairing.TeamLink.create(name)
+                                    store.dispatch(com.ternparagliding.redux.MapAction.SetTeam(
+                                        team.name, com.ternparagliding.mezulla.pairing.TeamLink.encode(team), "manual",
+                                    ))
+                                }
                             },
-                            modifier = Modifier.fillMaxWidth().height(48.dp).testTag("btn_forget_board"),
-                        ) {
-                            Icon(Icons.Filled.LinkOff, contentDescription = null, modifier = Modifier.size(20.dp))
-                            Text("  Forget Board", fontSize = 16.sp)
-                        }
-                    } else {
-                        Text(
-                            "No board paired. Point your phone camera at the Mezulla board's QR code to pair.",
-                            fontSize = 14.sp,
-                            color = Color(0xFF94A3B8),
-                            modifier = Modifier.padding(vertical = 8.dp),
+                            onJoin = { link ->
+                                com.ternparagliding.mezulla.pairing.TeamLink.parse(link)?.let { team ->
+                                    store.dispatch(com.ternparagliding.redux.MapAction.SetTeam(
+                                        team.name, com.ternparagliding.mezulla.pairing.TeamLink.encode(team), "manual",
+                                    ))
+                                }
+                            },
+                            onLeave = {
+                                store.dispatch(com.ternparagliding.redux.MapAction.SetTeam(null, null, null))
+                            },
+                            onShare = { link ->
+                                val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(android.content.Intent.EXTRA_TEXT, link)
+                                }
+                                ctx.startActivity(android.content.Intent.createChooser(send, "Share team link"))
+                            },
+                            onCopy = { link -> clipboard.setText(AnnotatedString(link)) },
                         )
                     }
                 }
+
+                // One unified entry for EVERY Bluetooth device — vario, Mezulla, future sensors.
+                // Opens the same picker; the pilot taps theirs (or scans a board's QR).
+                OutlinedButton(
+                    onClick = { showAddDevice = true },
+                    modifier = Modifier.fillMaxWidth().height(48.dp).padding(top = 4.dp).testTag("btn_add_device"),
+                ) {
+                    Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(20.dp))
+                    Text("  Add a device", fontSize = 16.sp)
+                }
+
                 HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
             }
 
@@ -212,7 +317,8 @@ fun SettingsSheet(
                         store.dispatch(com.ternparagliding.redux.MapAction.SetSettingsOverlayEnabled("waypoints", enabled))
                     }
                 ) {
-                    Icon(Icons.Filled.Place, contentDescription = "Waypoints")
+                    // Same flag glyph (in the map's waypoint violet) the map draws for a waypoint.
+                    WaypointGlyph(tint = WaypointViolet, fontSize = 20.sp)
                 }
                 HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
             }
@@ -384,5 +490,112 @@ private fun SettingsPickerRow(
                 }
             }
         }
+    }
+}
+
+/**
+ * The vario's connection log — its status and every drop/heal, newest first. Lets the pilot
+ * confirm the link is healthy (and that a drop self-healed). Reads the bounded event tail from
+ * [com.ternparagliding.redux.FlightDeckState.connectionEvents].
+ */
+@Composable
+private fun VarioConnectionLog(events: List<ConnectionEvent>) {
+    if (events.isEmpty()) return
+    val fmt = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 36.dp, bottom = 4.dp)
+            .testTag("vario_connection_log"),
+    ) {
+        Text("Connection log", fontSize = 11.sp, color = Color(0xFF94A3B8), modifier = Modifier.padding(bottom = 2.dp))
+        events.takeLast(6).reversed().forEach { e ->
+            val (glyph, label, color) = connectionEventDisplay(e)
+            Text("${fmt.format(java.util.Date(e.atMs))}  $glyph $label", fontSize = 12.sp, color = color)
+        }
+    }
+}
+
+/**
+ * The unified "Add a device" picker — the SAME flow for every Bluetooth device. Scans nearby,
+ * lists each device (vario / Mezulla) with its signal strength so the pilot can tell which is
+ * theirs, and lets them tap it. A vario is added by tap; a Mezulla is added by scanning its QR
+ * (its claim needs the token the QR carries) — both start here.
+ */
+@Composable
+private fun AddDeviceDialog(onPickVario: (ScanCandidate) -> Unit, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val scanner = remember { BleDeviceScanner(context) }
+    DisposableEffect(Unit) {
+        scanner.start()
+        onDispose { scanner.stop() }
+    }
+    val candidates by scanner.candidates().collectAsState()
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } },
+        title = { Text("Add a device") },
+        text = {
+            Column {
+                Text(
+                    "Hold your phone next to your device — tap yours (the closest is at the top).",
+                    fontSize = 12.sp, color = Color(0xFF94A3B8),
+                )
+                Spacer(Modifier.height(10.dp))
+                if (candidates.isEmpty()) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 8.dp)) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp))
+                        Text("  Searching…", fontSize = 14.sp)
+                    }
+                } else {
+                    candidates.forEach { c ->
+                        DeviceCandidateRow(c) { if (c.type == DeviceType.VARIO) onPickVario(c) }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "A Mezulla board is added by scanning its QR code.",
+                    fontSize = 11.sp, color = Color(0xFF94A3B8),
+                )
+            }
+        },
+    )
+}
+
+/** One row in the unified picker: type icon, name + MAC tail, and signal bars. */
+@Composable
+private fun DeviceCandidateRow(c: ScanCandidate, onClick: () -> Unit) {
+    val isVario = c.type == DeviceType.VARIO
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable(enabled = isVario, onClick = onClick).padding(vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Filled.Bluetooth, contentDescription = null, tint = Color(0xFF94A3B8))
+        Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
+            Text("${c.name}  ··${BleDeviceScanner.macTail(c.mac)}", fontSize = 14.sp)
+            Text(
+                if (isVario) "vario · tap to add" else "Mezulla board · scan its QR to add",
+                fontSize = 11.sp, color = Color(0xFF94A3B8),
+            )
+        }
+        val bars = BleDeviceScanner.signalBars(c.rssi)
+        Text("▮".repeat(bars) + "▯".repeat(4 - bars), fontSize = 12.sp, color = Color(0xFF22C55E))
+    }
+}
+
+/** Map a connection event to a glyph, plain-words label, and colour for the log row. */
+private fun connectionEventDisplay(e: ConnectionEvent): Triple<String, String, Color> {
+    val green = Color(0xFF22C55E); val red = Color(0xFFEF4444); val amber = Color(0xFFF59E0B); val slate = Color(0xFF94A3B8)
+    return when (e.kind) {
+        ConnectionEvent.Kind.LINKED -> {
+            val healed = e.outageMs?.let { " (healed after ${it / 1000}s)" } ?: ""
+            Triple("●", "linked$healed", green)
+        }
+        ConnectionEvent.Kind.DROPPED -> Triple("○", "dropped — link lost", red)
+        ConnectionEvent.Kind.SCANNING -> Triple("◌", "scanning…", amber)
+        ConnectionEvent.Kind.CONNECTING -> Triple("◌", "connecting…", amber)
+        ConnectionEvent.Kind.OUT_OF_RANGE -> Triple("⊘", "out of range", slate)
+        ConnectionEvent.Kind.BLUETOOTH_OFF -> Triple("○", "Bluetooth off", slate)
+        ConnectionEvent.Kind.PAUSED -> Triple("○", "disconnected", slate)
     }
 }

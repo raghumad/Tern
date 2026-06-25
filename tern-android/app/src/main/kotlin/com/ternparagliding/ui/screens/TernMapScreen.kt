@@ -3,6 +3,7 @@ package com.ternparagliding.ui.screens
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -20,10 +21,10 @@ import com.ternparagliding.ui.components.*
 import com.ternparagliding.redux.MapAction
 import com.ternparagliding.redux.MapStore
 import com.ternparagliding.redux.WeatherActions
+import com.ternparagliding.redux.resolvedTasks
 import kotlinx.coroutines.launch
 import com.ternparagliding.mezulla.demo.AravisDemoReplay
 import com.ternparagliding.mezulla.ui.SosAlertBanner
-import com.ternparagliding.mezulla.ui.MezullaViewModeButton
 import org.osmdroid.util.GeoPoint
 import kotlin.math.*
 
@@ -42,6 +43,11 @@ fun TernMapScreen(
     var showTaskRibbon by remember { mutableStateOf(false) }
     var showWaypointLibrary by remember { mutableStateOf(false) }
     var showWaypointPicker by remember { mutableStateOf(false) }
+    // Workflow A — editing a standalone waypoint's identity (null = closed). Opened from
+    // the library, the map weather sheet, or the per-point editor's "Edit waypoint…" link.
+    var editingSpotId by remember { mutableStateOf<String?>(null) }
+    // Workflow B1 — editing a task's structure (name + ordered points + reorder).
+    var editingTaskId by remember { mutableStateOf<String?>(null) }
     val state by store.state.collectAsState()
     val isLocationReady = state.isLocationReady
     val gpsStatus = state.gpsStatus
@@ -76,10 +82,38 @@ fun TernMapScreen(
         )
     }
 
-    // Show edit waypoint screen when waypoint is selected
-    LaunchedEffect(state.selectedWaypoint) {
-        showEditWaypointScreen = state.selectedWaypoint != null
+    // Show edit waypoint screen when a waypoint is selected — but step aside while
+    // that selection is in "move mode" (isDragging), so the pilot can see the map and
+    // tap the new spot. Committing the move flips isDragging off and the editor returns,
+    // confirming the new location.
+    // In add-from-map mode each drop selects the new point, but we must NOT pop the
+    // editor — the pilot is mid-flow placing several points. Suppress while adding.
+    LaunchedEffect(state.selectedWaypoint, state.addingWaypoint) {
+        showEditWaypointScreen = !state.addingWaypoint &&
+            (state.selectedWaypoint?.let { !it.isDragging && !it.isNew } ?: false)
     }
+
+    // Android Back should close the open layer, never drop the pilot out of the app
+    // mid-planning. Closes the topmost overlay/mode/panel in z-order; only when nothing
+    // is open does Back fall through to the system (exit). Modal sheets keep their own
+    // back handling (registered later, they win first); this covers the panel + the
+    // full-screen overlays + the transient modes that otherwise had no handler.
+    val backTarget: (() -> Unit)? = when {
+        editingSpotId != null -> ({ editingSpotId = null })
+        editingTaskId != null -> ({ editingTaskId = null })
+        showWaypointPicker -> ({ showWaypointPicker = false })
+        showEditWaypointScreen -> ({ showEditWaypointScreen = false; store.dispatch(MapAction.DeselectWaypoint) })
+        showWaypointLibrary -> ({ showWaypointLibrary = false })
+        showTaskListScreen -> ({ showTaskListScreen = false })
+        showTaskRibbon -> ({ showTaskRibbon = false })
+        showSettingsSheet -> ({ showSettingsSheet = false })
+        state.selectedWaypoint?.isDragging == true -> ({ store.dispatch(MapAction.CancelWaypointDrag) })
+        state.movingSpotId != null -> ({ store.dispatch(MapAction.CancelSpotMove) })
+        state.addingWaypoint -> ({ store.dispatch(MapAction.StopAddWaypoint) })
+        state.selectedTaskId != null -> ({ store.dispatch(MapAction.DeselectTask) })
+        else -> null
+    }
+    BackHandler(enabled = backTarget != null) { backTarget?.invoke() }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -106,35 +140,51 @@ fun TernMapScreen(
                     .fillMaxWidth(),
             )
 
-            // Right-edge controls: settings, recenter, task, and Mezulla view mode.
-            // (Sharing is contextual now; vario pairing lives in Settings → Connections.)
-            // In landscape the column anchors at the top (below the status bar + compass)
-            // with tighter spacing; portrait keeps the centred dock.
+            // Move-mode banner: while a waypoint is armed for moving, tell the pilot
+            // what to do (tap to place) and offer an explicit out (Cancel restores the
+            // original position). Sits at the top, clear of the right-edge dock.
+            state.selectedWaypoint?.takeIf { it.isDragging }?.let { sel ->
+                val movingName = state.resolvedTasks().find { it.id == sel.taskId }
+                    ?.waypoints?.find { it.id == sel.waypointId }?.displayName ?: "waypoint"
+                MoveWaypointBanner(
+                    name = movingName,
+                    onCancel = { store.dispatch(MapAction.CancelWaypointDrag) },
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(WindowInsets.statusBars.asPaddingValues())
+                        .padding(16.dp),
+                )
+            }
+
+            // Spot move-mode banner (Workflow A "Move on map" for a standalone waypoint).
+            state.movingSpotId?.let { spotId ->
+                val movingName = state.waypointLibrary.find { it.id == spotId }?.displayName ?: "waypoint"
+                MoveWaypointBanner(
+                    name = movingName,
+                    onCancel = { store.dispatch(MapAction.CancelSpotMove) },
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(WindowInsets.statusBars.asPaddingValues())
+                        .padding(16.dp),
+                )
+            }
+
+            // Controls: settings, recenter, task, Mezulla view mode. Shared content,
+            // laid out per-orientation below. (Sharing is contextual now; vario pairing
+            // lives in Settings → Connections.)
             val controlsLandscape =
                 LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
-            Column(
-                modifier = Modifier
-                    .padding(innerPadding)
-                    .align(if (controlsLandscape) Alignment.TopEnd else Alignment.CenterEnd)
-                    .then(
-                        // systemBars (not just statusBars): in landscape the nav bar moves to the
-                        // right edge and would otherwise sit on top of these buttons, making them
-                        // un-tappable. Inset from it so the whole dock stays in the app bounds.
-                        if (controlsLandscape)
-                            Modifier
-                                .padding(WindowInsets.systemBars.asPaddingValues())
-                                // Clear the top-right compass + its under-readout (name/distance),
-                                // which share this corner in landscape; otherwise the gear sits on
-                                // top of the readout.
-                                .padding(top = 108.dp, end = 16.dp)
-                        else Modifier.padding(16.dp)
-                    ),
-                verticalArrangement = Arrangement.spacedBy(if (controlsLandscape) 6.dp else 10.dp)
-            ) {
+            val dockContent: @Composable () -> Unit = {
                 SettingsButton(onClick = { showSettingsSheet = true })
                 RecenterButton(
                     enabled = state.userLocation != null,
-                    onClick = { state.userLocation?.let { store.dispatch(MapAction.UpdateCenter(it)) } },
+                    // Off-follow + a live fix → the button is the way back: re-lock the camera onto
+                    // the pilot. Highlighted so it reads as "tap to follow me again".
+                    suspended = !state.cameraFollow && state.userLocation != null,
+                    onClick = {
+                        state.userLocation?.let { store.dispatch(MapAction.UpdateCenter(it)) }
+                        store.dispatch(MapAction.SetCameraFollow(true))
+                    },
                 )
                 // A task in play → open the in-flight ribbon (overview + retarget);
                 // otherwise the list to pick/create one.
@@ -142,23 +192,42 @@ fun TernMapScreen(
                     if (state.selectedTaskId != null) showTaskRibbon = true
                     else showTaskListScreen = true
                 })
-                MezullaViewModeButton(
-                    viewMode = state.mezullaViewMode,
-                    linkState = state.peerState.linkState,
-                    onCycle = { store.dispatch(MapAction.CycleMezullaViewMode) },
-                )
+                // (Mezulla view-mode now lives in the team sheet, opened from the buddies chip
+                // next to the compass — not a standalone dock button.)
             }
 
-            // The bottom task-detail panel is a planning surface; in flight it just
-            // clutters the deck and collides with the vario HUD (AVG/GAIN). Hide it once
-            // a vario/replay is streaming — the rosette + readout drive nav in the air.
-            // (The tappable task ribbon will live here in Phase 2, clear of the vario HUD.)
+            val taskPanelVisible = state.selectedTaskId != null && !showTaskListScreen &&
+                !showEditWaypointScreen && !state.flightDeck.varioConnected &&
+                !state.addingWaypoint
+
+            // Dock: a fixed home at the top-right, stacked below the compass + its
+            // readout, in both orientations. It never shares space with the bottom task
+            // sheet, so there's no overlap to manage and no riding/hiding as the sheet
+            // grows. (Landscape insets from the right-edge nav bar; portrait clears a bit
+            // more below the compass.)
+            Column(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .then(
+                        if (controlsLandscape)
+                            Modifier
+                                .padding(WindowInsets.systemBars.asPaddingValues())
+                                .padding(top = 108.dp, end = 16.dp)
+                        else
+                            Modifier
+                                .padding(WindowInsets.statusBars.asPaddingValues())
+                                .padding(top = 120.dp, end = 16.dp)
+                    ),
+                verticalArrangement = Arrangement.spacedBy(if (controlsLandscape) 6.dp else 10.dp),
+            ) { dockContent() }
+
             TaskDetailPanel(
-                modifier = Modifier.align(Alignment.BottomCenter),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(WindowInsets.navigationBars.asPaddingValues()),
                 store = store,
-                isVisible = state.selectedTaskId != null && !showTaskListScreen &&
-                    !showEditWaypointScreen && !state.flightDeck.varioConnected,
-                onDismiss = { store.dispatch(MapAction.DeselectTask) }
+                isVisible = taskPanelVisible,
+                onDismiss = { store.dispatch(MapAction.DeselectTask) },
             )
 
             AnimatedVisibility(
@@ -213,7 +282,8 @@ fun TernMapScreen(
     }
 
     if (showWaypointPicker) {
-        state.selectedTaskId?.let { taskId ->
+        // Add to the task being edited (B1) if open, else the selected task (ribbon).
+        (editingTaskId ?: state.selectedTaskId)?.let { taskId ->
             WaypointPickerSheet(
                 store = store,
                 taskId = taskId,
@@ -231,6 +301,18 @@ fun TernMapScreen(
                 showTaskListScreen = false
                 showWaypointLibrary = true
             },
+            onEditTask = { tid -> editingTaskId = tid }, // pencil → Workflow B1
+        )
+    }
+
+    // Workflow B1 — Edit Task (name + ordered points + reorder). Over the task list.
+    editingTaskId?.let { tid ->
+        EditTaskScreen(
+            taskId = tid,
+            store = store,
+            onEditPoint = { wpId -> store.dispatch(MapAction.SelectWaypoint(tid, wpId)) }, // → B2
+            onAddFromLibrary = { showWaypointPicker = true },
+            onDismiss = { editingTaskId = null },
         )
     }
 
@@ -238,17 +320,25 @@ fun TernMapScreen(
         WaypointLibraryScreen(
             store = store,
             onDismiss = { showWaypointLibrary = false },
+            onEditWaypoint = { spot -> editingSpotId = spot.id },
         )
     }
 
     if (showEditWaypointScreen) {
         EditWaypointScreen(
             store = store,
-            onDismiss = { 
+            onEditSpot = { spotId -> editingSpotId = spotId }, // drill into Workflow A
+            onDismiss = {
                 showEditWaypointScreen = false
                 store.dispatch(MapAction.DeselectWaypoint)
             }
         )
+    }
+
+    // Workflow A — waypoint identity editor. Rendered last so it overlays the per-point
+    // editor (B2) and the library when drilled into from either.
+    editingSpotId?.let { sid ->
+        EditSpotScreen(spotId = sid, store = store, onDismiss = { editingSpotId = null })
     }
 
     // Smart First Waypoint Suggestion
@@ -309,6 +399,52 @@ fun TernMapScreen(
 
     // Show weather details dialog when PG spot is tapped
     state.weatherState.showingWeatherDialog?.let { dialogState ->
+        // A PG-spot id is "name|lat|lon"; a library-waypoint id is "wp|code|lat|lon".
+        // The tapped coordinates are the last two "|"-separated fields.
+        val selectedTaskId = state.selectedTaskId
+        val isPgSpot = !dialogState.pgSpotId.startsWith("wp|")
+        val idParts = dialogState.pgSpotId.split("|")
+        val spotLat = idParts.getOrNull(idParts.size - 2)?.toDoubleOrNull()
+        val spotLon = idParts.getOrNull(idParts.size - 1)?.toDoubleOrNull()
+
+        // The library spot behind a "wp|code|…" tap → enables Edit (Workflow A) and
+        // a library-style add-to-task.
+        val libSpot = if (!isPgSpot) state.waypointLibrary.find { it.code == idParts.getOrNull(1) } else null
+
+        val onEditWaypoint: (() -> Unit)? = libSpot?.let { spot ->
+            {
+                editingSpotId = spot.id
+                store.dispatch(WeatherActions.DismissWeatherDetails)
+            }
+        }
+
+        val addToTask: (() -> Unit)? = when {
+            selectedTaskId == null -> null
+            // PG spot → capture it as a PG_SPOT-provenance spot and reference it.
+            isPgSpot && spotLat != null && spotLon != null -> {
+                {
+                    store.dispatch(MapAction.AddPgSpotToTask(
+                        taskId = selectedTaskId,
+                        pgSpotId = dialogState.pgSpotId,
+                        code = dialogState.spotName,
+                        name = dialogState.spotName,
+                        lat = spotLat,
+                        lon = spotLon,
+                        alt = dialogState.siteContext?.elevationM,
+                    ))
+                    store.dispatch(WeatherActions.DismissWeatherDetails)
+                }
+            }
+            // Library waypoint → reference the existing spot by id.
+            libSpot != null -> {
+                {
+                    store.dispatch(MapAction.AddLibraryWaypointsToTask(selectedTaskId, listOf(libSpot.id)))
+                    store.dispatch(WeatherActions.DismissWeatherDetails)
+                }
+            }
+            else -> null
+        }
+
         WeatherDetailsDialog(
             forecast = dialogState.forecast ?: state.weatherState.spotWeathers[dialogState.pgSpotId],
             spotName = dialogState.spotName,
@@ -320,10 +456,45 @@ fun TernMapScreen(
                 altitude = state.settingsState.altitudeUnit,
             ),
             isLoading = state.weatherState.fetchingSpots.contains(dialogState.pgSpotId),
+            onAddToTask = addToTask,
+            onEditWaypoint = onEditWaypoint,
             onDismiss = {
                 store.dispatch(WeatherActions.DismissWeatherDetails)
             }
         )
+    }
+}
+
+/**
+ * Instruction banner shown while a waypoint is armed for moving (move-mode). Tells the
+ * pilot to tap the map to place [name], with an explicit Cancel that restores the
+ * original position. A pill so it reads as a transient mode, not a permanent control.
+ */
+@Composable
+private fun MoveWaypointBanner(
+    name: String,
+    onCancel: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier,
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.primaryContainer,
+        tonalElevation = 6.dp,
+        shadowElevation = 6.dp,
+    ) {
+        Row(
+            modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = "Tap the map to move $name",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+            TextButton(onClick = onCancel) { Text("Cancel") }
+        }
     }
 }
 

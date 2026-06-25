@@ -98,12 +98,17 @@ trustworthy. Original plan below for reference.
   on `isTestMode()` before any download, and the only other download path
   (`checkForUpdates`) has no production caller. Marked RESOLVED in
   known-issues and locked with `Phase1HarnessTest.autoDownloadSuppressedInTestMode`.
-- ~~Rebuild gesture helpers on MapLibre projection~~ **Done.** `MapViewContainer`
-  exposes the live lat/lon→screen projection via `MapProjectionTestHook`;
-  `MapTestHelper` gained `clickGeoPoint`/`longPressGeoPoint`/`dragGeoPoint`
-  that drive real Compose touches on the `map_view` node (resolution runs on
-  the UI thread — `pixelForLatLng` requires it). Validated by `Phase1HarnessTest`
-  (3 green on emulator) + an `AppLaunchTest` smoke; unit suite 375/0.
+- ~~Rebuild gesture helpers on MapLibre projection~~ **Done — then partly lost.**
+  `MapViewContainer` still exposes the live projection via `MapProjectionTestHook`,
+  **but** the `MapTestHelper` gesture helpers, `Phase1HarnessTest`, and `AppLaunchTest`
+  were later deleted (and the gradle-referenced cycle tests never existed in-tree) —
+  so by 2026-06 there was *no* running pilot-perspective verification at all.
+  **Correction (2026-06 remediation):** rebuilt from scratch as
+  `androidTest/.../map/MapDriver.kt` — UiAutomator raw-coordinate touches + the
+  activity-scoped `MapStore` as oracle (`ComposeTestRule` can't drive the never-idle
+  GL map). First reliable L1 (pilot-outcome) claims green on-device:
+  `TaskMapClaimsTest` (create / tap-select / delete-no-crash). See
+  [../claims-pilot-validation.md](../claims-pilot-validation.md).
 
 ### Phase 2 — Fix the real broken workflows — IN PROGRESS
 
@@ -140,6 +145,16 @@ honest *as* it's fixed.
   (bottom sheet · soarable card · **orientation dial w/ wind barbs** · 48 h chart with
   soarable shading + gust envelope + value axes). Spedmo's soarable API is parked as
   Story 3.10 (our offline scan is tuned to agree with it).
+- **Update (2026-06-21):** K7 is much further along than this note implies. **Done + on-device
+  verified:** `$XCTRC` BLE ingest, NMEA reassembly, parser, the circling-wind brain, climb-tinted
+  flight track, vario/altitude/wind HUD, phase-aware camera-follow. **Closed this session (JVM,
+  no hardware):** the **HUD stage selector** (`FlightMetrics.hudContext` — L/D gliding / ▲gain
+  climbing / cloudbase-gap when near; `FlightStateClaimsTest`) and the **source ladder**
+  (positioned vario → XC_TRACER, link-loss → PHONE, no flap; `FlightDeckSourceClaimsTest`).
+  **Remaining K7:** the **vario picker + device-memory** (scan→pick→persist MAC, so multiple
+  varios on launch don't grab the wrong one — needs hardware to validate), and in-flight checks
+  (live wind while circling, GPS hand-off under movement). The cloudbase-gap HUD cue is built but
+  dormant until weather cloudbase is threaded into the deck.
 - **In progress: the flight-deck brains (K7), then the map-hero UI.** Decision (2026-06):
   the flight deck is **map-hero** (map stays the hero; instruments frame it, not a Dynon-style
   panel split), driven by an **XC Tracer vario over BLE** as the near-term sensor source
@@ -151,9 +166,69 @@ honest *as* it's fixed.
   rosette and add the vario/altitude/glide instrument bands. See
   [../design/flight-state.md](../design/flight-state.md) and
   [../design/flight-deck-ui.md](../design/flight-deck-ui.md).
-- **Other open gaps:** **FAI editor (#3)**, **overlay tap/select on dense clusters (#5)**
-  (PG-spot tap shipped), **K2 airspace-ahead (Timely)**, **K4 thermal outlook**, **K4 Skew-T
-  plot**, plus the UI quick-wins (compass tap-to-north, recenter button, share icon).
+- **✅ Task-planning UX overhaul (2026-06).** The task surface is now pilot-grade: one
+  folded task panel (HUD folded in, dock at fixed top-right, no overlap), **add-from-map**
+  centre-pin placement with **ground-distance snap** (drop near an existing spot → reference
+  it, don't duplicate), real **nearby SEARCH** (PG spots are first-class waypoints),
+  **per-point editing** (role / start gate / cylinder / rename from the panel tile), and
+  **rich map markers** (role disc + name + cylinder + elevation + time-gate, balanced
+  left/right). A single unified **waypoint flag glyph** now means "waypoint" everywhere —
+  map, dock, page headers, Settings. Built on **Stage C** (the unified Spot library +
+  resolver + persisted references).
+- **✅ Trajectory weather = 4D flyability (2026-06).** Per-waypoint forecast read at each ETA
+  along the task (engine-driven `assessFlyability` / `assessQuality` / sounding), a real
+  **Skew-T** pressure-level plot in the weather sheet, and DEM **elevation backfill** for
+  ad-hoc map drops.
+- **✅ Flight Risk synthesis (2026-06).** The convective-only "storm risk" alarm (which
+  false-fired red on a 0 km task and read "now" not the ETA) is replaced by a whole-task
+  **Flight Risk** read — worst KNOWN factor across wind/gusts/shear/convection/visibility/
+  precip **+ airspace + daylight + terrain**, at each waypoint's ETA, advisory + transparent
+  (the pilot decides). Fixed a latent ETA timezone bug (true-epoch ETA vs local-as-UTC
+  forecast clock → wrong-hour sampling) and removed the dead storm path. `weather/FlightRisk.kt`,
+  `TaskFlightRiskClaimsTest`. Also: dock buttons are now centrally a11y-labelled.
+- **✅ Root timezone fix (2026-06-21).** Forecast timestamps are now **true epoch** end-to-end:
+  `parseForecast` reads Open-Meteo's `utc_offset_seconds` and subtracts it; the offset rides on
+  `WeatherForecast.utcOffsetSeconds`/`SoarableDay.utcOffsetSeconds` for display, and the sheets
+  format site-local via `siteTimeZone(...)` (was a UTC `SimpleDateFormat` compensating for the
+  old local-as-UTC fiction). `FlightRisk` dropped its `toForecastClock` shim — ETAs compare
+  directly; this also silently corrected `interpolateWeatherForEta` and `isStale()`. `Soarable.kt`
+  buckets day/hour in site-local. `WeatherTimeBasisClaimsTest` (532/0).
+- **✅ UX discovery fixes (2026-06).** From the on-device task-surface walk: **B1** Back now
+  closes the open layer instead of exiting the app (prioritised `BackHandler`); **B2** a
+  long-press drop no longer forces the full editor (`WaypointSelection.isNew` — editor opens
+  on tapping an existing point); **B4** dock reachability was a non-bug (top-right dock never
+  overlaps the bottom panel). On-device verified. See [known-issues.md](known-issues.md).
+- **✅ Airspace as a real instrument (2026-06).** Both slices shipped. **Slice 1:** declutter
+  — zoom-gated fills (region = outline-only, no blanket), class-emphasised borders (only
+  danger-classes bold, controlled dimmed), labels hidden at region zoom. **Slice 2:**
+  altitude-aware relevance — features stamped BOLD/NORMAL/FAINT from live altitude vs
+  floor/ceiling (recede what's floored far above; bold what you're in/approaching), per-500ft
+  bucket re-stamp. Pure `AirspaceRelevance` + tests; on-device verified (declutter + in-flight
+  via Aravis replay). `type=4`→CTR was already fixed. Absorbed **B3**. *Remaining:* K2 *Timely*
+  (vertical-proximity readout + trajectory look-ahead) — **deprioritized 2026-06-21**; the
+  relevance/declutter half (the actual wallpaper problem) is shipped, so the predictive
+  readout can wait behind other work.
+- **✅ Thermal outlook (2026-06-21).** The K4 "climb-rate forecast" gap — a numeric **w\***
+  (Deardorff convective velocity scale) per daylight hour from solar shortwave + boundary-layer
+  depth, with the working window, peak, parcel thermal top, and cumulus base. Added
+  `shortwave_radiation`/`boundary_layer_height` to the fetch (live-confirmed they return data);
+  `weather/ThermalForecast.kt` + `ThermalOutlookCard` (under the Soarable card). Withholds the
+  number when inputs are absent rather than faking it. `ThermalForecastClaimsTest` (537/0).
+  **On-device verified (2026-06-21):** at Mt Zion (Golden, CO) the card renders the w* sparkline
+  (0.3→3.2 m/s, coloured by strength), window 09:00–20:00, peak ~15:00, "3.2 m/s @ 15:00 · strong",
+  and "blue thermals" base — the Top line correctly self-omits where no parcel top is computable.
+- **✅ FAI-triangle detection (2026-06-21).** Was a real bug — hardcoded to exactly 4
+  waypoints, so every 5-point competition triangle (start snapped on a corner + 3 TPs + goal)
+  read as open distance. Now collapses coincident points to three corners and applies the 28%
+  rule; open / flat / FAI classified. `TaskTriangleClaimsTest` (543/0). (FAI **points** value
+  exists but isn't surfaced in the panel yet.)
+- **Other open gaps:** **reliable tap/select on dense overlapping clusters (#5)** (PG-spot +
+  waypoint tap shipped), and **corridor-DEM terrain clearance**.
+  *Lower priority:* **K2 airspace-ahead (Timely)** (vertical-proximity + trajectory look-ahead —
+  parked 2026-06-21).
+  *Shipped since:* the per-point task editor, the Skew-T plot, the Flight Risk synthesis, the
+  **root tz fix**, the **thermal outlook**, and the UI quick-wins (compass tap-to-north,
+  recenter, contextual sharing).
 
 ### Phase 3 — Stability hardening
 
@@ -185,9 +260,10 @@ is **Epic 02 (traffic awareness)**, **Epic 04 (onboarding)**, **Epic 03
   the app doesn't transmit it yet).
 - Peer-state reset at scenario start (stale identity-only peers linger in
   test runs — cosmetic).
-- **Consistent map-marker iconography.** Markers are converging on a single
-  language — peers use Nerd Font glyphs (`MezullaIcons`), hazards use
-  amber/red halos, PG spots use the Tern bird badge. Idea: give
-  **route waypoints** a glyph too — `nf-md-routes` — for a consistent look
-  (same icon-bitmap pattern as `PgSpotLayer`/`PeerLayer`, since glyph
-  `textField` doesn't render on Tern's raster styles).
+- **✅ Consistent map-marker iconography (2026-06).** Done: a single **waypoint
+  flag glyph** (`nf-fa-flag`) now means "waypoint" everywhere — the map library
+  markers, the dock task button, the Tasks / Waypoints page headers, and the
+  Settings "Waypoints" row (`WaypointGlyph`) — alongside peers (Nerd Font
+  `MezullaIcons`), hazard halos, and the PG-spot badge. Task *waypoints* keep the
+  role-coloured disc + code (turnpoint number / T·S·E / checkered-flag goal), now
+  with the name + cylinder + elevation + gate pills around them.

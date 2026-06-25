@@ -90,10 +90,24 @@ placeholders for you to set.
   (haversine refine). `[HELD]` — `AirspaceClaimsTest.correct` (real OpenAIP Class-C
   TMA round-trip), `AirspaceGeoJsonTest`, `HilbertSpatialQueryTest`. *Nice-to-have:*
   a haversine-vs-brute-force oracle over random points.
-- **Timely:** awareness of airspace ahead fires *before* the boundary. `[GAP]`
-  **Not implemented** — the query is purely reactive (static 200 km horizon on
-  centre change); no lookahead/prediction exists. This is a feature to build, not
-  a test to write.
+- **Correct (task corridor):** a task that crosses controlled (A/B/C) airspace is flagged by
+  **per-leg segment intersection** — not just waypoint-in-polygon — so a leg flying *through*
+  airspace between two outside waypoints is caught; names the airspaces crossed.
+  `[HELD]` — `SpatialSafetyUtilsTest` (leg-crossing both-waypoints-outside, MultiPolygon, class
+  filter). Surfaced in the task HUD ("AIRSPACE · crosses Geneva TMA").
+- **Flight risk (whole-task synthesis):** the headline verdict folds every air-mass factor the
+  engine reads (wind, gusts, gust factor, shear, convection/CAPE, lightning, visibility, precip)
+  **+ airspace + daylight (ETA vs sun) + terrain (cloudbase-below-terrain)**, read at each
+  waypoint's ETA — advisory and transparent (worst KNOWN factor named with value + where/when;
+  missing forecast reported, never faked). Replaces the old convective-only storm alarm.
+  `[HELD]` — `TaskFlightRiskClaimsTest` (no false alarm, wind escalates, convection surfaced,
+  airspace folds in, worst-point wins, missing-data transparent, daylight-after-sunset,
+  cloudbase-below-terrain). `weather/FlightRisk.kt`. ETA→forecast-clock shift fixes the
+  true-epoch-vs-local-as-UTC sampling mismatch.
+- **Timely:** awareness of airspace ahead fires *before* the boundary **in flight**. `[GAP]`
+  Still **not implemented** — the live query is reactive (static 200 km horizon on centre
+  change); no trajectory lookahead/prediction yet. (The *task-planning* crossing check above is
+  done; this remaining gap is the in-flight predictive warning.)
 - **Frictionless (memory-safe declutter):** dense airspace stays bounded by the
   budget so it can **never OOM** (dragging into dense Europe did, before budgeting
   was added), keeping the nearest; tightens under memory pressure.
@@ -151,6 +165,21 @@ placeholders for you to set.
   daylight-bound · marginal fallback · digest · no-sun degradation). `weather/Soarable.kt`.
   *This is Tern's offline fallback for the Spedmo soarable forecast (backlog 3.10),
   tuned to the same factors so the two agree.*
+- **Time basis is true epoch (K4 · correct):** Open-Meteo's `timezone=auto` wall-clock
+  strings are parsed to genuine instants (`parseForecast` subtracts `utc_offset_seconds`),
+  the site offset is carried on `WeatherForecast.utcOffsetSeconds` for display, and the sheets
+  read it back as the launch's wall clock via `siteTimeZone(...)`. A true-epoch ETA now samples
+  the right forecast hour (was off by the site offset — the "sunrise 23:29" class of bug), and
+  `FlightRisk` dropped its `toForecastClock` shim. `[HELD]` — `WeatherTimeBasisClaimsTest`
+  (parse → true instant · sun times shifted · formats back to site wall clock).
+- **Thermal outlook (K4 · temporal climb strength):** "*when today* the thermals work and
+  *how strong*" — a numeric **w\*** (Deardorff convective velocity scale) climb-rate per daylight
+  hour from `shortwave_radiation` (→ sensible heat flux) + boundary-layer depth, plus the parcel
+  thermal top and cumulus base, reported as the working window + peak. Withholds the number
+  (rather than faking it) when a source omits the solar/depth inputs; qualitative strength
+  survives. `[HELD]` — `ThermalForecastClaimsTest` (w* magnitude + monotonic in sun/depth · no
+  sun → null · daylight-bounded window · peak number+strength+top · honest degradation).
+  `weather/ThermalForecast.kt`, `ui/weather/ThermalOutlookCard.kt`.
 - **Site-aware (K3×K4):** Flyability joins the launch geometry to the air mass — a
   launch only works in certain wind directions (PGE orientation octants), so a
   cross/behind wind is a no-go *for this launch* even when the air is otherwise GO
@@ -174,8 +203,9 @@ placeholders for you to set.
   real surface forecast (CAPE/lightning null → no false hazard) rather than a blank.
   `[HELD]` — `WeatherClaimsTest` (source wiring · model into the live URL; MET Norway
   parses into a degraded surface forecast). `MetNorwayWeatherAPI` + `parseMetNorwayCompact`.
-- **Stability diagram:** the Skew-T plot. `[GAP]` The stability math is computed;
-  the diagram itself is a text placeholder.
+- **Stability diagram:** the Skew-T plot. `[HELD]` Shipped — a real pressure-level
+  sounding plot in the weather sheet (parcel ascent, cloudbase, thermal top), not a
+  placeholder. `SkewTPlot` + `Sounding`/`SoundingTest`.
 
 ### K5 — Team (Mezulla)
 - **Correct:** each peer's position / rel-altitude / heading / distance correct. `[ ]`
@@ -183,15 +213,53 @@ placeholders for you to set.
 - **Offline:** works over LoRa mesh with no internet at all. `[ ]`
 - **Resilient:** peer dropout → ages out / marked stale; HUD + map never crash. `[ ]`
 
-### K6 — Route / task  *(JVM, via RouteCache + RouteIOManager)*
-- **Correct:** task geometry — each waypoint's position and FAI cylinder radius —
-  round-trips through persistence exactly. `[HELD]` — `RouteClaimsTest.correct`.
-  *To add:* FAI-triangle detection (known 0.4 km closure-heuristic bug) and
-  per-leg airspace-crossing (currently point-in-polygon only).
-- **Offline:** a saved/imported route survives a restart and is retrievable with
-  **no network**. `[HELD]` — `RouteClaimsTest.offline`.
-- **Resilient:** a malformed task import is rejected gracefully (null, no crash);
-  a missing route degrades to null. `[HELD]` — `RouteClaimsTest.resilient`.
+### K6 — Task / waypoints  *(JVM logic + on-device pilot-outcome)*
+
+> **Honesty note (2026-06).** Most K6 claims below are **L0** (reducer-level): they
+> assert `mapReducer` state, *not* the pilot journey on the live map — which is how
+> long-press shipped dead and a delete crashed while the suite was green. Each claim
+> is now graded **L0** (reducer) / **L1** (pilot outcome, automated) / **L2** (human
+> rubric); "held" = L0 ∧ L1 ∧ L2. The full per-journey matrix + the plan to raise
+> each to L1/L2 is in [claims-pilot-validation.md](claims-pilot-validation.md).
+> L1 on the map needs a coordinate-driver (the GL surface never idles, so
+> `ComposeTestRule` can't drive it).
+
+- **Correct (geometry round-trip):** a task's waypoint positions, roles, cylinder
+  radii **and `spotId` references** survive persistence (the latent "links die on
+  restart" bug — `spotId`/`description` were never written). `[L0 HELD · L1 HELD]` —
+  `TaskSpotModelClaimsTest` (round-trip + v0→snapshot fallback); `TaskClaimsTest`.
+  Restart is genuinely pilot-honest (offline/persistence axis — no GL needed).
+- **Reference model (edit once, flows everywhere):** task points reference library
+  **Spots**; editing a spot flows to every task; features (role/cylinder/gates) are
+  per-reference and **clearable**; PG spots can be pulled in as spots. `[L0 HELD ·
+  L1 GAP]` — `TaskResolverClaimsTest` K10, `TaskBindClaimsTest` K11,
+  `TaskFromLibraryClaimsTest` K9, `TaskMutationClaimsTest`, `TaskPgSpotClaimsTest`.
+  Editing is now reachable straight from the panel tile (role / start gate / cylinder /
+  rename) and PG spots are first-class in SEARCH + snap; L1 (pilot drives it end-to-end
+  on the live map) still pending the coordinate-driver.
+- **Create / move on the map:** `[L0 HELD · L1 PARTIAL]` — long-press create is wired
+  (`onMapLongClick`, L1-verified) and now **ground-distance snaps** to an existing spot
+  within ~150 m (`TaskReducers.snapToNearbySpot`; `TaskSnapClaimsTest` — near-drop references,
+  forced add-from-map drop still snaps, open-space drop mints a USER spot) so a near-drop
+  *references* it instead of stacking a near-duplicate. Reposition is
+  **move-mode** (tap-select → "Move on Map" → tap), reusing the
+  Start/Update/End/CancelWaypointDrag reducer machine; the commit's L1 is `@Ignore`d
+  because a single GL tap can't be injected on-device (a long-press swipe can). No
+  press-and-hold drag gesture by design — so the move-mode is a real feature, not a
+  dishonest-green reducer claim.
+- **Resilient (no crash, no dangling nav):** delete clears active/tagged nav
+  (`NavStateCleanupClaimsTest` K14); and **no overlay can feed a non-finite value to
+  the map** so rendering can't crash (`GeoJsonSafeTest`, P2). `[L0 HELD · L1 HELD]`
+  for the render invariant (structural, no GL needed); the delete *journey* is L1 GAP.
+- **Resilient (import):** a malformed task import is rejected gracefully (null, no
+  crash). `[L0 HELD]` — `TaskClaimsTest`.
+- **FAI-triangle detection:** a closed course is classified open-distance / flat / **FAI
+  triangle** (each side ≥ 28% of perimeter → 2× points). Robust to the real shapes — the bare
+  `[A,B,C,A]` *and* the 5-point comp `[SSS,TP1,TP2,TP3,GOAL]` (start snapped onto a corner,
+  goal returns to start) — by collapsing coincident points to three corners. (Was hardcoded to
+  exactly four waypoints, so every comp triangle read as open distance.) `[HELD]` —
+  `TaskTriangleClaimsTest` (open · FAI · flat · 5-point comp · co-located start · quad-not-triangle).
+- *To add:* per-leg airspace-crossing along the task corridor (point-in-polygon only).
 
 ### K7 — Flight state / wind  *(JVM, via WindEstimator; IGC replay)*
 
@@ -263,14 +331,19 @@ placeholders for you to set.
 - **Correct (height-above-takeoff):** takeoff datum captured from the first fix; height =
   altitude − datum. `[HELD]` — `FlightStateClaimsTest` (height/altitude-reference).
 - **Correct (HUD stage logic):** the cluster content selector — L/D shown iff gliding, ▲launch
-  iff climbing, cloudbase-gap iff known & near. `[GAP]`
+  iff climbing, cloudbase-gap iff known & near (and out-ranking the others). `[HELD]` —
+  `FlightStateClaimsTest` (HUD contextual cell picks the read that fits the phase).
+  `FlightMetrics.hudContext`; wired into `VarioHud` (cloudbase case dormant until weather
+  cloudbase is threaded into the deck).
 - **Correct (vario units):** m/s ↔ ft/min conversion + formatting via `Units`. `[HELD]` — `FlightStateClaimsTest` (vario units).
 - **Correct (auto-zoom):** circling tighter than gliding; within gliding, faster ground speed
   → wider; clamped to [min,max]. `[HELD]` — `FlightStateClaimsTest` (auto-zoom tighter circling than gliding, widens with speed).
 - **Correct (keep-in-view):** the framing box includes own-position + next-WP + nearest buddy.
   `[HELD]` — `FlightStateClaimsTest` (framing box keeps own + next-WP + nearest buddy in view).
 - **Resilient (source ladder):** a positioned vario fix → source XC_TRACER; on link loss →
-  PHONE (reducer). `[GAP]`
+  PHONE; a vario-only sample (no GPS lock) neither promotes nor flaps. `[HELD]` —
+  `FlightDeckSourceClaimsTest` (promote on positioned fix · fall back on disconnect · no
+  premature promote on connect · no demote on a later vario-only sample).
 - **Resilient (device memory):** a remembered vario MAC persists and is offered next launch.
   `[GAP]`
 - **Correct (altitude ref):** the readout switches MSL ↔ above-takeoff per the setting. `[HELD]` — `FlightStateClaimsTest` (height/altitude-reference).

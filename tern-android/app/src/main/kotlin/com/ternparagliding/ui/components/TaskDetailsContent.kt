@@ -1,5 +1,6 @@
 package com.ternparagliding.ui.components
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -54,50 +55,57 @@ fun TaskDetailsContent(
     state: com.ternparagliding.redux.MapState,
     store: MapStore,
     onDismiss: () -> Unit,
-    onShowQr: () -> Unit
 ) {
-    val context = LocalContext.current
+    val legs = task.legDistances
+    // Turnpoint sequence per point, computed exactly like the map marker (TaskLayer) so the
+    // disc badge in this list shows the same number/letter the pilot sees on the map.
+    val seqByWp = remember(task.waypoints) {
+        var tp = 0
+        task.waypoints.associate { wp ->
+            wp.id to (if (wp.type == com.ternparagliding.model.LocationType.TURNPOINT) ++tp else 0)
+        }
+    }
     Column {
-        // Sub-Header (Only shown when expanded)
+        // Add sits next to the count — a compact button, not a full-width slab. This
+        // adds by dropping on the map; the SEARCH tab adds from the library.
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.End,
-            verticalAlignment = Alignment.CenterVertically
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            IconButton(onClick = { TaskIOManager.shareTaskFile(context, task) }) {
-                Icon(androidx.compose.material.icons.Icons.Default.Share, contentDescription = "Share Task")
-            }
-            IconButton(onClick = onShowQr) {
-                Icon(androidx.compose.material.icons.Icons.Default.QrCode, contentDescription = "Show QR Code")
+            Text(
+                text = "Waypoints (${task.waypoints.size})",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            androidx.compose.material3.FilledTonalButton(
+                onClick = { store.dispatch(MapAction.StartAddWaypoint) },
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                modifier = Modifier.testTag("AddFromMapButton"),
+            ) {
+                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("From map", fontWeight = FontWeight.Bold)
             }
         }
-
-        Spacer(modifier = Modifier.height(12.dp))
-        HorizontalDivider()
-        Spacer(modifier = Modifier.height(12.dp))
-
-        Text(
-            text = "Waypoints (${task.waypoints.size})",
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
+        Spacer(modifier = Modifier.height(8.dp))
 
         if (task.waypoints.isEmpty()) {
             Text(
-                text = "Tap on the map to add waypoints",
+                text = "No points yet — tap “Add point from map”, or use SEARCH to pick from your library.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.Medium,
                 modifier = Modifier.padding(vertical = 8.dp)
             )
         } else {
-            LazyColumn(
-                modifier = Modifier
-                    .heightIn(max = 450.dp)
-                    .testTag("WaypointList"),
+            // Plain Column (not a LazyColumn): the panel body scrolls as one, so a nested
+            // lazy scroller here would fight it. Tasks have a handful of points — fine.
+            Column(
+                modifier = Modifier.testTag("WaypointList"),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                itemsIndexed(task.waypoints) { index, waypoint ->
+                task.waypoints.forEachIndexed { index, waypoint ->
                     val weatherData = state.weatherState.waypointWeathers[waypoint.id]
                     val etaTimestamp = state.weatherState.waypointEtas[waypoint.id]
 
@@ -114,7 +122,11 @@ fun TaskDetailsContent(
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.surfaceVariant
                         ),
-                        modifier = Modifier.fillMaxWidth()
+                        // Tap a point to edit it (role / start gate, cylinder, gates, and
+                        // an "Edit waypoint…" link to rename) — opens the per-point editor.
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { store.dispatch(MapAction.SelectWaypoint(task.id, waypoint.id)) }
                     ) {
                         Row(
                             modifier = Modifier
@@ -139,8 +151,10 @@ fun TaskDetailsContent(
                                             )
                                         }
                                     }
+                                    WaypointMarkerBadge(waypoint.type, seqByWp[waypoint.id] ?: 0, size = 24.dp)
+                                    Spacer(Modifier.width(8.dp))
                                     Text(
-                                        text = "${index + 1}. ${waypoint.label ?: "Waypoint"}",
+                                        text = "${index + 1}. ${waypoint.displayName ?: waypoint.label ?: "Waypoint"}",
                                         style = MaterialTheme.typography.bodyMedium,
                                         fontWeight = FontWeight.Black,
                                         color = MaterialTheme.colorScheme.onSurface,
@@ -164,16 +178,33 @@ fun TaskDetailsContent(
                                         letterSpacing = 0.5.sp
                                     )
                                 }
+                                // Leg in from the previous point — the at-a-glance "how
+                                // far is this hop" the planner cares about most.
+                                if (index > 0) {
+                                    val legKm = legs.getOrNull(index - 1)
+                                    if (legKm != null) {
+                                        Text(
+                                            text = "↳ ${com.ternparagliding.overlay.task.TaskGeoJson.formatKm(legKm)} from ${index}",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.primary,
+                                        )
+                                    }
+                                }
                                 Text(
                                     text = buildString {
-                                        append("${"%.4f".format(waypoint.lat)}, ${"%.4f".format(waypoint.lon)}")
-                                        append(" • r${waypoint.radius?.toInt() ?: 400}m")
-                                        if (waypoint.alt != null) append(" • A${waypoint.alt.toInt()}m")
-                                        if (!waypoint.openTime.isNullOrBlank()) append(" • O:${waypoint.openTime}")
-                                        if (!waypoint.closeTime.isNullOrBlank()) append(" • C:${waypoint.closeTime}")
+                                        append("⌀ ${waypoint.radius?.toInt() ?: 400} m cylinder")
+                                        if (waypoint.alt != null) append(" • ${waypoint.alt.toInt()} m elev")
+                                        if (!waypoint.openTime.isNullOrBlank()) append(" • open ${waypoint.openTime}")
+                                        if (!waypoint.closeTime.isNullOrBlank()) append(" • close ${waypoint.closeTime}")
                                     },
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = "${"%.4f".format(waypoint.lat)}, ${"%.4f".format(waypoint.lon)}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                                 )
                                 // Show Weather Summary in TEA Mode
                                 if (weatherData != null && weatherData.current != null) {
@@ -189,6 +220,19 @@ fun TaskDetailsContent(
                             }
 
                             Row(verticalAlignment = Alignment.CenterVertically) {
+                                // Edit this point (role / start gate, cylinder, gates, rename).
+                                IconButton(
+                                    onClick = { store.dispatch(MapAction.SelectWaypoint(task.id, waypoint.id)) },
+                                    modifier = Modifier.size(32.dp).testTag("edit_point_${index}")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Edit,
+                                        contentDescription = "Edit point",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+
                                 // Move Up
                                 IconButton(
                                     onClick = {
@@ -238,5 +282,12 @@ fun TaskDetailsContent(
                 }
             }
         }
+
+        // Trajectory weather (folded in from the old floating HUD) — collapsible,
+        // default collapsed so it doesn't pad the panel.
+        Spacer(modifier = Modifier.height(4.dp))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+        TaskTrajectoryWeather(state = state, task = task, store = store)
     }
 }
+

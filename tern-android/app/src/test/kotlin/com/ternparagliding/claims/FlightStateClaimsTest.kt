@@ -268,6 +268,37 @@ class FlightStateClaimsTest {
     }
 
     /**
+     * **CLAIM K7 · Correct (HUD stage selector).** The contextual cell shows exactly one read,
+     * by phase: L/D while gliding, ▲height-above-takeoff while climbing, the gap to cloudbase
+     * when known & near (which out-ranks both), and nothing when there's nothing meaningful.
+     */
+    @Test
+    fun `correct - HUD contextual cell picks the read that fits the phase`() {
+        // Gliding (sinking, moving) → L/D.
+        val gliding = FlightMetrics.hudContext(climbMs = -1.0, groundSpeedMs = 11.0, altitudeMslM = 2000.0, takeoffDatumM = 1500.0, cloudBaseMslM = null)
+        assertTrue(gliding is FlightMetrics.HudContext.GlideRatio)
+        assertEquals(11.0, (gliding as FlightMetrics.HudContext.GlideRatio).ld, 1e-6)
+
+        // Climbing → height above takeoff (the thermal's payoff).
+        val climbing = FlightMetrics.hudContext(climbMs = 2.5, groundSpeedMs = 9.0, altitudeMslM = 2400.0, takeoffDatumM = 1500.0, cloudBaseMslM = null)
+        assertTrue(climbing is FlightMetrics.HudContext.HeightGain)
+        assertEquals(900.0, (climbing as FlightMetrics.HudContext.HeightGain).gainM, 1e-6)
+
+        // Near cloudbase out-ranks everything (even while climbing toward it).
+        val nearBase = FlightMetrics.hudContext(climbMs = 2.5, groundSpeedMs = 9.0, altitudeMslM = 2750.0, takeoffDatumM = 1500.0, cloudBaseMslM = 2900.0)
+        assertTrue(nearBase is FlightMetrics.HudContext.CloudbaseGap)
+        assertEquals(150.0, (nearBase as FlightMetrics.HudContext.CloudbaseGap).gapM, 1e-6)
+
+        // Cloudbase far above (gap > NEAR) doesn't fire — fall through to the phase read.
+        val farBase = FlightMetrics.hudContext(climbMs = -1.0, groundSpeedMs = 11.0, altitudeMslM = 1000.0, takeoffDatumM = 800.0, cloudBaseMslM = 3000.0)
+        assertTrue(farBase is FlightMetrics.HudContext.GlideRatio)
+
+        // Level / no meaningful read → None (and never a bogus glide).
+        assertEquals(FlightMetrics.HudContext.None, FlightMetrics.hudContext(climbMs = 0.0, groundSpeedMs = 11.0, altitudeMslM = 2000.0, takeoffDatumM = 1500.0, cloudBaseMslM = null))
+        assertEquals(FlightMetrics.HudContext.None, FlightMetrics.hudContext(climbMs = null, groundSpeedMs = null, altitudeMslM = null, takeoffDatumM = null, cloudBaseMslM = null))
+    }
+
+    /**
      * **CLAIM K7 · Correct (vario units).** Climb formats in the pilot's unit (m/s or ft/min),
      * signed, and falls back to canonical for an unknown setting.
      */

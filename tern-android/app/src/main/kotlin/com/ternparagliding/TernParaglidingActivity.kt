@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
+
 package com.ternparagliding
 
 import android.content.Intent
@@ -12,6 +14,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.lifecycle.ViewModelProvider
 import com.ternparagliding.mezulla.MezullaConnectionManager
 import com.ternparagliding.mezulla.pairing.PairingOrchestrator
@@ -93,7 +97,12 @@ class TernParaglidingActivity : ComponentActivity() {
         setContent {
             TernTheme(darkTheme = true) {
                 Surface(
-                    modifier = Modifier.fillMaxSize(),
+                    // Expose Compose testTags as resource-ids so UiAutomator (the only
+                    // driver that works over the live GL map) can address fields/buttons
+                    // by tag in instrumented L1 claim tests. No effect on production UI.
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .semantics { testTagsAsResourceId = true },
                     color = com.ternparagliding.ui.theme.AeroNeonCyan
                 ) {
                     TernMapScreen(store = mapStore)
@@ -110,6 +119,22 @@ class TernParaglidingActivity : ComponentActivity() {
     private fun handleDeepLink(intent: Intent) {
         if (intent.action != Intent.ACTION_VIEW) return
         val uri = intent.data?.toString() ?: return
+
+        // Team join link (tern://team?…): record the team *intent* on the shared store. The reconcile
+        // effect (MapViewContainer) writes it to the board when the link is up — so joining works even
+        // with the board off, and we don't depend on a live link at the moment the link is opened.
+        com.ternparagliding.mezulla.pairing.TeamLink.parse(uri)?.let { team ->
+            Log.i(TAG, "Deep link: join team '${team.name}'")
+            val store = ViewModelProvider(this)[MapStore::class.java]
+            store.dispatch(
+                com.ternparagliding.redux.MapAction.SetTeam(
+                    team.name, com.ternparagliding.mezulla.pairing.TeamLink.encode(team), "manual",
+                ),
+            )
+            android.widget.Toast.makeText(this@TernParaglidingActivity, "Joined team: ${team.name}", android.widget.Toast.LENGTH_LONG).show()
+            return
+        }
+
         val link = TernPairLink.parse(uri) ?: return
 
         Log.i(TAG, "Deep link received: node=${link.nodeIdHex}")

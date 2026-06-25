@@ -40,7 +40,6 @@ import com.ternparagliding.weather.Verdict
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import java.util.TimeZone
 
 private val TEMP_COLOR = Color(0xFFF97316) // orange
 private val WIND_COLOR = Color(0xFF38BDF8) // sky blue — sustained wind
@@ -66,8 +65,13 @@ fun SoarableChart(
     val pts = remember(hourly) { hourly.take(48) }
     if (pts.size < 2) return
 
-    val tf = remember {
-        SimpleDateFormat("EEE HH:00", Locale.getDefault()).apply { timeZone = TimeZone.getTimeZone("UTC") }
+    // Timestamps are true epoch; format/grid in the site's local clock via its UTC offset.
+    val offsetSec = remember(days) { days.firstOrNull()?.utcOffsetSeconds ?: 0 }
+    val offsetMs = offsetSec * 1000L
+    val tf = remember(offsetSec) {
+        SimpleDateFormat("EEE HH:00", Locale.getDefault()).apply {
+            timeZone = com.ternparagliding.utils.io.siteTimeZone(offsetSec)
+        }
     }
 
     val tMin = pts.first().startTime
@@ -136,10 +140,11 @@ fun SoarableChart(
                 drawText(tl, topLeft = Offset(plotRight + 6.dp.toPx(), y - tl.size.height / 2f))
             }
 
-            // 3) Day boundaries — faint vertical gridlines at local midnight.
+            // 3) Day boundaries — faint vertical gridlines at site-local midnight (true-epoch
+            //    timestamps shifted by the site offset so the line lands on the local day break).
             run {
                 val dayMs = 86_400_000L
-                var d = ((tMin / dayMs) + 1) * dayMs
+                var d = (Math.floorDiv(tMin + offsetMs, dayMs) + 1) * dayMs - offsetMs
                 while (d < tMax) {
                     val x = xOf(d)
                     drawLine(gridColor, Offset(x, plotTop), Offset(x, plotBottom), strokeWidth = 1f)

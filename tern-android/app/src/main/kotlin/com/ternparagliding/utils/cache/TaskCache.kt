@@ -1,13 +1,10 @@
 package com.ternparagliding.utils.cache
-import com.ternparagliding.model.LocationType
 
 import android.content.Context
 import android.util.Log
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.ternparagliding.model.Task
-import com.ternparagliding.redux.TaskConstants
-import com.ternparagliding.model.Waypoint
 import org.osmdroid.util.GeoPoint
 import java.io.*
 import java.nio.MappedByteBuffer
@@ -20,13 +17,12 @@ import java.util.concurrent.ConcurrentHashMap
  */
 class TaskCache(
     context: Context,
-    private val diskCache: SpatialDiskCache = SpatialDiskCache(context, "task", ROUTE_CACHE_HOURS)
+    private val diskCache: SpatialDiskCache = SpatialDiskCache(context, "task", TASK_CACHE_HOURS)
 ) {
 
     companion object {
-        const val ROUTE_CACHE_HOURS = Int.MAX_VALUE  // Permanent (Never automatically expire user-created tasks)
+        const val TASK_CACHE_HOURS = Int.MAX_VALUE  // Permanent (Never automatically expire user-created tasks)
         private const val TAG = "TaskCache"
-        private const val HILBERT_BITS_PRECISION = 32
         private const val MAX_DISTANCE_METERS_PER_MILE = 1609.34
     }
 
@@ -158,133 +154,12 @@ class TaskCache(
     }
 
     // ================= PRIVATE HELPERS =================
+    // The pure Task <-> persisted-feature transforms live in TaskCacheCodec
+    // (Context-free, so the round-trip is unit-testable).
 
-    /**
-     * Reconstruct task from overlay features
-     */
-    private fun reconstructTaskFromFeatures(taskId: String, features: List<MapOverlayCacheUtils.OverlayFeature>): Task? {
-        try {
-            if (features.isEmpty()) return null
+    private fun reconstructTaskFromFeatures(taskId: String, features: List<MapOverlayCacheUtils.OverlayFeature>): Task? =
+        TaskCacheCodec.reconstructTaskFromFeatures(taskId, features)
 
-            // Expect a single LineString feature containing all task data
-            val feature = features.first()
-            val properties = feature.feature["properties"] as? Map<*, *>
-            val taskName = properties?.get("taskName") as? String ?: "Reconstructed Task"
-            val isVisible = properties?.get("isVisible") as? Boolean ?: true
-            // Use the task id stored in the feature, not the [taskId] param:
-            // SpatialDiskCache uppercases the region key, so queryNearbyTasks
-            // passes an uppercased id. The stored property preserves the
-            // original case so a round-tripped task keeps its identity.
-            val realTaskId = properties?.get("taskId") as? String ?: taskId
-            
-            val waypointsList = properties?.get("waypoints") as? List<*>
-            
-            if (waypointsList != null) {
-                val waypoints = waypointsList.mapNotNull { wpObj ->
-                    if (wpObj is Map<*, *>) {
-                        val id = wpObj["id"] as? String
-                        val lat = (wpObj["lat"] as? Number)?.toDouble()
-                        val lon = (wpObj["lon"] as? Number)?.toDouble()
-                        val typeStr = wpObj["type"] as? String
-                        val label = wpObj["label"] as? String
-                        val radius = (wpObj["radius"] as? Number)?.toDouble()
-                        val alt = (wpObj["alt"] as? Number)?.toDouble()
-                        val openTime = wpObj["openTime"] as? String
-                        val closeTime = wpObj["closeTime"] as? String
-                        
-                        if (id != null && lat != null && lon != null) {
-                            val type = try {
-                                LocationType.valueOf(typeStr ?: "TURNPOINT")
-                            } catch (e: Exception) {
-                                LocationType.TURNPOINT
-                            }
-                            
-                            Waypoint(
-                                id = id,
-                                lat = lat,
-                                lon = lon,
-                                type = type,
-                                label = label,
-                                radius = radius,
-                                alt = alt,
-                                openTime = openTime,
-                                closeTime = closeTime,
-                                taskId = realTaskId
-                            )
-                        } else null
-                    } else null
-                }
-
-                if (waypoints.isNotEmpty()) {
-                    return Task(
-                        id = realTaskId,
-                        name = taskName,
-                        waypoints = waypoints,
-                        isVisible = isVisible
-                    )
-                }
-            }
-            
-            return null
-        } catch (e: Exception) {
-            Log.e(TAG, "Error reconstructing task from features: ${e.message}")
-            return null
-        }
-    }
-
-    /**
-     * Convert task to overlay features for spatial indexing
-     */
-    private fun convertTaskToFeatures(task: Task): List<MapOverlayCacheUtils.OverlayFeature> {
-        if (task.waypoints.isEmpty()) return emptyList()
-
-        // Create a single LineString feature for the entire task
-        val coordinates = task.waypoints.map { listOf(it.lon, it.lat) }
-        
-        // Serialize waypoints metadata
-        val waypointsMetadata = task.waypoints.map { wp ->
-            mapOf(
-                "id" to wp.id,
-                "lat" to wp.lat,
-                "lon" to wp.lon,
-                "type" to wp.type.name,
-                "label" to (wp.label ?: ""),
-                "radius" to (wp.radius ?: TaskConstants.FAI_DEFAULT_RADIUS_METERS),
-                "alt" to (wp.alt ?: 0.0),
-                "openTime" to (wp.openTime ?: ""),
-                "closeTime" to (wp.closeTime ?: "")
-            )
-        }
-
-        val featureData = mapOf(
-            "type" to "Feature",
-            "geometry" to mapOf(
-                "type" to "LineString",
-                "coordinates" to coordinates
-            ),
-            "properties" to mapOf(
-                "taskId" to task.id,
-                "taskName" to task.name,
-                "isVisible" to task.isVisible,
-                "waypoints" to waypointsMetadata
-            )
-        )
-
-        // Compute centroid of the LineString for indexing
-        @Suppress("UNCHECKED_CAST")
-        val centroid = OverlayGeoJsonParser.computeCentroid(featureData["geometry"] as Map<String, Any>) 
-            ?: GeoPoint(task.waypoints[0].lat, task.waypoints[0].lon) // Fallback to first point
-
-        val hilbertIndex = MapOverlayCacheUtils.computeHilbertIndex(centroid, HILBERT_BITS_PRECISION)
-
-        return listOf(
-            MapOverlayCacheUtils.OverlayFeature(
-                internalId = task.id,
-                feature = featureData,
-                centroid = centroid,
-                hilbertIndex = hilbertIndex,
-                overlayType = "task"
-            )
-        )
-    }
+    private fun convertTaskToFeatures(task: Task): List<MapOverlayCacheUtils.OverlayFeature> =
+        TaskCacheCodec.convertTaskToFeatures(task)
 }

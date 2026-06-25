@@ -48,7 +48,7 @@ fun HazardLayer(
     featureCollection: FeatureCollection<Geometry, JsonObject>,
 ) {
     val source = rememberGeoJsonSource(
-        data = GeoJsonData.Features(featureCollection),
+        data = GeoJsonData.Features(com.ternparagliding.utils.geo.GeoJsonSafe.sanitize(featureCollection)),
     )
 
     @Suppress("UNCHECKED_CAST")

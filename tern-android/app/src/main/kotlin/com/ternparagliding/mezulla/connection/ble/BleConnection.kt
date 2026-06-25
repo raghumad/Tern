@@ -88,6 +88,63 @@ class BleConnection internal constructor(
         )
     }
 
+    /**
+     * Set the board's PRIMARY channel to a Tern team (name + psk) — "set_team". An admin
+     * `set_channel` over the live link; once the board applies it, only boards sharing this team
+     * hear each other. Returns whether the GATT write was accepted (the best the BLE layer can
+     * confirm — the LoRa-level apply happens async on the board). No-op + false when the link is
+     * down or no board is paired.
+     */
+    suspend fun setTeam(name: String, psk: ByteArray): Boolean {
+        if (linkState != LinkState.UP) {
+            android.util.Log.w("BleConnection", "setTeam: link not UP ($linkState) — ignoring")
+            return false
+        }
+        val boardNode = pairedBoardId?.removePrefix("!")?.toLongOrNull(16)
+        if (boardNode == null) {
+            android.util.Log.w("BleConnection", "setTeam: no pairedBoardId — cannot address admin set_channel")
+            return false
+        }
+        val bytes = MeshPacketCodec.encodeToRadioSetChannel(boardNode, allocatePacketId(), name, psk)
+        val ok = runCatching { transport.writeToRadio(bytes) }.getOrDefault(false)
+        android.util.Log.i(
+            "BleConnection",
+            "[@${System.identityHashCode(this)}] setTeam('$name') sent=$ok board=0x${boardNode.toString(16)}",
+        )
+        return ok
+    }
+
+    /**
+     * Set the board's LoRa **region** — Tern's automatic region-follows-location
+     * (the reconcile lives in [com.ternparagliding.mezulla.MezullaConnectionManager]).
+     * An admin `set_config(lora)` over the live link; the firmware applies it
+     * live (no reboot) and, coming from UNSET, enables TX and regenerates keys.
+     * Returns whether the GATT write was accepted (the LoRa-level apply happens
+     * async on the board). On success we optimistically cache [boardRegion] so
+     * a near-simultaneous reconcile tick doesn't re-send before the board's next
+     * config stream confirms it. No-op + false when the link is down or no board
+     * is paired.
+     */
+    suspend fun setRegion(regionCode: Int): Boolean {
+        if (linkState != LinkState.UP) {
+            android.util.Log.w("BleConnection", "setRegion: link not UP ($linkState) — ignoring")
+            return false
+        }
+        val boardNode = pairedBoardId?.removePrefix("!")?.toLongOrNull(16)
+        if (boardNode == null) {
+            android.util.Log.w("BleConnection", "setRegion: no pairedBoardId — cannot address admin set_config")
+            return false
+        }
+        val bytes = MeshPacketCodec.encodeToRadioSetLoraConfig(boardNode, allocatePacketId(), regionCode)
+        val ok = runCatching { transport.writeToRadio(bytes) }.getOrDefault(false)
+        if (ok) boardRegion = regionCode
+        android.util.Log.i(
+            "BleConnection",
+            "[@${System.identityHashCode(this)}] setRegion($regionCode) sent=$ok board=0x${boardNode.toString(16)}",
+        )
+        return ok
+    }
+
     private val heartbeatCounter = java.util.concurrent.atomic.AtomicInteger(0)
     override fun heartbeatsSent(): Int = heartbeatCounter.get()
     private var heartbeatJob: Job? = null
@@ -118,6 +175,19 @@ class BleConnection internal constructor(
 
     /** Track whether we have ever observed the board this run. */
     private var everSeenBoard: Boolean = false
+
+    /**
+     * The board's current LoRa region, as last read from its config stream
+     * during the handshake. Null until the LoRa-config frame has been seen on
+     * this connection; 0 means the board reports UNSET. The connection manager
+     * reads this to decide whether to reconcile region to the pilot's GPS
+     * location (see [com.ternparagliding.mezulla.MezullaConnectionManager]).
+     * Volatile: written from the transport-event coroutine, read from the
+     * manager's reconcile coroutine.
+     */
+    @Volatile
+    var boardRegion: Int? = null
+        private set
 
     override fun events(): Flow<MeshEvent> = _events.asSharedFlow()
 
@@ -208,6 +278,12 @@ class BleConnection internal constructor(
                 }
             }
             is BleTransportEvent.FromRadioFrame -> {
+                // Capture the board's LoRa region from config frames in the
+                // handshake bundle. Separate from decodeFromRadio (which only
+                // models packets we surface as MeshEvents) so the manager can
+                // reconcile region to the pilot's GPS fix. Cheap on hot frames:
+                // a position packet is one tag read + one skip before null.
+                MeshPacketCodec.decodeLoraRegion(event.bytes)?.let { boardRegion = it }
                 val decoded = MeshPacketCodec.decodeFromRadio(event.bytes) ?: return
                 // Internal handshake signal — fire the awaiting deferred
                 // BEFORE emitting to consumers so the handshake driver

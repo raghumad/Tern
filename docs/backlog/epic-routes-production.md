@@ -1,10 +1,15 @@
 # Epic: Routes to production-ready
 
-> **Status: IN PROGRESS (2026-06).** Routes work end-to-end on paper but are
-> not production-ready: the route *line* renders, but waypoints/cylinders
-> don't, there's no map-based editing, and most route tests are dishonest
-> (assert Redux/tags, not the rendered map). This epic makes routes genuinely
-> good and backs every feature with a claim-driven test (see [../claims.md](../claims.md)).
+> **Status: IN PROGRESS (2026-06).** Big jump since the original entry: waypoint
+> markers + FAI cylinders now render (rich markers — disc + name + cylinder +
+> elevation + gate), map-based editing (tap-select, long-press create with
+> ground-distance snap, move-mode reposition) is wired, and the "route"
+> vocabulary is renamed to **task** throughout the code (`overlay.route` →
+> `overlay.task`, `model/Task.kt`; see
+> [epic-task-vocabulary-and-sharing.md](epic-task-vocabulary-and-sharing.md)).
+> Remaining: FAI-triangle correctness, startup restore, corridor tile pre-cache,
+> per-leg airspace, and import/export robustness. Every feature is backed by a
+> claim-driven test (see [../claims.md](../claims.md)).
 
 ## How we work this epic
 
@@ -18,22 +23,20 @@ upstream").
 
 ## Current state (honest, 2026-06)
 
-**Works + honestly tested:** route line (neon cyan + dark casing), persistence
-on edit (`RoutePersistence` observer → `RouteCache`), proximity resurfacing
-(`RouteProximityOverlay` → `SurfaceNearbyRoutes`), waypoint drag → cache,
-XCTSK verbose import/export (file-level, `RouteIOManagerTest`).
+**Works + honestly tested:** task line (neon cyan + dark casing); **waypoint
+markers** (role-coloured disc + code, with name + cylinder radius + elevation +
+time-gate pills at the detailed zoom tier); **FAI cylinders** (role-coloured fill
++ ring); leg-distance pills; selection highlight; **map-based editing** —
+tap-select, long-press create (with ground-distance snap to an existing spot),
+and move-mode reposition; persistence on edit (`TaskPersistence` → `TaskCache`),
+proximity resurfacing (`TaskProximityOverlay` → `SurfaceNearbyTasks`), XCTSK
+verbose import/export (file-level, `TaskIOManagerTest`).
 
 **Broken or missing:**
-- Waypoint markers + labels don't render — `RouteLayer` uses `marker-15`
-  sprite + `textField` glyphs, which the raster styles don't ship.
-- FAI radius cylinders not drawn.
-- No map-based editing — drag state machine exists in Redux but no gesture
-  wires it; no tap-to-select on the map.
-- No selection highlight for the selected route/waypoint.
-- No startup restore (routes only resurface by proximity).
-- FAI points computed but never displayed; triangle detection bug (0.4 km
-  closure heuristic misclassifies real tasks).
-- Tile pre-cache of the route corridor not automated.
+- ~~triangle detection bug~~ **✅ fixed + claim-tested (2026-06-21):** classifies open /
+  flat / FAI triangle, robust to the 5-point comp shape (start snapped on a corner, goal
+  returns to start) — was hardcoded to 4 waypoints (`TaskTriangleClaimsTest`). FAI **points**
+  computed (`faiPoints`) but still not surfaced in the panel UI.
 - Airspace check is point-in-polygon only (misses leg crossings).
 - Compressed-XCTSK / QR codec untested.
 
@@ -46,7 +49,8 @@ lands — asserting the pilot-visible outcome, not existence.
 
 ### Theme 1 — Make routes visible  *(DONE — baseline fd8ecd3)*
 - [x] Cylinder-centric waypoint markers as icon bitmaps (role colour + short
-      code; name + drawn radius glyph at the detailed zoom tier).
+      code; at the detailed zoom tier: name pill + cylinder radius + elevation
+      + time-gate, balanced left/right of the disc).
 - [x] FAI radius cylinders (role-coloured fill + ring) — the waypoint identity.
 - [x] Leg-distance pills on the line at each leg midpoint ("25 km"), glanceable.
 - [x] Zoom-adaptive labels (code → code+name+radius).
@@ -56,10 +60,20 @@ lands — asserting the pilot-visible outcome, not existence.
   because the phone allows zoom-adaptive density. (Claim-driven coverage pending.)
 
 ### Theme 2 — Map-based editing
-- [ ] Tap a waypoint on the map → select → edit.
-- [ ] Long-press-drag a waypoint on the map → reposition (wire the existing
-      Start/Update/End WaypointDrag Redux state machine to a gesture).
-- [x] Add waypoint via long-press (exists, via smart suggestion).
+- [x] Tap a waypoint on the map → select → edit. **Wired** (`TaskLayer.onClick` →
+      `SelectWaypoint` → `EditWaypointScreen`); L1-verified (`TaskMapClaimsTest`).
+- [x] Reposition a waypoint on the map → **move-mode** (2026-06): tap-select → editor
+      → **"Move on Map"** → the editor steps aside + a banner shows → **tap the new spot**
+      (Cancel restores). Chosen over press-and-hold drag, which felt wrong on-device.
+      Reuses the existing Start/Update/End/CancelWaypointDrag Redux machine (the drag
+      gesture is unwired by design — a single tap commits via `onMapClick`). Logic
+      L0-covered (`TaskMutationClaimsTest`); the commit's L1 is `@Ignore`d because a
+      single tap can't be injected into the GL SurfaceView on-device (long-press swipe
+      can) — correctness backed by click-dispatch-order analysis + the L2 checklist.
+- [x] Add waypoint via long-press. **Correction (2026-06):** this was marked done but
+      the *map* long-press gesture was never wired after the MapLibre-Compose
+      migration — only the smart-suggestion dialog path existed. Now wired
+      (`MapViewContainer.onMapLongClick`) and L1-verified on-device.
 
 ### Theme 3 — Route management
 - [ ] Display FAI points in the route panel.
@@ -68,17 +82,26 @@ lands — asserting the pilot-visible outcome, not existence.
 - [ ] Rename / delete / reorder / visibility — verify + honest tests.
 - [ ] Share (QR / Android intent) — honest test.
 
-### Theme 4 — Persistence completeness
-- [ ] Startup restore of cached routes (load all on launch, not only nearby).
-- [ ] Auto tile pre-cache of the route corridor on add/select (offline-first).
-- [x] Write-on-edit + proximity surfacing + route-id round-trip fix (done).
+### Theme 4 — Persistence completeness  *(DONE — 2026-06)*
+- [x] Startup restore of cached tasks (load all on launch via `TaskPersistence`
+      hydrate → `SurfaceNearbyTasks`, not only nearby).
+- [x] Auto tile pre-cache of the task corridor on add/select (offline-first):
+      `TaskPlanningMiddleware` kicks a debounced, dedup'd `TaskTileCacher` download
+      (restart-safe via `isTaskCached`). NOTE: a `CacheTilesButton` composable exists
+      but is **not wired into any screen** — caching is auto-only today; wire the manual
+      control into the task panel if an explicit trigger is wanted.
+- [x] Write-on-edit + proximity surfacing + task-id round-trip fix (done).
 
 ### Theme 5 — Import / export robustness
 - [ ] Validate compressed-XCTSK / QR roundtrip with known vectors.
 - [ ] GPX import/export (optional).
 
 ### Theme 6 — Planning intelligence
-- [ ] Airspace segment-intersection (each leg vs airspace, not just points).
+- [x] Airspace segment-intersection (each leg vs airspace, not just points) —
+      `SpatialSafetyUtils.taskAirspaceConflicts` flags a leg that *crosses* controlled
+      (A/B/C) airspace even with both waypoints outside, handles Polygon + MultiPolygon
+      + holes, and names the airspaces crossed (HUD: "AIRSPACE · crosses Geneva TMA").
+      `SpatialSafetyUtilsTest`.
 - [ ] Verify storm-risk-along-route detection. *(Weather HUD stays deferred to
       the separate weather redesign.)*
 
@@ -101,10 +124,10 @@ like a buddy shows up on screen." Mirrors the Mezulla peer treatment.
       the off-screen chip renders pinned to the edge with the direction arrow +
       the human description ("RUBBIO ALT TO", not the code "D18") + distance, and
       only appears once a GPS fix exists (the engine needs own-position).
-- [ ] Auto-advance on cylinder entry: logic only (unit) — not flight-verified,
-      since the one bundled task (Italy) isn't co-located with a replay.
-- [ ] Claim-driven test: replay a task, assert the active waypoint advances on
-      cylinder entry and the off-screen chip points at it.
+- [x] Auto-advance on cylinder entry — **claim-tested** by replaying the real Bir
+      Billing track (richard's IGC) through the exact `TaskNavigator` logic the UI uses,
+      with cylinders anchored on the flown track: the active target advances through every
+      waypoint in order, then clears, with a finite bearing while ahead (`TaskNavClaimsTest`).
 - [ ] Polish:
       - chip can overlap the right-edge dock when the target is nearly due-east
         (distance text slid under the Share button); tighten the dock inset /

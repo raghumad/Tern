@@ -88,6 +88,16 @@ internal class AndroidBleTransport(
      */
     private val writeMutex = Mutex()
 
+    /**
+     * Completed by [onCharacteristicWrite] when the current TO_RADIO write
+     * finishes (with its status). [writeToRadio] holds [writeMutex] until this
+     * fires, so the NEXT write doesn't start while this one is still in flight
+     * — the collision that made `want_config_id` 100 ms after the handshake
+     * heartbeat return `false` and stall Stage-1 for 30 s. Only one is pending
+     * at a time (guarded by the mutex).
+     */
+    @Volatile private var writeAck: kotlinx.coroutines.CompletableDeferred<Boolean>? = null
+
     override fun events(): Flow<BleTransportEvent> = _events.asSharedFlow()
 
     @SuppressLint("MissingPermission")
@@ -142,14 +152,22 @@ internal class AndroidBleTransport(
             Log.w(TAG, "writeToRadio: TO_RADIO characteristic not found — rejecting")
             return false
         }
-        val ok = writeMutex.withLock {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                val rc = g.writeCharacteristic(
+        // Hold the mutex for the WHOLE write round-trip — start the write,
+        // then await its onCharacteristicWrite completion — so the next
+        // writeToRadio can't start while this one is in flight. Android only
+        // allows one outstanding GATT op; a second writeCharacteristic issued
+        // before the first completes returns `false` and is silently dropped.
+        // (That dropped the handshake's want_config_id and stalled Stage-1 for
+        // 30 s; it could equally drop a position/team/region write.)
+        return writeMutex.withLock {
+            val ack = kotlinx.coroutines.CompletableDeferred<Boolean>()
+            writeAck = ack
+            val started = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                g.writeCharacteristic(
                     characteristic,
                     toRadioBytes,
                     BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT,
-                )
-                rc == BluetoothGatt.GATT_SUCCESS
+                ) == BluetoothGatt.GATT_SUCCESS
             } else {
                 @Suppress("DEPRECATION")
                 characteristic.value = toRadioBytes
@@ -158,13 +176,26 @@ internal class AndroidBleTransport(
                 @Suppress("DEPRECATION")
                 g.writeCharacteristic(characteristic)
             }
+            if (!started) {
+                // Couldn't even hand the write to the stack — report failure
+                // immediately so the caller can retry; no callback will come.
+                writeAck = null
+                Log.w(TAG, "writeToRadio: writeCharacteristic not accepted (busy) — rejecting ${toRadioBytes.size}B")
+                return@withLock false
+            }
+            val ok = runCatching {
+                kotlinx.coroutines.withTimeout(WRITE_ACK_TIMEOUT_MS) { ack.await() }
+            }.getOrDefault(false)
+            writeAck = null
+            ok
         }
-        // Drain is kicked from onCharacteristicWrite once the peer
-        // acks — Android serializes GATT ops, so calling
-        // readCharacteristic while a write is in flight returns false
-        // silently (the read gets dropped, never queued). Wait for the
-        // write to complete first.
-        return ok
+    }
+
+    @SuppressLint("MissingPermission")
+    override suspend fun pollDrain() {
+        val g = gatt ?: return
+        if (!connected) return
+        drainFromRadio(g, isFirstDrain = false)
     }
 
     @SuppressLint("MissingPermission")
@@ -176,11 +207,29 @@ internal class AndroidBleTransport(
         // SCAN_FAILED_ALREADY_STARTED (error code 1).
         synchronized(stateLock) {
             if (scanning || connected || gatt != null) return
-            val s = adapter?.bluetoothLeScanner ?: return
-            scanner = s
+            val scn = adapter?.bluetoothLeScanner
+            if (scn == null) {
+                // Bluetooth is off or the LE scanner is momentarily
+                // unavailable (user toggled BT, or the stack is recovering
+                // from Doze). A *persistent* connection must NOT die here —
+                // the old code returned silently, so once BT went off the
+                // scan loop never restarted and the board showed "link down"
+                // forever until an app relaunch. Schedule a retry so we
+                // resume the moment BT comes back.
+                Log.i(TAG, "startScanning: no LE scanner (BT off?) — retrying in ${RECONNECT_BACKOFF_MS}ms")
+                scheduleRescan()
+                return
+            }
+            scanner = scn
             scanning = true
         }
         val s = scanner ?: return
+        // Defensively clear any filter this callback may still have
+        // registered from a prior scan that wasn't cleanly stopped. Leaked
+        // filters stack up in the BT stack (we observed several for one MAC)
+        // and can exhaust the per-app scan quota, after which startScan
+        // silently returns no results.
+        runCatching { s.stopScan(scanCallback) }
         val filter = ScanFilter.Builder()
             .setDeviceAddress(targetMacAddress)
             .build()
@@ -213,6 +262,21 @@ internal class AndroidBleTransport(
         }
     }
 
+    /**
+     * Re-attempt [startScanning] after a backoff. Used when the LE scanner
+     * isn't available yet (Bluetooth off / adapter recovering) so the
+     * persistent connection keeps polling and resumes the moment BT returns,
+     * instead of silently giving up. Reuses [scanTimeoutJob] so we never stack
+     * multiple pending retries.
+     */
+    private fun scheduleRescan() {
+        scanTimeoutJob?.cancel()
+        scanTimeoutJob = scope.launch {
+            delay(RECONNECT_BACKOFF_MS)
+            if (!connected && gatt == null) startScanning()
+        }
+    }
+
     private val scanCallback = object : ScanCallback() {
         @SuppressLint("MissingPermission")
         override fun onScanResult(callbackType: Int, result: ScanResult) {
@@ -223,7 +287,17 @@ internal class AndroidBleTransport(
             // connect, and every later reconnect's startScanning() trips the
             // `if (scanning) return` guard and silently never re-scans. That
             // was the auto-reconnect-never-recovers bug (T2/T3).
+            //
+            // ALSO: bail if we've already handled a result (scanning already
+            // cleared, or a gatt exists). A LOW_LATENCY scan with the default
+            // ALL_MATCHES callback delivers several hits in a burst before
+            // stopScan takes effect; without this guard each one called
+            // connectGatt, opening 3-4 parallel GATT links to the same board.
+            // The extras leak past stop() (only the last `gatt` is tracked),
+            // wedge the board (held connections → not advertising), and split
+            // the notify/drain across connections.
             synchronized(stateLock) {
+                if (!scanning || gatt != null) return
                 scanner?.let { runCatching { it.stopScan(this) } }
                 scanner = null
                 scanning = false
@@ -414,9 +488,13 @@ internal class AndroidBleTransport(
             status: Int,
         ) {
             Log.i(TAG, "onCharacteristicWrite: uuid=${characteristic.uuid} status=$status (0=ack, non-zero=error)")
-            if (status == BluetoothGatt.GATT_SUCCESS &&
-                characteristic.uuid == MeshtasticGattUuids.TO_RADIO) {
-                drainFromRadio(g, isFirstDrain = false)
+            if (characteristic.uuid == MeshtasticGattUuids.TO_RADIO) {
+                // Release the writer waiting in writeToRadio (success or not)
+                // so the mutex frees and the next write can start.
+                writeAck?.complete(status == BluetoothGatt.GATT_SUCCESS)
+                if (status == BluetoothGatt.GATT_SUCCESS) {
+                    drainFromRadio(g, isFirstDrain = false)
+                }
             }
         }
     }
@@ -461,5 +539,13 @@ internal class AndroidBleTransport(
 
         /** Cooldown between reconnect attempts. Small to keep recovery snappy. */
         const val RECONNECT_BACKOFF_MS: Long = 2_000L
+
+        /**
+         * How long [writeToRadio] waits for a TO_RADIO write to complete
+         * (onCharacteristicWrite) before giving up and returning false. A
+         * healthy write acks in well under a second; this is the stuck-write
+         * backstop so the mutex can never wedge the write path.
+         */
+        const val WRITE_ACK_TIMEOUT_MS: Long = 3_000L
     }
 }

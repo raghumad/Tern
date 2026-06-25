@@ -24,7 +24,7 @@ class TaskResolverClaimsTest {
             id = "t", name = "T",
             waypoints = listOf(
                 Waypoint(id = "p1", lat = 0.0, lon = 0.0, type = LocationType.SSS, radius = 1000.0,
-                    label = "OLD", description = "old", libraryWaypointId = "B42", openTime = "13:00"),
+                    label = "OLD", description = "old", spotId = "B42", openTime = "13:00"),
             ),
         )
         // Library now has B42 at the corrected position/name (e.g. organiser re-issued).
@@ -48,7 +48,7 @@ class TaskResolverClaimsTest {
     @Test
     fun `ad-hoc point (no link) is unchanged`() {
         val task = Task(id = "t", name = "T", waypoints = listOf(
-            Waypoint(id = "p1", lat = 45.8, lon = 6.5, label = "LP1"), // no libraryWaypointId
+            Waypoint(id = "p1", lat = 45.8, lon = 6.5, label = "LP1"), // no spotId
         ))
         val resolved = TaskResolver.resolveAll(listOf(task), lib()).first().waypoints.first()
         assertThat(resolved.lat).isWithin(1e-9).of(45.8)
@@ -58,7 +58,7 @@ class TaskResolverClaimsTest {
     @Test
     fun `missing library entry falls back to the stored copy`() {
         val task = Task(id = "t", name = "T", waypoints = listOf(
-            Waypoint(id = "p1", lat = 32.0, lon = 76.0, label = "B42", libraryWaypointId = "B42"),
+            Waypoint(id = "p1", lat = 32.0, lon = 76.0, label = "B42", spotId = "B42"),
         ))
         // Library no longer has B42 (deleted) → keep the point's stored copy, don't drop it.
         val resolved = TaskResolver.resolveAll(listOf(task), lib()).first().waypoints.first()

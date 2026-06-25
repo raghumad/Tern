@@ -17,11 +17,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import com.ternparagliding.ui.weather.FlyabilityCard
 import com.ternparagliding.ui.weather.OrientationCard
@@ -48,7 +53,6 @@ import androidx.compose.runtime.remember
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import java.util.TimeZone
 
 /**
  * WeatherDetailsScreen - Modern Android Aviation Weather Dialog
@@ -64,6 +68,8 @@ fun WeatherDetailsDialog(
     siteContext: com.ternparagliding.weather.SiteContext? = null,
     units: UnitPrefs = UnitPrefs(),
     isLoading: Boolean = false,
+    onAddToTask: (() -> Unit)? = null,
+    onEditWaypoint: (() -> Unit)? = null,
     onDismiss: () -> Unit = {}
 ) {
     // A bottom sheet, not a full-screen dialog: the map stays visible above so the
@@ -92,6 +98,30 @@ fun WeatherDetailsDialog(
             }
         },
     ) {
+        // Contextual actions: edit this waypoint's identity (Workflow A — for library
+        // waypoints), and/or pull the site into the selected task (PG spots, and library
+        // waypoints when a task is selected).
+        if (onEditWaypoint != null || onAddToTask != null) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+            ) {
+                if (onEditWaypoint != null) {
+                    OutlinedButton(onClick = onEditWaypoint) {
+                        Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.width(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Edit waypoint")
+                    }
+                }
+                if (onAddToTask != null) {
+                    OutlinedButton(onClick = onAddToTask) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.width(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Add to task")
+                    }
+                }
+            }
+        }
         when {
             isLoading -> Box(
                 modifier = Modifier.fillMaxWidth().height(160.dp),
@@ -192,6 +222,13 @@ private fun WeatherContent(
             SoarableCard(day, units, modifier = Modifier.padding(bottom = 16.dp))
         }
 
+        // Thermal outlook — the XC timing read: numeric w* climb strength over the day, the
+        // working window, peak, and how high lift reaches. Sits under "when flyable".
+        val thermalDays = com.ternparagliding.weather.assessThermalDays(forecast, site = siteContext, maxDays = 2)
+        thermalDays.firstOrNull()?.let { outlook ->
+            com.ternparagliding.ui.weather.ThermalOutlookCard(outlook, modifier = Modifier.padding(bottom = 16.dp))
+        }
+
         // Launch orientation + wind. Shown for any tapped site: with the flyable arc when
         // PGE records it, otherwise the wind dial alone with an "orientation unknown" note
         // (never silently hide it and imply the launch is fine).
@@ -235,15 +272,18 @@ private fun WeatherContent(
             }
         }
 
-        // Skew-T Analysis — real computed values from current weather data
+        // Skew-T Analysis — a real profile plot when we have pressure-level data.
         val skewTData = interpolated ?: forecast.current
-        SkewTPlaceholderCard(weatherData = skewTData, units = units)
+        SkewTPlaceholderCard(weatherData = skewTData, elevationM = siteContext?.elevationM, units = units)
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Hourly Forecast (next 8 hours), labeled with the local hour. Timestamps are
-        // local-wall-clock carried as UTC epoch ms, so format in UTC to read them back.
-        val hourFmt = remember {
-            SimpleDateFormat("EEE HH:00", Locale.getDefault()).apply { timeZone = TimeZone.getTimeZone("UTC") }
+        // Hourly Forecast (next 8 hours), labeled with the site's local hour. Timestamps are
+        // true epoch ms; format in the site's zone (from the forecast's UTC offset) to read
+        // them as the launch's wall clock.
+        val hourFmt = remember(forecast.utcOffsetSeconds) {
+            SimpleDateFormat("EEE HH:00", Locale.getDefault()).apply {
+                timeZone = com.ternparagliding.utils.io.siteTimeZone(forecast.utcOffsetSeconds)
+            }
         }
         forecast.hourly.take(8).forEach { period ->
             HourlyWeatherCard(period, hourFmt.format(Date(period.startTime)), units)
@@ -260,7 +300,7 @@ private fun WeatherContent(
         )
 
         forecast.daily.take(5).forEach { period ->
-            DailyWeatherCard(period, units)
+            DailyWeatherCard(period, units, forecast.utcOffsetSeconds)
         }
     }
 
@@ -407,7 +447,7 @@ private fun HourlyWeatherCard(period: ForecastPeriod, label: String, units: Unit
  * Daily Weather Card
  */
 @Composable
-private fun DailyWeatherCard(period: ForecastPeriod, units: UnitPrefs = UnitPrefs()) {
+private fun DailyWeatherCard(period: ForecastPeriod, units: UnitPrefs = UnitPrefs(), utcOffsetSeconds: Int = 0) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -421,9 +461,11 @@ private fun DailyWeatherCard(period: ForecastPeriod, units: UnitPrefs = UnitPref
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // Date (startTime is local-wall-clock ms; format in UTC to read it back)
-            val dateFormat = remember {
-                SimpleDateFormat("EEE", Locale.getDefault()).apply { timeZone = TimeZone.getTimeZone("UTC") }
+            // Date (startTime is true epoch ms; format in the site's zone to read the local day)
+            val dateFormat = remember(utcOffsetSeconds) {
+                SimpleDateFormat("EEE", Locale.getDefault()).apply {
+                    timeZone = com.ternparagliding.utils.io.siteTimeZone(utcOffsetSeconds)
+                }
             }
             Text(
                 dateFormat.format(Date(period.startTime)),
@@ -529,9 +571,27 @@ private fun WeatherDetail(label: String, value: String, modifier: Modifier = Mod
  * Inversion Layer is detected from Open-Meteo 850hPa vs 925hPa temperature data.
  */
 @Composable
-private fun SkewTPlaceholderCard(weatherData: com.ternparagliding.utils.io.WeatherData? = null, units: UnitPrefs = UnitPrefs()) {
-    val cloudBaseText = weatherData?.let { Units.altitude(computeCloudBaseMeters(it), units.altitude) } ?: "—"
-    val inversionText = weatherData?.let { detectInversionLayer(it) } ?: "—"
+private fun SkewTPlaceholderCard(
+    weatherData: com.ternparagliding.utils.io.WeatherData? = null,
+    elevationM: Double? = null,
+    units: UnitPrefs = UnitPrefs(),
+) {
+    // Profile-based sounding when we have pressure-level data + a surface elevation to
+    // root the parcel; else fall back to the two-level proxies for the readouts.
+    val sounding = weatherData?.profile?.let { p ->
+        elevationM?.let { e ->
+            com.ternparagliding.weather.analyseSounding(
+                weatherData.temperature,
+                com.ternparagliding.utils.io.dewpointC(weatherData.temperature, weatherData.humidity),
+                e, p,
+            )
+        }
+    }
+    val cloudBaseM = sounding?.cloudBaseAglM ?: weatherData?.let { computeCloudBaseMeters(it) }
+    val cloudBaseText = cloudBaseM?.let { Units.altitude(it, units.altitude) } ?: "—"
+    val inversionText = sounding?.let {
+        it.inversionBaseMslM?.let { h -> "${Units.altitude(h, units.altitude)} MSL" } ?: "none"
+    } ?: weatherData?.let { detectInversionLayer(it) } ?: "—"
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -548,22 +608,26 @@ private fun SkewTPlaceholderCard(weatherData: com.ternparagliding.utils.io.Weath
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(80.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = if (weatherData != null)
-                        "Surface T: ${Units.temp(weatherData.temperature, units.temperature)} · RH: ${weatherData.humidity.toInt()}%"
-                    else
-                        "No weather data",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            if (weatherData?.profile != null) {
+                SkewTPlot(weather = weatherData, elevationM = elevationM)
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(80.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = if (weatherData != null)
+                            "Surface T: ${Units.temp(weatherData.temperature, units.temperature)} · RH: ${weatherData.humidity.toInt()}%"
+                        else
+                            "No profile data",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -576,6 +640,11 @@ private fun SkewTPlaceholderCard(weatherData: com.ternparagliding.utils.io.Weath
                     label = "Cloud Base",
                     value = cloudBaseText,
                     modifier = Modifier.testTag("SkewTCloudBase")
+                )
+                WeatherDetail(
+                    label = "Thermal Top",
+                    value = sounding?.thermalTopAglM?.let { Units.altitude(it, units.altitude) } ?: "—",
+                    modifier = Modifier.testTag("SkewTThermalTop")
                 )
                 WeatherDetail(
                     label = "Inversion",

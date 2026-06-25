@@ -24,11 +24,11 @@ import org.maplibre.compose.sources.GeoJsonData
 import org.maplibre.compose.sources.rememberGeoJsonSource
 
 // Tern cockpit palette -- task line is neon cyan over a dark casing.
-private val ROUTE_LINE_COLOR = Color(0xFF00E5FF)
-private val ROUTE_CASING_COLOR = Color(0xCC0A1417)
+private val TASK_LINE_COLOR = Color(0xFF00E5FF)
+private val TASK_CASING_COLOR = Color(0xCC0A1417)
 
-/** Above this zoom, waypoint markers show the detailed (name + radius) tier. */
-private const val ZOOM_DETAIL = 11.0
+/** Above this zoom, waypoint markers show the detailed tier (name + cylinder + elevation + gate). */
+private const val ZOOM_DETAIL = 10.0
 
 /** One rasterised marker per waypoint, keyed for the data-driven SymbolLayer. */
 private data class WpSpec(
@@ -38,6 +38,9 @@ private data class WpSpec(
     val seq: Int,
     val name: String,
     val radiusM: Double,
+    val altM: Double?,
+    val openTime: String?,
+    val closeTime: String?,
 )
 
 /**
@@ -58,28 +61,31 @@ fun TaskLayer(
     tasks: List<Task>,
     selectedWaypointId: String? = null,
     activeWaypointId: String? = null,
+    nerdFont: android.graphics.Typeface? = null,
     onWaypointClick: ((taskId: String, waypointId: String) -> Unit)? = null,
 ) {
     val visible = tasks.filter { it.isVisible }
 
     val lineSource = rememberGeoJsonSource(
-        data = remember(tasks) { GeoJsonData.Features(TaskGeoJson.taskLines(tasks)) },
+        data = remember(tasks) { GeoJsonData.Features(com.ternparagliding.utils.geo.GeoJsonSafe.sanitize(TaskGeoJson.taskLines(tasks))) },
     )
     val cylinderSource = rememberGeoJsonSource(
-        data = remember(tasks) { GeoJsonData.Features(TaskGeoJson.taskCylinders(tasks)) },
+        data = remember(tasks) { GeoJsonData.Features(com.ternparagliding.utils.geo.GeoJsonSafe.sanitize(TaskGeoJson.taskCylinders(tasks))) },
     )
     val legSource = rememberGeoJsonSource(
-        data = remember(tasks) { GeoJsonData.Features(TaskGeoJson.legMidpoints(tasks)) },
+        data = remember(tasks) { GeoJsonData.Features(com.ternparagliding.utils.geo.GeoJsonSafe.sanitize(TaskGeoJson.legMidpoints(tasks))) },
     )
     val pointSource = rememberGeoJsonSource(
-        data = remember(tasks) { GeoJsonData.Features(TaskGeoJson.waypointPoints(tasks)) },
+        data = remember(tasks) { GeoJsonData.Features(com.ternparagliding.utils.geo.GeoJsonSafe.sanitize(TaskGeoJson.waypointPoints(tasks))) },
     )
 
     val typeExpr = feature.get("type") as Expression<StringValue>
-    val cylinderFill = remember { cylinderColorExpr(typeExpr, 0.12f) }
-    val cylinderRing = remember { cylinderColorExpr(typeExpr, 0.9f) }
+    val cylinderFill = remember { cylinderColorExpr(typeExpr, 0.18f) }
+    val cylinderRing = remember { cylinderColorExpr(typeExpr, 1.0f) }
 
     // ── FAI cylinders (drawn first, beneath everything) ──────────────────
+    // The ring IS the waypoint's identity on the ground, so make it read clearly:
+    // a brighter, thicker outline over a slightly stronger fill.
     org.maplibre.compose.layers.FillLayer(
         id = "task-cylinder-fill",
         source = cylinderSource,
@@ -89,18 +95,18 @@ fun TaskLayer(
         id = "task-cylinder-ring",
         source = cylinderSource,
         color = cylinderRing,
-        width = const(2.dp),
+        width = const(3.dp),
     )
 
     // ── Task line: dark casing then neon line ───────────────────────────
     org.maplibre.compose.layers.LineLayer(
         id = "task-line-casing", source = lineSource,
-        color = const(ROUTE_CASING_COLOR), width = const(4.5.dp),
+        color = const(TASK_CASING_COLOR), width = const(4.5.dp),
         cap = const(LineCap.Round), join = const(LineJoin.Round),
     )
     org.maplibre.compose.layers.LineLayer(
         id = "task-line", source = lineSource,
-        color = const(ROUTE_LINE_COLOR), width = const(2.5.dp),
+        color = const(TASK_LINE_COLOR), width = const(2.5.dp),
         cap = const(LineCap.Round), join = const(LineJoin.Round),
     )
 
@@ -129,22 +135,22 @@ fun TaskLayer(
             var tp = 0
             task.waypoints.mapIndexed { i, wp ->
                 val seq = if (wp.type == LocationType.TURNPOINT) ++tp else i + 1
-                WpSpec("${task.id}:${wp.id}", wp.id, wp.type, seq, wp.displayName ?: "WP ${i + 1}", wp.radius ?: 0.0)
+                WpSpec("${task.id}:${wp.id}", wp.id, wp.type, seq, wp.displayName ?: "WP ${i + 1}", wp.radius ?: 0.0, wp.alt, wp.openTime, wp.closeTime)
             }
         }
     }
     if (specs.isNotEmpty()) {
         val markerKeyExpr = feature.get("markerKey") as Expression<StringValue>
-        val iconImage = remember(specs, selectedWaypointId, activeWaypointId) {
+        val iconImage = remember(specs, selectedWaypointId, activeWaypointId, nerdFont) {
             val transparent = image(Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888).asImageBitmap())
             // The active (next) waypoint and the editing-selected waypoint both
             // get the enlarged + haloed treatment so they stand out.
             fun highlit(s: WpSpec) = s.key == selectedWaypointId || s.wpId == activeWaypointId
             val compact = specs.map { s ->
-                case(s.key, image(renderWaypointBitmap(s.type, s.seq, s.name, selected = highlit(s), detailed = false).asImageBitmap()))
+                case(s.key, image(renderWaypointBitmap(s.type, s.seq, s.name, selected = highlit(s), detailed = false, nerdFont = nerdFont).asImageBitmap()))
             }.toTypedArray()
             val detailed = specs.map { s ->
-                case(s.key, image(renderWaypointBitmap(s.type, s.seq, s.name, selected = highlit(s), detailed = true, radiusM = s.radiusM).asImageBitmap()))
+                case(s.key, image(renderWaypointBitmap(s.type, s.seq, s.name, selected = highlit(s), detailed = true, radiusM = s.radiusM, altM = s.altM, openTime = s.openTime, closeTime = s.closeTime, nerdFont = nerdFont).asImageBitmap()))
             }.toTypedArray()
             step(
                 zoom(),

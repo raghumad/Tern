@@ -76,9 +76,10 @@ of focus changes lives in git log.
 
 ## Index
 
-- [Current focus](current-focus.md) — the Aravis replay: 4-pilot XC
-  replayed at 64x through real hardware, producing a side-by-side video
-  of the phone map and board OLED.
+- [Current focus](current-focus.md) — **stabilize core functionality
+  first** (the Aravis replay milestone is achieved). Phases 0–1 done;
+  Phase 2 (fix the real broken workflows) in progress — task-planning UX,
+  the weather / Flyability deck, and the flight-deck brains.
 - [Epic 01](epic-01-peer-awareness-and-sos.md) — Pilots in the same area
   see each other and signal for help without cell service. (End goal.)
 - [Epic 02](epic-02-traffic-awareness.md) — Pilots see nearby aircraft

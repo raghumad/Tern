@@ -32,8 +32,8 @@ class TaskBindClaimsTest {
 
         val bound = TaskResolver.bindToLibrary(task, library)
 
-        assertThat(bound.waypoints[0].libraryWaypointId).isEqualTo("LW049") // linked
-        assertThat(bound.waypoints[1].libraryWaypointId).isNull()           // unmatched, left as-is
+        assertThat(bound.waypoints[0].spotId).isEqualTo("LW049") // linked
+        assertThat(bound.waypoints[1].spotId).isNull()           // unmatched, left as-is
         // Roles (task-specific) are preserved through binding.
         assertThat(bound.waypoints[0].type).isEqualTo(LocationType.SSS)
     }
@@ -54,8 +54,8 @@ class TaskBindClaimsTest {
     /** **CLAIM.** A link whose library entry is gone is flagged missing (but kept). */
     @Test
     fun `missing link is detected`() {
-        val present = Waypoint(id = "p1", lat = 0.0, lon = 0.0, label = "LW049", libraryWaypointId = "LW049")
-        val gone = Waypoint(id = "p2", lat = 0.0, lon = 0.0, label = "OLD", libraryWaypointId = "DELETED")
+        val present = Waypoint(id = "p1", lat = 0.0, lon = 0.0, label = "LW049", spotId = "LW049")
+        val gone = Waypoint(id = "p2", lat = 0.0, lon = 0.0, label = "OLD", spotId = "DELETED")
         val adhoc = Waypoint(id = "p3", lat = 0.0, lon = 0.0, label = "FREE")
 
         assertThat(TaskResolver.isMissingLink(present, library)).isFalse()

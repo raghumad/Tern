@@ -49,12 +49,23 @@ import kotlinx.coroutines.launch
 class XcTracerBleClient(
     private val context: Context,
     private val scope: CoroutineScope,
-    /** Optional exact MAC; when null we match any peripheral whose name looks like an XC Tracer. */
-    private val targetMac: String? = null,
+    /** Exact MAC of the pilot's chosen vario; when null we match any peripheral whose name looks
+     *  like an XC Tracer (legacy/first-run). Settable via [setTarget] once the pilot picks. */
+    @Volatile private var targetMac: String? = null,
     private val adapter: BluetoothAdapter? =
         (context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter,
 ) {
     enum class State { IDLE, SCANNING, CONNECTED }
+
+    /** Pin (or clear) the exact vario to connect to — the pilot's pick from the scan list. */
+    fun setTarget(mac: String?) { targetMac = mac }
+
+    /**
+     * Called when we reconnect to the remembered vario but at a **new MAC** (XC Tracers use a
+     * random *static* BLE address that can change on power-cycle). The app updates the remembered
+     * MAC so future reconnects match immediately. (mac, name).
+     */
+    var onMacResolved: ((String, String?) -> Unit)? = null
 
     private val _fixes = MutableSharedFlow<SensorFix>(extraBufferCapacity = 64)
     private val _state = MutableStateFlow(State.IDLE)
@@ -69,6 +80,9 @@ class XcTracerBleClient(
     @Volatile private var gatt: BluetoothGatt? = null
     @Volatile private var scanning = false
     @Volatile private var running = false
+    /** When the current search began (ms) — the grace window before the name fallback kicks in. */
+    @Volatile private var searchStartMs = 0L
+    @Volatile private var watchdog: kotlinx.coroutines.Job? = null
     private val lock = Any()
 
     @SuppressLint("MissingPermission")
@@ -77,13 +91,31 @@ class XcTracerBleClient(
             Log.i(TAG, "BLE adapter unavailable/off; staying idle (graceful degradation).")
             return
         }
+        if (running) return // already searching/connected — don't stack watchdogs
         running = true
+        searchStartMs = System.currentTimeMillis()
         startScanning()
+        // Watchdog: a single startScan can go silent (Android throttles/stops long low-latency
+        // scans). While we're still searching, periodically re-issue it so the search is truly
+        // perpetual — the vario reconnects the moment it powers back on, with no taps.
+        watchdog = scope.launch {
+            while (running) {
+                delay(SCAN_REFRESH_MS)
+                if (running && gatt == null) {
+                    synchronized(lock) {
+                        scanner?.let { runCatching { it.stopScan(scanCallback) } }
+                        scanning = false
+                    }
+                    startScanning()
+                }
+            }
+        }
     }
 
     @SuppressLint("MissingPermission")
     fun stop() {
         running = false
+        watchdog?.cancel(); watchdog = null
         synchronized(lock) {
             scanner?.let { runCatching { it.stopScan(scanCallback) } }
             scanner = null
@@ -115,10 +147,21 @@ class XcTracerBleClient(
         _state.value = State.SCANNING
     }
 
-    private fun looksLikeXcTracer(result: ScanResult): Boolean {
-        if (targetMac != null) return result.device?.address.equals(targetMac, ignoreCase = true)
+    private fun isTracerName(result: ScanResult): Boolean {
         val name = result.device?.name ?: result.scanRecord?.deviceName ?: return false
         return name.contains("tracer", ignoreCase = true) || name.startsWith("XCT", ignoreCase = true)
+    }
+
+    private fun looksLikeXcTracer(result: ScanResult): Boolean {
+        if (targetMac != null) {
+            if (result.device?.address.equals(targetMac, ignoreCase = true)) return true
+            // XC Tracers use a random *static* BLE address that can change on power-cycle, so the
+            // saved MAC may no longer match. After a grace window with no exact-MAC sighting,
+            // accept a name-matching tracer and re-adopt its MAC. Exact-MAC still wins early, so
+            // when several varios are present the right one is preferred before the fallback.
+            return isTracerName(result) && (System.currentTimeMillis() - searchStartMs > NAME_FALLBACK_GRACE_MS)
+        }
+        return isTracerName(result)
     }
 
     private val scanCallback = object : ScanCallback() {
@@ -135,6 +178,14 @@ class XcTracerBleClient(
                 scanner?.let { runCatching { it.stopScan(this) } }
                 scanner = null
                 scanning = false
+            }
+            // If we matched via the name fallback (rotated MAC), adopt the new address and tell
+            // the app so it persists it — next reconnect matches by MAC immediately.
+            val addr = device.address
+            if (targetMac != null && !addr.equals(targetMac, ignoreCase = true)) {
+                Log.i(TAG, "Vario MAC rotated $targetMac → $addr; re-adopting")
+                targetMac = addr
+                onMacResolved?.invoke(addr, device.name)
             }
             Log.i(TAG, "Found ${device.name ?: device.address}; connecting…")
             connectGatt(device)
@@ -224,5 +275,9 @@ class XcTracerBleClient(
         val FFE1: UUID = UUID.fromString("0000ffe1-0000-1000-8000-00805f9b34fb")
         val CCC_DESCRIPTOR: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
         const val RECONNECT_BACKOFF_MS: Long = 2_000L
+        /** Re-issue the scan this often while searching, so it survives Android stopping it. */
+        const val SCAN_REFRESH_MS: Long = 12_000L
+        /** Grace before the name fallback (rotated random MAC) kicks in — exact MAC wins first. */
+        const val NAME_FALLBACK_GRACE_MS: Long = 8_000L
     }
 }

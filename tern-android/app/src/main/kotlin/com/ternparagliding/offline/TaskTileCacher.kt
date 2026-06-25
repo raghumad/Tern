@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.ternparagliding.model.Task
 import com.ternparagliding.model.TernBoundingBox
+import kotlin.coroutines.resume
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -40,6 +41,28 @@ class TaskTileCacher(private val context: Context) {
                 (completedResources.toFloat() / requiredResources).coerceIn(0f, 1f)
             else 0f
     }
+
+    /**
+     * True if a **complete** offline region already exists for [task] (matched by the
+     * `task-<id>` metadata tag). Lets callers skip re-downloading a corridor whose tiles
+     * are already on disk — across app restarts, where an in-memory guard can't help.
+     * Returns false on any error (caller should then just (re)cache).
+     */
+    suspend fun isTaskCached(task: Task): Boolean =
+        kotlinx.coroutines.suspendCancellableCoroutine { cont ->
+            val target = "task-${task.id}".toByteArray(Charsets.UTF_8)
+            OfflineManager.getInstance(context).listOfflineRegions(
+                object : OfflineManager.ListOfflineRegionsCallback {
+                    override fun onList(offlineRegions: Array<OfflineRegion>?) {
+                        val exists = offlineRegions?.any { it.metadata.contentEquals(target) } == true
+                        if (cont.isActive) cont.resume(exists)
+                    }
+                    override fun onError(error: String) {
+                        if (cont.isActive) cont.resume(false)
+                    }
+                }
+            )
+        }
 
     /**
      * Begin downloading tiles for [task].

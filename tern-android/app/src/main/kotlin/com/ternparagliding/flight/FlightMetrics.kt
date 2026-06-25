@@ -32,4 +32,53 @@ object FlightMetrics {
         AltRef.MSL -> altM
         AltRef.ABOVE_TAKEOFF -> altM - takeoffDatumM
     }
+
+    /** Climb (m/s) above which the pilot is working a thermal, not gliding. */
+    const val CLIMB_THRESHOLD_MS = 0.2
+
+    /** "Near" cloudbase: within this many metres *below* it, the gap is the read that matters
+     *  (you're about to reach cloud) and it pre-empts L/D and height-gain. */
+    const val CLOUDBASE_NEAR_M = 300.0
+
+    /**
+     * The HUD's **contextual cell** — the single readout that changes with flight phase. The
+     * tape already carries instantaneous climb + altitude; this picks the one *situational*
+     * number worth the pilot's glance, in priority order:
+     *  - [CloudbaseGap] when cloudbase is known and you're near (and below) it — the safety cue
+     *    "you're about to be in cloud" out-ranks everything.
+     *  - [HeightGain] while climbing — the thermal's payoff, height won above takeoff.
+     *  - [GlideRatio] while gliding — L/D, meaningful only when actually sinking.
+     *  - [None] when nothing is computable (level flight, or the inputs aren't there yet).
+     */
+    sealed interface HudContext {
+        data class CloudbaseGap(val gapM: Double) : HudContext   // metres below cloudbase
+        data class HeightGain(val gainM: Double) : HudContext    // metres above takeoff
+        data class GlideRatio(val ld: Double) : HudContext       // current L/D
+        object None : HudContext
+    }
+
+    fun hudContext(
+        climbMs: Double?,
+        groundSpeedMs: Double?,
+        altitudeMslM: Double?,
+        takeoffDatumM: Double?,
+        cloudBaseMslM: Double?,
+    ): HudContext {
+        // Cloudbase proximity first — it's the one cue you can't afford to miss.
+        if (cloudBaseMslM != null && altitudeMslM != null) {
+            val gap = cloudBaseMslM - altitudeMslM
+            if (gap in 0.0..CLOUDBASE_NEAR_M) return HudContext.CloudbaseGap(gap)
+        }
+        if (climbMs != null && climbMs > CLIMB_THRESHOLD_MS) {
+            return if (altitudeMslM != null && takeoffDatumM != null) {
+                HudContext.HeightGain(altitudeMslM - takeoffDatumM)
+            } else {
+                HudContext.None
+            }
+        }
+        if (climbMs != null && groundSpeedMs != null) {
+            glideRatio(groundSpeedMs, climbMs)?.let { return HudContext.GlideRatio(it) }
+        }
+        return HudContext.None
+    }
 }

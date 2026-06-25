@@ -20,6 +20,7 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
     is MapAction.UpdateRotation,
     is MapAction.UpdateCenter,
     is MapAction.UpdateZoom,
+    is MapAction.SetCameraFollow,
     is MapAction.UpdateMapMovement,
     is MapAction.UpdateBoundingBox -> handleMapViewportActions(state, action)
 
@@ -46,6 +47,10 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
 
     // Settings & Preferences
     is MapAction.SetSettingsOverlayEnabled,
+    is MapAction.SetRememberedVario,
+    is MapAction.SetVarioPaused,
+    is MapAction.SetTeam,
+    is MapAction.SetTeamApplied,
     is MapAction.SetUnitPreference -> handleSettingsActions(state, action)
 
     // User Preferences & Layout
@@ -71,13 +76,42 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
             action.waypoints.filter { wp -> state.waypointLibrary.none { it.id == wp.id } }
         state.copy(waypointLibrary = merged)
     }
+    is MapAction.UpdateSpot -> state.copy(
+        waypointLibrary = state.waypointLibrary.map { spot ->
+            if (spot.id != action.spotId) spot
+            else spot.copy(
+                code = action.code ?: spot.code,
+                name = action.name ?: spot.name,
+                lat = action.lat ?: spot.lat,
+                lon = action.lon ?: spot.lon,
+                alt = action.alt ?: spot.alt,
+            )
+        }
+    )
     is MapAction.RemoveLibraryWaypoint ->
         state.copy(waypointLibrary = state.waypointLibrary.filterNot { it.id == action.waypointId })
     MapAction.ClearWaypointLibrary -> state.copy(waypointLibrary = emptyList())
 
+    // Spot move-mode (Workflow A "Move on map"): arm, commit on a map tap, or cancel.
+    is MapAction.StartSpotMove -> state.copy(movingSpotId = action.spotId)
+    is MapAction.CommitSpotMove -> state.copy(
+        waypointLibrary = state.waypointLibrary.map {
+            if (it.id == state.movingSpotId) it.copy(lat = action.lat, lon = action.lon) else it
+        },
+        movingSpotId = null,
+    )
+    MapAction.CancelSpotMove -> state.copy(movingSpotId = null)
+
+    // Add-from-map mode: clear the chrome (collapse the panel) and arm the crosshair.
+    MapAction.StartAddWaypoint -> state.copy(addingWaypoint = true, isTaskPanelExpanded = false)
+    // Clear the trailing selection from the last drop so Done returns to the task
+    // panel, not the per-point editor.
+    MapAction.StopAddWaypoint -> state.copy(addingWaypoint = false, selectedWaypoint = null)
+
     // Waypoint Management (TaskReducers.kt)
     is MapAction.AddWaypointToTask,
     is MapAction.AddLibraryWaypointsToTask,
+    is MapAction.AddPgSpotToTask,
     is MapAction.RemoveWaypoint,
     is MapAction.UpdateWaypoint,
     is MapAction.UpdateWaypointType,
@@ -125,7 +159,7 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
     is MapAction.LongPressMap -> handleLongPressMap(state, action)
 
     // New: Airspace Collision
-    is MapAction.SetAirspaceCollision -> state.copy(hasAirspaceCollision = action.hasCollision)
+    is MapAction.SetAirspaceCollision -> state.copy(hasAirspaceCollision = action.hasCollision, airspaceConflicts = action.conflicts)
 
     // Zoom to Task (Signalling action for Middleware)
     is MapAction.ZoomToTask -> state
@@ -152,6 +186,7 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
     is MapAction.SetVarioLinkState,
     is MapAction.StartDeckReplay,
     MapAction.StopDeckReplay,
+    is MapAction.LogVarioConnectionEvent,
     MapAction.ToggleVario -> handleFlightDeckActions(state, action)
 }
 
@@ -162,6 +197,12 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
 private fun handleFlightDeckActions(state: MapState, action: MapAction): MapState = when (action) {
     MapAction.ToggleVario -> state.copy(
         flightDeck = state.flightDeck.copy(varioRequested = !state.flightDeck.varioRequested),
+    )
+    is MapAction.LogVarioConnectionEvent -> state.copy(
+        flightDeck = state.flightDeck.copy(
+            // Newest last; keep a bounded tail so the log can't grow without bound.
+            connectionEvents = (state.flightDeck.connectionEvents + action.event).takeLast(20),
+        ),
     )
     is MapAction.SetVarioLinkState -> state.copy(
         flightDeck = state.flightDeck.copy(
@@ -236,6 +277,7 @@ private fun handleMapViewportActions(state: MapState, action: MapAction): MapSta
     is MapAction.UpdateRotation -> state.copy(rotation = action.rotation)
     is MapAction.UpdateCenter -> state.copy(center = action.center)
     is MapAction.UpdateZoom -> state.copy(zoom = action.zoom)
+    is MapAction.SetCameraFollow -> state.copy(cameraFollow = action.follow)
     is MapAction.UpdateMapMovement -> state.copy(
         rotation = action.rotation ?: state.rotation,
         center = action.center ?: state.center,
@@ -254,7 +296,7 @@ private fun handleOverlayActions(state: MapState, action: MapAction): MapState =
         val newOverlayState = when (action.type) {
             OverlayType.AIRSPACE -> state.overlayState.copy(airspaces = state.overlayState.airspaces.copy(enabled = action.enabled))
             OverlayType.PG_SPOTS -> state.overlayState.copy(pgSpots = state.overlayState.pgSpots.copy(enabled = action.enabled))
-            OverlayType.ROUTES -> state.overlayState.copy(tasks = state.overlayState.tasks.copy(enabled = action.enabled))
+            OverlayType.TASKS -> state.overlayState.copy(tasks = state.overlayState.tasks.copy(enabled = action.enabled))
             OverlayType.THERMAL_HOTSPOTS -> state.overlayState.copy(thermalHotspots = state.overlayState.thermalHotspots.copy(enabled = action.enabled))
             OverlayType.MEZULLA -> state.overlayState // Mezulla has no toggle in OverlayState; always on when peers exist
         }
@@ -264,7 +306,7 @@ private fun handleOverlayActions(state: MapState, action: MapAction): MapState =
         val newOverlayState = when (action.type) {
             OverlayType.AIRSPACE -> state.overlayState.copy(airspaces = action.config)
             OverlayType.PG_SPOTS -> state.overlayState.copy(pgSpots = action.config)
-            OverlayType.ROUTES -> state.overlayState.copy(tasks = action.config)
+            OverlayType.TASKS -> state.overlayState.copy(tasks = action.config)
             OverlayType.THERMAL_HOTSPOTS -> state.overlayState.copy(thermalHotspots = action.config)
             OverlayType.MEZULLA -> state.overlayState // No per-type config for Mezulla
         }
@@ -329,6 +371,29 @@ private fun handleSettingsActions(state: MapState, action: MapAction): MapState 
         }
         state.copy(settingsState = newSettingsState)
     }
+    is MapAction.SetRememberedVario -> state.copy(
+        settingsState = state.settingsState.copy(
+            rememberedVarioMac = action.mac, rememberedVarioName = action.name,
+            // A freshly-picked (or forgotten) vario starts un-paused.
+            varioPaused = false,
+        ),
+    )
+    is MapAction.SetVarioPaused -> state.copy(
+        settingsState = state.settingsState.copy(varioPaused = action.paused),
+    )
+    is MapAction.SetTeam -> state.copy(
+        settingsState = state.settingsState.copy(
+            teamName = action.name,
+            teamShareLink = action.shareLink,
+            teamSource = action.source,
+            // Leaving (all null) clears the applied marker too; switching teams leaves the old
+            // marker so the reconcile step notices the change and re-applies.
+            teamAppliedLink = if (action.name == null) null else state.settingsState.teamAppliedLink,
+        ),
+    )
+    is MapAction.SetTeamApplied -> state.copy(
+        settingsState = state.settingsState.copy(teamAppliedLink = action.shareLink),
+    )
     else -> state
 }
 

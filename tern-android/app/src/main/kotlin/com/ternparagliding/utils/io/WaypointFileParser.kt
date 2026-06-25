@@ -1,10 +1,11 @@
 package com.ternparagliding.utils.io
 
-import com.ternparagliding.model.LibraryWaypoint
+import com.ternparagliding.model.Spot
+import com.ternparagliding.model.SpotSource
 
 /**
  * Parses the **waypoint files** comp organisers issue (airtribune / PWC downloads)
- * into standalone [LibraryWaypoint]s for the library. Supports the three formats
+ * into standalone [Spot]s for the library. Supports the three formats
  * the pilot picked: **SeeYou .cup**, **OziExplorer / CompeGPS .wpt**, and **.gpx**.
  *
  * Pure (string in, list out) so it's unit-testable without Android. Format is
@@ -13,7 +14,7 @@ import com.ternparagliding.model.LibraryWaypoint
 object WaypointFileParser {
 
     /** Parse [content] (optionally hinted by [fileName]) into library waypoints. */
-    fun parse(fileName: String?, content: String): List<LibraryWaypoint> {
+    fun parse(fileName: String?, content: String): List<Spot> {
         val ext = fileName?.substringAfterLast('.', "")?.lowercase()
         return when (ext) {
             "cup" -> parseCup(content)
@@ -23,7 +24,7 @@ object WaypointFileParser {
         }
     }
 
-    private fun sniff(content: String): List<LibraryWaypoint> {
+    private fun sniff(content: String): List<Spot> {
         val head = content.take(2000)
         return when {
             head.contains("<gpx", ignoreCase = true) || head.contains("<wpt", ignoreCase = true) -> parseGpx(content)
@@ -38,8 +39,8 @@ object WaypointFileParser {
     // ── SeeYou CUP ───────────────────────────────────────────────────────────
     // Header: name,code,country,lat,lon,elev,style,...  Coordinates DDMM.mmmH /
     // DDDMM.mmmH. The waypoint section ends at a "-----Related Tasks-----" marker.
-    fun parseCup(content: String): List<LibraryWaypoint> {
-        val out = mutableListOf<LibraryWaypoint>()
+    fun parseCup(content: String): List<Spot> {
+        val out = mutableListOf<Spot>()
         for (raw in content.lines()) {
             val line = raw.trim()
             if (line.isBlank()) continue
@@ -71,7 +72,7 @@ object WaypointFileParser {
     }
 
     // ── WPT (FormatGEO, OziExplorer, or CompeGPS) ────────────────────────────
-    fun parseWpt(content: String): List<LibraryWaypoint> = when {
+    fun parseWpt(content: String): List<Spot> = when {
         content.contains("\$FormatGEO", ignoreCase = true) -> parseFormatGeo(content)
         content.lineSequence().any { it.trimStart().startsWith("W ") || it.trimStart().startsWith("W\t") } -> parseCompeGpsWpt(content)
         else -> parseOziWpt(content)
@@ -80,8 +81,8 @@ object WaypointFileParser {
     // FormatGEO (GpsDump / comp organisers — the "FS" .wpt airtribune issues):
     //   $FormatGEO
     //   CODE      N DD MM SS.ss   W DDD MM SS.ss   ELEV   DESC...
-    private fun parseFormatGeo(content: String): List<LibraryWaypoint> {
-        val out = mutableListOf<LibraryWaypoint>()
+    private fun parseFormatGeo(content: String): List<Spot> {
+        val out = mutableListOf<Spot>()
         for (raw in content.lines()) {
             val line = raw.trim()
             if (line.isEmpty() || line.startsWith("$")) continue // $FormatGEO header / comments
@@ -108,8 +109,8 @@ object WaypointFileParser {
 
     // OziExplorer: 4 header lines, then CSV rows:
     //   number,name,lat(dd),lon(dd),date,symbol,...,description(idx10),...,alt-ft(idx14)
-    private fun parseOziWpt(content: String): List<LibraryWaypoint> {
-        val out = mutableListOf<LibraryWaypoint>()
+    private fun parseOziWpt(content: String): List<Spot> {
+        val out = mutableListOf<Spot>()
         val lines = content.lines()
         for ((i, raw) in lines.withIndex()) {
             if (i < 4) continue // OziExplorer header block
@@ -129,8 +130,8 @@ object WaypointFileParser {
 
     // CompeGPS: "W <code> A <lat> <lon> <date> <time> <alt> <desc...>"
     // Coordinates are decimal degrees with a º/° glyph and an N/S/E/W hemisphere.
-    private fun parseCompeGpsWpt(content: String): List<LibraryWaypoint> {
-        val out = mutableListOf<LibraryWaypoint>()
+    private fun parseCompeGpsWpt(content: String): List<Spot> {
+        val out = mutableListOf<Spot>()
         for (raw in content.lines()) {
             val line = raw.trim()
             if (!line.startsWith("W ") && !line.startsWith("W\t")) continue
@@ -146,22 +147,23 @@ object WaypointFileParser {
         return dedupe(out)
     }
 
-    /** "32.2360000ºN" / "076.706000°E" → signed decimal degrees. */
+    /** "32.2360000ºN" / "076.706000°E" → signed decimal degrees. Robust to the degree
+     *  marker's encoding: real comp files write it as °, º, or a non-UTF-8 byte that
+     *  decodes to U+FFFD — so strip *any* non-numeric chars rather than a fixed set. */
     private fun compeCoord(s: String): Double? {
-        val cleaned = s.replace("º", "").replace("°", "").trim()
-        if (cleaned.isEmpty()) return null
-        val hemi = cleaned.last().uppercaseChar()
-        val (numStr, neg) = if (hemi in charArrayOf('N', 'S', 'E', 'W'))
-            cleaned.dropLast(1) to (hemi == 'S' || hemi == 'W')
-        else cleaned to false
+        val t = s.trim()
+        if (t.isEmpty()) return null
+        val hemi = t.last().uppercaseChar().takeIf { it in charArrayOf('N', 'S', 'E', 'W') }
+        val body = if (hemi != null) t.dropLast(1) else t
+        val numStr = body.filter { it.isDigit() || it == '.' || it == '-' || it == '+' }
         val v = numStr.toDoubleOrNull() ?: return null
-        return if (neg) -v else v
+        return if (hemi == 'S' || hemi == 'W') -v else v
     }
 
     // ── GPX ──────────────────────────────────────────────────────────────────
     // <wpt lat=".." lon=".."><name>..</name><ele>..</ele><desc>..</desc></wpt>
-    fun parseGpx(content: String): List<LibraryWaypoint> {
-        val out = mutableListOf<LibraryWaypoint>()
+    fun parseGpx(content: String): List<Spot> {
+        val out = mutableListOf<Spot>()
         val wptRegex = Regex("<wpt\\b[^>]*?>.*?</wpt>", setOf(RegexOption.DOT_MATCHES_ALL, RegexOption.IGNORE_CASE))
         val latRegex = Regex("\\blat\\s*=\\s*\"([^\"]+)\"", RegexOption.IGNORE_CASE)
         val lonRegex = Regex("\\blon\\s*=\\s*\"([^\"]+)\"", RegexOption.IGNORE_CASE)
@@ -181,13 +183,25 @@ object WaypointFileParser {
     }
 
     // ── shared helpers ─────────────────────────────────────────────────────────
-    private fun libWp(code: String, name: String?, lat: Double, lon: Double, alt: Double?): LibraryWaypoint {
+    private fun libWp(code: String, name: String?, lat: Double, lon: Double, alt: Double?): Spot {
         val c = code.trim().ifBlank { "WP" }
-        return LibraryWaypoint(id = c, code = c, name = name?.trim()?.takeIf { it.isNotBlank() && it != c }, lat = lat, lon = lon, alt = alt)
+        // Imported comp files key identity on the code; normalise the id to the
+        // uppercased code so a re-import with different casing refreshes rather
+        // than duplicates (matches the case-insensitive task→library bind).
+        val id = c.uppercase()
+        return Spot(
+            id = id,
+            code = c,
+            name = name?.trim()?.takeIf { it.isNotBlank() && it != c },
+            lat = lat,
+            lon = lon,
+            alt = alt,
+            source = SpotSource.IMPORTED,
+        )
     }
 
     /** Keep the last occurrence per code (id), so a re-import refreshes cleanly. */
-    private fun dedupe(list: List<LibraryWaypoint>): List<LibraryWaypoint> =
+    private fun dedupe(list: List<Spot>): List<Spot> =
         list.associateBy { it.id }.values.toList()
 
     private fun parseElevMeters(s: String): Double? {

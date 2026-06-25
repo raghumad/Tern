@@ -22,6 +22,7 @@ import org.maplibre.compose.expressions.dsl.step
 import org.maplibre.compose.expressions.dsl.switch
 import org.maplibre.compose.expressions.dsl.zoom
 import org.maplibre.compose.expressions.value.ColorValue
+import org.maplibre.compose.expressions.value.FloatValue
 import org.maplibre.compose.expressions.value.StringValue
 import org.maplibre.compose.sources.GeoJsonData
 import org.maplibre.compose.sources.rememberGeoJsonSource
@@ -44,26 +45,31 @@ fun AirspaceLayer(
     if (featureCollection.features.isEmpty()) return
 
     val source = rememberGeoJsonSource(
-        data = GeoJsonData.Features(featureCollection),
+        data = GeoJsonData.Features(com.ternparagliding.utils.geo.GeoJsonSafe.sanitize(featureCollection)),
     )
 
     val colorExpr = airspaceColorExpression()
 
-    // Fill: translucent polygon interiors, colour-coded by class.
+    // Fill: translucent interiors, but only once you've zoomed IN — at region zoom the
+    // map showed a flat 25% fill for every footprint, which blanketed dense regions
+    // (an instrument that's always red is no instrument). Advisory classes (E / unknown)
+    // stay outline-only at every zoom. The boundary line carries the low-zoom read.
     org.maplibre.compose.layers.FillLayer(
         id = "airspace-fill",
         source = source,
         color = colorExpr,
-        opacity = const(0.25f),
+        opacity = fillOpacityExpression(),
     )
 
-    // Border: solid outlines so the airspace boundary is crisp.
+    // Border: always drawn (the boundary is the at-a-glance instrument), emphasised by the
+    // altitude-aware "emphasis" stamp — BOLD what you're in/approaching, FAINT what's floored
+    // far above (or, on the ground, by class). Width reinforces it.
     org.maplibre.compose.layers.LineLayer(
         id = "airspace-line",
         source = source,
         color = colorExpr,
-        width = const(2.dp),
-        opacity = const(0.8f),
+        width = lineWidthExpression(),
+        opacity = lineOpacityExpression(),
     )
 
     // Labels: At-a-glance class + limits.
@@ -100,10 +106,12 @@ private fun AirspaceLabels(
         switch(labelExpr, *cases, fallback = transparent)
     }
 
+    // Hide the floor/ceiling labels until you've zoomed in — at region zoom they stacked
+    // on top of each other (and on the PG-spot names), which was the worst of the clutter.
     val iconSize = step(
         zoom(),
-        const(0.6f),
-        10.0 to const(0.8f),
+        const(0.0f),
+        10.0 to const(0.85f),
         13.0 to const(1.0f),
     )
 
@@ -173,6 +181,41 @@ private val RED = Color(0xFFFF0000.toInt())
  * Used for both fill and line — fill gets reduced opacity via
  * the opacity param, line gets near-full.
  */
+/**
+ * Fill opacity: zoom-gated so region view is outline-only (no blanket fill that turns dense
+ * regions into wallpaper), ramping in only once you've zoomed to where a translucent fill is
+ * readable. A pure zoom step — nesting a class switch around it stops the expression
+ * evaluating (the fill snaps to opaque), so class emphasis lives on the border line instead.
+ */
+private fun fillOpacityExpression(): Expression<FloatValue> =
+    step(zoom(), const(0.0f), 10.0 to const(0.07f), 12.0 to const(0.10f))
+
+/**
+ * Border opacity by the altitude-aware emphasis stamp ([AirspaceGeoJson.withEmphasis]):
+ * BOLD what you're in/approaching, FAINT what's floored far above you (recedes), NORMAL
+ * between. On the ground (no altitude) the stamp falls back to a static class emphasis.
+ */
+@Suppress("UNCHECKED_CAST")
+private fun lineOpacityExpression(): Expression<FloatValue> {
+    val emphasis = featureDsl.get("emphasis") as Expression<StringValue>
+    return switch(
+        emphasis,
+        case("BOLD", const(0.95f)),
+        case("FAINT", const(0.2f)),
+        fallback = const(0.5f), // NORMAL
+    )
+}
+
+/** Border width reinforces the emphasis — bold boundaries thicker, receded ones hairline. */
+@Suppress("UNCHECKED_CAST")
+private fun lineWidthExpression() =
+    switch(
+        featureDsl.get("emphasis") as Expression<StringValue>,
+        case("BOLD", const(3.dp)),
+        case("FAINT", const(1.5.dp)),
+        fallback = const(2.dp), // NORMAL
+    )
+
 @Suppress("UNCHECKED_CAST")
 private fun airspaceColorExpression(): Expression<ColorValue> {
     val classExpr = featureDsl.get("class") as Expression<StringValue>

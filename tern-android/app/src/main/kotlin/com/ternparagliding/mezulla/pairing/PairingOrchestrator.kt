@@ -92,6 +92,7 @@ class PairingOrchestrator(private val context: Context) {
             pairingToken = link.pairingToken,
             ownerId = ownerId,
             boardNodeNumber = link.nodeNumber,
+            bleMac = link.bleMac,
         )
 
         when (result) {

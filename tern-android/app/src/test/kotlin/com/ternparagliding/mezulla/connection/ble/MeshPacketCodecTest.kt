@@ -213,6 +213,77 @@ class MeshPacketCodecTest {
         assertThat(alert.lastKnownPosition).isNull()
     }
 
+    // ---------- LoRa region (set_config) tests ----------
+
+    @Test
+    fun `decodeLoraRegion reads region from a FromRadio config frame`() {
+        // FromRadio { config = Config { lora = LoRaConfig { region = US(1) } } }
+        val lora = ProtoWriter().apply { writeInt32(7, 1) }.toByteArray()
+        val config = ProtoWriter().apply { writeMessage(6, lora) }.toByteArray()
+        val frame = ProtoWriter().apply { writeMessage(5, config) }.toByteArray()
+
+        assertThat(MeshPacketCodec.decodeLoraRegion(frame)).isEqualTo(1)
+    }
+
+    @Test
+    fun `decodeLoraRegion returns 0 UNSET when lora present but region omitted`() {
+        // A fresh board: proto3 omits region=0, so the lora sub-message carries
+        // only e.g. use_preset. This must read as UNSET(0), not "unknown".
+        val lora = ProtoWriter().apply { writeBool(1, true) }.toByteArray()
+        val config = ProtoWriter().apply { writeMessage(6, lora) }.toByteArray()
+        val frame = ProtoWriter().apply { writeMessage(5, config) }.toByteArray()
+
+        assertThat(MeshPacketCodec.decodeLoraRegion(frame)).isEqualTo(0)
+    }
+
+    @Test
+    fun `decodeLoraRegion returns null for a non-lora config frame`() {
+        // FromRadio.config carrying a device sub-config (field 1), not lora.
+        val device = ProtoWriter().apply { writeInt32(1, 1) }.toByteArray()
+        val config = ProtoWriter().apply { writeMessage(1, device) }.toByteArray()
+        val frame = ProtoWriter().apply { writeMessage(5, config) }.toByteArray()
+
+        assertThat(MeshPacketCodec.decodeLoraRegion(frame)).isNull()
+    }
+
+    @Test
+    fun `decodeLoraRegion returns null for an ordinary packet frame`() {
+        val frame = buildFromRadioWithMeshPacket(
+            fromNodeNumber = antoineNodeNumber,
+            rxTime = rxTime,
+            portNum = MeshPacketCodec.PORT_POSITION_APP,
+            payload = MeshPacketCodec.encodePositionPayload(pos),
+        )
+
+        assertThat(MeshPacketCodec.decodeLoraRegion(frame)).isNull()
+    }
+
+    @Test
+    fun `setLoraConfig sends an admin set_config to the board with region and tx enabled`() {
+        val boardNode = 0x02ed8530L
+        val toRadio = MeshPacketCodec.encodeToRadioSetLoraConfig(
+            boardNodeNumber = boardNode,
+            packetId = 7,
+            region = 3, // EU_868
+        )
+
+        val meshPacket = unwrapToRadioPacket(toRadio)
+        // Addressed to the board, on ADMIN_APP.
+        assertThat(meshPacketTo(meshPacket)).isEqualTo(boardNode)
+        val admin = meshPacketDataPayload(meshPacket, expectedPortNum = MeshPacketCodec.PORT_ADMIN_APP)
+        val configBytes = extractSetConfigBytes(admin)
+
+        // Region round-trips: reshape the Config as a FromRadio.config and re-read it.
+        val asFromRadioConfig = ProtoWriter().apply { writeMessage(5, configBytes) }.toByteArray()
+        assertThat(MeshPacketCodec.decodeLoraRegion(asFromRadioConfig)).isEqualTo(3)
+
+        // tx_enabled MUST be present and true — a region *change* (US→EU) does
+        // not get firmware's first-set TX auto-enable, so we assert it ourselves.
+        assertThat(loraBoolField(configBytes, fieldNumber = 9)).isTrue()
+        // use_preset true so the board derives bandwidth/SF/CR from the preset.
+        assertThat(loraBoolField(configBytes, fieldNumber = 1)).isTrue()
+    }
+
     // ---------- helpers ----------
 
     /**
@@ -261,5 +332,93 @@ class MeshPacketCodecTest {
     private fun ProtoWriter.writeVarintField(fieldNumber: Int, value: Long) {
         writeTag(fieldNumber, Proto.WIRE_VARINT)
         writeVarint(value)
+    }
+
+    /** Read MeshPacket.to (field 2, fixed32). */
+    private fun meshPacketTo(meshPacketBytes: ByteArray): Long {
+        val reader = ProtoReader(meshPacketBytes)
+        while (reader.hasMore()) {
+            val tag = reader.readTag()
+            val field = tag ushr 3
+            val wire = tag and 0x7
+            if (field == 2 && wire == Proto.WIRE_FIXED32) return reader.readFixed32()
+            reader.skipField(wire)
+        }
+        error("MeshPacket.to not found")
+    }
+
+    /** Read MeshPacket.decoded (field 4) → Data, assert its portnum, return Data.payload. */
+    private fun meshPacketDataPayload(meshPacketBytes: ByteArray, expectedPortNum: Int): ByteArray {
+        val reader = ProtoReader(meshPacketBytes)
+        var dataBytes: ByteArray? = null
+        while (reader.hasMore()) {
+            val tag = reader.readTag()
+            val field = tag ushr 3
+            val wire = tag and 0x7
+            if (field == 4 && wire == Proto.WIRE_LENGTH_DELIMITED) {
+                dataBytes = reader.readLengthDelimited()
+            } else {
+                reader.skipField(wire)
+            }
+        }
+        val data = dataBytes ?: error("MeshPacket.decoded not found")
+        val dr = ProtoReader(data)
+        var portNum = -1
+        var payload = ByteArray(0)
+        while (dr.hasMore()) {
+            val tag = dr.readTag()
+            val field = tag ushr 3
+            val wire = tag and 0x7
+            when {
+                field == 1 && wire == Proto.WIRE_VARINT -> portNum = dr.readVarint().toInt()
+                field == 2 && wire == Proto.WIRE_LENGTH_DELIMITED -> payload = dr.readLengthDelimited()
+                else -> dr.skipField(wire)
+            }
+        }
+        assertThat(portNum).isEqualTo(expectedPortNum)
+        return payload
+    }
+
+    /** Pull the Config bytes out of an AdminMessage.set_config (field 34). */
+    private fun extractSetConfigBytes(adminBytes: ByteArray): ByteArray {
+        val reader = ProtoReader(adminBytes)
+        while (reader.hasMore()) {
+            val tag = reader.readTag()
+            val field = tag ushr 3
+            val wire = tag and 0x7
+            if (field == 34 && wire == Proto.WIRE_LENGTH_DELIMITED) return reader.readLengthDelimited()
+            reader.skipField(wire)
+        }
+        error("AdminMessage.set_config not found")
+    }
+
+    /** Read a bool field [fieldNumber] from the LoRaConfig inside a Config body. */
+    private fun loraBoolField(configBytes: ByteArray, fieldNumber: Int): Boolean {
+        val cr = ProtoReader(configBytes)
+        var loraBytes: ByteArray? = null
+        while (cr.hasMore()) {
+            val tag = cr.readTag()
+            val field = tag ushr 3
+            val wire = tag and 0x7
+            if (field == 6 && wire == Proto.WIRE_LENGTH_DELIMITED) {
+                loraBytes = cr.readLengthDelimited()
+            } else {
+                cr.skipField(wire)
+            }
+        }
+        val lora = loraBytes ?: error("Config.lora not found")
+        val lr = ProtoReader(lora)
+        var value = false
+        while (lr.hasMore()) {
+            val tag = lr.readTag()
+            val field = tag ushr 3
+            val wire = tag and 0x7
+            if (field == fieldNumber && wire == Proto.WIRE_VARINT) {
+                value = lr.readVarint() != 0L
+            } else {
+                lr.skipField(wire)
+            }
+        }
+        return value
     }
 }

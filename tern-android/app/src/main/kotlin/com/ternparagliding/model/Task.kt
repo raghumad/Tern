@@ -5,7 +5,17 @@ import java.time.Instant
 import java.util.UUID
 
 /**
- * Waypoint model for paragliding task planning.
+ * A **task point** — a task's ordered *reference* to a [Spot], carrying the
+ * per-task features that belong to the reference (role/[type], cylinder [radius],
+ * time gates), not to the spot.
+ *
+ * Identity (position/code/name/alt) lives on the [Spot] named by [spotId]; the
+ * [TaskResolver] overlays the live spot identity at read time so an edit to the
+ * spot flows to every task that references it. The identity fields carried here
+ * ([lat]/[lon]/[label]/[description]/[alt]) are a **denormalised snapshot** —
+ * last-known-good, used as the fallback when the spot can't be resolved (deleted,
+ * or its store not loaded). They are written on create/bind/import, never edited
+ * in place; identity edits go to the spot (see `MapAction.UpdateSpot`).
  */
 data class Waypoint(
     override val id: String = UUID.randomUUID().toString(),
@@ -13,15 +23,14 @@ data class Waypoint(
     val lon: Double,
     override val type: LocationType = LocationType.TURNPOINT,
     val label: String? = null,
-    /** Human-readable name for a cryptic code. Tasks ship terse codes ("B4");
-     *  the description is the place ("Gold's Point"). Shown in preference to the
-     *  code wherever there's room (e.g. the next-waypoint indicator). */
+    /** Snapshot of the spot's human-readable name (e.g. "Gold's Point" for code
+     *  "B4"). Shown in preference to the code wherever there's room. */
     val description: String? = null,
-    /** Link to a [LibraryWaypoint] this task point came from (Stage B reference
-     *  model). When set, the resolver prefers the library's identity (position,
-     *  code, name, alt); null = an ad-hoc point (map long-press) that owns its
-     *  own coordinates. */
-    val libraryWaypointId: String? = null,
+    /** Reference to the [Spot] this task point resolves against. Every task point
+     *  references a spot (ad-hoc map drops auto-create a USER spot). The resolver
+     *  prefers the spot's live identity; the fields above are the snapshot fallback.
+     *  Null only for legacy/unmigrated points, which fly from the snapshot. */
+    val spotId: String? = null,
     val createdAt: Instant = java.time.Instant.now(),
     val taskId: String? = null,
     val radius: Double? = com.ternparagliding.redux.TaskConstants.FAI_DEFAULT_RADIUS_METERS, // Default FAI cylinder radius in meters
@@ -123,7 +132,7 @@ data class Task(
         openTime: String? = null,
         closeTime: String? = null,
         description: String? = null,
-        libraryWaypointId: String? = null
+        spotId: String? = null
     ): Task {
         val newWaypoint = Waypoint(
             lat = lat,
@@ -131,7 +140,7 @@ data class Task(
             type = type,
             label = label,
             description = description,
-            libraryWaypointId = libraryWaypointId,
+            spotId = spotId,
             taskId = this.id,
             id = id ?: UUID.randomUUID().toString(),
             radius = radius,
@@ -188,6 +197,26 @@ data class Task(
         )
     }
 
+    /** Set a point's role. A per-task feature — lives on the reference. */
+    fun setPointRole(waypointId: String, role: LocationType): Task =
+        mapPoint(waypointId) { it.copy(type = role) }
+
+    /** Set a point's cylinder radius; null clears it (back to the default radius).
+     *  Direct-set, not keep-on-null, so the gate/cylinder can actually be removed. */
+    fun setPointRadius(waypointId: String, radius: Double?): Task =
+        mapPoint(waypointId) { it.copy(radius = radius) }
+
+    /** Set a point's time gates; null clears a gate. Direct-set so a gate can be
+     *  removed (the old keep-on-null reducer made gates unclearable). */
+    fun setPointGates(waypointId: String, openTime: String?, closeTime: String?): Task =
+        mapPoint(waypointId) { it.copy(openTime = openTime, closeTime = closeTime) }
+
+    private fun mapPoint(waypointId: String, f: (Waypoint) -> Waypoint): Task =
+        copy(
+            waypoints = waypoints.map { if (it.id == waypointId) f(it) else it },
+            updatedAt = Instant.now(),
+        )
+
     /**
      * Reorder a waypoint in this task
      */
@@ -229,26 +258,55 @@ data class Task(
     }
 
     private fun calculateTaskType(): TaskType {
-        if (waypoints.size < 3) return TaskType.OPEN_DISTANCE
-        
-        val start = waypoints.first()
-        val end = waypoints.last()
-        val gap = calculateDistance(start.lat, start.lon, end.lat, end.lon)
-        val isClosedLoop = gap < 0.4
+        val corners = triangleCorners() ?: return TaskType.OPEN_DISTANCE
 
-        if (isClosedLoop && waypoints.size == 4) {
-             val legs = legDistances
-             if (legs.size < 3) return TaskType.OPEN_DISTANCE
-             
-             val totalTriDist = legs.sum()
-             val shortest = legs.minOrNull() ?: 0.0
-             if (shortest >= 0.28 * totalTriDist) {
-                 return TaskType.FAI_TRIANGLE
-             } else {
-                 return TaskType.FLAT_TRIANGLE
-             }
+        // The three triangle sides, corner-to-corner (the closing side included), then the
+        // classic FAI rule: the shortest side must be ≥ 28% of the perimeter.
+        val sides = listOf(
+            calculateDistance(corners[0].lat, corners[0].lon, corners[1].lat, corners[1].lon),
+            calculateDistance(corners[1].lat, corners[1].lon, corners[2].lat, corners[2].lon),
+            calculateDistance(corners[2].lat, corners[2].lon, corners[0].lat, corners[0].lon),
+        )
+        val perimeter = sides.sum()
+        if (perimeter <= 0.0) return TaskType.OPEN_DISTANCE
+        val shortestFraction = sides.min() / perimeter
+        return if (shortestFraction >= TaskConstants.FAI_MIN_LEG_FRACTION) {
+            TaskType.FAI_TRIANGLE
+        } else {
+            TaskType.FLAT_TRIANGLE
         }
-        return TaskType.OPEN_DISTANCE
+    }
+
+    /**
+     * The three distinct corners of a triangle task, or null if this isn't one.
+     *
+     * Robust to the real shapes a planned/competition triangle takes — not just the bare
+     * 4-point `[A, B, C, A]`, but `[SSS, TP1, TP2, TP3, GOAL]` where the start cylinder is
+     * snapped onto the first corner and the goal returns to the start. We collapse points
+     * that coincide within [TaskConstants.TRIANGLE_CLOSURE_KM] (consecutive *and* the
+     * loop-closing return), and call it a triangle only when exactly three corners remain on
+     * a genuinely closed course.
+     */
+    private fun triangleCorners(): List<Waypoint>? {
+        if (waypoints.size < 3) return null
+        val closeKm = TaskConstants.TRIANGLE_CLOSURE_KM
+
+        // Collapse consecutive near-duplicate points (e.g. a start cylinder snapped onto TP1).
+        val collapsed = mutableListOf(waypoints.first())
+        for (wp in waypoints.drop(1)) {
+            val prev = collapsed.last()
+            if (calculateDistance(prev.lat, prev.lon, wp.lat, wp.lon) >= closeKm) collapsed += wp
+        }
+
+        // Closed course: the final point returns to the start. Drop it so only the distinct
+        // vertices remain. An open course (no return) is open distance, not a triangle.
+        val first = collapsed.first()
+        val last = collapsed.last()
+        val closed = collapsed.size >= 2 &&
+            calculateDistance(first.lat, first.lon, last.lat, last.lon) < closeKm
+        if (!closed) return null
+        val corners = collapsed.dropLast(1)
+        return if (corners.size == 3) corners else null
     }
 
     private fun calculateFaiPoints(): Double {

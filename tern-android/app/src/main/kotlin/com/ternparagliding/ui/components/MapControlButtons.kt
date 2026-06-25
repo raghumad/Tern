@@ -21,7 +21,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 private val DOCK_BUTTON_SIZE = 40.dp
 private val DOCK_ICON_SIZE = 22.dp  // ~55% of button — leaves a comfortable visible pill ring
@@ -50,7 +53,11 @@ private fun DockButton(
             .size(DOCK_BUTTON_SIZE)
             .shadow(elevation = DOCK_ELEVATION, shape = CircleShape)
             .background(color = DOCK_BG, shape = CircleShape)
-            .clickable(onClick = onClick),
+            .clickable(onClick = onClick)
+            // One label per button, set centrally so it holds whatever icon the
+            // button draws (the flag glyph carries none of its own). Collapses the
+            // button to a single accessibility node.
+            .clearAndSetSemantics { this.contentDescription = contentDescription },
         contentAlignment = Alignment.Center,
     ) {
         icon(Modifier.size(DOCK_ICON_SIZE))
@@ -79,14 +86,22 @@ fun ShareButton(onClick: () -> Unit) {
     }
 }
 
-/** Recenter the map on the pilot's current location. Disabled tint until a fix exists. */
+/**
+ * Recenter the map on the pilot's current location. Disabled tint until a fix exists; when the
+ * follow-cam is [suspended] (the pilot panned away in flight) it glows accent green to advertise
+ * itself as the one tap back to "follow me".
+ */
 @Composable
-fun RecenterButton(enabled: Boolean, onClick: () -> Unit) {
+fun RecenterButton(enabled: Boolean, suspended: Boolean = false, onClick: () -> Unit) {
     DockButton(onClick, "Recenter on me") { m ->
         Icon(
             Icons.Default.MyLocation,
             contentDescription = "Recenter on me",
-            tint = if (enabled) DOCK_ICON else DOCK_ICON.copy(alpha = 0.4f),
+            tint = when {
+                suspended -> Color(0xFF22C55E) // off-follow → "tap to re-lock onto me"
+                enabled -> DOCK_ICON
+                else -> DOCK_ICON.copy(alpha = 0.4f)
+            },
             modifier = m,
         )
     }
@@ -114,12 +129,9 @@ fun VarioConnectButton(connected: Boolean, scanning: Boolean, onClick: () -> Uni
 
 @Composable
 fun TaskButton(onClick: () -> Unit) {
-    DockButton(onClick, "Task Management") { m ->
-        Icon(
-            painter = androidx.compose.ui.res.painterResource(id = com.ternparagliding.R.drawable.route_24),
-            contentDescription = "Task Management",
-            tint = DOCK_ICON,
-            modifier = m,
-        )
+    // The waypoint flag glyph — the same symbol the map uses for a waypoint — so the
+    // control that opens the task/waypoint surface reads as "waypoints" at a glance.
+    DockButton(onClick, "Tasks & waypoints") { _ ->
+        WaypointGlyph(tint = DOCK_ICON, fontSize = 18.sp)
     }
 }

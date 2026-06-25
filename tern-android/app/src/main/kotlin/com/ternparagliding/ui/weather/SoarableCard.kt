@@ -24,7 +24,6 @@ import com.ternparagliding.weather.Verdict
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import java.util.TimeZone
 import kotlin.math.roundToInt
 
 /**
@@ -35,10 +34,12 @@ import kotlin.math.roundToInt
  */
 @Composable
 fun SoarableCard(day: SoarableDay, units: UnitPrefs, modifier: Modifier = Modifier) {
-    // Window timestamps are local-wall-clock carried as UTC epoch ms (Open-Meteo
-    // timezone=auto), so format them in UTC to read back the local wall-clock time.
-    val tf = remember {
-        SimpleDateFormat("HH:mm", Locale.getDefault()).apply { timeZone = TimeZone.getTimeZone("UTC") }
+    // Window timestamps are true epoch ms; format them in the *site's* zone so the times
+    // read as the launch's wall clock (not the pilot's phone, not UTC).
+    val tf = remember(day.utcOffsetSeconds) {
+        SimpleDateFormat("HH:mm", Locale.getDefault()).apply {
+            timeZone = com.ternparagliding.utils.io.siteTimeZone(day.utcOffsetSeconds)
+        }
     }
 
     Card(modifier.fillMaxWidth()) {

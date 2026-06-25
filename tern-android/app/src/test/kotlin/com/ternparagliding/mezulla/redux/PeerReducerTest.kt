@@ -52,6 +52,30 @@ class PeerReducerTest {
     }
 
     @Test
+    fun `PeersCleared drops all peers and alerts but keeps link state`() {
+        // Simulate a roster full of public-mesh nodes + an alert, then a
+        // channel change (team join) clears it so only the new team repopulates.
+        var state = PeerState.empty()
+        state = peerReducer(state, PeerAction.LinkStateChanged(LinkState.UP))
+        state = peerReducer(state, PeerAction.PeerPositionReceived(antoine, sampleFix, t0))
+        state = peerReducer(state, PeerAction.PeerSeen(guillaume, t1))
+        state = peerReducer(
+            state,
+            PeerAction.PeerAlertReceived(guillaume, sampleFix, t1),
+        )
+        assertThat(state.peers).hasSize(2)
+        assertThat(state.activeAlerts).hasSize(1)
+
+        val cleared = peerReducer(state, PeerAction.PeersCleared)
+
+        assertThat(cleared.peers).isEmpty()
+        assertThat(cleared.activeAlerts).isEmpty()
+        // Link state survives — clearing peers is about channel membership,
+        // not the board link, which is still up.
+        assertThat(cleared.linkState).isEqualTo(LinkState.UP)
+    }
+
+    @Test
     fun `PeerSeen registers a previously-unknown peer`() {
         val newState = peerReducer(PeerState.empty(), PeerAction.PeerSeen(antoine, t0))
 

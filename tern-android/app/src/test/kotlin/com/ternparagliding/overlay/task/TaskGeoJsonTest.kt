@@ -130,10 +130,10 @@ class TaskGeoJsonTest {
     // -- waypointCandidates -----------------------------------------------
 
     @Test
-    fun `waypointCandidates wraps each waypoint as ROUTE_WAYPOINT candidate`() {
+    fun `waypointCandidates wraps each waypoint as TASK_WAYPOINT candidate`() {
         val candidates = TaskGeoJson.waypointCandidates(listOf(aravisTask))
         assertEquals(5, candidates.size)
-        assertTrue(candidates.all { it.kind == OverlayKind.ROUTE_WAYPOINT })
+        assertTrue(candidates.all { it.kind == OverlayKind.TASK_WAYPOINT })
     }
 
     @Test

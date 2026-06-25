@@ -266,9 +266,12 @@ class SpatialDiskCache(
             spatialIndexCache[regionId] = spatialIndex
             MapOverlayCacheUtils.readIndexHeader(indexData)?.let { regionHeaders[regionId] = it }
 
-            // Re-create memory map
-            memoryMappedBuffers.remove(regionId) // Clear old buffer
-            createMemoryMappedBuffer(regionId, flexCacheFile)
+            // Invalidate any stale mapping; the next query maps the fresh file lazily
+            // (getMemoryMappedBuffer). We deliberately don't eagerly re-map here — a live
+            // MappedByteBuffer keeps the .flex locked on Windows (POSIX allows it), which
+            // would block a re-download overwrite and the resilience tests that rewrite/
+            // delete the file. Eager mapping was only a first-query optimisation.
+            memoryMappedBuffers.remove(regionId)
 
             // Update timestamp
             cacheIndex[regionId] = System.currentTimeMillis()
@@ -357,8 +360,9 @@ class SpatialDiskCache(
             spatialIndexCache[regionId] = spatialIndex
             MapOverlayCacheUtils.readIndexHeader(indexData)?.let { regionHeaders[regionId] = it }
 
+            // Invalidate any stale mapping; the next query maps lazily (see the note in
+            // the non-streaming path). No eager re-map → no Windows file lock on the .flex.
             memoryMappedBuffers.remove(regionId)
-            createMemoryMappedBuffer(regionId, flexCacheFile)
 
             cacheIndex[regionId] = System.currentTimeMillis()
             saveCacheIndex()

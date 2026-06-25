@@ -2,6 +2,7 @@ package com.ternparagliding.weather
 
 import com.ternparagliding.utils.io.WeatherData
 import com.ternparagliding.utils.io.WeatherForecast
+import com.ternparagliding.utils.io.dewpointC
 
 /**
  * "Is it flyable here, now and soon?" — the universal pilot question, answered
@@ -215,9 +216,13 @@ enum class ThermalQuality { NONE, WEAK, WORKABLE, STRONG }
 data class FlyingQuality(
     val thermal: ThermalQuality,
     val lapseRateCPerKm: Double?, // null when no upper-air data
-    val cloudBaseM: Double,
+    val cloudBaseM: Double,       // AGL
     val cappedByInversion: Boolean,
     val notes: List<String>,
+    // Profile-derived (Skew-T) extras — null when there's no vertical profile or the
+    // surface elevation is unknown, so callers degrade to the two-level proxies above.
+    val thermalTopAglM: Double? = null, // how high the day's thermals reach above ground
+    val cloudBaseMslM: Double? = null,
 )
 
 /** Surface→850 hPa lapse rate (°C/km). Steeper = more unstable = stronger climbs. */
@@ -245,9 +250,17 @@ fun hasInversion(w: WeatherData): Boolean {
  * launch + MSL), the working band the pilot actually has.
  */
 fun assessQuality(w: WeatherData, site: SiteContext? = null): FlyingQuality {
-    val lapse = lapseRateCPerKm(w)
-    val base = cloudBaseMeters(w)
-    val inversion = hasInversion(w)
+    // Prefer the full vertical profile (Skew-T) when we have it AND a surface elevation
+    // to root the parcel ascent; otherwise fall back to the two-level proxies.
+    val sounding = w.profile?.let { prof ->
+        site?.elevationM?.let { elev ->
+            analyseSounding(w.temperature, dewpointC(w.temperature, w.humidity), elev, prof)
+        }
+    }
+
+    val lapse = sounding?.surfaceLapseCPerKm ?: lapseRateCPerKm(w)
+    val base = sounding?.cloudBaseAglM ?: cloudBaseMeters(w)
+    val inversion = sounding?.let { it.inversionBaseMslM != null } ?: hasInversion(w)
     val overcast = w.cloudCover >= 80.0
     val notes = mutableListOf<String>()
 
@@ -263,9 +276,19 @@ fun assessQuality(w: WeatherData, site: SiteContext? = null): FlyingQuality {
         notes += "inversion caps the day (low ceiling)"
         if (thermal == ThermalQuality.STRONG) thermal = ThermalQuality.WORKABLE
     }
+    // A low convective top means weak/short climbs even if the lapse looks unstable.
+    sounding?.thermalTopAglM?.let { top ->
+        notes += "thermals top ~${top.toInt()} m above ground"
+        if (top < 600.0 && thermal == ThermalQuality.STRONG) thermal = ThermalQuality.WORKABLE
+        if (top < 300.0) thermal = ThermalQuality.WEAK
+    }
     notes += site?.elevationM?.let { elev ->
         "cloudbase ~${base.toInt()} m above launch (~${(elev + base).toInt()} m MSL)"
     } ?: "cloudbase ~${base.toInt()} m"
 
-    return FlyingQuality(thermal, lapse, base, inversion, notes)
+    return FlyingQuality(
+        thermal, lapse, base, inversion, notes,
+        thermalTopAglM = sounding?.thermalTopAglM,
+        cloudBaseMslM = sounding?.cloudBaseMslM,
+    )
 }

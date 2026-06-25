@@ -89,8 +89,11 @@ class WeatherCache(private val context: Context) {
                 pressure = pressure,
                 cloudCover = cloud,
                 timestamp = targetTimestamp,
-                temp850hPa = null, 
+                temp850hPa = null,
                 temp925hPa = null,
+                // Carry the nearest hour's vertical profile so soaring reads survive
+                // interpolation (degrading to the proxy only when neither hour has one).
+                profile = startW.profile ?: endW.profile,
                 cape = cape,
                 lightningPotential = lightning,
                 windSpeed10m = if (startW.windSpeed10m != null && endW.windSpeed10m != null)

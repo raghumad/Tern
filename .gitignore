@@ -149,3 +149,10 @@ build/
 .gradle/
 local.properties
 .claude/
+
+# local scratch screenshots / mockups (repo root)
+/tern_shot.png
+/marker_mockup.png
+
+# Scratch UX screenshots / mockups (local only)
+ux-shots/

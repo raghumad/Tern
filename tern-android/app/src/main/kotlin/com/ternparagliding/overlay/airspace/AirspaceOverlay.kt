@@ -123,10 +123,20 @@ fun AirspaceOverlay(
             }
     }
 
+    // Altitude-aware relevance: stamp each feature with an emphasis from the pilot's live
+    // altitude vs its floor/ceiling. Re-derived only when the altitude crosses a ~500 ft
+    // bucket (not every fix) — the stamping is cheap (no re-query / no geometry re-parse).
+    // On the ground (altitudeM null) the bucket is null and emphasis falls back to class.
+    val altFt = state.flightDeck.altitudeM?.let { it * 3.28084 }
+    val altBucket = altFt?.let { Math.round(it / 500.0) }
+    val styled = remember(featureCollection, altBucket) {
+        AirspaceGeoJson.withEmphasis(featureCollection, altFt)
+    }
+
     // Honour the Settings toggle. We keep the collector above running (so re-enabling is instant)
     // but feed the layer an empty collection when airspaces are switched off.
     val enabled = state.overlayState.airspaces.enabled
-    AirspaceLayer(featureCollection = if (enabled) featureCollection else AirspaceGeoJson.empty())
+    AirspaceLayer(featureCollection = if (enabled) styled else AirspaceGeoJson.empty())
 }
 
 /**

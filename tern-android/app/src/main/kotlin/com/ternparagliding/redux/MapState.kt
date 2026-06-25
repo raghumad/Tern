@@ -19,6 +19,12 @@ data class MapState(
     val zoom: Double = MapConstants.DEFAULT_ZOOM_LEVEL,
     val pendingBoundingBox: TernBoundingBox? = null,
     val isTaskPanelExpanded: Boolean = true, // Strategic Auto-Minimize
+    /**
+     * Whether the camera follows the pilot (recenters + auto-zooms on each fix). Default on, but
+     * only *acts* once airborne (see [com.ternparagliding.flight.FlightDetector]); a manual pan/zoom
+     * turns it off so the pilot can study the map, and the Recenter button turns it back on.
+     */
+    val cameraFollow: Boolean = true,
 
     // Location state
     val isLocationReady: Boolean = false,
@@ -32,6 +38,8 @@ data class MapState(
     // Overlay state - modular overlay management
     val overlayState: OverlayState = OverlayState(),
     val hasAirspaceCollision: Boolean = false,
+    /** Names of controlled airspaces the active task crosses (waypoint-inside or leg-crossing). */
+    val airspaceConflicts: List<String> = emptyList(),
 
     // Weather state for PG spots
     val weatherState: WeatherState = WeatherState(),
@@ -64,6 +72,18 @@ data class MapState(
 
     // Task editing state - for interactive waypoint editing
     val selectedWaypoint: WaypointSelection? = null,
+
+    // Move-mode for a standalone library spot (Workflow A "Move on map"): when set,
+    // the next map tap repositions this spot. Parallel to selectedWaypoint.isDragging,
+    // which is move-mode for a *task* point.
+    val movingSpotId: String? = null,
+
+    // Add-from-map mode: while true the planning chrome (HUD + task panel) gets out
+    // of the way, the map shows a centre crosshair, and an action bar drops a point
+    // at the crosshair into the selected task — the industry "centre-pin placement"
+    // pattern, so the pilot never has to tap an obscured target. Persists across
+    // drops so several points can be placed before tapping Done.
+    val addingWaypoint: Boolean = false,
 
     // Selected task for viewing/editing
     val selectedTaskId: String? = null,
@@ -148,6 +168,9 @@ data class FlightDeckState(
     val lastFixMs: Long = 0L,
     /** Non-null while a bundled IGC flight is being replayed into the deck (bench demo). */
     val replayFlightId: String? = null,
+    /** Recent vario BLE connection events (newest last), so the pilot can see the link's
+     *  status + every drop/heal. Bounded — see [com.ternparagliding.device.ConnectionEvent]. */
+    val connectionEvents: List<com.ternparagliding.device.ConnectionEvent> = emptyList(),
 )
 
 /**
@@ -177,13 +200,17 @@ data class WaypointSelection(
     val waypointId: String,
     val isDragging: Boolean = false,
     val originalLat: Double? = null,
-    val originalLon: Double? = null
+    val originalLon: Double? = null,
+    // True when this selection is a freshly *dropped* point (long-press create), so the
+    // UI highlights it but does NOT throw up the full editor — the pilot keeps dropping;
+    // tapping a point (a non-new selection) is what opens the editor.
+    val isNew: Boolean = false,
 )
 
 /**
  * Redux state for overlay management
  */
-enum class OverlayType { AIRSPACE, PG_SPOTS, ROUTES, MEZULLA, THERMAL_HOTSPOTS }
+enum class OverlayType { AIRSPACE, PG_SPOTS, TASKS, MEZULLA, THERMAL_HOTSPOTS }
 
 /**
  * View mode for Mezulla peer markers. Each mode shows different
@@ -242,7 +269,6 @@ data class WeatherState(
     val waypointEtas: Map<String, Long> = emptyMap(),
     val fetchingSpots: Set<String> = emptySet(),
     val errors: Map<String, Throwable> = emptyMap(),
-    val hasStormRisk: Boolean = false,
     val showWeatherGauges: Boolean = true,
     val showWeatherDetails: Boolean = true,
     val showingWeatherDialog: WeatherDialogState? = null,
@@ -261,7 +287,30 @@ data class SettingsState(
     val temperatureUnit: String = "°F",
     val distanceUnit: String = "km",
     val speedUnit: String = "kn",
-    val altitudeUnit: String = "ft"
+    val altitudeUnit: String = "ft",
+    /** The MAC of the pilot's chosen XC Tracer (from the "Find my vario" picker), persisted so
+     *  Tern only ever connects to *their* vario and auto-reconnects to it. Null until picked. */
+    val rememberedVarioMac: String? = null,
+    /** The chosen vario's display name, for the Settings row. */
+    val rememberedVarioName: String? = null,
+    /** Deliberate pause for the remembered vario. A remembered + un-paused vario auto-connects
+     *  on launch and self-heals; pausing is the only thing that stops it (besides Forget).
+     *  Persisted, so the auto-connect intent survives restarts. */
+    val varioPaused: Boolean = false,
+    /** The pilot's current Mezulla team — *intent*, owned by the phone independent of the board.
+     *  Created/joined offline; applied to the board when it connects. Null until created/joined. */
+    val teamName: String? = null,
+    /** The shareable `tern://team?…` link for the current team — re-shown as a QR so buddies can
+     *  join, and the credential (name+key) the reconcile step writes to the board. Null when none. */
+    val teamShareLink: String? = null,
+    /** Where the team came from: "manual" (QR/link) today; "spedmo-club" later (Epic 03 Story 3.9).
+     *  The board doesn't care which; this is just for display + future routing. */
+    val teamSource: String? = null,
+    /** The team link we have actually written to the board (set_team succeeded). When it equals
+     *  [teamShareLink] the board is on our team ("applied"); when it differs (or is null) the team
+     *  is "pending" — the reconcile step applies it on the next live link. Tracking it avoids
+     *  rewriting an unchanged channel on every launch. */
+    val teamAppliedLink: String? = null,
 )
 
 /**

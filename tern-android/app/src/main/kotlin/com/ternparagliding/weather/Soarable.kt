@@ -53,16 +53,20 @@ data class SoarableDay(
     val windows: List<SoarableWindow>, // soarable (GO) runs, or marginal (CAUTION) runs if no GO
     val best: SoarableWindow?,         // the longest window (GO preferred)
     val digest: DayDigest?,            // null only if the day has no daylight hours
+    // Site offset from UTC (seconds). All ms above are true epoch; the UI formats them back
+    // to the site's wall-clock time with [com.ternparagliding.utils.io.siteTimeZone].
+    val utcOffsetSeconds: Int = 0,
 )
 
 private const val DAY_MS = 86_400_000L
 private const val HOUR_MS = 3_600_000L
 
-/** Day bucket for a local-wall-clock timestamp (the basis Open-Meteo timezone=auto uses). */
-private fun dayKey(ms: Long): Long = Math.floorDiv(ms, DAY_MS)
+/** Day bucket for a true-epoch timestamp already shifted into site-local (ms + offset). */
+private fun dayKey(localMs: Long): Long = Math.floorDiv(localMs, DAY_MS)
 
-/** Local hour-of-day [0,24) from a local-wall-clock timestamp. */
-private fun localHour(ms: Long): Int = Math.floorMod(ms / HOUR_MS, 24L).toInt()
+/** Local hour-of-day [0,24) from a true-epoch ms given the site offset (ms). */
+private fun localHour(ms: Long, offsetMs: Long): Int =
+    Math.floorMod((ms + offsetMs) / HOUR_MS, 24L).toInt()
 
 /**
  * Assess up to [maxDays] days of soarable windows from a forecast. Days are taken in
@@ -78,8 +82,12 @@ fun assessSoarableDays(
 ): List<SoarableDay> {
     if (forecast.hourly.isEmpty()) return emptyList()
 
-    val sunByDay = forecast.daily.associateBy { dayKey(it.startTime) }
-    val hoursByDay = forecast.hourly.groupBy { dayKey(it.startTime) }
+    // Timestamps are true epoch; bucket and read hour-of-day in the *site's* local clock by
+    // shifting with its UTC offset, so "today" and "daylight" mean the site's day, not UTC's.
+    val offsetMs = forecast.utcOffsetSeconds * 1000L
+
+    val sunByDay = forecast.daily.associateBy { dayKey(it.startTime + offsetMs) }
+    val hoursByDay = forecast.hourly.groupBy { dayKey(it.startTime + offsetMs) }
 
     return hoursByDay.keys.sorted().take(maxDays).map { key ->
         val dayHours = hoursByDay.getValue(key).sortedBy { it.startTime }
@@ -87,10 +95,10 @@ fun assessSoarableDays(
         val sunrise = sun?.sunriseMs
         val sunset = sun?.sunsetMs
 
-        val daytime = dayHours.filter { isDaylight(it.startTime, sunrise, sunset) }
+        val daytime = dayHours.filter { isDaylight(it.startTime, sunrise, sunset, offsetMs) }
         val windows = soarableWindows(daytime, limits, site)
         SoarableDay(
-            dayStartMs = key * DAY_MS,
+            dayStartMs = key * DAY_MS - offsetMs, // true-epoch instant of site-local midnight
             sunriseMs = sunrise,
             sunsetMs = sunset,
             windows = windows,
@@ -98,13 +106,14 @@ fun assessSoarableDays(
                 compareBy<SoarableWindow>({ if (it.verdict == Verdict.GO) 1 else 0 }, { it.endMs - it.startMs }),
             ),
             digest = if (daytime.isEmpty()) null else digestOf(daytime, site),
+            utcOffsetSeconds = forecast.utcOffsetSeconds,
         )
     }
 }
 
-private fun isDaylight(ms: Long, sunriseMs: Long?, sunsetMs: Long?): Boolean =
+private fun isDaylight(ms: Long, sunriseMs: Long?, sunsetMs: Long?, offsetMs: Long): Boolean =
     if (sunriseMs != null && sunsetMs != null) ms in sunriseMs..sunsetMs
-    else localHour(ms) in 5..20 // graceful fallback when a source omits sun times
+    else localHour(ms, offsetMs) in 5..20 // graceful fallback when a source omits sun times
 
 /**
  * Maximal runs of GO hours = soarable windows. If the day has no GO hour, fall back to

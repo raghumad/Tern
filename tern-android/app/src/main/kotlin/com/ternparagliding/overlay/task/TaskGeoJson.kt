@@ -17,6 +17,10 @@ import kotlin.math.cos
  * Pure functions that convert [Task] model objects into GeoJSON
  * structures consumable by MapLibre sources. No Android dependencies,
  * no side effects -- trivially testable.
+ *
+ * These emit *domain* geometry only; non-finite-value safety (so the MapLibre
+ * serializer can never throw and crash the map) is the job of the single render
+ * boundary `utils/geo/GeoJsonSafe.sanitize`, which every source routes through.
  */
 object TaskGeoJson {
 

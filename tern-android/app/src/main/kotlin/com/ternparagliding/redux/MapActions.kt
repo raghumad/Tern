@@ -32,6 +32,9 @@ sealed class MapAction : TernAction {
     data class UpdateCenter(val center: GeoPoint) : MapAction()
     data class UpdateZoom(val zoom: Double) : MapAction()
 
+    /** Engage/suspend follow-cam. Pilot pan/zoom suspends it; Recenter re-engages. */
+    data class SetCameraFollow(val follow: Boolean) : MapAction()
+
     // Combined map movement action for performance optimization
     data class UpdateMapMovement(
         val rotation: Float? = null,
@@ -63,6 +66,16 @@ sealed class MapAction : TernAction {
     // Settings actions
     data class SetSettingsOverlayEnabled(val overlayType: String, val enabled: Boolean) : MapAction()
     data class SetUnitPreference(val unitType: String, val unit: String) : MapAction()
+    /** Remember (or clear, mac=null) the pilot's chosen XC Tracer from the picker. */
+    data class SetRememberedVario(val mac: String?, val name: String?) : MapAction()
+    /** Pause/resume the remembered vario (the deliberate stop; persisted). */
+    data class SetVarioPaused(val paused: Boolean) : MapAction()
+    /** Set/clear the current Mezulla team *intent* (name + shareable link + source). Created/joined
+     *  offline; the reconcile step applies it to the board when connected. All null = leave. */
+    data class SetTeam(val name: String?, val shareLink: String?, val source: String? = null) : MapAction()
+    /** Mark which team link has actually been written to the board (set_team succeeded), so we don't
+     *  rewrite an unchanged channel. Null = nothing applied (e.g. after leaving). */
+    data class SetTeamApplied(val shareLink: String?) : MapAction()
 
     // Sensor actions - real-time flight data (XC Tracer vario over BLE)
     /** A parsed fix from the external vario, plus the live wind estimate (m/s, from-deg) and
@@ -77,6 +90,8 @@ sealed class MapAction : TernAction {
     data class SetVarioLinkState(val connected: Boolean, val scanning: Boolean) : MapAction()
     /** Pilot tapped "Connect vario" — start/stop scanning for the XC Tracer. */
     object ToggleVario : MapAction()
+    /** Append a vario BLE connection event (link up/down/scanning) for the connection log. */
+    data class LogVarioConnectionEvent(val event: com.ternparagliding.device.ConnectionEvent) : MapAction()
     /** Start/stop replaying a bundled IGC flight into the deck (bench demo, no hardware). */
     data class StartDeckReplay(val flightId: String) : MapAction()
     object StopDeckReplay : MapAction()
@@ -93,10 +108,33 @@ sealed class MapAction : TernAction {
     data class SetWaypointLibrary(val waypoints: List<com.ternparagliding.model.LibraryWaypoint>) : MapAction()
     /** Merge imported waypoints into the library (by code; re-import refreshes). */
     data class ImportWaypointsToLibrary(val waypoints: List<com.ternparagliding.model.LibraryWaypoint>) : MapAction()
+    /** Edit a spot's identity (position/code/name/alt). Non-null fields overwrite;
+     *  null = leave that field. Because task points reference the spot, this edit
+     *  flows to every task using it (the single "edit once, flows everywhere"). */
+    data class UpdateSpot(
+        val spotId: String,
+        val code: String? = null,
+        val name: String? = null,
+        val lat: Double? = null,
+        val lon: Double? = null,
+        val alt: Double? = null,
+    ) : MapAction()
     /** Remove one library waypoint by id. */
     data class RemoveLibraryWaypoint(val waypointId: String) : MapAction()
     /** Clear the entire waypoint library. */
     object ClearWaypointLibrary : MapAction()
+
+    // Move-mode for a standalone library spot (Workflow A). Arm with [StartSpotMove],
+    // then a single map tap → [CommitSpotMove]; [CancelSpotMove] aborts.
+    data class StartSpotMove(val spotId: String) : MapAction()
+    data class CommitSpotMove(val lat: Double, val lon: Double) : MapAction()
+    object CancelSpotMove : MapAction()
+
+    // Add-from-map mode (centre-pin placement). [StartAddWaypoint] clears the chrome
+    // and arms the crosshair; the action bar drops points via [LongPressMap] and the
+    // mode stays armed until [StopAddWaypoint].
+    object StartAddWaypoint : MapAction()
+    object StopAddWaypoint : MapAction()
 
     // Task actions
     data class AddTask(val task: Task) : MapAction()
@@ -111,14 +149,25 @@ sealed class MapAction : TernAction {
 
     // Waypoint actions (for multi-waypoint tasks)
     data class AddWaypointToTask(val taskId: String, val lat: Double, val lon: Double, val type: LocationType = LocationType.TURNPOINT, val label: String? = null, val id: String? = null) : MapAction()
-    /** Stage B — append library waypoints (by id, in the given order) to a task,
-     *  stamping the libraryWaypointId link so the resolver can prefer library identity. */
+    /** Append library spots (by id, in the given order) to a task, stamping the
+     *  spotId reference so the resolver prefers the spot's live identity. */
     data class AddLibraryWaypointsToTask(val taskId: String, val waypointIds: List<String>) : MapAction()
+    /** Pull a PG spot into a task: find-or-create a PG_SPOT-provenance [com.ternparagliding.model.Spot]
+     *  (by [pgSpotId]) in the library, then reference it from the task. */
+    data class AddPgSpotToTask(
+        val taskId: String,
+        val pgSpotId: String,
+        val code: String,
+        val name: String? = null,
+        val lat: Double,
+        val lon: Double,
+        val alt: Double? = null,
+    ) : MapAction()
     data class RemoveWaypoint(val taskId: String, val waypointId: String) : MapAction()
     data class UpdateWaypoint(val taskId: String, val waypointId: String, val lat: Double? = null, val lon: Double? = null, val type: LocationType? = null, val label: String? = null) : MapAction()
     data class UpdateWaypointType(val taskId: String, val waypointId: String, val type: LocationType) : MapAction()
     data class UpdateWaypointDescription(val taskId: String, val waypointId: String, val description: String?) : MapAction()
-    data class UpdateWaypointRadius(val taskId: String, val waypointId: String, val radius: Double) : MapAction()
+    data class UpdateWaypointRadius(val taskId: String, val waypointId: String, val radius: Double?) : MapAction()
     data class UpdateWaypointAltitude(val taskId: String, val waypointId: String, val alt: Double?) : MapAction()
     data class UpdateWaypointTimeGates(val taskId: String, val waypointId: String, val openTime: String?, val closeTime: String?) : MapAction()
     data class ReorderWaypoint(val taskId: String, val fromIndex: Int, val toIndex: Int) : MapAction()
@@ -156,9 +205,12 @@ sealed class MapAction : TernAction {
     data class LongPressMap(
         val geoPoint: GeoPoint,
         val type: LocationType = LocationType.TURNPOINT,
-        val label: String? = null
+        val label: String? = null,
+        // Add-from-map mode always *creates* a point; skip the "smart select a nearby
+        // existing waypoint" branch (its ~5 km tolerance would hijack the drop).
+        val forceCreate: Boolean = false,
     ) : MapAction()
-    data class SetAirspaceCollision(val hasCollision: Boolean) : MapAction()
+    data class SetAirspaceCollision(val hasCollision: Boolean, val conflicts: List<String> = emptyList()) : MapAction()
     data class UpdateBoundingBox(val box: TernBoundingBox?) : MapAction()
     data class ZoomToTask(val taskId: String) : MapAction()
 
@@ -230,5 +282,4 @@ sealed class WeatherActions : TernAction {
     data object RequestWeatherUpdate : WeatherActions()
     data class WeatherDataLoaded(val data: List<Any>) : WeatherActions()
     data class WeatherError(val error: String) : WeatherActions()
-    data class SetStormRisk(val hasRisk: Boolean) : WeatherActions()
 }

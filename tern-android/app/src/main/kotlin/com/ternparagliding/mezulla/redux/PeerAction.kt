@@ -74,4 +74,14 @@ sealed interface PeerAction : com.ternparagliding.redux.TernAction {
 
     /** The LoRa link transitioned (NEVER_PAIRED / DOWN / UP). */
     data class LinkStateChanged(val newState: LinkState) : PeerAction
+
+    /**
+     * Drop every known peer and active alert. Dispatched when the board
+     * changes LoRa channel (team change): peers heard on the *previous*
+     * channel are no longer reachable and aren't on the pilot's team, so
+     * they must not linger in the roster. Without this the roster keeps the
+     * whole public mesh forever after a pilot joins a private team — the
+     * peer map otherwise only ever grows (see [PeerState.peers]).
+     */
+    data object PeersCleared : PeerAction
 }

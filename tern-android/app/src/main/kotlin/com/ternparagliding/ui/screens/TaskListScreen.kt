@@ -18,7 +18,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material.icons.filled.Visibility
@@ -46,6 +47,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 import com.ternparagliding.R
@@ -65,7 +67,8 @@ fun TaskListScreen(
     store: MapStore,
     onTaskSelected: () -> Unit = {}, // Callback to navigate to map screen
     onDismiss: () -> Unit = {}, // Callback to dismiss the screen
-    onManageWaypoints: () -> Unit = {} // Open the standalone waypoint library
+    onManageWaypoints: () -> Unit = {}, // Open the standalone waypoint library
+    onEditTask: (String) -> Unit = {} // Open the task editor (Workflow B1: name + reorder)
 ) {
     val state by store.state.collectAsState()
     val tasks = state.tasks
@@ -115,11 +118,6 @@ fun TaskListScreen(
     var showDeleteDialog by remember { mutableStateOf(false) }
     var taskToDelete by remember { mutableStateOf<String?>(null) }
 
-    // State for rename dialog
-    var showRenameDialog by remember { mutableStateOf(false) }
-    var taskToRename by remember { mutableStateOf<Task?>(null) }
-    var newTaskName by remember { mutableStateOf("") }
-
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -148,14 +146,22 @@ fun TaskListScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "Tasks",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                // The waypoint flag glyph — same symbol as on the map — heads the page.
+                com.ternparagliding.ui.components.WaypointGlyph(fontSize = 22.sp)
+                Text(
+                    text = "Tasks",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
+            }
             Row {
                 IconButton(onClick = onManageWaypoints) {
-                    Icon(Icons.Default.LocationOn, contentDescription = "Waypoint library")
+                    // Opens the waypoint library → the waypoint flag glyph, not a generic pin.
+                    com.ternparagliding.ui.components.WaypointGlyph(fontSize = 22.sp)
                 }
                 IconButton(onClick = { importLauncher.launch(arrayOf("*/*")) }) {
                     Icon(Icons.Default.Upload, contentDescription = "Import Task")
@@ -265,22 +271,11 @@ fun TaskListScreen(
                                         )
                                     }
                                     IconButton(
-                                        onClick = {
-                                            taskToRename = task
-                                            newTaskName = task.name
-                                            showRenameDialog = true
-                                        }
+                                        onClick = { onEditTask(task.id) }
                                     ) {
                                         Icon(
-                                            painter = painterResource(id = R.drawable.qr_code_2_24), // Reusing icon for rename? Should be edit.
-                                            // Wait, previous code used qr_code_2_24 for rename? That's weird.
-                                            // I'll change it to Edit icon if available or keep it to minimize diff noise if I don't have Edit icon.
-                                            // I'll stick to what was there or use a standard Edit icon.
-                                            // Let's use standard Edit icon if possible, but I don't have the import.
-                                            // I'll leave it as is for now to avoid breaking if R.drawable.edit isn't there.
-                                            // Actually, I'll use Icons.Default.Edit if I add the import.
-                                            // I'll just keep the existing painterResource for now.
-                                            contentDescription = "Rename task",
+                                            imageVector = Icons.Default.Edit,
+                                            contentDescription = "Edit task",
                                             tint = MaterialTheme.colorScheme.primary
                                         )
                                     }
@@ -291,7 +286,7 @@ fun TaskListScreen(
                                         }
                                     ) {
                                         Icon(
-                                            painter = painterResource(id = R.drawable.outbox_alt_24),
+                                            imageVector = Icons.Default.Delete,
                                             contentDescription = "Delete task",
                                             tint = MaterialTheme.colorScheme.error
                                         )
@@ -389,65 +384,6 @@ fun TaskListScreen(
         )
     }
 
-    // Rename dialog
-    if (showRenameDialog && taskToRename != null) {
-        AlertDialog(
-            onDismissRequest = {
-                showRenameDialog = false
-                taskToRename = null
-                newTaskName = ""
-            },
-            title = {
-                Text(text = "Rename Task")
-            },
-            text = {
-                Column {
-                    Text(text = "Enter a new name for the task:")
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = newTaskName,
-                        onValueChange = { newTaskName = it },
-                        label = { Text("Task Name") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        val trimmedName = newTaskName.trim()
-                        if (trimmedName.isNotEmpty()) {
-                            taskToRename?.let { task ->
-                                val updatedTask = task.copy(
-                                    name = trimmedName,
-                                    updatedAt = Instant.now()
-                                )
-                                store.dispatch(MapAction.UpdateTask(updatedTask))
-                            }
-                            showRenameDialog = false
-                            taskToRename = null
-                            newTaskName = ""
-                        }
-                    },
-                    enabled = newTaskName.trim().isNotEmpty()
-                ) {
-                    Text(text = "Rename")
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        showRenameDialog = false
-                        taskToRename = null
-                        newTaskName = ""
-                    }
-                ) {
-                    Text(text = "Cancel")
-                }
-            }
-        )
-    }
 }
 
 private fun calculateDistance(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {

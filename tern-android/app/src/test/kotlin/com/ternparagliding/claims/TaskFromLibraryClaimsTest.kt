@@ -10,7 +10,7 @@ import com.ternparagliding.redux.mapReducer
 /**
  * Claim **K9 · Tasks are built from the library** (Stage B1) — the pilot picks
  * waypoints from the standalone library and they join the task, in pick order,
- * each linked back to its library entry (libraryWaypointId) with identity carried.
+ * each linked back to its library entry (spotId) with identity carried.
  * Driven through the exact reducer the picker dispatches ([mapReducer]).
  */
 class TaskFromLibraryClaimsTest {
@@ -34,7 +34,7 @@ class TaskFromLibraryClaimsTest {
 
         val wps = s.tasks.first { it.id == "t" }.waypoints
         assertThat(wps.map { it.label }).containsExactly("B42", "B01").inOrder()
-        assertThat(wps.map { it.libraryWaypointId }).containsExactly("B42", "B01").inOrder()
+        assertThat(wps.map { it.spotId }).containsExactly("B42", "B01").inOrder()
 
         val b42 = wps.first()
         assertThat(b42.description).isEqualTo("Gold's Point")

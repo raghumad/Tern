@@ -32,7 +32,7 @@ private val STROKE = Color(0xCC0A1417)
  */
 @Composable
 fun ThermalHotspotLayer(featureCollection: FeatureCollection<Geometry, JsonObject>) {
-    val source = rememberGeoJsonSource(data = GeoJsonData.Features(featureCollection))
+    val source = rememberGeoJsonSource(data = GeoJsonData.Features(com.ternparagliding.utils.geo.GeoJsonSafe.sanitize(featureCollection)))
 
     @Suppress("UNCHECKED_CAST")
     val bucket = feature.get("bucket") as Expression<StringValue>

@@ -84,14 +84,23 @@ fun VarioHud(deck: FlightDeckState, settings: SettingsState, modifier: Modifier 
         // Ground speed.
         deck.groundSpeedMs?.let { gs ->
             MetricRow("GS", "${Units.speedValue(gs * MS_TO_KNOTS, prefs.speed).roundToInt()}", speedSym, VALUE_COLOR)
-            // Glide ratio — always shown so the row never jumps. It's only meaningful while
-            // gliding (sinking); when climbing we show a climb glyph instead of a bogus ratio.
-            val climb = deck.climbMs
-            val ld = climb?.let { FlightMetrics.glideRatio(gs, it) }
-            when {
-                ld != null -> MetricRow("L/D", "%.1f".format(ld), null, VALUE_COLOR)
-                climb != null && climb > 0.2 -> MetricRow("L/D", "▲ climb", null, DeckColors.lift)
-                else -> MetricRow("L/D", "—", null, VALUE_COLOR)
+            // Contextual cell — the one read that changes with phase, via the claim-tested
+            // FlightMetrics.hudContext selector: L/D while gliding, a climb glyph while
+            // climbing (the gain number lives in the GAIN row above), and the gap to cloudbase
+            // when near it. The row never jumps. (Cloudbase is dormant until weather cloudbase
+            // is threaded into the deck — TODO; the gliding/climbing cases are live today.)
+            when (val ctx = FlightMetrics.hudContext(
+                climbMs = deck.climbMs,
+                groundSpeedMs = gs,
+                altitudeMslM = deck.altitudeM,
+                takeoffDatumM = deck.takeoffDatumM,
+                cloudBaseMslM = null,
+            )) {
+                is FlightMetrics.HudContext.GlideRatio -> MetricRow("L/D", "%.1f".format(ctx.ld), null, VALUE_COLOR)
+                is FlightMetrics.HudContext.HeightGain -> MetricRow("L/D", "▲ climb", null, DeckColors.lift)
+                is FlightMetrics.HudContext.CloudbaseGap ->
+                    MetricRow("BASE", "${Units.altitudeValue(ctx.gapM, prefs.altitude).roundToInt()}", altSym, DeckColors.wind)
+                FlightMetrics.HudContext.None -> MetricRow("L/D", "—", null, VALUE_COLOR)
             }
         }
 

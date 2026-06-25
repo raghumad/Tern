@@ -16,8 +16,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Upload
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -38,6 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.ternparagliding.model.LibraryWaypoint
 import com.ternparagliding.redux.MapAction
 import com.ternparagliding.redux.MapStore
@@ -54,12 +57,16 @@ fun WaypointLibraryScreen(
     modifier: Modifier = Modifier,
     store: MapStore,
     onDismiss: () -> Unit = {},
+    onEditWaypoint: (LibraryWaypoint) -> Unit = {},
 ) {
     val state by store.state.collectAsState()
     val context = LocalContext.current
     val library = state.waypointLibrary
     var query by remember { mutableStateOf("") }
     var importMsg by remember { mutableStateOf<String?>(null) }
+    // Destructive ops confirm first (parity with task delete).
+    var spotToDelete by remember { mutableStateOf<LibraryWaypoint?>(null) }
+    var showClearAll by remember { mutableStateOf(false) }
 
     val filtered = remember(library, query) {
         if (query.isBlank()) library
@@ -102,7 +109,14 @@ fun WaypointLibraryScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column {
-                        Text("Waypoints", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            // Same waypoint flag glyph the map draws — heads the library.
+                            com.ternparagliding.ui.components.WaypointGlyph(fontSize = 22.sp)
+                            Text("Waypoints", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                        }
                         Text("${library.size} in library", style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
@@ -155,14 +169,15 @@ fun WaypointLibraryScreen(
                                     store.dispatch(MapAction.UpdateZoom(13.0))
                                     onDismiss()
                                 },
-                                onDelete = { store.dispatch(MapAction.RemoveLibraryWaypoint(wp.id)) },
+                                onEdit = { onEditWaypoint(wp) },
+                                onDelete = { spotToDelete = wp },
                             )
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                         }
                     }
                     if (library.isNotEmpty()) {
                         TextButton(
-                            onClick = { store.dispatch(MapAction.ClearWaypointLibrary) },
+                            onClick = { showClearAll = true },
                             modifier = Modifier.padding(8.dp),
                         ) { Text("Clear all", color = MaterialTheme.colorScheme.error) }
                     }
@@ -170,10 +185,40 @@ fun WaypointLibraryScreen(
             }
         }
     }
+
+    spotToDelete?.let { wp ->
+        AlertDialog(
+            onDismissRequest = { spotToDelete = null },
+            title = { Text("Delete waypoint") },
+            text = { Text("Delete \"${wp.displayName}\"? Tasks that reference it will fly from their last-known position and be flagged.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    store.dispatch(MapAction.RemoveLibraryWaypoint(wp.id))
+                    spotToDelete = null
+                }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { spotToDelete = null }) { Text("Cancel") } },
+        )
+    }
+
+    if (showClearAll) {
+        AlertDialog(
+            onDismissRequest = { showClearAll = false },
+            title = { Text("Clear all waypoints") },
+            text = { Text("Remove all ${library.size} waypoints from the library? This can't be undone. Tasks keep their last-known positions.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    store.dispatch(MapAction.ClearWaypointLibrary)
+                    showClearAll = false
+                }) { Text("Clear all", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { showClearAll = false }) { Text("Cancel") } },
+        )
+    }
 }
 
 @Composable
-private fun WaypointRow(wp: LibraryWaypoint, onLocate: () -> Unit, onDelete: () -> Unit) {
+private fun WaypointRow(wp: LibraryWaypoint, onLocate: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -198,6 +243,10 @@ private fun WaypointRow(wp: LibraryWaypoint, onLocate: () -> Unit, onDelete: () 
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        }
+        IconButton(onClick = onEdit) {
+            Icon(Icons.Default.Edit, contentDescription = "Edit ${wp.code}",
+                tint = MaterialTheme.colorScheme.primary)
         }
         IconButton(onClick = onDelete) {
             Icon(Icons.Default.Delete, contentDescription = "Delete ${wp.code}",

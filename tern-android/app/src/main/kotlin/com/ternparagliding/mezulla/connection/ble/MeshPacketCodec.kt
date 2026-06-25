@@ -50,8 +50,30 @@ internal object MeshPacketCodec {
     const val PORT_TELEMETRY_APP = 67
     const val PORT_ADMIN_APP = 6
 
-    // AdminMessage field number — see meshtastic/admin.proto.
+    // AdminMessage field numbers — see meshtastic/admin.proto.
     private const val F_ADMIN_REBOOT_SECONDS = 97
+    private const val F_ADMIN_SET_CHANNEL = 33
+    private const val F_ADMIN_SET_CONFIG = 34
+
+    // Config / LoRaConfig field numbers — see meshtastic/config.proto.
+    private const val F_CONFIG_LORA = 6
+    private const val F_LORA_USE_PRESET = 1
+    private const val F_LORA_REGION = 7
+    private const val F_LORA_HOP_LIMIT = 8
+    private const val F_LORA_TX_ENABLED = 9
+
+    /** Default mesh hop limit when we (re)write a full LoRaConfig. Matches Meshtastic's default. */
+    private const val DEFAULT_HOP_LIMIT = 3
+
+    // Channel field numbers — see meshtastic/channel.proto.
+    private const val F_CHANNEL_INDEX = 1
+    private const val F_CHANNEL_SETTINGS = 2
+    private const val F_CHANNEL_ROLE = 3
+    private const val CHANNEL_ROLE_PRIMARY = 1 // Channel.Role.PRIMARY
+
+    // ChannelSettings field numbers — see meshtastic/channel.proto.
+    private const val F_CHANNELSETTINGS_PSK = 2
+    private const val F_CHANNELSETTINGS_NAME = 3
 
     // MeshPacket field numbers — see meshtastic/mesh.proto.
     private const val F_MESHPACKET_FROM = 1
@@ -69,6 +91,7 @@ internal object MeshPacketCodec {
     // FromRadio variant field numbers.
     private const val F_FROMRADIO_PACKET = 2
     private const val F_FROMRADIO_NODE_INFO = 4
+    private const val F_FROMRADIO_CONFIG = 5
 
     // ToRadio variant field numbers.
     private const val F_TORADIO_PACKET = 1
@@ -149,6 +172,71 @@ internal object MeshPacketCodec {
             }
         }
         return null
+    }
+
+    /**
+     * Read the board's current LoRa region from a `FromRadio.config` frame
+     * (streamed as part of the handshake config bundle). Kept separate from
+     * [decodeFromRadio] because region isn't a [MeshEvent] we surface — the
+     * connection caches it to reconcile region against the pilot's GPS fix.
+     *
+     * Returns:
+     *  - the region code, when this is the LoRa-config frame and the region
+     *    field is present;
+     *  - 0 (UNSET), when this IS the LoRa-config frame but the region field is
+     *    absent — proto3 omits zero-valued scalars, so a fresh/unset board
+     *    sends a `lora` sub-message with no `region` field;
+     *  - null, when this frame is not a LoRa-config frame (a different config
+     *    variant, a packet, nodeinfo, …) — the caller ignores it.
+     *
+     * The 0-vs-null distinction is load-bearing: 0 means "board reports UNSET,
+     * reconcile it", null means "this frame says nothing about region".
+     */
+    fun decodeLoraRegion(fromRadioBytes: ByteArray): Int? {
+        if (fromRadioBytes.isEmpty()) return null
+        val reader = ProtoReader(fromRadioBytes)
+        while (reader.hasMore()) {
+            val tag = reader.readTag()
+            val field = tag ushr 3
+            val wire = tag and 0x7
+            if (field == F_FROMRADIO_CONFIG && wire == Proto.WIRE_LENGTH_DELIMITED) {
+                return decodeLoraRegionFromConfig(reader.readLengthDelimited())
+            }
+            reader.skipField(wire)
+        }
+        return null
+    }
+
+    /** Pull `lora.region` out of a `Config` body, or null if this Config isn't the LoRa variant. */
+    private fun decodeLoraRegionFromConfig(configBytes: ByteArray): Int? {
+        val reader = ProtoReader(configBytes)
+        while (reader.hasMore()) {
+            val tag = reader.readTag()
+            val field = tag ushr 3
+            val wire = tag and 0x7
+            if (field == F_CONFIG_LORA && wire == Proto.WIRE_LENGTH_DELIMITED) {
+                return decodeRegionFromLora(reader.readLengthDelimited())
+            }
+            reader.skipField(wire)
+        }
+        return null
+    }
+
+    /** Read `region` from a `LoRaConfig` body; 0 (UNSET) when the field is omitted. */
+    private fun decodeRegionFromLora(loraBytes: ByteArray): Int {
+        val reader = ProtoReader(loraBytes)
+        var region = 0
+        while (reader.hasMore()) {
+            val tag = reader.readTag()
+            val field = tag ushr 3
+            val wire = tag and 0x7
+            if (field == F_LORA_REGION && wire == Proto.WIRE_VARINT) {
+                region = reader.readVarint().toInt()
+            } else {
+                reader.skipField(wire)
+            }
+        }
+        return region
     }
 
     private fun decodeMeshPacket(bytes: ByteArray): MeshEvent? {
@@ -438,6 +526,122 @@ internal object MeshPacketCodec {
     fun encodeToRadioReboot(boardNodeNumber: Long, packetId: Int, rebootSeconds: Int): ByteArray {
         val admin = ProtoWriter().apply {
             writeInt32(F_ADMIN_REBOOT_SECONDS, rebootSeconds)
+        }.toByteArray()
+        val data = ProtoWriter().apply {
+            writeInt32(F_DATA_PORTNUM, PORT_ADMIN_APP)
+            writeBytes(F_DATA_PAYLOAD, admin)
+        }.toByteArray()
+        val packet = ProtoWriter().apply {
+            writeFixed32(F_MESHPACKET_FROM, 0L) // from=0 → trusted local phone, no passkey
+            writeFixed32(F_MESHPACKET_TO, boardNodeNumber)
+            writeMessage(F_MESHPACKET_DECODED, data)
+            writeFixed32(F_MESHPACKET_ID, packetId.toLong() and 0xFFFFFFFFL)
+            writeBool(F_MESHPACKET_WANT_ACK, true)
+        }.toByteArray()
+        return ProtoWriter().apply {
+            writeMessage(F_TORADIO_PACKET, packet)
+        }.toByteArray()
+    }
+
+    /**
+     * Encode a `ChannelSettings` body — just the two fields a Tern "team" needs: a shared [psk]
+     * (the team secret) and a human [name]. This is what a team-share link carries and what
+     * [encodeToRadioSetChannel] writes to the board. An empty [psk] means an unencrypted channel.
+     */
+    fun encodeChannelSettings(name: String, psk: ByteArray): ByteArray =
+        ProtoWriter().apply {
+            if (psk.isNotEmpty()) writeBytes(F_CHANNELSETTINGS_PSK, psk)
+            writeString(F_CHANNELSETTINGS_NAME, name)
+        }.toByteArray()
+
+    /** Decode a `ChannelSettings` body to (name, psk). Null when no name field is present. */
+    fun decodeChannelSettings(bytes: ByteArray): Pair<String, ByteArray>? {
+        val reader = ProtoReader(bytes)
+        var name: String? = null
+        var psk = ByteArray(0)
+        while (reader.hasMore()) {
+            val tag = reader.readTag()
+            val field = tag ushr 3
+            val wire = tag and 0x7
+            when (field) {
+                F_CHANNELSETTINGS_PSK ->
+                    if (wire == Proto.WIRE_LENGTH_DELIMITED) psk = reader.readLengthDelimited() else reader.skipField(wire)
+                F_CHANNELSETTINGS_NAME ->
+                    if (wire == Proto.WIRE_LENGTH_DELIMITED) name = reader.readString() else reader.skipField(wire)
+                else -> reader.skipField(wire)
+            }
+        }
+        return name?.let { it to psk }
+    }
+
+    /**
+     * Encode a ToRadio frame that sets the board's PRIMARY channel — Tern's **set_team**. An
+     * `AdminMessage.set_channel` carrying `Channel{index=0, role=PRIMARY, settings={name, psk}}`
+     * on ADMIN_APP, addressed to the board. `from = 0` → trusted local phone, no passkey (same
+     * trust path as [encodeToRadioReboot]). After the board applies it, only boards sharing this
+     * name+psk hear each other — i.e. they're now on the same team.
+     */
+    fun encodeToRadioSetChannel(boardNodeNumber: Long, packetId: Int, name: String, psk: ByteArray): ByteArray {
+        val channel = ProtoWriter().apply {
+            writeInt32(F_CHANNEL_INDEX, 0)
+            writeMessage(F_CHANNEL_SETTINGS, encodeChannelSettings(name, psk))
+            writeInt32(F_CHANNEL_ROLE, CHANNEL_ROLE_PRIMARY)
+        }.toByteArray()
+        val admin = ProtoWriter().apply {
+            writeMessage(F_ADMIN_SET_CHANNEL, channel)
+        }.toByteArray()
+        val data = ProtoWriter().apply {
+            writeInt32(F_DATA_PORTNUM, PORT_ADMIN_APP)
+            writeBytes(F_DATA_PAYLOAD, admin)
+        }.toByteArray()
+        val packet = ProtoWriter().apply {
+            writeFixed32(F_MESHPACKET_FROM, 0L) // from=0 → trusted local phone, no passkey
+            writeFixed32(F_MESHPACKET_TO, boardNodeNumber)
+            writeMessage(F_MESHPACKET_DECODED, data)
+            writeFixed32(F_MESHPACKET_ID, packetId.toLong() and 0xFFFFFFFFL)
+            writeBool(F_MESHPACKET_WANT_ACK, true)
+        }.toByteArray()
+        return ProtoWriter().apply {
+            writeMessage(F_TORADIO_PACKET, packet)
+        }.toByteArray()
+    }
+
+    /**
+     * Encode a ToRadio frame that sets the board's LoRa **region** — the wire
+     * half of Tern's automatic region-follows-location (US in the USA, EU in
+     * Europe). An `AdminMessage.set_config` carrying a full `Config.lora` on
+     * ADMIN_APP, addressed to the board. `from = 0` → trusted local phone, no
+     * passkey (same trust path as [encodeToRadioReboot]).
+     *
+     * Why a *full* LoRaConfig and not just the region: the firmware's
+     * `handleSetConfig` REPLACES the entire LoRaConfig struct with what we
+     * send, so a region-only message would zero `use_preset` / `modem_preset`
+     * / `hop_limit` / `tx_enabled`. We therefore send a complete, sane config:
+     * `use_preset = true` (board derives bandwidth/SF/CR from the default
+     * preset), the target [region], a default [hopLimit], and—critically—
+     * `tx_enabled = true`. TX is asserted explicitly because the firmware only
+     * auto-enables TX on the *first* set from UNSET; on a region *change*
+     * (US→EU when the pilot travels) it leaves TX as sent, so omitting it
+     * would silence the radio. `modem_preset` is left at its proto3 default
+     * (0 = LONG_FAST), which matches a fresh board.
+     */
+    fun encodeToRadioSetLoraConfig(
+        boardNodeNumber: Long,
+        packetId: Int,
+        region: Int,
+        hopLimit: Int = DEFAULT_HOP_LIMIT,
+    ): ByteArray {
+        val lora = ProtoWriter().apply {
+            writeBool(F_LORA_USE_PRESET, true)
+            writeInt32(F_LORA_REGION, region)
+            writeInt32(F_LORA_HOP_LIMIT, hopLimit)
+            writeBool(F_LORA_TX_ENABLED, true)
+        }.toByteArray()
+        val config = ProtoWriter().apply {
+            writeMessage(F_CONFIG_LORA, lora)
+        }.toByteArray()
+        val admin = ProtoWriter().apply {
+            writeMessage(F_ADMIN_SET_CONFIG, config)
         }.toByteArray()
         val data = ProtoWriter().apply {
             writeInt32(F_DATA_PORTNUM, PORT_ADMIN_APP)

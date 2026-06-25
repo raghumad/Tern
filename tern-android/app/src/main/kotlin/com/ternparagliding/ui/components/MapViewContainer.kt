@@ -26,6 +26,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ternparagliding.model.LocationType
+import com.ternparagliding.mezulla.PositionBroadcastPolicy
+import com.ternparagliding.mezulla.toPeerPositionFix
 import com.ternparagliding.overlay.airspace.AirspaceOverlay
 import com.ternparagliding.redux.MapAction
 import com.ternparagliding.redux.MapStore
@@ -175,6 +177,10 @@ fun MapViewContainer(
     val hasLocationPermission = handleLocationPermissions(store)
     val coroutineScope = rememberCoroutineScope()
     val density = LocalDensity.current
+    // App-scoped Mezulla link, for broadcasting our own position to peers (null if not a TernApplication).
+    val connectionManager = remember(context) {
+        (context.applicationContext as? com.ternparagliding.TernApplication)?.connectionManager
+    }
 
     // Register middleware
     LaunchedEffect(store) {
@@ -218,7 +224,13 @@ fun MapViewContainer(
     // it from the shelf; once it streams positioned fixes it becomes the position authority and
     // the phone GPS powers down (better data + battery offload), falling back on disconnect.
     val xcTracerClient = remember(context) {
-        com.ternparagliding.flight.XcTracerBleClient(context.applicationContext, coroutineScope)
+        com.ternparagliding.flight.XcTracerBleClient(context.applicationContext, coroutineScope).apply {
+            // The vario's random BLE address can rotate on power-cycle; when we re-adopt it by
+            // name, persist the new MAC (keeping the saved name) so future reconnects are instant.
+            onMacResolved = { mac, name ->
+                store.dispatch(MapAction.SetRememberedVario(mac, name ?: store.state.value.settingsState.rememberedVarioName))
+            }
+        }
     }
     val windTracker = remember { com.ternparagliding.flight.CirclingWindTracker() }
     // Deck accumulators (shared by the live BLE path and the IGC bench replay): thermal
@@ -232,9 +244,18 @@ fun MapViewContainer(
     val smoothedBearing = remember { androidx.compose.runtime.mutableStateOf(Double.NaN) }
     val lastZoom = remember { androidx.compose.runtime.mutableStateOf(Double.NaN) }
     val lastBearing = remember { androidx.compose.runtime.mutableStateOf(Double.NaN) }
+    // "Are we flying yet?" — the follow-cam stays hands-off until airborne so the map doesn't grab
+    // control while the pilot sits on launch. Latched per session; the launch datum is the first
+    // positioned fix's altitude (height-above-takeoff feeds the soaring-in-light-wind case).
+    val flightDetect = remember { androidx.compose.runtime.mutableStateOf(com.ternparagliding.flight.FlightDetector.State()) }
+    val takeoffDatum = remember { androidx.compose.runtime.mutableStateOf(Double.NaN) }
+    // Team sheet (roster + view-mode), opened by tapping the buddies chip near the compass.
+    val showTeamSheet = remember { androidx.compose.runtime.mutableStateOf(false) }
     fun resetDeckCamera() {
         smoothedZoom.value = Double.NaN; smoothedBearing.value = Double.NaN
         lastZoom.value = Double.NaN; lastBearing.value = Double.NaN
+        flightDetect.value = com.ternparagliding.flight.FlightDetector.State()
+        takeoffDatum.value = Double.NaN
     }
     // Buddy playback for team replays: own-ship is the scenario DUT, and the rest of the team
     // ride onto the map as Mezulla peers driven off the SAME replay clock (one timeline). The
@@ -284,6 +305,28 @@ fun MapViewContainer(
         store.dispatch(MapAction.UpdateVarioFix(fix, wind?.directionDeg, wind?.speedMs, avg))
         driveBuddies(fix.timeMs) // synchronized buddies (Aravis replay only; no-op otherwise)
         if (fix.hasPosition) {
+            // Decide airborne before touching the camera. On launch (sitting), ground speed ≈ 0 and
+            // height-above-takeoff ≈ 0, so we stay grounded and leave the map under the pilot's
+            // fingers. The first positioned fix sets the launch datum.
+            if (takeoffDatum.value.isNaN()) fix.gpsAltitudeM?.let { takeoffDatum.value = it }
+            val heightAboveTakeoff = fix.gpsAltitudeM?.let { alt ->
+                if (takeoffDatum.value.isNaN()) null else alt - takeoffDatum.value
+            }
+            val wasAirborne = flightDetect.value.airborne
+            flightDetect.value = com.ternparagliding.flight.FlightDetector.update(
+                flightDetect.value, fix.groundSpeedMs, heightAboveTakeoff,
+            )
+            // At the moment of launch, re-engage follow — even if the pilot had panned the map
+            // around while sitting on the ground (which switched follow off). Launching is the
+            // signal that they now want the moving map back.
+            if (!wasAirborne && flightDetect.value.airborne && !store.state.value.cameraFollow) {
+                store.dispatch(MapAction.SetCameraFollow(true))
+            }
+            // Follow only when airborne AND the pilot hasn't taken manual control (pan/zoom). Either
+            // off ⇒ no camera drive: the pilot owns the viewport.
+            val following = flightDetect.value.airborne && store.state.value.cameraFollow
+            if (!following) return
+
             val cam = com.ternparagliding.flight.FlightCamera
             val phase = com.ternparagliding.flight.WindEstimator.classifyPhase(phaseBuf.toList())
             val circling = phase == com.ternparagliding.flight.WindEstimator.FlightPhase.CIRCLING
@@ -320,11 +363,20 @@ fun MapViewContainer(
     val blePermLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions(),
     ) { grants ->
-        if (grants.values.all { it }) xcTracerClient.start()
-        else store.dispatch(MapAction.ToggleVario) // denied → revert the toggle
+        if (grants.values.all { it }) {
+            xcTracerClient.setTarget(store.state.value.settingsState.rememberedVarioMac)
+            xcTracerClient.start()
+        } else store.dispatch(MapAction.SetVarioPaused(true)) // denied → pause (don't keep nagging)
     }
-    LaunchedEffect(state.flightDeck.varioRequested) {
-        if (state.flightDeck.varioRequested) {
+    // Connect only to the pilot's CHOSEN vario (its remembered MAC) — never blind-grab the first
+    // XC Tracer in range. A remembered + un-paused vario auto-connects on launch and self-heals;
+    // it keeps scanning so the moment the vario powers back on it reconnects with zero taps. The
+    // only stop is an explicit pause (Disconnect) or Forget. No vario picked ⇒ stay idle.
+    val rememberedVarioMac = state.settingsState.rememberedVarioMac
+    val varioShouldRun = rememberedVarioMac != null && !state.settingsState.varioPaused
+    LaunchedEffect(varioShouldRun, rememberedVarioMac) {
+        xcTracerClient.setTarget(rememberedVarioMac)
+        if (varioShouldRun) {
             if (hasBlePerms()) xcTracerClient.start() else blePermLauncher.launch(blePerms)
         } else {
             xcTracerClient.stop()
@@ -332,9 +384,21 @@ fun MapViewContainer(
     }
     LaunchedEffect(xcTracerClient) {
         var handedOver = false
+        var lastBroadcastMs: Long? = null
         launch {
             xcTracerClient.fixes().collect { fix ->
                 onDeckFix(fix)
+                // Broadcast our own position to peers over Mezulla, vario-synced (≈1 Hz), best-effort.
+                // Live link only — the bench replay drives onDeckFix too but must never transmit its
+                // synthetic fixes as ours. Carries alt+speed+track → feeds peers' Safety/Climb/Tactical.
+                if (PositionBroadcastPolicy.shouldBroadcast(fix.hasPosition, lastBroadcastMs, fix.timeMs)) {
+                    fix.toPeerPositionFix()?.let { pf ->
+                        lastBroadcastMs = fix.timeMs
+                        connectionManager?.activeBleConnection()?.let { conn ->
+                            coroutineScope.launch { runCatching { conn.sendOwnPosition(pf) } }
+                        }
+                    }
+                }
                 if (fix.hasPosition && !handedOver) {
                     handedOver = true
                     locationService.stopLocationUpdates() // vario is the better source now
@@ -342,15 +406,77 @@ fun MapViewContainer(
             }
         }
         launch {
+            var prev: com.ternparagliding.flight.XcTracerBleClient.State? = null
+            var droppedAtMs = 0L
             xcTracerClient.state().collect { st ->
                 val connected = st == com.ternparagliding.flight.XcTracerBleClient.State.CONNECTED
                 val scanning = st == com.ternparagliding.flight.XcTracerBleClient.State.SCANNING
                 store.dispatch(MapAction.SetVarioLinkState(connected, scanning))
+
+                // Connection log — map each transition to one event so the pilot can SEE the
+                // link status and every drop/heal (the requested visibility). Timestamps are
+                // real wall-clock; an outage is measured from the drop to the next link-up.
+                val now = System.currentTimeMillis()
+                val event: com.ternparagliding.device.ConnectionEvent? = when {
+                    st == com.ternparagliding.flight.XcTracerBleClient.State.CONNECTED ->
+                        com.ternparagliding.device.ConnectionEvent(
+                            now, com.ternparagliding.device.ConnectionEvent.Kind.LINKED,
+                            outageMs = if (droppedAtMs > 0L) now - droppedAtMs else null,
+                        ).also { droppedAtMs = 0L }
+                    scanning && prev == com.ternparagliding.flight.XcTracerBleClient.State.CONNECTED -> {
+                        droppedAtMs = now
+                        com.ternparagliding.device.ConnectionEvent(now, com.ternparagliding.device.ConnectionEvent.Kind.DROPPED, com.ternparagliding.device.DropReason.LINK_LOST)
+                    }
+                    scanning && prev == null -> // first scan (pilot tapped Connect)
+                        com.ternparagliding.device.ConnectionEvent(now, com.ternparagliding.device.ConnectionEvent.Kind.SCANNING)
+                    st == com.ternparagliding.flight.XcTracerBleClient.State.IDLE && prev != null &&
+                        prev != com.ternparagliding.flight.XcTracerBleClient.State.IDLE ->
+                        com.ternparagliding.device.ConnectionEvent(now, com.ternparagliding.device.ConnectionEvent.Kind.PAUSED, com.ternparagliding.device.DropReason.USER)
+                    else -> null
+                }
+                if (event != null && st != prev) store.dispatch(MapAction.LogVarioConnectionEvent(event))
+                prev = st
+
                 if (!connected && handedOver) {
                     // Lost the vario — fall back to phone GPS until it returns.
                     handedOver = false
                     windTracker.reset()
                     if (store.state.value.hasLocationPermission) locationService.startLocationUpdates()
+                }
+            }
+        }
+    }
+
+    // Reconcile the board to our team. A team is phone-side *intent* (created/joined offline); this
+    // is the single place it's written to the board (set_team). Fires when the link comes up OR the
+    // team changes; the teamAppliedLink guard means an unchanged channel is never rewritten — so we
+    // don't reconfigure the board on every launch, only when the team actually changed.
+    LaunchedEffect(state.peerState.linkState, state.settingsState.teamShareLink, state.settingsState.teamAppliedLink) {
+        val link = state.settingsState.teamShareLink
+        if (state.peerState.linkState == com.ternparagliding.mezulla.connection.LinkState.UP &&
+            link != null && link != state.settingsState.teamAppliedLink
+        ) {
+            com.ternparagliding.mezulla.pairing.TeamLink.parse(link)?.let { team ->
+                // Retry: a single set_team write can come back false when the GATT queue is
+                // momentarily busy (a position/heartbeat in flight). Without retrying, the channel
+                // silently never changes — the LaunchedEffect keys don't change on a failed write,
+                // so it would never re-run. A few spaced attempts make the join reliable; if all
+                // fail the next link-up re-runs this effect.
+                var ok = false
+                var attempt = 0
+                while (!ok && attempt < 6) {
+                    ok = connectionManager?.setTeam(team.name, team.psk) ?: false
+                    if (!ok) {
+                        attempt++
+                        kotlinx.coroutines.delay(500)
+                    }
+                }
+                if (ok) {
+                    store.dispatch(MapAction.SetTeamApplied(link))
+                    // The board just switched LoRa channel — peers heard on the old channel aren't
+                    // on this team. Drop them so the roster shows the new team, not lingering strays
+                    // (e.g. the public mesh you were on before auto-joining your own private team).
+                    store.dispatch(com.ternparagliding.mezulla.redux.PeerAction.PeersCleared)
                 }
             }
         }
@@ -532,6 +658,9 @@ fun MapViewContainer(
                                 zoom = pos.zoom,
                             )
                         )
+                        // The pilot grabbed the map — hand them control. Follow re-engages only when
+                        // they tap Recenter. (No-op on the ground, where follow is gated off anyway.)
+                        if (store.state.value.cameraFollow) store.dispatch(MapAction.SetCameraFollow(false))
                         lastDispatchedPos = target
                     }
                 }
@@ -608,18 +737,69 @@ fun MapViewContainer(
             // Disable MapLibre's native compass — we render our own (Compass) and the two
             // overlapped at TopEnd on rotation. Keep the logo + attribution (OSM/Esri legal).
             options = MapOptions(ornamentOptions = OrnamentOptions(isCompassEnabled = false)),
+            // Move-mode commit: when a waypoint is armed for moving (the "Move on Map"
+            // button → StartWaypointDrag), a single tap drops it at the tapped point and
+            // ends the move. Outside move-mode a plain tap does nothing here (taps on
+            // waypoints/spots are handled by their own layers). Consume only when we act.
+            onMapClick = { pos, _ ->
+                val st = store.state.value
+                val finite = pos.latitude.isFinite() && pos.longitude.isFinite()
+                when {
+                    // Move a standalone library spot (Workflow A) to the tapped point.
+                    st.movingSpotId != null && finite -> {
+                        store.dispatch(MapAction.CommitSpotMove(pos.latitude, pos.longitude))
+                        ClickResult.Consume
+                    }
+                    // Move a task point (move-mode armed from its editor).
+                    st.selectedWaypoint?.isDragging == true && finite -> {
+                        store.dispatch(MapAction.UpdateWaypointDrag(pos.latitude, pos.longitude))
+                        store.dispatch(MapAction.EndWaypointDrag)
+                        ClickResult.Consume
+                    }
+                    else -> ClickResult.Pass
+                }
+            },
+            // Long-press an empty spot on the map → drop a waypoint (auto-creates a
+            // USER spot the new task point references). Re-wired after the MapLibre
+            // Compose migration dropped the OSMDroid long-press handler.
+            onMapLongClick = { pos, _ ->
+                // A press off the globe (or an un-projectable point) can yield a
+                // non-finite coordinate; never feed NaN into a waypoint/spot. And while
+                // any move-mode is armed (task point or spot), a long press must NOT
+                // drop a new waypoint.
+                val st = store.state.value
+                val movingNow = st.selectedWaypoint?.isDragging == true || st.movingSpotId != null
+                if (!movingNow && pos.latitude.isFinite() && pos.longitude.isFinite()) {
+                    store.dispatch(MapAction.LongPressMap(org.osmdroid.util.GeoPoint(pos.latitude, pos.longitude)))
+                }
+                ClickResult.Consume
+            },
         ) {
+            // Nerd Font for marker glyphs (task goal checkered-flag, waypoint flag, peers).
+            val markerCtx = LocalContext.current
+            val nerdFont = remember(markerCtx) {
+                androidx.core.content.res.ResourcesCompat.getFont(
+                    markerCtx, com.ternparagliding.R.font.jetbrains_mono_nerd_regular,
+                )
+            }
+
             // Task overlay — resolve library references so linked points render at
             // their current library position/identity (Stage B2).
             val visibleTasks = state.resolvedTasks().filter { it.isVisible }
             if (visibleTasks.isNotEmpty()) {
+                // While any move-mode is armed (task point or spot), disable the waypoint
+                // tap-to-select so the tap falls through to onMapClick and commits the move
+                // — otherwise a tap landing on a marker (the moved point is often centred)
+                // would re-select instead of moving.
+                val moving = state.selectedWaypoint?.isDragging == true || state.movingSpotId != null
                 com.ternparagliding.overlay.task.TaskLayer(
                     tasks = visibleTasks,
                     selectedWaypointId = state.selectedWaypoint?.let { "${it.taskId}:${it.waypointId}" },
                     activeWaypointId = state.activeWaypointId,
+                    nerdFont = nerdFont,
                     // Phase 0 — tap a waypoint to select it (hit-test → selection). The
                     // foundation for every touch interaction; selection opens the editor today.
-                    onWaypointClick = { taskId, wpId ->
+                    onWaypointClick = if (moving) null else { taskId, wpId ->
                         store.dispatch(MapAction.SelectWaypoint(taskId, wpId))
                     },
                 )
@@ -655,13 +835,8 @@ fun MapViewContainer(
             // Weather-hazard halos
             com.ternparagliding.overlay.hazard.HazardOverlay(store = store)
 
-            // Peer markers
+            // Peer markers (reuse the marker nerdFont loaded above)
             val ctx = LocalContext.current
-            val nerdFont = remember {
-                androidx.core.content.res.ResourcesCompat.getFont(
-                    ctx, com.ternparagliding.R.font.jetbrains_mono_nerd_regular
-                )
-            }
             val gruppoFont = remember {
                 androidx.core.content.res.ResourcesCompat.getFont(ctx, com.ternparagliding.R.font.gruppo_regular)
             }
@@ -741,6 +916,7 @@ fun MapViewContainer(
         ) {
             com.ternparagliding.mezulla.ui.MezullaStatusBadge(
                 peerState = state.peerState,
+                onClick = { showTeamSheet.value = true },
             )
             if (state.compassVisible) {
                 androidx.compose.foundation.layout.Column(
@@ -775,18 +951,18 @@ fun MapViewContainer(
             }
         }
 
-        // The planning HUD (task distance / FAI / trajectory weather) is for *planning*,
-        // not flying — it's heavy clutter in the air. Hide it once a vario/replay is
-        // streaming; the rosette + readout carry the in-flight nav read.
-        if (state.selectedTaskId != null && !state.flightDeck.varioConnected) {
-            TaskPlanningHUD(
-                state = state,
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(WindowInsets.statusBars.asPaddingValues())
-                    .padding(16.dp),
+        // Team sheet: roster + the SAFETY/CLIMB/TACTICAL read mode, opened from the buddies chip.
+        if (showTeamSheet.value) {
+            MezullaTeamSheet(
+                store = store,
+                onDismiss = { showTeamSheet.value = false },
             )
         }
+
+        // The planning HUD used to float here (task distance / FAI / trajectory weather),
+        // but it overlapped the task panel + control dock. Its stats now live in the task
+        // panel header and its 4D weather is a collapsible "Trajectory weather" section
+        // inside the panel — one task surface, no overlap.
 
         // Combined altitude + vario tape (left edge). Height adapts to the viewport so it doesn't
         // collide with the HUD in landscape; the HUD moves to bottom-centre there to stay clear.
@@ -830,6 +1006,71 @@ fun MapViewContainer(
                     // Clear the system bars (right-edge nav bar in landscape, bottom nav in portrait).
                     .padding(WindowInsets.systemBars.asPaddingValues())
                     .padding(if (landscape) 16.dp else 24.dp),
+            )
+        }
+
+        // ── Add-from-map mode: centre crosshair + drop bar ──────────────────
+        // Chrome (HUD + task panel) is hidden by the addingWaypoint flag, so the
+        // map is fully visible. Pan a target under the crosshair, then "Add point
+        // here" drops it at the camera centre into the selected task.
+        if (state.addingWaypoint) {
+            AddWaypointReticle(modifier = Modifier.align(Alignment.Center))
+            val addCount = state.tasks.find { it.id == state.selectedTaskId }?.waypoints?.size ?: 0
+            // Snap radius around the crosshair — fingertip-sized, so panning a marker
+            // "under" the crosshair reliably picks it.
+            val snapTolPx = with(projectionDensity) { 56.dp.toPx() }
+            AddWaypointBar(
+                pointCount = addCount,
+                onAddHere = {
+                    val taskId = state.selectedTaskId
+                    val t = cameraState.position.target
+                    if (taskId != null && t.latitude.isFinite() && t.longitude.isFinite()) {
+                        val proj = runCatching { cameraState.projection }.getOrNull()
+                        fun pxOf(lat: Double, lon: Double): androidx.compose.ui.geometry.Offset? =
+                            proj?.let { p ->
+                                val dp = runCatching {
+                                    p.screenLocationFromPosition(Position(longitude = lon, latitude = lat))
+                                }.getOrNull() ?: return@let null
+                                with(projectionDensity) { androidx.compose.ui.geometry.Offset(dp.x.toPx(), dp.y.toPx()) }
+                            }
+                        // The crosshair sits at the camera centre; snap to the nearest
+                        // *existing* point under it — a library waypoint OR a PG spot — and
+                        // only mint a new USER point when nothing is there. PG spots are
+                        // added by capturing them; library spots by reference.
+                        val centerPx = pxOf(t.latitude, t.longitude)
+                        // (px-distance, action) for every candidate within the snap radius.
+                        val candidates = if (centerPx == null) emptyList() else buildList {
+                            state.waypointLibrary.forEach { wp ->
+                                pxOf(wp.lat, wp.lon)?.let { px ->
+                                    val d = (px - centerPx).getDistance()
+                                    if (d <= snapTolPx) add(d to { store.dispatch(MapAction.AddLibraryWaypointsToTask(taskId, listOf(wp.id))) })
+                                }
+                            }
+                            com.ternparagliding.overlay.pgspot.pgSpotPoints(state.pgSpotGeoJson).forEach { pg ->
+                                pxOf(pg.lat, pg.lon)?.let { px ->
+                                    val d = (px - centerPx).getDistance()
+                                    if (d <= snapTolPx) add(d to {
+                                        store.dispatch(MapAction.AddPgSpotToTask(
+                                            taskId = taskId, pgSpotId = pg.id, code = pg.name,
+                                            name = pg.name, lat = pg.lat, lon = pg.lon, alt = pg.alt,
+                                        ))
+                                    })
+                                }
+                            }
+                        }
+                        val snapAction = candidates.minByOrNull { it.first }?.second
+                        if (snapAction != null) {
+                            snapAction()
+                        } else {
+                            store.dispatch(MapAction.LongPressMap(GeoPoint(t.latitude, t.longitude), forceCreate = true))
+                        }
+                    }
+                },
+                onDone = { store.dispatch(MapAction.StopAddWaypoint) },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(WindowInsets.systemBars.asPaddingValues())
+                    .padding(16.dp),
             )
         }
     }

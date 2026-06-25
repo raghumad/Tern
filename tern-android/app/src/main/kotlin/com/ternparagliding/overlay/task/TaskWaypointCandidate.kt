@@ -16,6 +16,6 @@ import com.ternparagliding.overlay.priority.Position
 data class TaskWaypointCandidate(
     val waypoint: Waypoint,
 ) : OverlayCandidate {
-    override val kind: OverlayKind = OverlayKind.ROUTE_WAYPOINT
+    override val kind: OverlayKind = OverlayKind.TASK_WAYPOINT
     override val position: Position = Position(waypoint.lat, waypoint.lon)
 }

@@ -137,9 +137,12 @@ object AirspaceGeoJson {
             ?: props["Name"] as? String
             ?: candidate.feature.id
 
-        // Extract vertical limits (OpenAIP format)
+        // Extract vertical limits (OpenAIP format) — both the human label string and the
+        // numeric feet (for altitude-aware relevance; see [withEmphasis]).
         val floor = formatLimit(props["lowerLimit"])
         val ceiling = formatLimit(props["upperLimit"])
+        val floorFt = AirspaceRelevance.parseLimitFeet(props["lowerLimit"])
+        val ceilingFt = AirspaceRelevance.parseLimitFeet(props["upperLimit"])
 
         return JsonObject(
             buildMap {
@@ -149,8 +152,37 @@ object AirspaceGeoJson {
                 put("floor", JsonPrimitive(floor))
                 put("ceiling", JsonPrimitive(ceiling))
                 put("label", JsonPrimitive("${candidate.airspaceClass}\n$floor/$ceiling"))
+                // Numeric limits for relevance. A ground-referenced floor (SFC/AGL) isn't
+                // an MSL number, so we flag it instead of emitting a bogus floorFt.
+                put("floorGround", JsonPrimitive(floorFt?.ground ?: false))
+                floorFt?.takeIf { !it.ground }?.let { put("floorFt", JsonPrimitive(it.feet)) }
+                ceilingFt?.let { put("ceilingFt", JsonPrimitive(it.feet)) }
             }
         )
+    }
+
+    /**
+     * Stamp each feature with an altitude-aware **emphasis** (BOLD/NORMAL/FAINT) from the
+     * pilot's live altitude ([pilotFtMsl], null on the ground → static class emphasis) and
+     * the numeric floor/ceiling baked above. Cheap — reuses geometry, only rebuilds the
+     * small properties object — so it can run on every altitude *bucket* change without the
+     * disk query + per-vertex re-parse that [toFeatureCollection] does.
+     */
+    fun withEmphasis(
+        fc: FeatureCollection<Geometry, JsonObject>,
+        pilotFtMsl: Double?,
+    ): FeatureCollection<Geometry, JsonObject> {
+        val stamped = fc.features.map { f ->
+            val p = f.properties ?: return@map f
+            val geom = f.geometry ?: return@map f
+            val cls = (p["class"] as? JsonPrimitive)?.content ?: "UNKNOWN"
+            val floorFt = (p["floorFt"] as? JsonPrimitive)?.content?.toDoubleOrNull()
+            val ceilingFt = (p["ceilingFt"] as? JsonPrimitive)?.content?.toDoubleOrNull()
+            val ground = (p["floorGround"] as? JsonPrimitive)?.content?.toBoolean() ?: false
+            val emphasis = AirspaceRelevance.emphasisFor(cls, floorFt, ceilingFt, ground, pilotFtMsl)
+            Feature(geom, JsonObject(p + ("emphasis" to JsonPrimitive(emphasis.name))))
+        }
+        return FeatureCollection(stamped)
     }
 
     private fun formatLimit(limitObj: Any?): String {

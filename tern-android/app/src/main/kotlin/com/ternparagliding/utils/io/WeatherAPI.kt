@@ -24,6 +24,37 @@ data class WindData(
     val gust: Double // knots
 )
 
+/**
+ * One pressure level of the vertical profile (a Skew-T sounding row). Heights are the
+ * forecast geopotential height (m MSL), so cloudbase/thermal-top can be read against
+ * terrain. Dewpoint is derived from the level's relative humidity (Magnus).
+ */
+data class ProfileLevel(
+    val pressureHpa: Int,
+    val heightM: Double,     // geopotential height, m MSL
+    val tempC: Double,
+    val dewpointC: Double,
+    val windKt: Double,
+    val windDirDeg: Double,
+)
+
+/** Dewpoint (°C) from temperature + relative humidity via the Magnus formula. */
+fun dewpointC(tempC: Double, rhPct: Double): Double {
+    val rh = rhPct.coerceIn(1.0, 100.0)
+    val a = 17.625; val b = 243.04
+    val gamma = kotlin.math.ln(rh / 100.0) + a * tempC / (b + tempC)
+    return b * gamma / (a - gamma)
+}
+
+/**
+ * A [java.util.TimeZone] for a forecast's site offset (Open-Meteo `utc_offset_seconds`).
+ * Forecast timestamps are stored as **true epoch ms**; format them with this zone to read
+ * them back as the *site's* wall-clock time (e.g. sunrise "06:32" at the launch, not the
+ * pilot's phone time). [SimpleTimeZone] is available on every API level (no java.time needed).
+ */
+fun siteTimeZone(utcOffsetSeconds: Int): java.util.TimeZone =
+    java.util.SimpleTimeZone(utcOffsetSeconds * 1000, "site")
+
 data class WeatherData(
     val wind: WindData,
     val temperature: Double, // Celsius
@@ -31,24 +62,32 @@ data class WeatherData(
     val visibility: Double,
     val pressure: Double,
     val cloudCover: Double, // Percentage 0-100
-    val timestamp: Long, // UTC timestamp
+    val timestamp: Long, // true epoch ms
     val temp850hPa: Double? = null, // °C at 850hPa pressure level (≈1500m MSL)
     val temp925hPa: Double? = null, // °C at 925hPa pressure level (≈750m MSL)
     val cape: Double? = null,        // Convective Available Potential Energy (J/kg)
     val lightningPotential: Double? = null, // Storm potential
     val windSpeed10m: Double? = null,       // 10m wind speed (knots) — the surface wind a pilot feels at launch
     val windDirection10m: Double? = null,   // 10m wind direction (°) — surface; drives the launch orientation check
-    val precipProbability: Double? = null   // precipitation probability (%)
+    val precipProbability: Double? = null,  // precipitation probability (%)
+    // Thermal-engine inputs (Open-Meteo): downwelling solar at the surface drives the heat
+    // flux that powers convection, and the boundary-layer depth is the height thermals reach.
+    // Null on sources/models that omit them — the convective-velocity (w*) estimate degrades.
+    val shortwaveRadiation: Double? = null, // W/m² — global horizontal irradiance at surface
+    val boundaryLayerHeightM: Double? = null, // m AGL — convective boundary-layer depth
+    // Vertical profile (Skew-T sounding), surface-up. Null on sources that don't
+    // provide pressure-level data (e.g. MetNorway) — soaring reads degrade gracefully.
+    val profile: List<ProfileLevel>? = null,
 )
 
 data class ForecastPeriod(
-    val startTime: Long, // UTC timestamp (ms)
-    val endTime: Long,   // UTC timestamp (ms)
+    val startTime: Long, // true epoch ms
+    val endTime: Long,   // true epoch ms
     val weather: WeatherData,
     val shortForecast: String,
-    // Daily periods carry the day's sun times (same local-wall-clock basis as the
-    // hourly timestamps) so the soarable-window scan can bound flyable hours to
-    // daylight. Null on hourly periods and where the source omits them.
+    // Daily periods carry the day's sun times (true epoch ms, same basis as the hourly
+    // timestamps) so the soarable-window scan can bound flyable hours to daylight. Null
+    // on hourly periods and where the source omits them.
     val sunriseMs: Long? = null,
     val sunsetMs: Long? = null,
 )
@@ -56,12 +95,20 @@ data class ForecastPeriod(
 data class WeatherForecast(
     val current: WeatherData?,
     val daily: List<ForecastPeriod>,
-    val hourly: List<ForecastPeriod>
+    val hourly: List<ForecastPeriod>,
+    // The site's offset from UTC in seconds (Open-Meteo `utc_offset_seconds`). All timestamps
+    // above are true epoch; this lets the UI format them back to the *site's* wall-clock time
+    // via [siteTimeZone]. 0 (UTC) when the source omits it.
+    val utcOffsetSeconds: Int = 0,
 ) {
     fun isStale(): Boolean {
-        val firstHourly = hourly.firstOrNull() ?: return true
+        // Open-Meteo returns hourly from 00:00 *today* through several days ahead, so the
+        // FIRST hour is normally many hours old — that's not staleness. The forecast is
+        // stale only when it no longer reaches the present: its newest hour is already in
+        // the past (an old cached fetch that was never refreshed).
+        val lastHourly = hourly.lastOrNull() ?: return true
         val now = System.currentTimeMillis()
-        return (now - firstHourly.startTime) > (4 * 3600 * 1000L) // 4 hours in ms
+        return lastHourly.startTime < now - (3600 * 1000L) // newest hour > 1h in the past
     }
 
     /**
@@ -163,8 +210,17 @@ class OpenMeteoWeatherAPI : WeatherAPI {
             baseUrl = "https://api.open-meteo.com/v1/forecast"
         }
 
-        // Updated to include 80m wind, gusts, cloud cover, visibility, pressure-level temps for Skew-T, and CAPE/Lightning
-        private const val HOURLY_PARAMS = "temperature_2m,relative_humidity_2m,precipitation_probability,pressure_msl,wind_speed_10m,wind_direction_10m,wind_speed_80m,wind_direction_80m,wind_gusts_10m,cloud_cover,visibility,temperature_850hPa,temperature_925hPa,cape,lightning_potential"
+        // Pressure levels for the vertical profile (Skew-T sounding), surface→~5.5 km.
+        // 925≈750 m, 850≈1500 m, 700≈3000 m, 600≈4200 m, 500≈5500 m MSL.
+        val PROFILE_LEVELS = listOf(925, 850, 700, 600, 500)
+        private val PROFILE_PARAMS = PROFILE_LEVELS.joinToString(",") { l ->
+            "temperature_${l}hPa,relative_humidity_${l}hPa,geopotential_height_${l}hPa,wind_speed_${l}hPa,wind_direction_${l}hPa"
+        }
+
+        // 80m wind, gusts, cloud cover, visibility, CAPE/lightning, shortwave radiation +
+        // boundary-layer height (the thermal-strength inputs), + the pressure-level profile
+        // (temperature_850/925hPa come from PROFILE_PARAMS now).
+        private val HOURLY_PARAMS = "temperature_2m,relative_humidity_2m,precipitation_probability,pressure_msl,wind_speed_10m,wind_direction_10m,wind_speed_80m,wind_direction_80m,wind_gusts_10m,cloud_cover,visibility,cape,lightning_potential,shortwave_radiation,boundary_layer_height,$PROFILE_PARAMS"
         private const val DAILY_PARAMS = "temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max,wind_direction_10m_dominant,sunrise,sunset"
         private const val FORECAST_DAYS = 7
         private const val FORECAST_HOURS = 48 // Two days of hourly data
@@ -316,19 +372,45 @@ class OpenMeteoWeatherAPI : WeatherAPI {
             @Suppress("UNCHECKED_CAST")
             val jsonData = mapper.readValue<Map<String, Any>>(jsonString)
 
+            // Open-Meteo (timezone=auto) returns wall-clock time *strings* plus the site's
+            // UTC offset. We parse the strings to true epoch ms (subtracting the offset) so
+            // every downstream timestamp is an unambiguous instant — directly comparable to
+            // true-epoch ETAs (TrajectoryAnalyzer). The offset is carried for display only.
+            val offsetSec = (jsonData["utc_offset_seconds"] as? Number)?.toInt() ?: 0
+
             val current = extractCurrentWeather(jsonData, lat, lng)
-            val hourly = extractHourlyForecast(jsonData)
-            val daily = extractDailyForecast(jsonData)
+            val hourly = extractHourlyForecast(jsonData, offsetSec)
+            val daily = extractDailyForecast(jsonData, offsetSec)
 
             return WeatherForecast(
                 current = current,
                 daily = daily,
-                hourly = hourly
+                hourly = hourly,
+                utcOffsetSeconds = offsetSec,
             )
         } catch (e: Exception) {
             Log.w("OpenMeteoWeatherAPI", "Failed to parse forecast JSON", e)
             return null
         }
+    }
+
+    @androidx.annotation.VisibleForTesting
+    internal fun parseForecastForTesting(jsonString: String, lat: Double, lng: Double): WeatherForecast? =
+        parseForecast(jsonString, lat, lng)
+
+    /** Build the vertical profile (Skew-T sounding) at hour index [i] from the
+     *  pressure-level arrays. Returns null if no level has both height + temp. */
+    private fun extractProfileAt(hourly: Map<String, Any>, i: Int): List<ProfileLevel>? {
+        fun col(key: String) = @Suppress("UNCHECKED_CAST") (hourly[key] as? List<Number>)
+        val levels = PROFILE_LEVELS.mapNotNull { l ->
+            val t = col("temperature_${l}hPa")?.getOrNull(i)?.toDouble() ?: return@mapNotNull null
+            val h = col("geopotential_height_${l}hPa")?.getOrNull(i)?.toDouble() ?: return@mapNotNull null
+            val rh = col("relative_humidity_${l}hPa")?.getOrNull(i)?.toDouble()
+            val ws = col("wind_speed_${l}hPa")?.getOrNull(i)?.toDouble() ?: 0.0
+            val wd = col("wind_direction_${l}hPa")?.getOrNull(i)?.toDouble() ?: 0.0
+            ProfileLevel(l, h, t, if (rh != null) dewpointC(t, rh) else t, ws, wd)
+        }
+        return levels.takeIf { it.isNotEmpty() }
     }
 
     private fun extractCurrentWeather(jsonData: Map<String, Any>, lat: Double, lng: Double): WeatherData? {
@@ -383,7 +465,10 @@ class OpenMeteoWeatherAPI : WeatherAPI {
                 lightningPotential = lightnings?.firstOrNull()?.toDouble(),
                 windSpeed10m = (hourly["wind_speed_10m"] as? List<Number>)?.firstOrNull()?.toDouble(),
                 windDirection10m = (hourly["wind_direction_10m"] as? List<Number>)?.firstOrNull()?.toDouble(),
-                precipProbability = (hourly["precipitation_probability"] as? List<Number>)?.firstOrNull()?.toDouble()
+                precipProbability = (hourly["precipitation_probability"] as? List<Number>)?.firstOrNull()?.toDouble(),
+                shortwaveRadiation = (hourly["shortwave_radiation"] as? List<Number>)?.firstOrNull()?.toDouble(),
+                boundaryLayerHeightM = (hourly["boundary_layer_height"] as? List<Number>)?.firstOrNull()?.toDouble(),
+                profile = extractProfileAt(hourly, 0),
             )
         } catch (e: Exception) {
             Log.w("OpenMeteoWeatherAPI", "Failed to extract current weather", e)
@@ -391,8 +476,9 @@ class OpenMeteoWeatherAPI : WeatherAPI {
         }
     }
 
-    private fun extractHourlyForecast(jsonData: Map<String, Any>): List<ForecastPeriod> {
+    private fun extractHourlyForecast(jsonData: Map<String, Any>, offsetSec: Int): List<ForecastPeriod> {
         val periods = mutableListOf<ForecastPeriod>()
+        val offsetMs = offsetSec * 1000L
         try {
             @Suppress("UNCHECKED_CAST")
             val hourly = jsonData["hourly"] as? Map<String, Any> ?: return emptyList()
@@ -429,9 +515,10 @@ class OpenMeteoWeatherAPI : WeatherAPI {
 
             for (i in 0 until maxPeriods) {
                 try {
-                    // Parse time (format: 2025-10-02T13:00)
+                    // Parse the wall-clock string (e.g. 2025-10-02T13:00) and shift to true
+                    // epoch by the site offset (local = UTC + offset ⇒ epoch = parsed − offset).
                     val timeString = times[i]
-                    val startTime = parseTimeString(timeString) ?: continue
+                    val startTime = (parseTimeString(timeString) ?: continue) - offsetMs
 
                     val weather = WeatherData(
                         wind = WindData(
@@ -451,7 +538,10 @@ class OpenMeteoWeatherAPI : WeatherAPI {
                         lightningPotential = lightnings?.getOrNull(i)?.toDouble(),
                         windSpeed10m = (hourly["wind_speed_10m"] as? List<Number>)?.getOrNull(i)?.toDouble(),
                         windDirection10m = (hourly["wind_direction_10m"] as? List<Number>)?.getOrNull(i)?.toDouble(),
-                        precipProbability = (hourly["precipitation_probability"] as? List<Number>)?.getOrNull(i)?.toDouble()
+                        precipProbability = (hourly["precipitation_probability"] as? List<Number>)?.getOrNull(i)?.toDouble(),
+                        shortwaveRadiation = (hourly["shortwave_radiation"] as? List<Number>)?.getOrNull(i)?.toDouble(),
+                        boundaryLayerHeightM = (hourly["boundary_layer_height"] as? List<Number>)?.getOrNull(i)?.toDouble(),
+                        profile = extractProfileAt(hourly, i),
                     )
 
                     periods.add(ForecastPeriod(
@@ -471,8 +561,9 @@ class OpenMeteoWeatherAPI : WeatherAPI {
         return periods
     }
 
-    private fun extractDailyForecast(jsonData: Map<String, Any>): List<ForecastPeriod> {
+    private fun extractDailyForecast(jsonData: Map<String, Any>, offsetSec: Int): List<ForecastPeriod> {
         val periods = mutableListOf<ForecastPeriod>()
+        val offsetMs = offsetSec * 1000L
         try {
             @Suppress("UNCHECKED_CAST")
             val daily = jsonData["daily"] as? Map<String, Any> ?: return emptyList()
@@ -497,7 +588,7 @@ class OpenMeteoWeatherAPI : WeatherAPI {
             for (i in 0 until maxPeriods) {
                 try {
                     val timeString = times[i]
-                    val startTime = parseTimeString(timeString) ?: continue
+                    val startTime = (parseTimeString(timeString) ?: continue) - offsetMs
 
                     // Use max temp as representative temperature
                     val maxTempValue = maxTemps[i].toDouble()
@@ -527,8 +618,8 @@ class OpenMeteoWeatherAPI : WeatherAPI {
                         endTime = startTime + 86400000L, // 24 hours in ms
                         weather = weather,
                         shortForecast = "Daily forecast",
-                        sunriseMs = sunrises?.getOrNull(i)?.let { parseTimeString(it) },
-                        sunsetMs = sunsets?.getOrNull(i)?.let { parseTimeString(it) },
+                        sunriseMs = sunrises?.getOrNull(i)?.let { parseTimeString(it)?.minus(offsetMs) },
+                        sunsetMs = sunsets?.getOrNull(i)?.let { parseTimeString(it)?.minus(offsetMs) },
                     ))
                 } catch (e: Exception) {
                     Log.w("OpenMeteoWeatherAPI", "Skipping malformed daily period $i", e)

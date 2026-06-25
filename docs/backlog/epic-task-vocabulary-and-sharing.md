@@ -17,9 +17,13 @@
 - **Waypoints are the primary thing people define.** A **Task is just an ordered
   sequence of waypoints** plus per-waypoint details (cylinder radius, role, time
   gates). Tasks reference/order waypoints; the waypoint is the unit.
-  *(Today waypoints are still owned inline by a Task. A shared waypoint
-  library that tasks draw from — cf. the planner "LIBRARY" tab — is the natural
-  next step, not yet built.)*
+  *(**Built — Stage C, 2026-06.** The waypoint library is now the unified **Spot**
+  store (USER / IMPORTED / PG_SPOT provenance); a task point references a Spot by
+  `spotId` + carries only per-task features (role/cylinder/gates) + an identity
+  snapshot; editing a spot flows to every task; ad-hoc map drops auto-create a USER
+  spot; PG spots can be pulled into a task; and the references now **persist** —
+  `spotId`/`description` were never written before, so Stage B links died on restart.
+  See [../claims-pilot-validation.md](../claims-pilot-validation.md).)*
 - **The start gate defines how weather is shown along the task.** The SSS
   open-time anchors the ETA timeline, so the per-waypoint forecast is read at the
   time the pilot is expected to *be there* (start + cumulative leg time), not
@@ -41,7 +45,7 @@
 
 | Term | Definition | Code today |
 |---|---|---|
-| **Task** | The whole planned course to fly: an ordered set of waypoints plus its rules. (Renames "Route".) | `model/Route.kt` |
+| **Task** | The whole planned course to fly: an ordered set of waypoints plus its rules. (Renames "Route".) | `model/Task.kt` |
 | **Waypoint** | A single point that makes up a task. | `Waypoint` |
 | **Role** | What a waypoint does in the task. | `LocationType` |
 | **— Takeoff / Launch** | Where you launch. | `LAUNCH` |
@@ -53,13 +57,16 @@
 | **Cylinder** | The circular control zone around a waypoint; you *tag* a waypoint by entering its cylinder. Defined by **radius**. | `Waypoint.radius` |
 | **Speed Section** | The timed/scored portion, SSS → ESS. | derived from roles |
 | **Time Gate** | The open/close window during which a waypoint's cylinder is active (e.g. the start gate). | `Waypoint.openTime/closeTime` |
-| **Leg** | The segment between two consecutive waypoints; has a distance. | `Route.legDistances` |
-| **Task type** | Open Distance / Flat Triangle / FAI Triangle. | `RouteType` |
+| **Leg** | The segment between two consecutive waypoints; has a distance. | `Task.legDistances` |
+| **Task type** | Open Distance / Flat Triangle / FAI Triangle. | `TaskType` |
 
 ## 2. Task-first rename — scope & sequencing
 
 **Phase A (user-facing strings only — low risk, ship first):**
-- Dock button: "Route Management" → **"Tasks"** (`MapControlButtons.kt:106`).
+- Dock button: "Route Management" → **"Tasks"** — done; its icon is now the
+  unified **waypoint flag glyph** (`nf-fa-flag`, `WaypointGlyph`), the same symbol
+  the map markers, page headers, and the Settings "Waypoints" row use
+  (`MapControlButtons.kt`).
 - `RouteListScreen`: title "Routes" → "Tasks"; "New Route N" → "Task N";
   empty-state copy; "WPs" → "pts". Also clean the leftover dev-comment cruft +
   wrong rename icon (`RouteListScreen.kt:270-280`).
@@ -81,8 +88,8 @@ onClick**). Redistribute its four intents:
 
 | Capability | New home | Status of plumbing |
 |---|---|---|
-| **Task as file** (.xctsk / .cup / .wpt) | Task detail / task-row action | `RouteIOManager` export exists; needs an Android share-intent entry point |
-| **Task as QR** | Task detail (already has a QR dialog) | `RouteIOManager.generateQRCode` works |
+| **Task as file** (.xctsk / .cup / .wpt) | Task detail / task-row action | `TaskIOManager` export exists; needs an Android share-intent entry point |
+| **Task as QR** | Task detail (already has a QR dialog) | `TaskIOManager.generateQRCode` works |
 | **Live position to peers** | Mezulla settings (near view-mode / pairing) | mesh layer exists; needs a share toggle |
 | **Flight log / IGC track** | Flight / Logbook settings | replay/log state exists in `FlightDeckState`; export TBD |
 
@@ -90,17 +97,20 @@ Net dock after this epic: **Settings · Recenter · Tasks · Vario · Mezulla vi
 
 ## 4. The "wind glyph" — clarification, not a redesign
 
-The wind-lines icon is **`VarioConnectButton`** (`MapControlButtons.kt:94`,
-`Icons.Default.Air`). It already has a defined job: tap → `MapAction.ToggleVario`
-→ scan/connect the **XC Tracer external vario** over BLE (white = idle, amber =
-scanning, green = streaming). Nothing to build. Optional polish: switch the icon
-to read more as "sensor/Bluetooth" than "wind" so it isn't mistaken for a
-weather control. Low priority.
+The vario button is **`VarioConnectButton`** (`MapControlButtons.kt`). It has a
+defined job: tap → `MapAction.ToggleVario` → scan/connect the **XC Tracer external
+vario** over BLE (white = idle, amber = scanning, green = streaming). **Done
+(2026-06):** the optional polish landed — the icon now reads as Bluetooth
+(`Icons.Default.Bluetooth` / `BluetoothSearching` / `BluetoothConnected`), not the
+old `Air` wind glyph, so it isn't mistaken for a weather control.
 
-## Open sub-decision (blocks Phase B only)
-Rename the **code symbols** (`Route`→`Task`, etc.) now, or keep the internal
-names and only rename user-facing strings? Recommendation: **strings-first**,
-defer the symbol rename until routes-production stabilises.
+## Sub-decision (resolved)
+Rename the **code symbols** (`Route`→`Task`, etc.) now, or defer? **Resolved
+(2026-06): done.** The full code-symbol rename shipped (`b926857`, plus a
+2026-06 follow-up clearing the last leftovers — `MAX_ROUTES`→`MAX_TASKS`,
+`OverlayType.ROUTES`→`TASKS`, `OverlayKind.ROUTE_WAYPOINT`→`TASK_WAYPOINT`, and
+the `ROUTE_*` colour / cache / name-prefix constants). Only mesh-routing code and
+the `route_24` drawable asset remain by design.
 
 ## Definition of done
 Glossary adopted in all user-facing copy; the generic Share button is gone and

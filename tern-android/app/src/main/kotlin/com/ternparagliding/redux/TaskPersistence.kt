@@ -23,17 +23,35 @@ import kotlinx.coroutines.withContext
  * the reducer and exposes only the pre-batch state to it, so a middleware
  * can't see the post-edit task (it would persist the stale, pre-drag
  * position). Observing `state.tasks` always sees the final, reduced state.
+ *
+ * **Startup restore.** On launch this also hydrates *every* cached task, not
+ * just the ones the [TaskProximityOverlay] later finds near the map centre —
+ * so a pilot's plans are all present the moment the app opens, even if it opens
+ * far from where they were planned.
  */
 object TaskPersistence {
     private const val TAG = "TaskPersistence"
 
     /**
-     * Collects task changes and writes new/changed tasks to [taskCache].
-     * Suspends forever — launch it from a `LaunchedEffect`/coroutine that
-     * lives as long as the store.
+     * Hydrates all cached tasks on launch, then writes new/changed tasks to
+     * [taskCache] on every change. Suspends forever — launch it from a
+     * `LaunchedEffect`/coroutine that lives as long as the store.
      */
     suspend fun observe(store: MapStore, taskCache: TaskCache) {
-        var lastById = emptyMap<String, Task>()
+        // Restore every persisted task up front. SurfaceNearbyTasks is the right
+        // "load these" action: it merges (skips ids already present), re-binds each
+        // to the waypoint library, and caps at MAX_TASKS (most-recent wins). It does
+        // not select any task — restored plans render but nothing is force-focused.
+        val restored = withContext(Dispatchers.IO) { taskCache.getAllCachedTasks() }
+            .filter { it.waypoints.isNotEmpty() }
+        if (restored.isNotEmpty()) {
+            store.dispatch(MapAction.SurfaceNearbyTasks(restored))
+            Log.d(TAG, "Restored ${restored.size} cached task(s) on launch")
+        }
+
+        // Seed the de-dup map with what we just restored so the first observed
+        // emission doesn't immediately re-write unchanged tasks back to disk.
+        var lastById = restored.associateBy { it.id }
         store.state
             .map { it.tasks }
             .distinctUntilChanged()

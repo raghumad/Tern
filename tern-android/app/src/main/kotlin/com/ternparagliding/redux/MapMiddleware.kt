@@ -82,18 +82,11 @@ class MapMiddleware(private val context: Context) : Middleware {
                 // Query nearby airspaces (10 miles radius for safety buffer)
                 val nearbyAirspaces = CacheManager.airspaceCache.queryNearbyFeatures(countryCode, point, 10.0)
                 
-                // Perform truthful point-in-polygon collision check
-                val hasCollision = SpatialSafetyUtils.checkAirspaceCollision(point, nearbyAirspaces)
-                
+                // Perform truthful point-in-polygon collision check (which airspaces contain me)
+                val conflicts = SpatialSafetyUtils.airspacesContaining(point, nearbyAirspaces)
+
                 // Dispatch truthful result to state
-                store.dispatch(MapAction.SetAirspaceCollision(hasCollision))
-                
-                // Also check for storm risk at current location
-                val weatherState = store.state.value.weatherState
-                val firstForecast = weatherState.waypointWeathers.values.firstOrNull()
-                val hasStorm = SpatialSafetyUtils.checkStormRisk(point, firstForecast)
-                store.dispatch(WeatherActions.SetStormRisk(hasStorm))
-                
+                store.dispatch(MapAction.SetAirspaceCollision(conflicts.isNotEmpty(), conflicts))
             } catch (e: Exception) {
                 Log.e("MapMiddleware", "Safety check failed: ${e.message}")
             }

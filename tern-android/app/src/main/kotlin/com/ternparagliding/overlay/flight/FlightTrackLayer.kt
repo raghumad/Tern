@@ -43,7 +43,7 @@ fun FlightTrackLayer(segments: List<FlightTrack.Segment>, version: Int) {
     if (segments.isEmpty()) return
 
     val source = rememberGeoJsonSource(
-        data = remember(version) { GeoJsonData.Features(trackLines(segments)) },
+        data = remember(version) { GeoJsonData.Features(com.ternparagliding.utils.geo.GeoJsonSafe.sanitize(trackLines(segments))) },
     )
 
     LineLayer(

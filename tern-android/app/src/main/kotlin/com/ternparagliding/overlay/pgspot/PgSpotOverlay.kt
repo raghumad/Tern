@@ -98,8 +98,33 @@ fun PgSpotOverlay(
             }
     }
 
+    // A PG spot referenced by a *visible* task is already drawn by the task (its role
+    // marker), so suppress the live teal marker for it — no double-render. The task's
+    // captured spot carries the PG id in `sourceId` ("name|lat|lon").
+    val hiddenPgIds = remember(state.tasks, state.waypointLibrary) {
+        val pgById = state.waypointLibrary
+            .filter { it.source == com.ternparagliding.model.SpotSource.PG_SPOT }
+            .associateBy { it.id }
+        state.tasks.filter { it.isVisible }
+            .flatMap { it.waypoints }
+            .mapNotNull { it.spotId }
+            .mapNotNull { pgById[it]?.sourceId }
+            .toSet()
+    }
+    val shownPgSpots = remember(state.pgSpotGeoJson, hiddenPgIds) {
+        val fc = state.pgSpotGeoJson ?: EMPTY_PG_SPOT_COLLECTION
+        if (hiddenPgIds.isEmpty()) fc else org.maplibre.spatialk.geojson.FeatureCollection(
+            fc.features.filter { f ->
+                val pt = f.geometry as? org.maplibre.spatialk.geojson.Point ?: return@filter true
+                val name = (f.properties?.get("name") as? kotlinx.serialization.json.JsonPrimitive)?.content
+                    ?: return@filter true
+                "$name|${pt.coordinates.latitude}|${pt.coordinates.longitude}" !in hiddenPgIds
+            }
+        )
+    }
+
     PgSpotLayer(
-        featureCollection = state.pgSpotGeoJson ?: EMPTY_PG_SPOT_COLLECTION,
+        featureCollection = shownPgSpots,
         onSpotClick = { name, lat, lng, site ->
             // Open the weather/Flyability dialog immediately (loading), then kick the
             // on-demand fetch. The whole downstream chain already exists:

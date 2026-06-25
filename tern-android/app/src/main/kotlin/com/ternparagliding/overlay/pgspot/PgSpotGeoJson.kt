@@ -67,3 +67,32 @@ fun overlayFeaturesToGeoJson(
 /** Empty feature collection — sentinel for "no data yet". */
 val EMPTY_PG_SPOT_COLLECTION: FeatureCollection<Geometry, JsonObject> =
     FeatureCollection(emptyList())
+
+/**
+ * A PG spot as a **selectable waypoint** — enough to search for it, snap to it, and add
+ * it to a task (via [com.ternparagliding.redux.MapAction.AddPgSpotToTask]). Derived from
+ * the rendered [pgSpotGeoJson] features so the task surfaces treat PG spots as first-class
+ * points without a separate store. [id] is the canonical "name|lat|lon" PG-spot id used
+ * across weather + add-to-task.
+ */
+data class PgSpotPoint(
+    val id: String,
+    val name: String,
+    val lat: Double,
+    val lon: Double,
+    val alt: Double?,
+)
+
+/** Extract the PG spots currently on the map as selectable waypoints. */
+fun pgSpotPoints(fc: FeatureCollection<Geometry, JsonObject>?): List<PgSpotPoint> {
+    if (fc == null) return emptyList()
+    return fc.features.mapNotNull { f ->
+        val pt = f.geometry as? Point ?: return@mapNotNull null
+        val name = (f.properties?.get("name") as? JsonPrimitive)?.content?.takeIf { it.isNotBlank() }
+            ?: return@mapNotNull null
+        val lat = pt.coordinates.latitude
+        val lon = pt.coordinates.longitude
+        val alt = siteContextFromJsonProps(f.properties).elevationM
+        PgSpotPoint(id = "$name|$lat|$lon", name = name, lat = lat, lon = lon, alt = alt)
+    }
+}

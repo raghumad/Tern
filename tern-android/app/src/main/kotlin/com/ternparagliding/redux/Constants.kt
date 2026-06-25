@@ -32,10 +32,18 @@ object MapConstants {
 // Task Management Constants
 object TaskConstants {
     /** Maximum number of tasks allowed (10-task limit) */
-    const val MAX_ROUTES = 10
+    const val MAX_TASKS = 10
 
     /** Default FAI cylinder radius in meters (Source of Truth) */
     const val FAI_DEFAULT_RADIUS_METERS = 400.0
+
+    /** A triangle course is "closed" when consecutive/return points coincide within this
+     *  distance (km) — collapses a snapped start/corner and a goal that returns to start. */
+    const val TRIANGLE_CLOSURE_KM = 0.4
+
+    /** FAI-triangle rule: each of the three sides must be ≥ this fraction of the perimeter
+     *  (the classic 28% rule). Below it the closed triangle is a FLAT triangle. */
+    const val FAI_MIN_LEG_FRACTION = 0.28
 }
 
 // Cache Constants
