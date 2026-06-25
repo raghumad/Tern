@@ -47,20 +47,22 @@ class PeerMiddlewareTest {
         shortName = "AN",
     )
 
+    /** "Now" for the fixed test clock below — used to keep [sampleFix] fresh. */
+    private val nowInstant = Instant.parse("2026-04-25T12:00:00Z")
+
     private val sampleFix = PeerPosition.Fix(
         latitudeDeg = 45.9099,
         longitudeDeg = 6.1245,
         altitudeMeters = 2400,
         groundSpeedMetersPerSecond = 9.5,
         groundTrackDegrees = 270.0,
-        timestampSeconds = 1_700_000_000L,
+        // Fresh relative to the fixed clock so it counts as live presence (the
+        // middleware now drops stale-on-arrival positions as nodeDB replays).
+        timestampSeconds = nowInstant.epochSecond,
     )
 
     /** Fixed clock so dispatched timestamps are predictable. */
-    private val fixedClock: Clock = Clock.fixed(
-        Instant.parse("2026-04-25T12:00:00Z"),
-        ZoneOffset.UTC,
-    )
+    private val fixedClock: Clock = Clock.fixed(nowInstant, ZoneOffset.UTC)
 
     @Test
     fun `PeerPositionUpdate dispatches PeerSeen then PeerPositionReceived in order`() = runTest {
@@ -155,6 +157,27 @@ class PeerMiddlewareTest {
         // Link-state events are not peer events and must pass regardless.
         conn.setLinkState(LinkState.DOWN)
         assertThat(dispatched.last()).isEqualTo(PeerAction.LinkStateChanged(LinkState.DOWN))
+    }
+
+    @Test
+    fun `a stale-on-arrival position is dropped as a replay, not registered`() = runTest {
+        // The board replays cached nodeDB positions on connect, shaped like live
+        // broadcasts but carrying their original (old) timestamp. Those must not
+        // register a peer — only fresh positions are live presence.
+        val conn = StubMeshtasticConnection(initialLinkState = LinkState.UP)
+        val dispatched = newDispatchedList()
+        buildAndStart(conn, dispatched)
+
+        val staleFix = sampleFix.copy(timestampSeconds = nowInstant.epochSecond - 3_600) // 1h old
+        conn.emit(MeshEvent.PeerPositionUpdate(antoine, staleFix))
+        assertThat(dispatched).isEmpty()
+
+        // A fresh position from the same peer still registers normally.
+        conn.emit(MeshEvent.PeerPositionUpdate(antoine, sampleFix))
+        assertThat(dispatched.map { it::class }).containsExactly(
+            PeerAction.PeerSeen::class,
+            PeerAction.PeerPositionReceived::class,
+        ).inOrder()
     }
 
     @Test

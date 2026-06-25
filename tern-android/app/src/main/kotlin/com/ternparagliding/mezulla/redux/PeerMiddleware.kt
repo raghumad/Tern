@@ -40,6 +40,18 @@ class PeerMiddleware(
 ) {
     private var job: Job? = null
 
+    companion object {
+        /**
+         * A position/telemetry whose own timestamp is older than this on arrival
+         * is treated as a cached-nodeDB replay, not live presence (see
+         * [handle]). Generous enough never to drop a genuinely-live buddy (they
+         * broadcast every few seconds) while rejecting the board's replayed
+         * public-mesh stragglers, which carry timestamps from before the team
+         * channel was joined.
+         */
+        private const val REPLAY_STALE_SECONDS = 300L
+    }
+
     /**
      * Subscribe to the connection and start dispatching peer actions.
      * Returns the [Job] of the collector so callers can join/cancel it
@@ -72,12 +84,21 @@ class PeerMiddleware(
             }
 
             is MeshEvent.PeerPositionUpdate -> {
+                // Reject replays: on connect the board replays its cached nodeDB
+                // positions shaped to look exactly like live broadcasts (Mezulla
+                // satellite-DB replay) — the only tell is the old timestamp. A
+                // position that's already minutes stale isn't live presence, so it
+                // must not put a public-mesh straggler on the teammates roster.
+                if (isReplayStale(event.fix.timestampSeconds, now)) return
                 val identity = event.peer.orSynthesize()
                 dispatch(PeerAction.PeerSeen(identity, now))
                 dispatch(PeerAction.PeerPositionReceived(identity, event.fix, now))
             }
 
             is MeshEvent.PeerTelemetry -> {
+                // Same replay guard as positions — cached telemetry is replayed
+                // with its original (old) timestamp and must not register a peer.
+                if (isReplayStale(event.timestampSeconds, now)) return
                 val identity = event.peer.orSynthesize()
                 dispatch(PeerAction.PeerSeen(identity, now))
                 dispatch(
@@ -112,6 +133,16 @@ class PeerMiddleware(
             }
         }
     }
+
+    /**
+     * Whether a position/telemetry is too old on arrival to count as live
+     * presence — i.e. it's the board replaying a cached nodeDB entry, not a
+     * peer we just heard. Compares the event's own timestamp against the wall
+     * clock; a non-positive timestamp ([timestampSeconds] <= 0) can't be judged
+     * so we let it through. See [REPLAY_STALE_SECONDS].
+     */
+    private fun isReplayStale(timestampSeconds: Long, now: Instant): Boolean =
+        timestampSeconds > 0 && (now.epochSecond - timestampSeconds) > REPLAY_STALE_SECONDS
 
     /**
      * The node number an event is *about*, or null for events that carry no
