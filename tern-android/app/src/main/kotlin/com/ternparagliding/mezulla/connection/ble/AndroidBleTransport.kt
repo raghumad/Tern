@@ -17,15 +17,17 @@ import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.os.Build
 import android.util.Log
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeout
 
 /**
  * Concrete [BleTransport] that drives Android's BluetoothLeScanner +
@@ -82,21 +84,55 @@ internal class AndroidBleTransport(
     private val stateLock = Any()
 
     /**
-     * Serialises GATT writes. BluetoothGatt only allows one in-flight
-     * operation; concurrent writes from the app coroutine surface as
-     * `false` returns and undefined ordering.
+     * Single serial GATT operation queue.
+     *
+     * Android's BluetoothGatt allows only ONE outstanding operation at a time,
+     * per `gatt` object; the documented best practice is to serialise ALL reads
+     * and writes through one queue and issue the next op only after the previous
+     * op's completion callback fires. Without it, the drain reads (issued from
+     * GATT callbacks) and our writes raced for the one slot — writes were
+     * rejected `not accepted (busy)` and reads even collided with reads.
+     *
+     * Producers ([writeToRadio], [requestDrain]) enqueue ops; the single
+     * [consumerJob] coroutine runs them one at a time, awaiting each op's
+     * [GattOp.completion] (fired by the matching callback, or by a timeout
+     * backstop) before starting the next.
      */
-    private val writeMutex = Mutex()
+    private val opQueue = Channel<GattOp>(Channel.UNLIMITED)
+
+    /** The single consumer coroutine draining [opQueue]. Started in [start]. */
+    @Volatile private var consumerJob: Job? = null
 
     /**
-     * Completed by [onCharacteristicWrite] when the current TO_RADIO write
-     * finishes (with its status). [writeToRadio] holds [writeMutex] until this
-     * fires, so the NEXT write doesn't start while this one is still in flight
-     * — the collision that made `want_config_id` 100 ms after the handshake
-     * heartbeat return `false` and stall Stage-1 for 30 s. Only one is pending
-     * at a time (guarded by the mutex).
+     * The op currently issued to the stack and awaiting its callback. Exactly
+     * one at a time (the consumer is serial), so the GATT callbacks complete
+     * `inFlight` to release the lane.
      */
-    @Volatile private var writeAck: kotlinx.coroutines.CompletableDeferred<Boolean>? = null
+    @Volatile private var inFlight: GattOp? = null
+
+    /**
+     * Coalesces drain cycles: at most one "read FROM_RADIO until empty" chain is
+     * in flight at a time. A trigger ([requestDrain]) while one is already
+     * running is a no-op; the running chain picks up any freshly-queued frames.
+     */
+    @Volatile private var drainActive: Boolean = false
+
+    /** One queued GATT operation. */
+    private sealed class GattOp {
+        /**
+         * Completed (true = success) when the matching GATT callback fires, the
+         * op fails to initiate, or it times out — whichever first. Frees the lane.
+         */
+        val completion = CompletableDeferred<Boolean>()
+    }
+
+    /** Read FROM_RADIO once. [bytes] is filled by [onCharacteristicRead]. */
+    private class ReadOp : GattOp() {
+        @Volatile var bytes: ByteArray? = null
+    }
+
+    /** Write one ToRadio frame. The caller awaits [GattOp.completion] for the ack. */
+    private class WriteOp(val value: ByteArray) : GattOp()
 
     override fun events(): Flow<BleTransportEvent> = _events.asSharedFlow()
 
@@ -106,6 +142,7 @@ internal class AndroidBleTransport(
             Log.i(TAG, "BLE adapter unavailable or off; staying silent per graceful-degradation policy.")
             return
         }
+        startOpConsumer()
         everEmittedInitialTimeout = false
         startScanning()
     }
@@ -122,6 +159,9 @@ internal class AndroidBleTransport(
         }
         gatt = null
         connected = false
+        consumerJob?.cancel()
+        consumerJob = null
+        failPendingOps()
     }
 
     override fun currentMtu(): Int? = currentMtuValue
@@ -137,8 +177,7 @@ internal class AndroidBleTransport(
 
     @SuppressLint("MissingPermission")
     override suspend fun writeToRadio(toRadioBytes: ByteArray): Boolean {
-        val g = gatt
-        if (g == null) {
+        if (gatt == null) {
             Log.w(TAG, "writeToRadio: gatt is null — rejecting")
             return false
         }
@@ -146,56 +185,18 @@ internal class AndroidBleTransport(
             Log.w(TAG, "writeToRadio: connected=false — rejecting ${toRadioBytes.size}B")
             return false
         }
-        val characteristic = g.getService(MeshtasticGattUuids.SERVICE)
-            ?.getCharacteristic(MeshtasticGattUuids.TO_RADIO)
-        if (characteristic == null) {
-            Log.w(TAG, "writeToRadio: TO_RADIO characteristic not found — rejecting")
-            return false
-        }
-        // Hold the mutex for the WHOLE write round-trip — start the write,
-        // then await its onCharacteristicWrite completion — so the next
-        // writeToRadio can't start while this one is in flight. Android only
-        // allows one outstanding GATT op; a second writeCharacteristic issued
-        // before the first completes returns `false` and is silently dropped.
-        // (That dropped the handshake's want_config_id and stalled Stage-1 for
-        // 30 s; it could equally drop a position/team/region write.)
-        return writeMutex.withLock {
-            val ack = kotlinx.coroutines.CompletableDeferred<Boolean>()
-            writeAck = ack
-            val started = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                g.writeCharacteristic(
-                    characteristic,
-                    toRadioBytes,
-                    BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT,
-                ) == BluetoothGatt.GATT_SUCCESS
-            } else {
-                @Suppress("DEPRECATION")
-                characteristic.value = toRadioBytes
-                @Suppress("DEPRECATION")
-                characteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
-                @Suppress("DEPRECATION")
-                g.writeCharacteristic(characteristic)
-            }
-            if (!started) {
-                // Couldn't even hand the write to the stack — report failure
-                // immediately so the caller can retry; no callback will come.
-                writeAck = null
-                Log.w(TAG, "writeToRadio: writeCharacteristic not accepted (busy) — rejecting ${toRadioBytes.size}B")
-                return@withLock false
-            }
-            val ok = runCatching {
-                kotlinx.coroutines.withTimeout(WRITE_ACK_TIMEOUT_MS) { ack.await() }
-            }.getOrDefault(false)
-            writeAck = null
-            ok
-        }
+        // Enqueue and await the op. The consumer issues it only when the lane is
+        // free (no read/write in flight), so it can no longer be rejected "busy"
+        // by an overlapping drain read. completion is always settled by the
+        // consumer (callback, failed-issue, or timeout), so this never hangs.
+        val op = WriteOp(toRadioBytes)
+        opQueue.send(op)
+        return op.completion.await()
     }
 
-    @SuppressLint("MissingPermission")
     override suspend fun pollDrain() {
-        val g = gatt ?: return
-        if (!connected) return
-        drainFromRadio(g, isFirstDrain = false)
+        if (gatt == null || !connected) return
+        requestDrain()
     }
 
     @SuppressLint("MissingPermission")
@@ -340,6 +341,11 @@ internal class AndroidBleTransport(
                     connected = false
                     runCatching { g.close() }
                     gatt = null
+                    // Fail any op waiting on a callback that will never come now,
+                    // so its awaiter (e.g. writeToRadio) doesn't hang to timeout,
+                    // and clear stale queued ops. The consumer stays alive for the
+                    // reconnect; fresh ops flow once the link is back.
+                    failPendingOps()
                     if (wasConnected) {
                         scope.launch { _events.emit(BleTransportEvent.Disconnected) }
                     }
@@ -429,16 +435,16 @@ internal class AndroidBleTransport(
         override fun onDescriptorWrite(g: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
             Log.i(TAG, "onDescriptorWrite: uuid=${descriptor.characteristic.uuid} status=$status")
             if (descriptor.characteristic.uuid != MeshtasticGattUuids.FROM_NUM) return
-            drainFromRadio(g, isFirstDrain = true)
+            // Notifications are enabled — kick off the first FROM_RADIO drain
+            // (through the op queue). Its terminating empty read emits Connected.
+            requestDrain()
         }
 
         @Suppress("OVERRIDE_DEPRECATION")
         @Deprecated("Pre-API-33 BluetoothGattCallback signature.")
         override fun onCharacteristicChanged(g: BluetoothGatt, characteristic: BluetoothGattCharacteristic) {
-            // FROM_NUM notification — drain FROM_RADIO.
-            if (characteristic.uuid == MeshtasticGattUuids.FROM_NUM) {
-                drainFromRadio(g, isFirstDrain = false)
-            }
+            // FROM_NUM notification — there's data; request a drain.
+            if (characteristic.uuid == MeshtasticGattUuids.FROM_NUM) requestDrain()
         }
 
         // Newer overload (API 33+). Android calls the right one.
@@ -447,9 +453,7 @@ internal class AndroidBleTransport(
             characteristic: BluetoothGattCharacteristic,
             value: ByteArray,
         ) {
-            if (characteristic.uuid == MeshtasticGattUuids.FROM_NUM) {
-                drainFromRadio(g, isFirstDrain = false)
-            }
+            if (characteristic.uuid == MeshtasticGattUuids.FROM_NUM) requestDrain()
         }
 
         @Suppress("OVERRIDE_DEPRECATION")
@@ -459,9 +463,10 @@ internal class AndroidBleTransport(
             characteristic: BluetoothGattCharacteristic,
             status: Int,
         ) {
-            if (status != BluetoothGatt.GATT_SUCCESS) return
+            if (characteristic.uuid != MeshtasticGattUuids.FROM_RADIO) return
             @Suppress("DEPRECATION")
-            handleFromRadioRead(g, characteristic.uuid, characteristic.value ?: return)
+            val bytes = if (status == BluetoothGatt.GATT_SUCCESS) characteristic.value ?: ByteArray(0) else null
+            completeReadInFlight(bytes, status == BluetoothGatt.GATT_SUCCESS)
         }
 
         override fun onCharacteristicRead(
@@ -470,60 +475,142 @@ internal class AndroidBleTransport(
             value: ByteArray,
             status: Int,
         ) {
-            if (status != BluetoothGatt.GATT_SUCCESS) return
-            handleFromRadioRead(g, characteristic.uuid, value)
+            if (characteristic.uuid != MeshtasticGattUuids.FROM_RADIO) return
+            completeReadInFlight(if (status == BluetoothGatt.GATT_SUCCESS) value else null, status == BluetoothGatt.GATT_SUCCESS)
         }
 
-        // Peer ACK for a write arrives here. We always kick a drain on
-        // successful TO_RADIO writes — this is the canonical Meshtastic
-        // pattern (matches official meshtastic-android: write then
-        // trigger drain). The firmware queues a response to every
-        // ToRadio request, and the BLE FromNum notification is
-        // unreliable during the handshake window. Draining on
-        // write-ack is the correct request/response semantics and
-        // doesn't race the write transaction's serialization queue.
         override fun onCharacteristicWrite(
             g: BluetoothGatt,
             characteristic: BluetoothGattCharacteristic,
             status: Int,
         ) {
             Log.i(TAG, "onCharacteristicWrite: uuid=${characteristic.uuid} status=$status (0=ack, non-zero=error)")
-            if (characteristic.uuid == MeshtasticGattUuids.TO_RADIO) {
-                // Release the writer waiting in writeToRadio (success or not)
-                // so the mutex frees and the next write can start.
-                writeAck?.complete(status == BluetoothGatt.GATT_SUCCESS)
-                if (status == BluetoothGatt.GATT_SUCCESS) {
-                    drainFromRadio(g, isFirstDrain = false)
+            if (characteristic.uuid != MeshtasticGattUuids.TO_RADIO) return
+            // Release the in-flight write op so the lane frees; the consumer then
+            // kicks a drain (request/response: the firmware queued a reply).
+            (inFlight as? WriteOp)?.let { if (it.completion.isActive) it.completion.complete(status == BluetoothGatt.GATT_SUCCESS) }
+        }
+    }
+
+    /** Hand a FROM_RADIO read result to the in-flight [ReadOp] and free the lane. */
+    private fun completeReadInFlight(bytes: ByteArray?, ok: Boolean) {
+        (inFlight as? ReadOp)?.let { op ->
+            op.bytes = bytes
+            if (op.completion.isActive) op.completion.complete(ok)
+        }
+    }
+
+    /**
+     * The single op-queue consumer: pull one op, issue it, await its callback
+     * (or timeout), post-process, repeat. Serial by construction, so only one
+     * GATT operation is ever outstanding.
+     */
+    private fun startOpConsumer() {
+        if (consumerJob != null) return
+        consumerJob = scope.launch {
+            for (op in opQueue) executeOp(op)
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    private suspend fun executeOp(op: GattOp) {
+        val g = gatt
+        if (g == null) {
+            if (op.completion.isActive) op.completion.complete(false)
+            return
+        }
+        inFlight = op
+        val started = issue(g, op)
+        if (!started) {
+            inFlight = null
+            if (op.completion.isActive) op.completion.complete(false)
+            if (op is ReadOp) onDrainResult(null) // end the cycle
+            return
+        }
+        // Await the matching callback (completeReadInFlight / onCharacteristicWrite),
+        // with a backstop so a lost callback can't wedge the lane forever.
+        val ok = try {
+            withTimeout(OP_TIMEOUT_MS) { op.completion.await() }
+        } catch (_: TimeoutCancellationException) {
+            if (op.completion.isActive) op.completion.complete(false)
+            false
+        }
+        inFlight = null
+        when (op) {
+            is ReadOp -> onDrainResult(if (ok) op.bytes else null)
+            is WriteOp -> if (ok) requestDrain() // write acked → pull the firmware's reply
+        }
+    }
+
+    /** Issue [op] to the stack. Returns whether it was accepted for execution. */
+    @SuppressLint("MissingPermission")
+    private fun issue(g: BluetoothGatt, op: GattOp): Boolean = when (op) {
+        is ReadOp -> {
+            val ch = g.getService(MeshtasticGattUuids.SERVICE)?.getCharacteristic(MeshtasticGattUuids.FROM_RADIO)
+            if (ch == null) false else runCatching { g.readCharacteristic(ch) }.getOrDefault(false)
+        }
+        is WriteOp -> {
+            val ch = g.getService(MeshtasticGattUuids.SERVICE)?.getCharacteristic(MeshtasticGattUuids.TO_RADIO)
+            when {
+                ch == null -> false
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU ->
+                    g.writeCharacteristic(ch, op.value, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT) ==
+                        BluetoothGatt.GATT_SUCCESS
+                else -> {
+                    @Suppress("DEPRECATION")
+                    run {
+                        ch.value = op.value
+                        ch.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+                        g.writeCharacteristic(ch)
+                    }
                 }
             }
         }
     }
 
-    private fun handleFromRadioRead(g: BluetoothGatt, uuid: java.util.UUID, bytes: ByteArray) {
-        if (uuid != MeshtasticGattUuids.FROM_RADIO) return
-        Log.i(TAG, "handleFromRadioRead: ${bytes.size} bytes, connected=$connected")
-        if (bytes.isEmpty()) {
-            if (!connected) {
-                connected = true
-                Log.i(TAG, "FIFO drained — emitting Connected")
-                scope.launch { _events.emit(BleTransportEvent.Connected) }
+    /** Process one FROM_RADIO read: emit a frame and continue, or end the drain. */
+    private fun onDrainResult(bytes: ByteArray?) {
+        when {
+            // Read failed (or no gatt) — end the cycle; a later trigger restarts it.
+            bytes == null -> drainActive = false
+            // FIFO empty — drained. End the cycle; on the first drain, signal Connected.
+            bytes.isEmpty() -> {
+                drainActive = false
+                if (!connected) {
+                    connected = true
+                    Log.i(TAG, "FIFO drained — emitting Connected")
+                    scope.launch { _events.emit(BleTransportEvent.Connected) }
+                }
             }
-            return
+            // A frame — surface it and keep draining (stay in this cycle).
+            else -> {
+                scope.launch { _events.emit(BleTransportEvent.FromRadioFrame(bytes)) }
+                opQueue.trySend(ReadOp())
+            }
         }
-        scope.launch { _events.emit(BleTransportEvent.FromRadioFrame(bytes)) }
-        drainFromRadio(g, isFirstDrain = false)
     }
 
-    @SuppressLint("MissingPermission")
-    private fun drainFromRadio(g: BluetoothGatt, isFirstDrain: Boolean) {
-        val ch = g.getService(MeshtasticGattUuids.SERVICE)
-            ?.getCharacteristic(MeshtasticGattUuids.FROM_RADIO)
-        if (ch == null) {
-            Log.w(TAG, "drainFromRadio: FROM_RADIO characteristic not found (isFirstDrain=$isFirstDrain)")
-            return
+    /**
+     * Ask for a FROM_RADIO drain. Coalesced: if a drain cycle is already running
+     * it's a no-op (that cycle reads everything available). Called on FROM_NUM
+     * notifications, after each successful write, and after notifications are
+     * enabled (first drain).
+     */
+    private fun requestDrain() {
+        if (drainActive) return
+        drainActive = true
+        if (!opQueue.trySend(ReadOp()).isSuccess) drainActive = false
+    }
+
+    /** Settle the in-flight op and discard any queued ops (link gone / stopping). */
+    private fun failPendingOps() {
+        inFlight?.let { if (it.completion.isActive) it.completion.complete(false) }
+        inFlight = null
+        while (true) {
+            val op = opQueue.tryReceive().getOrNull() ?: break
+            if (op.completion.isActive) op.completion.complete(false)
         }
-        val ok = runCatching { g.readCharacteristic(ch) }.getOrDefault(false)
-        Log.i(TAG, "drainFromRadio: readCharacteristic returned $ok (isFirstDrain=$isFirstDrain)")
+        drainActive = false
     }
 
     companion object {
@@ -541,11 +628,11 @@ internal class AndroidBleTransport(
         const val RECONNECT_BACKOFF_MS: Long = 2_000L
 
         /**
-         * How long [writeToRadio] waits for a TO_RADIO write to complete
-         * (onCharacteristicWrite) before giving up and returning false. A
-         * healthy write acks in well under a second; this is the stuck-write
-         * backstop so the mutex can never wedge the write path.
+         * How long the op-queue consumer waits for any GATT operation's
+         * completion callback before treating it as failed and moving on. A
+         * healthy read/write completes in well under a second; this is the
+         * lost-callback backstop so one stuck op can never wedge the lane.
          */
-        const val WRITE_ACK_TIMEOUT_MS: Long = 3_000L
+        const val OP_TIMEOUT_MS: Long = 3_000L
     }
 }
