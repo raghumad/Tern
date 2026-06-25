@@ -17,6 +17,7 @@ fun peerReducer(state: PeerState, action: PeerAction): PeerState {
         is PeerAction.PeerTelemetryReceived -> action.receivedAt
         is PeerAction.PeerAlertReceived -> action.alertedAt
         is PeerAction.PeerAlertAcknowledged -> action.acknowledgedAt
+        is PeerAction.PeerIdentityUpdate -> action.seenAt
         is PeerAction.LinkStateChanged -> state.lastEventTime
         is PeerAction.PeersCleared -> state.lastEventTime
     }
@@ -97,6 +98,25 @@ private fun peerReduceAction(state: PeerState, action: PeerAction): PeerState = 
                 it[idx] = it[idx].copy(acknowledgedAt = action.acknowledgedAt)
             }
             state.copy(activeAlerts = updated)
+        }
+    }
+
+    is PeerAction.PeerIdentityUpdate -> {
+        // Update-only: refresh name + lastSeen for a peer we already track;
+        // never insert. NodeInfo (incl. the NodeDB dump) must not put a
+        // non-teammate on the roster — only live presence does that.
+        val existing = state.peers[action.identity.nodeNumber]
+        if (existing == null) {
+            state
+        } else {
+            state.copy(
+                peers = state.peers + (
+                    action.identity.nodeNumber to existing.copy(
+                        identity = action.identity,
+                        lastSeenAt = action.seenAt,
+                    )
+                ),
+            )
         }
     }
 

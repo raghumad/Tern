@@ -76,6 +76,31 @@ class PeerReducerTest {
     }
 
     @Test
+    fun `PeerIdentityUpdate does NOT create a peer when none exists`() {
+        // The board's NodeDB dump arrives as NodeInfo for nodes we've never
+        // heard live (the public mesh). It must not put them on the roster.
+        val newState = peerReducer(PeerState.empty(), PeerAction.PeerIdentityUpdate(antoine, t0))
+
+        assertThat(newState.peers).isEmpty()
+    }
+
+    @Test
+    fun `PeerIdentityUpdate refreshes name and lastSeen for an existing peer`() {
+        // A peer registered by a live position; then NodeInfo fills in the name.
+        val anon = PeerIdentity.fromNodeNumber(antoine.nodeNumber) // no names yet
+        var state = peerReducer(PeerState.empty(), PeerAction.PeerPositionReceived(anon, sampleFix, t0))
+        assertThat(state.peers[antoine.nodeNumber]!!.identity.longName).isNull()
+
+        state = peerReducer(state, PeerAction.PeerIdentityUpdate(antoine, t1))
+
+        val peer = state.peers[antoine.nodeNumber]!!
+        assertThat(peer.identity.longName).isEqualTo("Antoine")
+        assertThat(peer.lastSeenAt).isEqualTo(t1)
+        // Update-only: it must not have wiped the live position fix.
+        assertThat(peer.lastPosition).isEqualTo(sampleFix)
+    }
+
+    @Test
     fun `PeerSeen registers a previously-unknown peer`() {
         val newState = peerReducer(PeerState.empty(), PeerAction.PeerSeen(antoine, t0))
 

@@ -72,6 +72,23 @@ sealed interface PeerAction : com.ternparagliding.redux.TernAction {
         val acknowledgedAt: Instant,
     ) : PeerAction
 
+    /**
+     * Identity (name) info arrived for a peer — a NodeInfo broadcast or an
+     * entry from the board's NodeDB dump on handshake. UPDATE-ONLY: it
+     * refreshes an existing peer's [PeerIdentity] and [lastSeenAt] but does
+     * NOT create a roster entry.
+     *
+     * A peer earns a roster slot only through live presence (position /
+     * telemetry / alert). The board's NodeDB persists every node it has ever
+     * heard (e.g. the whole public mesh from before the pilot joined a private
+     * team) and re-streams it as NodeInfo on each reconnect; if bare NodeInfo
+     * created peers, those non-teammates would keep repopulating the roster.
+     */
+    data class PeerIdentityUpdate(
+        val identity: PeerIdentity,
+        val seenAt: Instant,
+    ) : PeerAction
+
     /** The LoRa link transitioned (NEVER_PAIRED / DOWN / UP). */
     data class LinkStateChanged(val newState: LinkState) : PeerAction
 

@@ -58,7 +58,11 @@ class PeerMiddleware(
         val now = Instant.now(clock)
         when (event) {
             is MeshEvent.PeerIdentityKnown -> {
-                dispatch(PeerAction.PeerSeen(event.peer, now))
+                // Update-only — NodeInfo (incl. the board's NodeDB dump) must
+                // not create a roster entry, or non-teammates from the public
+                // mesh reappear on every reconnect. A peer joins the roster
+                // via live presence (position / telemetry / alert) below.
+                dispatch(PeerAction.PeerIdentityUpdate(event.peer, now))
             }
 
             is MeshEvent.PeerPositionUpdate -> {

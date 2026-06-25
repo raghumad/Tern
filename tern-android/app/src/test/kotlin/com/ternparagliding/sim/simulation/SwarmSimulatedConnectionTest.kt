@@ -433,13 +433,13 @@ class SwarmSimulatedConnectionTest {
         // Walk 60 seconds of morning: cadence boundaries at swarmStart+30
         // and swarmStart+60. cbe and cor are in range (~2 km).
         // Expected action sequence at each boundary, per pilot:
-        //  - first time:  PeerIdentityKnown -> PeerSeen,
+        //  - first time:  PeerIdentityKnown -> PeerIdentityUpdate (update-only),
         //                 PeerPositionUpdate -> PeerSeen + PeerPositionReceived
         //  - thereafter:  PeerPositionUpdate -> PeerSeen + PeerPositionReceived
         // So per in-range peer over 60s:
-        //  1 PeerIdentityKnown -> 1 PeerSeen
+        //  1 PeerIdentityKnown -> 1 PeerIdentityUpdate (does NOT register)
         //  2 PeerPositionUpdates -> 2x (PeerSeen + PeerPositionReceived)
-        // = 3 PeerSeen, 2 PeerPositionReceived per peer.
+        // = 2 PeerSeen, 2 PeerPositionReceived, 1 PeerIdentityUpdate per peer.
         // Plus 1 LinkStateChanged(UP) from start().
 
         val conn = newConnection()
@@ -465,8 +465,8 @@ class SwarmSimulatedConnectionTest {
             .groupingBy { it.identity.longName }
             .eachCount()
 
-        assertThat(seenCounts["cbe"]).isEqualTo(3)
-        assertThat(seenCounts["cor"]).isEqualTo(3)
+        assertThat(seenCounts["cbe"]).isEqualTo(2)
+        assertThat(seenCounts["cor"]).isEqualTo(2)
         assertThat(posCounts["cbe"]).isEqualTo(2)
         assertThat(posCounts["cor"]).isEqualTo(2)
 
@@ -475,17 +475,18 @@ class SwarmSimulatedConnectionTest {
             PeerAction.LinkStateChanged(LinkState.UP),
         )
 
-        // Sanity: ordering within a boundary -- the very first peer
-        // event for cbe must be a PeerSeen (from PeerIdentityKnown),
-        // then another PeerSeen + PeerPositionReceived.
+        // Sanity: ordering within a boundary -- the very first peer event for
+        // cbe is the update-only PeerIdentityUpdate (from PeerIdentityKnown),
+        // then the live PeerSeen + PeerPositionReceived.
         val cbeActions = captured.filter { action ->
             when (action) {
+                is PeerAction.PeerIdentityUpdate -> action.identity.longName == "cbe"
                 is PeerAction.PeerSeen -> action.identity.longName == "cbe"
                 is PeerAction.PeerPositionReceived -> action.identity.longName == "cbe"
                 else -> false
             }
         }
-        assertThat(cbeActions[0]).isInstanceOf(PeerAction.PeerSeen::class.java)
+        assertThat(cbeActions[0]).isInstanceOf(PeerAction.PeerIdentityUpdate::class.java)
         assertThat(cbeActions[1]).isInstanceOf(PeerAction.PeerSeen::class.java)
         assertThat(cbeActions[2]).isInstanceOf(PeerAction.PeerPositionReceived::class.java)
     }

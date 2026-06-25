@@ -108,15 +108,18 @@ class PeerMiddlewareTest {
     }
 
     @Test
-    fun `PeerIdentityKnown dispatches a single PeerSeen`() = runTest {
+    fun `PeerIdentityKnown dispatches a single update-only PeerIdentityUpdate`() = runTest {
         val conn = StubMeshtasticConnection(initialLinkState = LinkState.UP)
         val dispatched = newDispatchedList()
         buildAndStart(conn, dispatched)
 
         conn.emit(MeshEvent.PeerIdentityKnown(antoine))
 
+        // NodeInfo must NOT register a roster peer (PeerSeen) — only update an
+        // existing one's name. This keeps the board's NodeDB dump from
+        // repopulating the roster with non-teammates.
         assertThat(dispatched).containsExactly(
-            PeerAction.PeerSeen(antoine, Instant.now(fixedClock)),
+            PeerAction.PeerIdentityUpdate(antoine, Instant.now(fixedClock)),
         )
     }
 
@@ -194,7 +197,7 @@ class PeerMiddlewareTest {
 
         val classes = dispatched.map { it::class }
         assertThat(classes).containsExactly(
-            PeerAction.PeerSeen::class,                  // from PeerIdentityKnown
+            PeerAction.PeerIdentityUpdate::class,        // from PeerIdentityKnown (update-only)
             PeerAction.PeerSeen::class,                  // from PeerPositionUpdate
             PeerAction.PeerPositionReceived::class,
             PeerAction.PeerAlertReceived::class,
