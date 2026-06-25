@@ -124,6 +124,40 @@ class PeerMiddlewareTest {
     }
 
     @Test
+    fun `events from the board's own node are dropped (you are not your own buddy)`() = runTest {
+        // The board reports its own node via selfNodeNumber. Its own position /
+        // telemetry / NodeInfo must never reach the roster — a board doesn't
+        // hear its own NodeInfo over the air, so it would sit there nameless.
+        val conn = StubMeshtasticConnection(
+            initialLinkState = LinkState.UP,
+            selfNodeNumber = antoine.nodeNumber,
+        )
+        val dispatched = newDispatchedList()
+        buildAndStart(conn, dispatched)
+
+        conn.emit(MeshEvent.PeerPositionUpdate(antoine, sampleFix))
+        conn.emit(MeshEvent.PeerIdentityKnown(antoine))
+        conn.emit(
+            MeshEvent.PeerTelemetry(antoine, batteryPercent = 90, timestampSeconds = 1),
+        )
+
+        // Nothing about the self node should be dispatched.
+        assertThat(dispatched).isEmpty()
+
+        // A different node still comes through normally.
+        val buddy = PeerIdentity.fromNodeNumber(0xbbbbbbbbL, longName = "Buddy", shortName = "BD")
+        conn.emit(MeshEvent.PeerPositionUpdate(buddy, sampleFix))
+        assertThat(dispatched.map { it::class }).containsExactly(
+            PeerAction.PeerSeen::class,
+            PeerAction.PeerPositionReceived::class,
+        ).inOrder()
+
+        // Link-state events are not peer events and must pass regardless.
+        conn.setLinkState(LinkState.DOWN)
+        assertThat(dispatched.last()).isEqualTo(PeerAction.LinkStateChanged(LinkState.DOWN))
+    }
+
+    @Test
     fun `PeerAlert dispatches PeerAlertReceived`() = runTest {
         val conn = StubMeshtasticConnection(initialLinkState = LinkState.UP)
         val dispatched = newDispatchedList()

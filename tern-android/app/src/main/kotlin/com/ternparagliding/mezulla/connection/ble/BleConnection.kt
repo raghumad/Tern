@@ -208,6 +208,14 @@ class BleConnection internal constructor(
         private set
 
     /**
+     * The board's own node number, surfaced to [com.ternparagliding.mezulla.redux.PeerMiddleware]
+     * so it can drop the board's own node from the peer roster (you are not
+     * your own buddy). Same value as [boardNodeNumber]; named per the
+     * [MeshtasticConnection] contract.
+     */
+    override val selfNodeNumber: Long? get() = boardNodeNumber
+
+    /**
      * The node number to address local admin commands to. Prefers the board's
      * self-reported [boardNodeNumber] (from MyNodeInfo); falls back to the
      * QR/pairing-derived [pairedBoardId] until the handshake reports it. Logs

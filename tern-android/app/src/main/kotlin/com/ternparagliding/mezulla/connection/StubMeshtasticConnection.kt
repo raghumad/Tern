@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 class StubMeshtasticConnection(
     override val pairedBoardId: String? = "!stubboard",
     initialLinkState: LinkState = LinkState.UP,
+    override val selfNodeNumber: Long? = null,
 ) : MeshtasticConnection {
 
     private val _events = MutableSharedFlow<MeshEvent>(extraBufferCapacity = 64)

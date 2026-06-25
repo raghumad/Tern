@@ -43,6 +43,19 @@ interface MeshtasticConnection {
     val pairedBoardId: String?
 
     /**
+     * The board's own Meshtastic node number, as it reports in `my_info`
+     * during the handshake. This is the live, authoritative number and can
+     * differ from [pairedBoardId] (the QR/pairing-derived id — see the LilyGo
+     * node mismatch). Null until the board has reported it.
+     *
+     * Used to keep the board's OWN node out of the peer roster: a board never
+     * hears its own NodeInfo over the air, so it would otherwise sit in the
+     * buddy list forever as a nameless self-entry — and you are not your own
+     * buddy.
+     */
+    val selfNodeNumber: Long? get() = null
+
+    /**
      * Current link state. Reflects whether Tern can currently exchange
      * packets with the paired board. See [LinkState] for the values and
      * what each one means for the UI.

@@ -56,6 +56,12 @@ class PeerMiddleware(
 
     private fun handle(event: MeshEvent) {
         val now = Instant.now(clock)
+        // Never let the board's own node onto the roster. A board doesn't hear
+        // its own NodeInfo over the air, so its name only ever arrives in the
+        // connect-time nodeDB dump — meaning self would otherwise sit in the
+        // buddy list as a nameless "!hex" entry. And you are not your own buddy.
+        val self = connection.selfNodeNumber
+        if (self != null && event.senderNodeNumber() == self) return
         when (event) {
             is MeshEvent.PeerIdentityKnown -> {
                 // Update-only — NodeInfo (incl. the board's NodeDB dump) must
@@ -105,6 +111,20 @@ class PeerMiddleware(
                 // Redux doesn't model it; no-op here.
             }
         }
+    }
+
+    /**
+     * The node number an event is *about*, or null for events that carry no
+     * peer (link-state, config-complete). Used to filter out the board's own
+     * node — see [handle].
+     */
+    private fun MeshEvent.senderNodeNumber(): Long? = when (this) {
+        is MeshEvent.PeerIdentityKnown -> peer.nodeNumber
+        is MeshEvent.PeerPositionUpdate -> peer.nodeNumber
+        is MeshEvent.PeerTelemetry -> peer.nodeNumber
+        is MeshEvent.PeerAlert -> peer.nodeNumber
+        is MeshEvent.LinkStateChange -> null
+        is MeshEvent.ConfigComplete -> null
     }
 
     /**
