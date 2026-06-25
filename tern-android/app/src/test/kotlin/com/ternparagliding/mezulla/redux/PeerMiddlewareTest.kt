@@ -181,6 +181,22 @@ class PeerMiddlewareTest {
     }
 
     @Test
+    fun `a position with no timestamp is dropped as a timeless replay`() = runTest {
+        // The board replays cached nodeDB positions whose stored time was 0, so
+        // they arrive timeless (rx_time = 0). A live packet always carries a
+        // reception time, so a 0 timestamp means "cached replay" — drop it.
+        val conn = StubMeshtasticConnection(initialLinkState = LinkState.UP)
+        val dispatched = newDispatchedList()
+        buildAndStart(conn, dispatched)
+
+        val timelessFix = sampleFix.copy(timestampSeconds = 0L)
+        conn.emit(MeshEvent.PeerPositionUpdate(antoine, timelessFix))
+        conn.emit(MeshEvent.PeerTelemetry(antoine, batteryPercent = 50, timestampSeconds = 0L))
+
+        assertThat(dispatched).isEmpty()
+    }
+
+    @Test
     fun `PeerAlert dispatches PeerAlertReceived`() = runTest {
         val conn = StubMeshtasticConnection(initialLinkState = LinkState.UP)
         val dispatched = newDispatchedList()

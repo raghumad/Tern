@@ -135,14 +135,19 @@ class PeerMiddleware(
     }
 
     /**
-     * Whether a position/telemetry is too old on arrival to count as live
-     * presence — i.e. it's the board replaying a cached nodeDB entry, not a
-     * peer we just heard. Compares the event's own timestamp against the wall
-     * clock; a non-positive timestamp ([timestampSeconds] <= 0) can't be judged
-     * so we let it through. See [REPLAY_STALE_SECONDS].
+     * Whether a position/telemetry is NOT live presence — i.e. it's the board
+     * replaying a cached nodeDB entry, not a peer we just heard:
+     *
+     *  - timestamp <= 0 → the entry has no reception time at all. A *live* packet
+     *    always carries one (the board stamps rx_time = now when it hears one
+     *    over the air); only a cached replay whose stored `pos.time` was 0 comes
+     *    through timeless. So a missing timestamp is itself the "replay" tell.
+     *  - timestamp older than [REPLAY_STALE_SECONDS] → a stale cached fix.
+     *
+     * Either way it must not register a public-mesh straggler as a buddy.
      */
     private fun isReplayStale(timestampSeconds: Long, now: Instant): Boolean =
-        timestampSeconds > 0 && (now.epochSecond - timestampSeconds) > REPLAY_STALE_SECONDS
+        timestampSeconds <= 0 || (now.epochSecond - timestampSeconds) > REPLAY_STALE_SECONDS
 
     /**
      * The node number an event is *about*, or null for events that carry no
