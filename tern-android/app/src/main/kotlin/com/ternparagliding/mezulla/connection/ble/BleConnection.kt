@@ -162,10 +162,19 @@ class BleConnection internal constructor(
 
     /**
      * Monotonic packet-id source for outbound MeshPacket.id. Meshtastic
-     * uses this for dedupe / ACK correlation; the value just has to be
-     * non-zero and reasonably unique within a few minutes of traffic.
+     * uses this for dedupe / ACK correlation.
+     *
+     * Seeded from epoch SECONDS, not 1: the board remembers recently-seen
+     * (from, id) pairs and silently drops repeats. If every app launch
+     * restarted ids at 1, the first admin/position after a reconnect would
+     * collide with one the board saw in a previous session and be dropped
+     * ("Ignore dupe incoming msg" — that's what was eating set_channel and
+     * the first position on every reconnect). Epoch seconds guarantees each
+     * launch starts ABOVE any id a prior session used, so no collision; it
+     * fits a 32-bit packet id with hundreds of millions of headroom before
+     * it would wrap within a session.
      */
-    private var nextPacketId: Int = 1
+    private var nextPacketId: Int = (System.currentTimeMillis() / 1000L).toInt()
 
     private fun allocatePacketId(): Int {
         val id = nextPacketId

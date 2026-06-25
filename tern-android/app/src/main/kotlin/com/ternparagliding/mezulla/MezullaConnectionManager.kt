@@ -51,6 +51,9 @@ class MezullaConnectionManager(
     companion object {
         private const val TAG = "MezullaConnectionMgr"
 
+        /** SharedPreferences file the team intent is persisted to (see SettingsPersistence). */
+        private const val SETTINGS_PREFS = "tern_unit_prefs"
+
         /**
          * How long we wait for the persistent BLE link to reach
          * [LinkState.UP] after a successful claim before declaring the
@@ -310,6 +313,21 @@ class MezullaConnectionManager(
      */
     private fun ensureTeamProvisioned(store: MapStore) {
         if (store.state.value.settingsState.teamName != null) return
+        // Respect a SAVED team even if SettingsPersistence hasn't hydrated it into
+        // the store yet: the link can come UP before the first composition's
+        // hydrate runs, and auto-provisioning here would then silently replace the
+        // pilot's real team with a fresh throwaway one (and persist over it).
+        // Prefs are the durable truth, so read them directly to close that race.
+        val sp = appContext.getSharedPreferences(SETTINGS_PREFS, Context.MODE_PRIVATE)
+        val savedTeam = sp.getString("team_name", null)
+        if (savedTeam != null) {
+            Log.i(TAG, "Team '$savedTeam' saved but not yet hydrated — restoring it (not auto-provisioning)")
+            store.dispatch(
+                MapAction.SetTeam(savedTeam, sp.getString("team_link", null), sp.getString("team_source", null)),
+            )
+            sp.getString("team_applied_link", null)?.let { store.dispatch(MapAction.SetTeamApplied(it)) }
+            return
+        }
         val suffix = activeNodeId?.takeLast(4) ?: "team"
         val team = TeamLink.create("Tern $suffix")
         Log.i(TAG, "No team set — auto-provisioning private team '${team.name}'")

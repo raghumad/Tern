@@ -74,6 +74,21 @@ internal object MeshPacketCodec {
     // ChannelSettings field numbers — see meshtastic/channel.proto.
     private const val F_CHANNELSETTINGS_PSK = 2
     private const val F_CHANNELSETTINGS_NAME = 3
+    private const val F_CHANNELSETTINGS_MODULE_SETTINGS = 7
+
+    // ModuleSettings field numbers — see meshtastic/channel.proto.
+    private const val F_MODULESETTINGS_POSITION_PRECISION = 1
+
+    /**
+     * Position precision (number of lat/lon bits kept) baked into the team
+     * channel. **Load-bearing:** the field defaults to 0 on the wire, and the
+     * firmware reads 0 as "strip all positions" — so a team channel created
+     * without it shares NO location and buddies never see each other (observed
+     * live: `Strip phone position due to channel precision 0`). 32 = full
+     * precision, which is what a private buddy team wants (find each other in a
+     * thermal / gaggle); there's no privacy trade-off inside your own group.
+     */
+    private const val DEFAULT_POSITION_PRECISION = 32
 
     // MeshPacket field numbers — see meshtastic/mesh.proto.
     private const val F_MESHPACKET_FROM = 1
@@ -598,14 +613,27 @@ internal object MeshPacketCodec {
     }
 
     /**
-     * Encode a `ChannelSettings` body — just the two fields a Tern "team" needs: a shared [psk]
-     * (the team secret) and a human [name]. This is what a team-share link carries and what
-     * [encodeToRadioSetChannel] writes to the board. An empty [psk] means an unencrypted channel.
+     * Encode a `ChannelSettings` body — the fields a Tern "team" needs: a shared [psk]
+     * (the team secret), a human [name], and [positionPrecision] in `module_settings` so the
+     * board actually shares location on this channel. This is what [encodeToRadioSetChannel]
+     * writes to the board. An empty [psk] means an unencrypted channel; a [positionPrecision] of
+     * 0 omits the module_settings (the firmware then strips positions — see
+     * [DEFAULT_POSITION_PRECISION]).
      */
-    fun encodeChannelSettings(name: String, psk: ByteArray): ByteArray =
+    fun encodeChannelSettings(
+        name: String,
+        psk: ByteArray,
+        positionPrecision: Int = DEFAULT_POSITION_PRECISION,
+    ): ByteArray =
         ProtoWriter().apply {
             if (psk.isNotEmpty()) writeBytes(F_CHANNELSETTINGS_PSK, psk)
             writeString(F_CHANNELSETTINGS_NAME, name)
+            if (positionPrecision > 0) {
+                val moduleSettings = ProtoWriter().apply {
+                    writeInt32(F_MODULESETTINGS_POSITION_PRECISION, positionPrecision)
+                }.toByteArray()
+                writeMessage(F_CHANNELSETTINGS_MODULE_SETTINGS, moduleSettings)
+            }
         }.toByteArray()
 
     /** Decode a `ChannelSettings` body to (name, psk). Null when no name field is present. */
@@ -634,6 +662,10 @@ internal object MeshPacketCodec {
      * on ADMIN_APP, addressed to the board. `from = 0` → trusted local phone, no passkey (same
      * trust path as [encodeToRadioReboot]). After the board applies it, only boards sharing this
      * name+psk hear each other — i.e. they're now on the same team.
+     *
+     * The channel carries a non-zero `position_precision` (via [encodeChannelSettings]) so the
+     * board shares location on it — without it the firmware strips every position and buddies
+     * never see each other. See [DEFAULT_POSITION_PRECISION].
      */
     fun encodeToRadioSetChannel(boardNodeNumber: Long, packetId: Int, name: String, psk: ByteArray): ByteArray {
         val channel = ProtoWriter().apply {

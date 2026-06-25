@@ -323,6 +323,76 @@ class MeshPacketCodecTest {
         assertThat(MeshPacketCodec.decodeMyNodeNum(ByteArray(0))).isNull()
     }
 
+    // ---------- set_channel position precision ----------
+
+    @Test
+    fun `setChannel carries a non-zero position precision so the team shares location`() {
+        // Regression: a team channel with no module_settings defaults position_precision to 0,
+        // and the firmware then STRIPS every position — buddies never see each other.
+        val boardNode = 0x0fb88838L
+        val psk = ByteArray(16) { it.toByte() }
+        val toRadio = MeshPacketCodec.encodeToRadioSetChannel(boardNode, packetId = 5, name = "TernTest2", psk = psk)
+
+        val meshPacket = unwrapToRadioPacket(toRadio)
+        val admin = meshPacketDataPayload(meshPacket, expectedPortNum = MeshPacketCodec.PORT_ADMIN_APP)
+        val channel = extractSetChannelBytes(admin)
+        val settings = channelSettingsBytes(channel)
+
+        // module_settings (field 7) → position_precision (field 1) must be present and > 0.
+        val precision = positionPrecision(settings)
+        assertThat(precision).isGreaterThan(0)
+    }
+
+    /** Pull the Channel bytes out of an AdminMessage.set_channel (field 33). */
+    private fun extractSetChannelBytes(adminBytes: ByteArray): ByteArray {
+        val reader = ProtoReader(adminBytes)
+        while (reader.hasMore()) {
+            val tag = reader.readTag()
+            val field = tag ushr 3
+            val wire = tag and 0x7
+            if (field == 33 && wire == Proto.WIRE_LENGTH_DELIMITED) return reader.readLengthDelimited()
+            reader.skipField(wire)
+        }
+        error("AdminMessage.set_channel not found")
+    }
+
+    /** Pull ChannelSettings (field 2) out of a Channel body. */
+    private fun channelSettingsBytes(channelBytes: ByteArray): ByteArray {
+        val reader = ProtoReader(channelBytes)
+        while (reader.hasMore()) {
+            val tag = reader.readTag()
+            val field = tag ushr 3
+            val wire = tag and 0x7
+            if (field == 2 && wire == Proto.WIRE_LENGTH_DELIMITED) return reader.readLengthDelimited()
+            reader.skipField(wire)
+        }
+        error("Channel.settings not found")
+    }
+
+    /** Read module_settings (field 7) → position_precision (field 1) from a ChannelSettings body. */
+    private fun positionPrecision(settingsBytes: ByteArray): Int {
+        val sr = ProtoReader(settingsBytes)
+        var moduleBytes: ByteArray? = null
+        while (sr.hasMore()) {
+            val tag = sr.readTag()
+            val field = tag ushr 3
+            val wire = tag and 0x7
+            if (field == 7 && wire == Proto.WIRE_LENGTH_DELIMITED) moduleBytes = sr.readLengthDelimited()
+            else sr.skipField(wire)
+        }
+        val module = moduleBytes ?: error("ChannelSettings.module_settings not found")
+        val mr = ProtoReader(module)
+        var precision = 0
+        while (mr.hasMore()) {
+            val tag = mr.readTag()
+            val field = tag ushr 3
+            val wire = tag and 0x7
+            if (field == 1 && wire == Proto.WIRE_VARINT) precision = mr.readVarint().toInt()
+            else mr.skipField(wire)
+        }
+        return precision
+    }
+
     // ---------- helpers ----------
 
     /**
