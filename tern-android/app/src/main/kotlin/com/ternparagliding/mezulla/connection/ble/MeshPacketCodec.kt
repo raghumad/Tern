@@ -131,6 +131,15 @@ internal object MeshPacketCodec {
     private const val F_USER_ID = 1
     private const val F_USER_LONG_NAME = 2
     private const val F_USER_SHORT_NAME = 3
+    private const val F_USER_HW_MODEL = 5
+
+    /**
+     * Meshtastic `HardwareModel.PRIVATE_HW` (255) — the reserved "custom/private
+     * hardware" value. Mezulla firmware advertises this for every Mezulla board
+     * (Heltec/LilyGo today, custom hardware later) so the app can admit only
+     * Mezulla nodes to the buddy roster. See the firmware's `owner.hw_model`.
+     */
+    const val HW_MODEL_PRIVATE = 255
 
     // Position field numbers (subset).
     private const val F_POSITION_LATITUDE_I = 1
@@ -365,6 +374,7 @@ internal object MeshPacketCodec {
                         nodeNumber = fromNodeNumber,
                         longName = user.longName,
                         shortName = user.shortName,
+                        hwModel = user.hwModel,
                     ),
                 )
             }
@@ -431,14 +441,20 @@ internal object MeshPacketCodec {
         )
     }
 
-    private data class DecodedUser(val id: String?, val longName: String?, val shortName: String?)
+    private data class DecodedUser(
+        val id: String?,
+        val longName: String?,
+        val shortName: String?,
+        val hwModel: Int?,
+    )
 
     private fun decodeUser(bytes: ByteArray): DecodedUser {
-        if (bytes.isEmpty()) return DecodedUser(null, null, null)
+        if (bytes.isEmpty()) return DecodedUser(null, null, null, null)
         val reader = ProtoReader(bytes)
         var id: String? = null
         var longName: String? = null
         var shortName: String? = null
+        var hwModel: Int? = null
         while (reader.hasMore()) {
             val tag = reader.readTag()
             val field = tag ushr 3
@@ -447,10 +463,11 @@ internal object MeshPacketCodec {
                 F_USER_ID -> if (wire == Proto.WIRE_LENGTH_DELIMITED) id = reader.readString() else reader.skipField(wire)
                 F_USER_LONG_NAME -> if (wire == Proto.WIRE_LENGTH_DELIMITED) longName = reader.readString() else reader.skipField(wire)
                 F_USER_SHORT_NAME -> if (wire == Proto.WIRE_LENGTH_DELIMITED) shortName = reader.readString() else reader.skipField(wire)
+                F_USER_HW_MODEL -> if (wire == Proto.WIRE_VARINT) hwModel = reader.readInt32() else reader.skipField(wire)
                 else -> reader.skipField(wire)
             }
         }
-        return DecodedUser(id, longName, shortName)
+        return DecodedUser(id, longName, shortName, hwModel)
     }
 
     private fun decodeNodeInfo(bytes: ByteArray): MeshEvent.PeerIdentityKnown? {
@@ -468,12 +485,13 @@ internal object MeshPacketCodec {
             }
         }
         val nodeNumber = num ?: return null
-        val user = userBytes?.let { decodeUser(it) } ?: DecodedUser(null, null, null)
+        val user = userBytes?.let { decodeUser(it) } ?: DecodedUser(null, null, null, null)
         return MeshEvent.PeerIdentityKnown(
             PeerIdentity.fromNodeNumber(
                 nodeNumber = nodeNumber,
                 longName = user.longName,
                 shortName = user.shortName,
+                hwModel = user.hwModel,
             ),
         )
     }

@@ -76,6 +76,26 @@ class MeshPacketCodecTest {
     }
 
     @Test
+    fun `NodeInfo decodes User hw_model onto the peer identity`() {
+        // User { id; long_name; short_name; hw_model = PRIVATE_HW(255) }
+        val userBody = ProtoWriter().apply {
+            writeString(1, "!a1b2c3d4")
+            writeString(2, "Antoine")
+            writeString(3, "AN")
+            writeVarintField(fieldNumber = 5, value = MeshPacketCodec.HW_MODEL_PRIVATE.toLong()) // User.hw_model
+        }.toByteArray()
+        val nodeInfoBody = ProtoWriter().apply {
+            writeVarintField(fieldNumber = 1, value = antoineNodeNumber)
+            writeMessage(2, userBody)
+        }.toByteArray()
+        val frame = ProtoWriter().apply { writeMessage(4, nodeInfoBody) }.toByteArray()
+
+        val event = MeshPacketCodec.decodeFromRadio(frame)
+        assertThat(event).isInstanceOf(MeshEvent.PeerIdentityKnown::class.java)
+        assertThat((event as MeshEvent.PeerIdentityKnown).peer.hwModel).isEqualTo(MeshPacketCodec.HW_MODEL_PRIVATE)
+    }
+
+    @Test
     fun `FromRadio with ALERT_APP data decodes to PeerAlert`() {
         val frame = buildFromRadioWithMeshPacket(
             fromNodeNumber = antoineNodeNumber,

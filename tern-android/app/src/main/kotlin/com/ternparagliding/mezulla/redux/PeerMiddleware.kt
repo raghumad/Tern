@@ -3,6 +3,7 @@ package com.ternparagliding.mezulla.redux
 import com.ternparagliding.mezulla.connection.MeshEvent
 import com.ternparagliding.mezulla.connection.MeshtasticConnection
 import com.ternparagliding.mezulla.connection.PeerIdentity
+import com.ternparagliding.mezulla.connection.ble.MeshPacketCodec
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collect
@@ -40,6 +41,15 @@ class PeerMiddleware(
 ) {
     private var job: Job? = null
 
+    /**
+     * Node numbers confirmed to be NON-Mezulla (public-mesh) nodes — their
+     * NodeInfo reported an `hw_model` other than PRIVATE_HW. We drop all their
+     * events so a public node can never hold a buddy slot, even via a replayed
+     * position that arrived before its NodeInfo. The collector is a single
+     * coroutine, so a plain set needs no synchronization.
+     */
+    private val knownNonMezulla = mutableSetOf<Long>()
+
     companion object {
         /**
          * A position/telemetry whose own timestamp is older than this on arrival
@@ -68,14 +78,23 @@ class PeerMiddleware(
 
     private fun handle(event: MeshEvent) {
         val now = Instant.now(clock)
-        // Never let the board's own node onto the roster. A board doesn't hear
-        // its own NodeInfo over the air, so its name only ever arrives in the
-        // connect-time nodeDB dump — meaning self would otherwise sit in the
-        // buddy list as a nameless "!hex" entry. And you are not your own buddy.
-        val self = connection.selfNodeNumber
-        if (self != null && event.senderNodeNumber() == self) return
+        // Drop events about (a) the board's own node — you aren't your own buddy,
+        // and a board never hears its own NodeInfo over the air, so it would sit
+        // in the roster as a nameless "!hex" entry — and (b) any node already
+        // confirmed to be a non-Mezulla public-mesh node.
+        val node = event.senderNodeNumber()
+        if (node != null && (node == connection.selfNodeNumber || node in knownNonMezulla)) return
         when (event) {
             is MeshEvent.PeerIdentityKnown -> {
+                val hw = event.peer.hwModel
+                if (hw != null && hw != MeshPacketCodec.HW_MODEL_PRIVATE) {
+                    // NodeInfo confirms this is a public-mesh node (real hardware
+                    // model, not PRIVATE_HW). Remember it so its other events are
+                    // dropped, and evict it if a replayed position already added it.
+                    knownNonMezulla.add(event.peer.nodeNumber)
+                    dispatch(PeerAction.PeerRemoved(event.peer.nodeNumber))
+                    return
+                }
                 // Update-only — NodeInfo (incl. the board's NodeDB dump) must
                 // not create a roster entry, or non-teammates from the public
                 // mesh reappear on every reconnect. A peer joins the roster

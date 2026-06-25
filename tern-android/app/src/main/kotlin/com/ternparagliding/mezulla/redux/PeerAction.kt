@@ -89,6 +89,14 @@ sealed interface PeerAction : com.ternparagliding.redux.TernAction {
         val seenAt: Instant,
     ) : PeerAction
 
+    /**
+     * Evict a peer by node number. Dispatched when a node is confirmed to be a
+     * non-Mezulla (public-mesh) node — its NodeInfo reports an `hw_model` other
+     * than PRIVATE_HW — so it must not occupy a buddy slot even if a (replayed)
+     * position registered it first. No-op if the node isn't on the roster.
+     */
+    data class PeerRemoved(val nodeNumber: Long) : PeerAction
+
     /** The LoRa link transitioned (NEVER_PAIRED / DOWN / UP). */
     data class LinkStateChanged(val newState: LinkState) : PeerAction
 

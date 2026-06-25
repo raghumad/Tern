@@ -101,6 +101,19 @@ class PeerReducerTest {
     }
 
     @Test
+    fun `PeerRemoved evicts a peer and is a no-op for an unknown one`() {
+        var state = peerReducer(PeerState.empty(), PeerAction.PeerPositionReceived(antoine, sampleFix, t0))
+        assertThat(state.peers).containsKey(antoine.nodeNumber)
+
+        state = peerReducer(state, PeerAction.PeerRemoved(antoine.nodeNumber))
+        assertThat(state.peers).doesNotContainKey(antoine.nodeNumber)
+
+        // Removing a node that isn't on the roster changes nothing.
+        val after = peerReducer(state, PeerAction.PeerRemoved(guillaume.nodeNumber))
+        assertThat(after.peers).isEqualTo(state.peers)
+    }
+
+    @Test
     fun `PeerSeen registers a previously-unknown peer`() {
         val newState = peerReducer(PeerState.empty(), PeerAction.PeerSeen(antoine, t0))
 

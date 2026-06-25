@@ -20,6 +20,7 @@ fun peerReducer(state: PeerState, action: PeerAction): PeerState {
         is PeerAction.PeerIdentityUpdate -> action.seenAt
         is PeerAction.LinkStateChanged -> state.lastEventTime
         is PeerAction.PeersCleared -> state.lastEventTime
+        is PeerAction.PeerRemoved -> state.lastEventTime
     }
     val newState = peerReduceAction(state, action)
     return if (eventTime.isAfter(state.lastEventTime)) newState.copy(lastEventTime = eventTime) else newState
@@ -123,6 +124,14 @@ private fun peerReduceAction(state: PeerState, action: PeerAction): PeerState = 
     is PeerAction.LinkStateChanged -> state.copy(linkState = action.newState)
 
     is PeerAction.PeersCleared -> state.copy(peers = emptyMap(), activeAlerts = emptyList())
+
+    is PeerAction.PeerRemoved -> {
+        if (state.peers.containsKey(action.nodeNumber)) {
+            state.copy(peers = state.peers - action.nodeNumber)
+        } else {
+            state
+        }
+    }
 }
 
 /**

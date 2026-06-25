@@ -197,6 +197,39 @@ class PeerMiddlewareTest {
     }
 
     @Test
+    fun `NodeInfo from a non-Mezulla node evicts it and drops its later events`() = runTest {
+        // hw_model != PRIVATE_HW means a public-mesh node. It must be evicted
+        // (PeerRemoved), not name-updated, and all its later events dropped —
+        // even a fresh live position.
+        val conn = StubMeshtasticConnection(initialLinkState = LinkState.UP)
+        val dispatched = newDispatchedList()
+        buildAndStart(conn, dispatched)
+
+        val publicNode = PeerIdentity.fromNodeNumber(0xc0ffee01L, longName = "Stranger", hwModel = 43) // HELTEC_V3
+        conn.emit(MeshEvent.PeerIdentityKnown(publicNode))
+        assertThat(dispatched.map { it::class }).containsExactly(PeerAction.PeerRemoved::class)
+
+        // A subsequent fresh position from that node is dropped (known non-Mezulla).
+        conn.emit(MeshEvent.PeerPositionUpdate(publicNode, sampleFix))
+        assertThat(dispatched.map { it::class }).containsExactly(PeerAction.PeerRemoved::class)
+    }
+
+    @Test
+    fun `NodeInfo from a Mezulla node (PRIVATE_HW) is admitted`() = runTest {
+        val conn = StubMeshtasticConnection(initialLinkState = LinkState.UP)
+        val dispatched = newDispatchedList()
+        buildAndStart(conn, dispatched)
+
+        val buddy = PeerIdentity.fromNodeNumber(
+            0xabcdef01L, longName = "Buddy", shortName = "BD", hwModel = 255,
+        )
+        conn.emit(MeshEvent.PeerIdentityKnown(buddy))
+        assertThat(dispatched).containsExactly(
+            PeerAction.PeerIdentityUpdate(buddy, Instant.now(fixedClock)),
+        )
+    }
+
+    @Test
     fun `PeerAlert dispatches PeerAlertReceived`() = runTest {
         val conn = StubMeshtasticConnection(initialLinkState = LinkState.UP)
         val dispatched = newDispatchedList()
