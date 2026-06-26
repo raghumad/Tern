@@ -452,8 +452,8 @@ fun SettingsSheet(
                 Spacer(modifier = Modifier.height(16.dp))
             }
 
-            // Demo replay section (only shown when demoReplay is provided)
-            if (demoReplay != null) {
+            // Demo replay section — debug builds only (a dev/showcase tool, not for pilots).
+            if (com.ternparagliding.BuildConfig.DEBUG && demoReplay != null) {
                 item {
                     HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
                     Text("Demo", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
@@ -482,7 +482,8 @@ fun SettingsSheet(
             }
 
             // Flight-deck bench replay — fly a bundled IGC through the live deck (no hardware).
-            item {
+            // Debug builds only (dev/showcase tool, incl. the over-LoRa buddy broadcast test).
+            if (com.ternparagliding.BuildConfig.DEBUG) item {
                 HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
                 Text("Flight deck (bench replay)", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
                 val replayingId = state.flightDeck.replayFlightId
