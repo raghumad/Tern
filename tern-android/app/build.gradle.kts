@@ -1,4 +1,5 @@
 import java.util.Date
+import java.util.Properties
 import java.io.ByteArrayOutputStream
 
 plugins {
@@ -10,6 +11,14 @@ plugins {
 }
 
 apply(plugin = "jacoco")
+
+// Release signing — credentials live in keystore.properties (gitignored), so they're never
+// committed. Absent on CI / a fresh clone, so it's guarded: with no keystore the release build is
+// simply unsigned (installRelease won't work, assembleRelease still produces an unsigned APK).
+val keystorePropsFile = rootProject.file("keystore.properties")
+val keystoreProps = Properties().apply {
+    if (keystorePropsFile.exists()) keystorePropsFile.inputStream().use { load(it) }
+}
 
 android {
     namespace = "com.ternparagliding"
@@ -23,6 +32,17 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        if (keystorePropsFile.exists()) {
+            create("release") {
+                storeFile = rootProject.file(keystoreProps.getProperty("storeFile"))
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+            }
+        }
     }
 
     // Enable coverage for both unit and instrumentation tests
@@ -59,11 +79,15 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // Sign with the release key when keystore.properties is present; otherwise leave
+            // unsigned (assembleRelease still builds; installRelease just won't work).
+            signingConfig = signingConfigs.findByName("release") ?: signingConfig
         }
     }
 
