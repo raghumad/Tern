@@ -324,10 +324,23 @@ non-engineer friend and watching).
   fulfillment; coordinate with whoever ships). Pilot never touches `pio`/`esptool`.
 - **4.2 Auto LoRa region from phone GPS — 🟡 substantially built.** Region
   auto-set from phone GPS via standard `AdminMessage.set_config` (port 6, full
-  LoRaConfig + tx_enabled). *Remaining/caveats:* full erase-flash needed to clear
-  a wrong region/ownership; verify the GPS→ITU-region mapping coverage and the
-  Settings "change region" affordance. Wrong region = illegal TX, so the mapping
-  must be right.
+  LoRaConfig + tx_enabled). *Remaining:* verify the GPS→ITU-region mapping
+  coverage and add the Settings "change region" affordance. Wrong region = illegal
+  TX, so the mapping must be right.
+  - **Correcting a wrong region needs no erase** — re-push the corrected full
+    `LoRaConfig` via `set_config`; it overwrites NVS and applies live. (A wrong
+    region is therefore self-healing for a pilot; just re-pair / re-push.)
+  - **Refinement — use `factory_reset_config`, drop the erase-flash crutch.**
+    Returning the board to the pristine `UNSET` state (needed only to re-exercise
+    the "auto-set on first pair *if* `UNSET`" trigger during dev) does **not**
+    require `esptool erase_flash`. That was a *tooling gap*: the app only knows how
+    to *set* a region, never to reset, so erase+reflash (`scripts/reset-mezulla.sh`)
+    became the catch-all. The firmware already exposes clean admin paths the app
+    should drive instead: **`factory_reset_config` (admin tag 99)** →
+    `installDefaultConfig()` leaves region `UNSET`; **`factory_reset_device` (94)** /
+    **`nodedb_reset` (100)** for the device/nodeDB + ownership side. Wiring these
+    (plus the 0x03 release packet — see Epic 01 1.1) removes the only reason a
+    pilot would ever need a physical erase-flash.
 - **4.3 Tern in Play Store — 🟡 groundwork done.** Release build + real signing +
   R8 shrink shipped; [Publishing checklist](#publishing-checklist) written. *To
   do:* real upload key + Play App Signing, AAB, privacy policy + data-safety form,
