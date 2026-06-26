@@ -1,98 +1,12 @@
 # Tern Backlog
 
-This is where we plan and track what Tern should do next. It lives in the
-repo on purpose — so it travels with the code, is easy to search, and
-doesn't depend on any outside tool like GitHub Issues or Jira.
+The entire backlog — plan, epics, status, known issues, references — lives in a
+single file:
 
-## How it works
+## → [BACKLOG.md](BACKLOG.md)
 
-- **Epics** are end-user features — things a pilot can do, see, or feel
-  in the cockpit. They are *not* technical components or subsystems. If a
-  title sounds like a layer of plumbing, it belongs inside an epic as a
-  story, not as an epic of its own.
-- **Stories** are the smaller pieces of work that, together, deliver an
-  epic. Each story should be small enough to finish and ship on its own.
-- Each epic lives in its own file: `epic-XX-short-name.md`.
-- Stories live inside the epic file, under a `## Stories` section, so you
-  can read the whole feature at a glance.
+It used to be ~13 separate files; they kept drifting out of sync with what
+actually shipped, so they were consolidated into one scrubbable document with a
+status dashboard at the top. Start there.
 
-## Priorities
-
-Three levels — keep it simple:
-
-- **now** — actively being worked on or up next.
-- **soon** — queued, will pull from here when "now" empties.
-- **later** — known to be valuable but not scheduled. Includes anything
-  that requires the pilot to change behavior or buy hardware.
-
-## Status
-
-Every epic and story has one of:
-
-- **todo** — not started.
-- **in progress** — actively being worked on.
-- **done** — shipped and verified.
-- **parked** — paused on purpose. Note *why* in the file.
-
-## Writing style
-
-Plain English. No "As a pilot, I want..." templates, no story points, no
-sprint ceremony. Anyone new to Tern should be able to read any epic and
-understand it without a glossary.
-
-## Mission check
-
-Every epic should answer: **what unknown does this convert into a known
-for the pilot?** If it can't, it probably doesn't belong.
-
-## Current focus vs. end-goal epics
-
-These two kinds of files live side by side and play different roles:
-
-- **`epic-XX-*.md` — end-goal epics.** Each describes a finished
-  pilot-facing feature: what the pilot can do, see, or feel once the
-  whole thing is built. They're long-lived and stable. They describe
-  *the destination*, not what's happening this week.
-- **`current-focus.md` — what we're actually doing right now.** Always
-  exactly one of these in the backlog. Describes the bare-minimum slice
-  of work currently in flight — often scaffolding that isn't yet
-  pilot-visible. It points to whichever epic it's serving. When the
-  focus area completes, update or replace this file with the next focus.
-
-The split is intentional: end-goal files keep us from forgetting where
-we're headed; the current focus keeps us from drifting into doing the
-whole thing at once.
-
-## Starting a new epic
-
-Copy `epic-template.md` to `epic-XX-your-feature.md` (increment XX) and
-fill it in.
-
-## Shifting current focus
-
-When the current focus is done, edit `current-focus.md` in place to
-describe the new focus. Don't create `current-focus-2.md`. The history
-of focus changes lives in git log.
-
-## Index
-
-- [Current focus](current-focus.md) — **stabilize core functionality
-  first** (the Aravis replay milestone is achieved). Phases 0–1 done;
-  Phase 2 (fix the real broken workflows) in progress — task-planning UX,
-  the weather / Flyability deck, and the flight-deck brains.
-- [Epic 01](epic-01-peer-awareness-and-sos.md) — Pilots in the same area
-  see each other and signal for help without cell service. (End goal.)
-- [Epic 02](epic-02-traffic-awareness.md) — Pilots see nearby aircraft
-  and are seen by them. FANET/FLARM/ADS-L. (After Epic 01.)
-- [Epic 03](epic-03-spedmo-social-layer.md) — Spedmo integration for
-  social/cloud features (live tracking, IGC upload, site enrichment,
-  ground-crew notifications). Offline-first preserved. (After Epic 01.)
-- [Epic 04](epic-04-first-time-onboarding.md) — The 7-step brochure:
-  ship the onboarding UX so a non-engineer can pair their Mezulla in
-  under 10 minutes from a sealed box. Includes OTA firmware updates.
-- [QR pairing reference](ws-qr-pairing-app-handoff.md) — how pairing
-  works, BLE sequence, wire protocol, what's implemented.
-- [Overlay audit](overlay-infrastructure-audit.md) — reactive rendering
-  fix (S1) to prevent OOM on long flights.
-- [Known issues](known-issues.md) — snapshot of regressions parked while
-  focus is on LoRa. Not a to-do for now; revisit when focus shifts.
+`assets/` holds the in-flight design mockups referenced by BACKLOG.md.

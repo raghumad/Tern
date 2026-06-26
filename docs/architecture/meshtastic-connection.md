@@ -5,7 +5,7 @@ This is the rationale behind the
 The KDoc on the interface itself restates the shape and contracts; this
 doc explains *why* the shape is what it is.
 
-Workstream context: [current-focus.md](../backlog/current-focus.md), WS2.
+Workstream context: [BACKLOG.md](../backlog/BACKLOG.md) (Epic 01), WS2.
 
 ## What the interface represents
 
@@ -33,7 +33,7 @@ packets between the Tern app and a Mezulla-firmware board.
 | `AndroidManifest.xml` | `tern://` scheme + BLE permissions registered | landed |
 | Pairing orchestrator | Deep link → BLE scan → connect → claim → persist | next |
 
-Wire format: `docs/backlog/ws-qr-pairing-app-handoff.md`
+Wire format: [BACKLOG.md → Reference — QR pairing wire protocol](../backlog/BACKLOG.md#reference--qr-pairing-wire-protocol)
 
 Everything above the interface — redux middleware, peer map overlays,
 SOS UI — talks only to `MeshtasticConnection`. Nothing above the
