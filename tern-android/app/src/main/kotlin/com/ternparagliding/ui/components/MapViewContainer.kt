@@ -122,6 +122,14 @@ private fun deckBuddies(
     }
 }
 
+/**
+ * Deck-replay ids that ALSO broadcast their track over LoRa (debug only) — the two-device buddy
+ * test: each phone replays one Bir Billing pilot and transmits it so the other phone renders a real
+ * moving buddy. Distinct from the plain "birbilling"/"aravis" bench demo, which renders buddies
+ * locally and must never transmit. Replayed at 1× so receiver-derived climb/speed stay faithful.
+ */
+private val BROADCAST_REPLAY_IDS = setOf("birbilling-richard", "birbilling-barney", "birbilling-ariel")
+
 /** Stable id so re-running the demo overwrites rather than accumulates. */
 private const val BIR_DEMO_TASK_ID = "demo-birbilling-task"
 
@@ -522,14 +530,47 @@ fun MapViewContainer(
             store.dispatch(MapAction.AddTask(it))
             store.dispatch(MapAction.SelectTask(it.id))
         }
+        // Two-device buddy test: a BROADCAST_REPLAY id also transmits each fix over LoRa so the other
+        // phone sees this pilot as a live buddy. Replay at 1× (not the 8× bench speed) so the
+        // receiver's climb derivation (alt delta / wall-clock receipt gap) isn't inflated.
+        val broadcastReplay = com.ternparagliding.BuildConfig.DEBUG && id in BROADCAST_REPLAY_IDS
+        val replaySpeed = if (broadcastReplay) 1 else com.ternparagliding.flight.IgcReplaySource.DEFAULT_SPEED
+        var lastReplayTxMs: Long? = null
+        if (broadcastReplay) {
+            // The phone BECOMES this pilot: stop real GPS so it can't (a) fight the replay as our
+            // own-location, or (b) double-broadcast the real desk position under our board's node
+            // (which would make the buddy oscillate between here and Bir Billing). Restored in finally.
+            locationService.stopLocationUpdates()
+            store.dispatch(MapAction.SetCameraFollow(true))
+        }
         try {
-            com.ternparagliding.flight.IgcReplaySource(flight).fixes().collect { onDeckFix(it) }
+            com.ternparagliding.flight.IgcReplaySource(flight, replaySpeed).fixes().collect { fix ->
+                onDeckFix(fix)
+                if (broadcastReplay && fix.hasPosition) {
+                    // Adopt the replay as our own position so distance / relative-altitude to the
+                    // buddy read true (both pilots are at Bir Billing) and the camera follows it.
+                    fix.lat?.let { la -> fix.lon?.let { lo ->
+                        store.dispatch(MapAction.UpdateUserLocation(GeoPoint(la, lo, fix.gpsAltitudeM ?: 0.0)))
+                    } }
+                    if (com.ternparagliding.mezulla.PositionBroadcastPolicy.shouldBroadcast(true, lastReplayTxMs, fix.timeMs)) {
+                        fix.toPeerPositionFix()?.let { pf ->
+                            lastReplayTxMs = fix.timeMs
+                            connectionManager?.activeBleConnection()?.let { conn ->
+                                coroutineScope.launch { runCatching { conn.sendOwnPosition(pf) } }
+                            }
+                        }
+                    }
+                }
+            }
         } finally {
             buddyPlayback.value = null // stop driving buddies on end/cancel
             buddyNodes.value = emptyMap()
             demoTask?.let {
                 store.dispatch(MapAction.DeselectTask)
                 store.dispatch(MapAction.RemoveTask(it.id))
+            }
+            if (broadcastReplay && store.state.value.hasLocationPermission) {
+                locationService.startLocationUpdates() // restore real GPS after the test
             }
         }
         store.dispatch(MapAction.UpdateRotation(0f)) // natural end → north-up

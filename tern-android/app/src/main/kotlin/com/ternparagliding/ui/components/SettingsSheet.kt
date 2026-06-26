@@ -506,6 +506,45 @@ fun SettingsSheet(
                         Text(text = if (running) "Stop $label" else "Replay: $label", fontSize = 16.sp)
                     }
                 }
+
+                // Two-device buddy test (debug): each phone replays one Bir Billing pilot AND
+                // broadcasts it over LoRa, so the other phone sees a real moving buddy. Assign
+                // Richard → Ulefone/LilyGo, Barney → Pixel/Heltec.
+                if (com.ternparagliding.BuildConfig.DEBUG) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "Buddy broadcast test (over LoRa)",
+                        fontSize = 12.sp, color = Color(0xFF94A3B8),
+                        modifier = Modifier.padding(bottom = 6.dp),
+                    )
+                    listOf(
+                        "birbilling-richard" to "Richard",
+                        "birbilling-barney" to "Barney",
+                        "birbilling-ariel" to "Ariel",
+                    ).forEach { (id, who) ->
+                        val running = replayingId == id
+                        OutlinedButton(
+                            onClick = {
+                                if (running) {
+                                    store.dispatch(com.ternparagliding.redux.MapAction.StopDeckReplay)
+                                } else {
+                                    store.dispatch(com.ternparagliding.redux.MapAction.StartDeckReplay(id))
+                                    onDismiss()
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp)
+                                .padding(bottom = 8.dp)
+                                .testTag("deck_broadcast_$id"),
+                        ) {
+                            Text(
+                                text = if (running) "Stop broadcasting $who" else "Broadcast as $who (Bir Billing)",
+                                fontSize = 16.sp,
+                            )
+                        }
+                    }
+                }
                 Spacer(modifier = Modifier.height(16.dp))
             }
         }

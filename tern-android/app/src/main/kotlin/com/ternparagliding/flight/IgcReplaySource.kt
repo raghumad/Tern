@@ -50,6 +50,11 @@ class IgcReplaySource(
             "birbilling" to "/igc/flights/in/2025-10-11-birbilling-richard.igc",
             // Own-ship = tonio24 (the scenario DUT) so it doesn't collide with a buddy peer.
             "aravis" to "/igc/flights/fr/2026-04-25-aravis-team-tonio24.igc",
+            // Per-pilot Bir Billing tracks for the two-device over-LoRa buddy test: each phone
+            // replays one pilot and broadcasts it, so the other phone sees a real moving buddy.
+            "birbilling-richard" to "/igc/flights/in/2025-10-11-birbilling-richard.igc",
+            "birbilling-barney" to "/igc/flights/in/2025-10-11-birbilling-barney.igc",
+            "birbilling-ariel" to "/igc/flights/in/2025-10-11-birbilling-ariel.igc",
         )
 
         /** Load a bundled flight by id, or null if unknown / unreadable. */
