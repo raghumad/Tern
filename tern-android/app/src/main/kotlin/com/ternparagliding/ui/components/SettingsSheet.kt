@@ -188,9 +188,14 @@ fun SettingsSheet(
                         }
                     }
                     if (pairedNodeId != null) {
-                        // "007_6184" → "Mezulla 007" — friendly, drops the noisy suffix.
-                        val boardLabel = (pairedName ?: pairedNodeId).substringBefore("_")
-                            .let { "Mezulla $it" }
+                        // Prefer the board's real Meshtastic owner name (the name on
+                        // its OLED), learned from its self NodeInfo — so the label here
+                        // matches the board, the buddy list, and the screen. Fall back
+                        // to the pairing-time label only until that NodeInfo arrives.
+                        val selfBoard = state.peerState.selfBoard
+                        val boardLabel = selfBoard?.longName?.takeIf { it.isNotBlank() }
+                            ?: selfBoard?.shortName?.takeIf { it.isNotBlank() }
+                            ?: (pairedName ?: pairedNodeId).substringBefore("_").let { "Mezulla $it" }
                         // Live link status + battery, mirroring the vario row.
                         val linkUp = state.peerState.linkState == LinkState.UP
                         val boardTint = if (linkUp) Color(0xFF22C55E) else Color(0xFFF59E0B)

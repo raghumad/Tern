@@ -126,10 +126,11 @@ class PeerMiddlewareTest {
     }
 
     @Test
-    fun `events from the board's own node are dropped (you are not your own buddy)`() = runTest {
+    fun `the board's own node never joins the roster but its name is captured`() = runTest {
         // The board reports its own node via selfNodeNumber. Its own position /
-        // telemetry / NodeInfo must never reach the roster — a board doesn't
-        // hear its own NodeInfo over the air, so it would sit there nameless.
+        // telemetry must never reach the roster (you are not your own buddy), but
+        // its self NodeInfo carries the board's OLED name — that is captured as
+        // SelfBoardIdentified (not a roster peer) so the UI can label the board.
         val conn = StubMeshtasticConnection(
             initialLinkState = LinkState.UP,
             selfNodeNumber = antoine.nodeNumber,
@@ -143,13 +144,17 @@ class PeerMiddlewareTest {
             MeshEvent.PeerTelemetry(antoine, batteryPercent = 90, timestampSeconds = 1),
         )
 
-        // Nothing about the self node should be dispatched.
-        assertThat(dispatched).isEmpty()
+        // Only the board's identity is captured; position/telemetry are dropped and
+        // no roster peer is created for the self node.
+        assertThat(dispatched).containsExactly(
+            PeerAction.SelfBoardIdentified(antoine, Instant.now(fixedClock)),
+        )
 
         // A different node still comes through normally.
         val buddy = PeerIdentity.fromNodeNumber(0xbbbbbbbbL, longName = "Buddy", shortName = "BD")
         conn.emit(MeshEvent.PeerPositionUpdate(buddy, sampleFix))
         assertThat(dispatched.map { it::class }).containsExactly(
+            PeerAction.SelfBoardIdentified::class,
             PeerAction.PeerSeen::class,
             PeerAction.PeerPositionReceived::class,
         ).inOrder()
@@ -243,6 +248,50 @@ class PeerMiddlewareTest {
             PeerAction.PeerSeen::class,
             PeerAction.PeerPositionReceived::class,
         )
+    }
+
+    @Test
+    fun `a buddy's name from NodeInfo names the roster entry its later position creates`() = runTest {
+        // The usual connect-time order: the board replays the buddy's NodeInfo
+        // (carrying the board name) BEFORE its first position. NodeInfo is
+        // update-only and creates nothing yet, so the position is what registers
+        // the peer — and it must do so under the cached NAME, not a bare "!hex".
+        val conn = StubMeshtasticConnection(initialLinkState = LinkState.UP)
+        val dispatched = newDispatchedList()
+        buildAndStart(conn, dispatched)
+
+        val node = 0x357d5209L
+        val named = PeerIdentity.fromNodeNumber(node, longName = "Meshtastic 8530", shortName = "8530", hwModel = 255)
+        conn.emit(MeshEvent.PeerIdentityKnown(named))
+        // A position carrying only the node number (no name), as real ones do.
+        val bare = PeerIdentity.fromNodeNumber(node)
+        conn.emit(MeshEvent.PeerPositionUpdate(bare, sampleFix))
+
+        val seen = dispatched.filterIsInstance<PeerAction.PeerSeen>().single()
+        assertThat(seen.identity.longName).isEqualTo("Meshtastic 8530")
+        val pos = dispatched.filterIsInstance<PeerAction.PeerPositionReceived>().single()
+        assertThat(pos.identity.longName).isEqualTo("Meshtastic 8530")
+    }
+
+    @Test
+    fun `a placeholder NodeInfo with hwModel UNSET is not evicted and still names the peer`() = runTest {
+        // A board that has only heard a buddy's POSITION synthesizes a placeholder
+        // NodeInfo with a default name and hw_model = UNSET (0). UNSET is "unknown",
+        // not "confirmed public" — it must NOT be evicted, and its name must carry
+        // through to the roster entry the position creates.
+        val conn = StubMeshtasticConnection(initialLinkState = LinkState.UP)
+        val dispatched = newDispatchedList()
+        buildAndStart(conn, dispatched)
+
+        val node = 0x0fb88838L
+        val placeholder = PeerIdentity.fromNodeNumber(node, longName = "Meshtastic 8838", shortName = "8838", hwModel = 0)
+        conn.emit(MeshEvent.PeerIdentityKnown(placeholder))
+        // UNSET must not produce a PeerRemoved (eviction).
+        assertThat(dispatched.map { it::class }).containsExactly(PeerAction.PeerIdentityUpdate::class)
+
+        conn.emit(MeshEvent.PeerPositionUpdate(PeerIdentity.fromNodeNumber(node), sampleFix))
+        assertThat(dispatched.filterIsInstance<PeerAction.PeerSeen>().single().identity.longName)
+            .isEqualTo("Meshtastic 8838")
     }
 
     @Test

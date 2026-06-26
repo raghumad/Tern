@@ -97,6 +97,18 @@ sealed interface PeerAction : com.ternparagliding.redux.TernAction {
      */
     data class PeerRemoved(val nodeNumber: Long) : PeerAction
 
+    /**
+     * The connected board identified itself — its own NodeInfo (carrying the
+     * Meshtastic owner name shown on the board's OLED) arrived on connect. Sets
+     * [PeerState.selfBoard] so the UI can label the board by its real name
+     * instead of a hardcoded string. The board's own node is never a roster
+     * peer; this is the one place its identity is kept.
+     */
+    data class SelfBoardIdentified(
+        val identity: PeerIdentity,
+        val at: Instant,
+    ) : PeerAction
+
     /** The LoRa link transitioned (NEVER_PAIRED / DOWN / UP). */
     data class LinkStateChanged(val newState: LinkState) : PeerAction
 

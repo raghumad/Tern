@@ -114,6 +114,17 @@ class PeerReducerTest {
     }
 
     @Test
+    fun `SelfBoardIdentified records the board's own identity without adding a peer`() {
+        // The connected board's own NodeInfo names the board (OLED name) for the
+        // UI, but must not create a roster entry — you are not your own buddy.
+        val board = PeerIdentity.fromNodeNumber(0x357d5209L, longName = "Meshtastic 8530", shortName = "8530")
+        val state = peerReducer(PeerState.empty(), PeerAction.SelfBoardIdentified(board, t0))
+
+        assertThat(state.selfBoard).isEqualTo(board)
+        assertThat(state.peers).isEmpty()
+    }
+
+    @Test
     fun `PeerSeen registers a previously-unknown peer`() {
         val newState = peerReducer(PeerState.empty(), PeerAction.PeerSeen(antoine, t0))
 

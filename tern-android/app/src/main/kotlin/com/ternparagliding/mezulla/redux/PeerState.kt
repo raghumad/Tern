@@ -55,6 +55,15 @@ data class PeerState(
      * Used by the UI to compute staleness relative to the correct clock.
      */
     val lastEventTime: java.time.Instant = java.time.Instant.EPOCH,
+
+    /**
+     * The *connected* board's own identity (its Meshtastic owner name — the name
+     * shown on its OLED), learned from the board's self NodeInfo on connect. It is
+     * deliberately NOT a [peers] entry (you are not your own buddy), but the UI
+     * needs it so the Connections/Settings screen can show the real board name
+     * instead of a hardcoded label. Null until the board's NodeInfo has arrived.
+     */
+    val selfBoard: PeerIdentity? = null,
 ) {
     companion object {
         /** Always-safe starting state. See class doc. */

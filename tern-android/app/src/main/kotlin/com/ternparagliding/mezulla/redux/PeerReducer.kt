@@ -18,6 +18,7 @@ fun peerReducer(state: PeerState, action: PeerAction): PeerState {
         is PeerAction.PeerAlertReceived -> action.alertedAt
         is PeerAction.PeerAlertAcknowledged -> action.acknowledgedAt
         is PeerAction.PeerIdentityUpdate -> action.seenAt
+        is PeerAction.SelfBoardIdentified -> action.at
         is PeerAction.LinkStateChanged -> state.lastEventTime
         is PeerAction.PeersCleared -> state.lastEventTime
         is PeerAction.PeerRemoved -> state.lastEventTime
@@ -120,6 +121,8 @@ private fun peerReduceAction(state: PeerState, action: PeerAction): PeerState = 
             )
         }
     }
+
+    is PeerAction.SelfBoardIdentified -> state.copy(selfBoard = action.identity)
 
     is PeerAction.LinkStateChanged -> state.copy(linkState = action.newState)
 

@@ -141,6 +141,15 @@ internal object MeshPacketCodec {
      */
     const val HW_MODEL_PRIVATE = 255
 
+    /**
+     * Meshtastic `HardwareModel.UNSET` (0) — "not known yet". A board synthesizes
+     * a placeholder NodeInfo (default name, `hw_model = UNSET`) for a neighbour it
+     * has only heard a position from, before it receives that neighbour's real
+     * NodeInfo. UNSET must NOT be treated as "confirmed non-Mezulla" — it just
+     * means the model is unknown so far. See [com.ternparagliding.mezulla.redux.PeerMiddleware].
+     */
+    const val HW_MODEL_UNSET = 0
+
     // Position field numbers (subset).
     private const val F_POSITION_LATITUDE_I = 1
     private const val F_POSITION_LONGITUDE_I = 2

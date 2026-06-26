@@ -50,6 +50,17 @@ class PeerMiddleware(
      */
     private val knownNonMezulla = mutableSetOf<Long>()
 
+    /**
+     * Last known named [PeerIdentity] per node, learned from NodeInfo
+     * ([MeshEvent.PeerIdentityKnown]). Position/telemetry/alert packets carry only
+     * a node number (no name), so when one of those creates a roster entry we look
+     * the name up here — otherwise the buddy would render as a bare "!hex" callsign
+     * whenever its NodeInfo arrived before (or instead of) its first position, which
+     * is the usual order on a connect-time nodeDB replay. Single collector
+     * coroutine, so a plain map needs no synchronization.
+     */
+    private val knownIdentities = mutableMapOf<Long, PeerIdentity>()
+
     companion object {
         /**
          * A position/telemetry whose own timestamp is older than this on arrival
@@ -79,10 +90,18 @@ class PeerMiddleware(
     private fun handle(event: MeshEvent) {
         val now = Instant.now(clock)
         val node = event.senderNodeNumber()
-        // Always drop the board's own node — you aren't your own buddy, and a
-        // board never hears its own NodeInfo over the air, so it would sit in the
-        // roster as a nameless "!hex" entry.
-        if (node != null && node == connection.selfNodeNumber) return
+        // The board's own node is never a buddy — drop it from the roster. But its
+        // NodeInfo carries the board's Meshtastic owner name (the OLED name), which
+        // the UI needs to label the connected board by its real name instead of a
+        // hardcoded string. Capture that into PeerState.selfBoard, then drop.
+        if (node != null && node == connection.selfNodeNumber) {
+            if (event is MeshEvent.PeerIdentityKnown &&
+                (event.peer.longName != null || event.peer.shortName != null)
+            ) {
+                dispatch(PeerAction.SelfBoardIdentified(event.peer, now))
+            }
+            return
+        }
         // Drop events from nodes confirmed non-Mezulla (public mesh) — EXCEPT a
         // fresh NodeInfo that now advertises PRIVATE_HW, which RE-ADMITS the node.
         // Eviction must NOT be a one-way door: a Mezulla board reflashed from
@@ -100,13 +119,26 @@ class PeerMiddleware(
         when (event) {
             is MeshEvent.PeerIdentityKnown -> {
                 val hw = event.peer.hwModel
-                if (hw != null && hw != MeshPacketCodec.HW_MODEL_PRIVATE) {
-                    // NodeInfo confirms this is a public-mesh node (real hardware
-                    // model, not PRIVATE_HW). Remember it so its other events are
-                    // dropped, and evict it if a replayed position already added it.
+                if (hw != null &&
+                    hw != MeshPacketCodec.HW_MODEL_PRIVATE &&
+                    hw != MeshPacketCodec.HW_MODEL_UNSET
+                ) {
+                    // NodeInfo confirms a *real* hardware model that isn't PRIVATE_HW
+                    // → a public-mesh node. Remember it so its other events are
+                    // dropped, forget any cached name, and evict it if a replayed
+                    // position already added it. UNSET is excluded above: it's "not
+                    // known yet" (a position-only placeholder), not a confirmed
+                    // public node, so it must not be evicted.
                     knownNonMezulla.add(event.peer.nodeNumber)
+                    knownIdentities.remove(event.peer.nodeNumber)
                     dispatch(PeerAction.PeerRemoved(event.peer.nodeNumber))
                     return
+                }
+                // Cache the name so a later position-created roster entry renders it
+                // instead of "!hex" (NodeInfo usually arrives before the first
+                // position on a connect-time replay).
+                if (event.peer.longName != null || event.peer.shortName != null) {
+                    knownIdentities[event.peer.nodeNumber] = event.peer
                 }
                 // Update-only — NodeInfo (incl. the board's NodeDB dump) must
                 // not create a roster entry, or non-teammates from the public
@@ -122,7 +154,7 @@ class PeerMiddleware(
                 // position that's already minutes stale isn't live presence, so it
                 // must not put a public-mesh straggler on the teammates roster.
                 if (isReplayStale(event.fix.timestampSeconds, now)) return
-                val identity = event.peer.orSynthesize()
+                val identity = namedIdentityFor(event.peer)
                 dispatch(PeerAction.PeerSeen(identity, now))
                 dispatch(PeerAction.PeerPositionReceived(identity, event.fix, now))
             }
@@ -131,7 +163,7 @@ class PeerMiddleware(
                 // Same replay guard as positions — cached telemetry is replayed
                 // with its original (old) timestamp and must not register a peer.
                 if (isReplayStale(event.timestampSeconds, now)) return
-                val identity = event.peer.orSynthesize()
+                val identity = namedIdentityFor(event.peer)
                 dispatch(PeerAction.PeerSeen(identity, now))
                 dispatch(
                     PeerAction.PeerTelemetryReceived(
@@ -144,7 +176,7 @@ class PeerMiddleware(
             }
 
             is MeshEvent.PeerAlert -> {
-                val identity = event.peer.orSynthesize()
+                val identity = namedIdentityFor(event.peer)
                 dispatch(
                     PeerAction.PeerAlertReceived(
                         senderIdentity = identity,
@@ -180,6 +212,22 @@ class PeerMiddleware(
      */
     private fun isReplayStale(timestampSeconds: Long, now: Instant): Boolean =
         timestampSeconds <= 0 || (now.epochSecond - timestampSeconds) > REPLAY_STALE_SECONDS
+
+    /**
+     * The best identity to register a peer under: prefer a cached named identity
+     * from a prior NodeInfo ([knownIdentities]) so the roster shows the board name
+     * rather than a bare "!hex" callsign. Falls back to the event's own identity
+     * (position/telemetry/alert carry only a node number) when no name is known yet
+     * — a later NodeInfo then fills the name in via [PeerAction.PeerIdentityUpdate].
+     */
+    private fun namedIdentityFor(peer: PeerIdentity): PeerIdentity {
+        val cached = knownIdentities[peer.nodeNumber]
+        return if (cached != null && (cached.longName != null || cached.shortName != null)) {
+            cached
+        } else {
+            peer.orSynthesize()
+        }
+    }
 
     /**
      * The node number an event is *about*, or null for events that carry no
