@@ -144,8 +144,9 @@ internal fun renderMarkerBitmap(spec: MarkerSpec, nerdFont: Typeface?, labelFont
         "render: callsign='${spec.callsign}' track=${spec.trackDegrees} " +
         "dalt='${spec.deltaAltText}' dist='${spec.distanceText}' bottom='${spec.bottomText}'")
 
-    // Match the off-screen indicator chips: Gruppo when available, bold-default otherwise.
-    val textFace = labelFont ?: Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+    // Match the off-screen indicator chips: Gruppo when available, default otherwise — always
+    // bold (synthesised if the font lacks a bold cut) for legibility against the map.
+    val textFace = Typeface.create(labelFont ?: Typeface.DEFAULT, Typeface.BOLD)
     val callsignPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = AndroidColor.WHITE; textSize = 13f * S
         typeface = textFace
@@ -258,7 +259,7 @@ internal fun renderMarkerBitmap(spec: MarkerSpec, nerdFont: Typeface?, labelFont
 internal fun renderCompactBitmap(spec: MarkerSpec, nerdFont: Typeface?, labelFont: Typeface? = null): Bitmap {
     val tagPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = AndroidColor.WHITE; textSize = 9f * S
-        typeface = labelFont ?: Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        typeface = Typeface.create(labelFont ?: Typeface.DEFAULT, Typeface.BOLD)
         textAlign = Paint.Align.CENTER
     }
     val glyphPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
