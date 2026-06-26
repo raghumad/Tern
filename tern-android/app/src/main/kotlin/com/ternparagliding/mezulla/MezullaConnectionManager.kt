@@ -417,6 +417,15 @@ class MezullaConnectionManager(
         activeConnection?.setTeam(name, psk) ?: false
 
     /**
+     * Rename the active board — the "set_owner" the Settings edit dialog calls.
+     * Sets the Meshtastic owner name (long + short) shown on the OLED and
+     * broadcast as NodeInfo, so the board's label matches everywhere. Returns
+     * false if there's no live board link.
+     */
+    suspend fun setOwner(longName: String, shortName: String): Boolean =
+        activeConnection?.setOwner(longName, shortName) ?: false
+
+    /**
      * True iff we already have a live, UP persistent link to this exact
      * board. Used by [PairingOrchestrator] to short-circuit a re-scan of a
      * board we're already connected to: while connected, the board isn't

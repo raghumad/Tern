@@ -52,6 +52,7 @@ internal object MeshPacketCodec {
 
     // AdminMessage field numbers — see meshtastic/admin.proto.
     private const val F_ADMIN_REBOOT_SECONDS = 97
+    private const val F_ADMIN_SET_OWNER = 8
     private const val F_ADMIN_SET_CHANNEL = 33
     private const val F_ADMIN_SET_CONFIG = 34
 
@@ -681,6 +682,51 @@ internal object MeshPacketCodec {
             }
         }
         return name?.let { it to psk }
+    }
+
+    /**
+     * Encode a ToRadio frame that renames the board — Tern's **set_owner**. An
+     * `AdminMessage.set_owner` carrying a `User{long_name, short_name}` on
+     * ADMIN_APP, addressed to the board. `from = 0` → trusted local phone, no
+     * passkey (same trust path as [encodeToRadioReboot]). This is the name shown
+     * on the board's OLED and broadcast as its NodeInfo, so renaming here makes
+     * the board's label match everywhere (Settings, the buddy list on other
+     * phones, the OLED).
+     *
+     * Only [longName] and [shortName] are sent. We deliberately omit `hw_model`:
+     * the firmware's `handleSetOwner` copies only the name fields and leaves
+     * `hw_model` untouched, so the board's `PRIVATE_HW` advertisement (what the
+     * buddy filter keys on) survives a rename. `short_name` is the ≤4-char badge
+     * Meshtastic shows on the small node tile; the caller is responsible for
+     * trimming it.
+     */
+    fun encodeToRadioSetOwner(
+        boardNodeNumber: Long,
+        packetId: Int,
+        longName: String,
+        shortName: String,
+    ): ByteArray {
+        val user = ProtoWriter().apply {
+            writeString(F_USER_LONG_NAME, longName)
+            writeString(F_USER_SHORT_NAME, shortName)
+        }.toByteArray()
+        val admin = ProtoWriter().apply {
+            writeMessage(F_ADMIN_SET_OWNER, user)
+        }.toByteArray()
+        val data = ProtoWriter().apply {
+            writeInt32(F_DATA_PORTNUM, PORT_ADMIN_APP)
+            writeBytes(F_DATA_PAYLOAD, admin)
+        }.toByteArray()
+        val packet = ProtoWriter().apply {
+            writeFixed32(F_MESHPACKET_FROM, 0L) // from=0 → trusted local phone, no passkey
+            writeFixed32(F_MESHPACKET_TO, boardNodeNumber)
+            writeMessage(F_MESHPACKET_DECODED, data)
+            writeFixed32(F_MESHPACKET_ID, packetId.toLong() and 0xFFFFFFFFL)
+            writeBool(F_MESHPACKET_WANT_ACK, true)
+        }.toByteArray()
+        return ProtoWriter().apply {
+            writeMessage(F_TORADIO_PACKET, packet)
+        }.toByteArray()
     }
 
     /**

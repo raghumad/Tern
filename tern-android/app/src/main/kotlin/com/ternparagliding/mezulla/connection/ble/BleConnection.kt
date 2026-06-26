@@ -115,6 +115,33 @@ class BleConnection internal constructor(
     }
 
     /**
+     * Rename the board — Tern's "set_owner". An admin `set_owner` over the live
+     * link carrying the new Meshtastic owner name (long + short). Once applied,
+     * the board's OLED, its NodeInfo broadcast, and therefore its label on every
+     * phone reflect the new name. Returns whether the GATT write was accepted
+     * (the LoRa-level apply happens async on the board). No-op + false when the
+     * link is down or no board is paired.
+     */
+    suspend fun setOwner(longName: String, shortName: String): Boolean {
+        if (linkState != LinkState.UP) {
+            android.util.Log.w("BleConnection", "setOwner: link not UP ($linkState) — ignoring")
+            return false
+        }
+        val boardNode = adminTargetNode()
+        if (boardNode == null) {
+            android.util.Log.w("BleConnection", "setOwner: no board node yet — cannot address admin set_owner")
+            return false
+        }
+        val bytes = MeshPacketCodec.encodeToRadioSetOwner(boardNode, allocatePacketId(), longName, shortName)
+        val ok = runCatching { transport.writeToRadio(bytes) }.getOrDefault(false)
+        android.util.Log.i(
+            "BleConnection",
+            "[@${System.identityHashCode(this)}] setOwner('$longName'/'$shortName') sent=$ok board=0x${boardNode.toString(16)}",
+        )
+        return ok
+    }
+
+    /**
      * Set the board's LoRa **region** — Tern's automatic region-follows-location
      * (the reconcile lives in [com.ternparagliding.mezulla.MezullaConnectionManager]).
      * An admin `set_config(lora)` over the live link; the firmware applies it

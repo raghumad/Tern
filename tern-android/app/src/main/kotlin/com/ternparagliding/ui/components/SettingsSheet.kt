@@ -13,14 +13,18 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AirplanemodeActive
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Tornado
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.foundation.clickable
@@ -32,6 +36,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -65,6 +70,7 @@ import com.ternparagliding.device.ConnectionEvent
 import com.ternparagliding.mezulla.demo.AravisDemoReplay
 import com.ternparagliding.mezulla.pairing.PairingOrchestrator
 import com.ternparagliding.mezulla.pairing.PairingState
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -82,6 +88,14 @@ fun SettingsSheet(
     // MapViewContainer writes it to the board (set_team) when the link is up. So this works offline.
     val ctx = LocalContext.current
     val clipboard = LocalClipboardManager.current
+    val scope = rememberCoroutineScope()
+    // The live BLE link to the board — used to rename it (set_owner). Pulled the
+    // same way MapViewContainer does; null until the app + a board are present.
+    val connectionManager = remember(ctx) {
+        (ctx.applicationContext as? com.ternparagliding.TernApplication)?.connectionManager
+    }
+    // Drives the "edit board" dialog opened by the pencil button on the board row.
+    var showEditBoard by remember { mutableStateOf(false) }
 
     if (showAddDevice) {
         AddDeviceDialog(
@@ -220,14 +234,57 @@ fun SettingsSheet(
                                 val label = if (it > 100) "🔌 ext" else "🔋$it%"
                                 Text(label, fontSize = 13.sp, color = Color(0xFF94A3B8), modifier = Modifier.padding(end = 8.dp))
                             }
-                            // Forget sits inline beside the board name, matching the vario row.
-                            OutlinedButton(
+                            // Edit (rename the board) then forget (trash) sit inline beside the
+                            // board name. Edit is only meaningful on a live link (set_owner needs
+                            // the board), so it's disabled while reconnecting.
+                            IconButton(
+                                onClick = { showEditBoard = true },
+                                enabled = linkUp,
+                                modifier = Modifier.testTag("btn_edit_board"),
+                            ) {
+                                Icon(Icons.Filled.Edit, contentDescription = "Edit board")
+                            }
+                            IconButton(
                                 onClick = {
                                     pairingOrchestrator.forgetBoard()
                                     onDismiss()
                                 },
-                                modifier = Modifier.height(40.dp).testTag("btn_forget_board"),
-                            ) { Text("Forget", fontSize = 14.sp) }
+                                modifier = Modifier.testTag("btn_forget_board"),
+                            ) {
+                                Icon(Icons.Filled.Delete, contentDescription = "Forget board", tint = Color(0xFFEF4444))
+                            }
+                        }
+
+                        if (showEditBoard) {
+                            EditBoardDialog(
+                                currentLongName = selfBoard?.longName?.takeIf { it.isNotBlank() } ?: boardLabel,
+                                currentShortName = selfBoard?.shortName?.takeIf { it.isNotBlank() } ?: "",
+                                onSave = { longName, shortName ->
+                                    showEditBoard = false
+                                    val node = selfBoard?.nodeNumber
+                                        ?: runCatching { pairedNodeId.toLong(16) }.getOrNull()
+                                    scope.launch {
+                                        val ok = connectionManager?.setOwner(longName, shortName) ?: false
+                                        // Reflect the new name immediately on success so the pilot
+                                        // sees it without waiting for the board's next NodeInfo. On
+                                        // failure (link dropped mid-write) we leave the label alone —
+                                        // the board re-asserts its real name via NodeInfo anyway.
+                                        if (ok && node != null) {
+                                            store.dispatch(
+                                                com.ternparagliding.mezulla.redux.PeerAction.SelfBoardIdentified(
+                                                    com.ternparagliding.mezulla.connection.PeerIdentity.fromNodeNumber(
+                                                        nodeNumber = node,
+                                                        longName = longName,
+                                                        shortName = shortName,
+                                                    ),
+                                                    java.time.Instant.now(),
+                                                ),
+                                            )
+                                        }
+                                    }
+                                },
+                                onDismiss = { showEditBoard = false },
+                            )
                         }
 
                         // ── Team (the board's PRIMARY channel) — create / share / join ──
@@ -434,6 +491,70 @@ fun SettingsSheet(
         }
     }
 }
+
+/**
+ * Rename the paired Mezulla board. Edits the Meshtastic owner name — the long
+ * name (shown on the OLED and as the buddy label on other phones) and the ≤4-char
+ * short badge. Short name auto-fills from the long name as the pilot types, until
+ * they edit it themselves; both are written together via set_owner.
+ */
+@Composable
+private fun EditBoardDialog(
+    currentLongName: String,
+    currentShortName: String,
+    onSave: (longName: String, shortName: String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var longName by remember { mutableStateOf(currentLongName) }
+    // Once the pilot touches the short name we stop auto-deriving it.
+    var shortTouched by remember { mutableStateOf(currentShortName.isNotBlank()) }
+    var shortName by remember { mutableStateOf(currentShortName.ifBlank { deriveShortName(currentLongName) }) }
+    val trimmedLong = longName.trim()
+    val trimmedShort = shortName.trim().take(4)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Edit board") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = longName,
+                    onValueChange = {
+                        longName = it
+                        if (!shortTouched) shortName = deriveShortName(it)
+                    },
+                    label = { Text("Board name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().testTag("edit_board_long_name"),
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = shortName,
+                    onValueChange = { shortTouched = true; shortName = it.take(4) },
+                    label = { Text("Short name (≤4)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().testTag("edit_board_short_name"),
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "This is the name on the board's screen and the label your buddies see.",
+                    fontSize = 11.sp, color = Color(0xFF94A3B8),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onSave(trimmedLong, trimmedShort.ifBlank { deriveShortName(trimmedLong) }) },
+                enabled = trimmedLong.isNotEmpty(),
+                modifier = Modifier.testTag("edit_board_save"),
+            ) { Text("Save") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
+
+/** First 4 non-space chars of a name, as a sensible default Meshtastic short badge. */
+private fun deriveShortName(longName: String): String =
+    longName.filter { !it.isWhitespace() }.take(4)
 
 @Composable
 private fun SettingsToggleRow(

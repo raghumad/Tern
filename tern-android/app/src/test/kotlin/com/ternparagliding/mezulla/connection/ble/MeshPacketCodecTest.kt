@@ -363,6 +363,70 @@ class MeshPacketCodecTest {
         assertThat(precision).isGreaterThan(0)
     }
 
+    // ---------- set_owner (rename the board) ----------
+
+    @Test
+    fun `setOwner sends an admin set_owner to the board with the new long and short name`() {
+        val boardNode = 0x02ed8530L
+        val toRadio = MeshPacketCodec.encodeToRadioSetOwner(
+            boardNodeNumber = boardNode,
+            packetId = 11,
+            longName = "Raghu's board",
+            shortName = "RGHU",
+        )
+
+        val meshPacket = unwrapToRadioPacket(toRadio)
+        // Addressed to the board, on ADMIN_APP.
+        assertThat(meshPacketTo(meshPacket)).isEqualTo(boardNode)
+        val admin = meshPacketDataPayload(meshPacket, expectedPortNum = MeshPacketCodec.PORT_ADMIN_APP)
+        val user = extractSetOwnerUserBytes(admin)
+
+        // long_name (field 2) + short_name (field 3) round-trip.
+        assertThat(userStringField(user, fieldNumber = 2)).isEqualTo("Raghu's board")
+        assertThat(userStringField(user, fieldNumber = 3)).isEqualTo("RGHU")
+        // hw_model (field 5) is deliberately NOT sent — the firmware keeps PRIVATE_HW.
+        assertThat(userHasField(user, fieldNumber = 5)).isFalse()
+    }
+
+    /** Pull the User bytes out of an AdminMessage.set_owner (field 8). */
+    private fun extractSetOwnerUserBytes(adminBytes: ByteArray): ByteArray {
+        val reader = ProtoReader(adminBytes)
+        while (reader.hasMore()) {
+            val tag = reader.readTag()
+            val field = tag ushr 3
+            val wire = tag and 0x7
+            if (field == 8 && wire == Proto.WIRE_LENGTH_DELIMITED) return reader.readLengthDelimited()
+            reader.skipField(wire)
+        }
+        error("AdminMessage.set_owner not found")
+    }
+
+    /** Read a length-delimited string field from a User body. */
+    private fun userStringField(userBytes: ByteArray, fieldNumber: Int): String? {
+        val reader = ProtoReader(userBytes)
+        while (reader.hasMore()) {
+            val tag = reader.readTag()
+            val field = tag ushr 3
+            val wire = tag and 0x7
+            if (field == fieldNumber && wire == Proto.WIRE_LENGTH_DELIMITED) return reader.readString()
+            reader.skipField(wire)
+        }
+        return null
+    }
+
+    /** True iff a User body carries [fieldNumber] at all. */
+    private fun userHasField(userBytes: ByteArray, fieldNumber: Int): Boolean {
+        val reader = ProtoReader(userBytes)
+        while (reader.hasMore()) {
+            val tag = reader.readTag()
+            val field = tag ushr 3
+            val wire = tag and 0x7
+            if (field == fieldNumber) return true
+            reader.skipField(wire)
+        }
+        return false
+    }
+
     /** Pull the Channel bytes out of an AdminMessage.set_channel (field 33). */
     private fun extractSetChannelBytes(adminBytes: ByteArray): ByteArray {
         val reader = ProtoReader(adminBytes)
