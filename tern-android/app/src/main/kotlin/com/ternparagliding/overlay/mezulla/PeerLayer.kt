@@ -29,8 +29,18 @@ import kotlin.math.sin
 
 private const val S = 2.5f
 
-/** Below this map zoom, peers render as the compact puck; at/above, full HUD. */
-private const val ZOOM_FULL = 11.0
+/**
+ * Below this map zoom, peers render as the compact puck; at/above, the full HUD.
+ *
+ * Set below [com.ternparagliding.flight.FlightCamera.MIN_ZOOM] (10.5) so the full
+ * marker is the default across the ENTIRE in-flight auto-zoom band (10.5–15) and
+ * normal hands-on review — the rich left/right/bottom reads are the primary buddy
+ * interface, not a zoom-in reward. The compact puck is only for wide overview,
+ * where the per-peer declutter ladder ([DeclutterLevel]) has already thinned the
+ * full markers anyway. (Was 11.0, which sat at the bottom edge of the flight band,
+ * so fast glides / zoomed-out views showed only bare pucks.)
+ */
+private const val ZOOM_FULL = 9.0
 
 /**
  * Renders each known peer as a full pilot HUD on the map: a staleness-
