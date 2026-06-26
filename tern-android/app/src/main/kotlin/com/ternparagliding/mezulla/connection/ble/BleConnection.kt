@@ -151,14 +151,21 @@ class BleConnection internal constructor(
      * Broadcast the board's own NodeInfo into the mesh [repeats] times, spaced a
      * few seconds apart, so a buddy reliably learns the (just-changed) name despite
      * unacked-broadcast loss. Advertises [MeshPacketCodec.HW_MODEL_PRIVATE] so the
-     * receiver's buddy filter keeps the node admitted. No-op if no board node is
-     * known yet.
+     * receiver's buddy filter keeps the node admitted.
+     *
+     * Uses [ourNodeNumber] — the SAME `from` as [sendOwnPosition] — NOT
+     * [boardNodeNumber]. The receiving phone keys a buddy by the node its POSITIONS
+     * arrive under (= our ourNodeNumber); the NodeInfo must match that key to update
+     * the right roster entry. On boards where the two agree (e.g. Heltec) either
+     * works, but on the LilyGo the QR/pairing-derived ourNodeNumber differs from the
+     * my_info boardNodeNumber — sending NodeInfo under boardNodeNumber updated a
+     * phantom node and the buddy name never changed (one-way rename bug). Admin
+     * commands still target boardNodeNumber; only injected broadcasts use this.
      */
     private suspend fun broadcastOwnNodeInfo(longName: String, shortName: String, repeats: Int = 3) {
-        val boardNode = boardNodeNumber ?: adminTargetNode() ?: return
         repeat(repeats) { i ->
             val bytes = MeshPacketCodec.encodeToRadioNodeInfo(
-                fromNodeNumber = boardNode,
+                fromNodeNumber = ourNodeNumber,
                 packetId = allocatePacketId(),
                 longName = longName,
                 shortName = shortName,
