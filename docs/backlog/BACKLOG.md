@@ -44,6 +44,7 @@ The scrub surface — skim this, drill into the section for detail.
 | **02 — Traffic awareness** | later | ⬜ | FANET/FLARM/ADS-L. **Gate (Epic 01 MVP) now satisfied** |
 | **03 — Spedmo social layer** | later | 🟡 | Offline Flyability fallback ✅; cloud/social ⬜. **Now unblocked** |
 | **04 — First-time onboarding** | soon | 🟡 | 7-step brochure. Region-from-GPS + release build started |
+| **05 — Flight recording, logbook & export** | now | 🟡 | Launch→deck ✅; record/logbook/IGC export/Spedmo upload ⬜ |
 | **Tasks & waypoints** | now | ✅ | Task surface is pilot-grade; small polish items remain |
 | **Firmware workstreams** | mixed | 🟡 | Stage 1/2 ✅; upstream cleanup + traffic firmware ⬜ |
 | **Infrastructure & quality** | soon | 🟡 | Reactive overlays ✅ (soak gate ⬜); S5 one-liner ⬜ |
@@ -55,6 +56,7 @@ The scrub surface — skim this, drill into the section for detail.
 **Epic 02:** 2.1–2.4 app (CPA/render/audio) ⬜ · 2.5–2.9 upstream broadcast ⬜ · 2.10–2.13 fork gap-scan ⬜
 **Epic 03:** 3.1 OAuth ⬜ · 3.2 enrichment ⬜ · 3.3 who's-flying ⬜ · 3.4 cell-relayed peers ⬜ · 3.5 auto-IGC ⬜ · 3.6 landed-safe ⬜ · 3.7 SOS-forward ⬜ · 3.8 reports ⬜ · 3.9 clubs→buddies ⬜ · 3.10 soarable (offline ✅ / source ⬜)
 **Epic 04:** 4.1 pre-flashed ⬜ · 4.2 region-from-GPS 🟡 · 4.3 Play Store 🟡 · 4.4 pairing robustness 🟡 · 4.5 no-PIN popup ⬜ · 4.6 concurrent pair ⬜ · 4.7 OTA ⬜ · 4.8 status-at-a-glance 🟡
+**Epic 05:** 5.1 launch→deck ✅ · 5.2 recorder + IGC export ⬜ · 5.3 local logbook ⬜ · 5.4 Spedmo upload ⬜ (→ 03 3.5/3.6) · 5.5 deck instrument hardening 🟡
 
 ---
 
@@ -275,6 +277,8 @@ airspace/sites; a from-scratch social network; anything that breaks without cell
   conservative refresh; vanish on no-cell.
 - **3.5 Auto IGC upload after landing** — landing detection (groundspeed≈0 + baro
   stable 5 min) queues upload for next signal; survives restart; backoff retry.
+  *Depends on the recorder + IGC writer in Epic 05 5.2; the Tern-side hand-off is
+  Epic 05 5.4.*
 - **3.6 "Landed safe" to ground crew** — one-tap watcher setup; fires within 30 s
   of landing when cell available; deferred send otherwise; manual re-fire.
 - **3.7 SOS forwarding (defense in depth)** — mesh SOS primary (offline); also
@@ -368,6 +372,110 @@ today) → 4.8 (status confidence) → 4.2 (region) → 4.7 (OTA, unblocks 4.1) 
 
 **Not in this epic:** duplicate-BleConnection race (→ Epic 01 1.1 robustness);
 `MEZULLA_TEST_BUILD` (test infra, never shipped).
+
+---
+
+## Epic 05 — Flight recording, logbook & export
+
+**Priority: now. Status 🟡** (launch→deck ✅; record/logbook/export/upload ⬜).
+The flight lifecycle on the deck: detect the launch, record the whole flight,
+keep it in a local logbook, and — if a Spedmo profile is set up — upload it. The
+XC Tracer vario (K7) now gives us a real positioned-vario stream to record, which
+is what makes this worth doing properly.
+
+**The unknown it converts:** "did this flight get captured, and where is it?" A
+pilot lands and *knows* the track is saved, replayable, exportable, and (if they
+opted in) already on its way to Spedmo — no GPS file they'll forget to upload.
+
+**What done looks like:**
+- The deck switches to flight mode on launch by itself (done) and starts
+  recording without a button press.
+- After landing the flight is finalised, saved locally, and listed in a logbook
+  with at-a-glance stats; the pilot can replay it on the map and export it.
+- Export produces a valid **IGC** (and at least one of GPX/KML/CSV) that other
+  tools (XContest, SeeYou, Spedmo) accept.
+- If a Spedmo profile is linked, the flight auto-uploads when cell is available;
+  the logbook shows queued / uploaded / scored. With no profile, nothing leaks —
+  it just stays local.
+
+**Out of scope:** competition-grade *validated* IGC (Tern isn't an IGC-approved
+flight recorder — the G-record won't be FAI-secure; fine for logging + Spedmo);
+the Spedmo account/OAuth plumbing itself (Epic 03 3.1); the deck *instruments*
+(vario/wind/HUD — built under K7, see below).
+
+### Stories
+
+**5.1 — Detect launch + switch to flight-deck mode — ✅ done.** `FlightDetector`
+(pure, motion-based: sustained ground speed ≥ 2.5 m/s *or* ≥ 12 m above the launch
+datum, 3-fix confirm, latched for the session) drives phase-aware camera-follow
+(auto-zoom / track-up engage only once airborne, never while rigging on launch).
+The climb-tinted `FlightTrack` breadcrumb renders the recent path. *(K7,
+on-device verified.)*
+
+**5.2 — Record the flight + export — ⬜ todo.** The actual recorder, distinct
+from the display breadcrumb:
+- **Full-fidelity recorder.** `FlightTrack` is a trailing 2000-pt ring buffer
+  ("the lift around me *now*", capped ~10 km) — it deliberately drops history, so
+  it is **not** a log. Add a persistent recorder that captures **every** fix for
+  the whole flight with `source` / `uncertainty` / `quality` (per
+  [../design/flight-state.md](../design/flight-state.md) — faithful replay, see
+  which sensor was live), written to disk incrementally so a crash/kill mid-flight
+  doesn't lose the flight.
+- **Start/stop.** Start recording on launch (5.1's airborne latch); **finalise on
+  landing.** Landing detection is new — `FlightDetector` never detects it (a
+  mid-flight flicker to "grounded" would be worse than leaving follow on). Use the
+  Epic 03 3.5 rule (ground speed ≈ 0 + baro stable ~5 min) purely to *close* the
+  recording, plus a manual "end flight" fallback.
+- **IGC writer.** We have an IGC *reader* (`IgcParser`) and `IgcToXctrc`, but **no
+  writer.** Add one: A/H/I headers (pilot, glider, datum, fix accuracy), B records
+  (time, lat/lon, baro + GNSS alt), a G security record (self-signed, clearly not
+  FAI-approved). Plus one portable format (GPX or KML) and optionally CSV.
+- **Backed by a claim-driven test:** replay a known IGC through the recorder →
+  write IGC → re-parse → assert the round-trip preserves the track within
+  tolerance (and that gaps are honest, the same rule `FlightTrack`/`IgcToXctrc` use).
+
+**5.3 — Local flight logbook — ⬜ todo.** A persistent on-device list of recorded
+flights, offline-first.
+- List rows with at-a-glance stats: date, launch site (resolve from PG-spot DB /
+  geocoder), duration, free distance + XC-ish distance, max altitude, max climb,
+  top of climb. Derive from the recorded track (reuse `FlightMetrics` /
+  `FlightComputer`).
+- Open a flight → **replay it on the map** (the deck bench replay path already
+  exists for IGC) + a track summary.
+- Manage: rename, delete, **export/share** (Android share intent on the 5.2
+  writer output), and re-upload (5.4).
+- Settings entry point (the contextual-sharing plan already names a "Flight /
+  Logbook" home).
+
+**5.4 — Upload to Spedmo when a profile is set up — ⬜ todo** *(bridges to Epic
+03 Stories 3.5 + 3.6).* This epic owns the **Tern-side hand-off**; the Spedmo
+account/upload plumbing lives in Epic 03.
+- On finalise, if a Spedmo profile is linked (Epic 03 3.1) **and** the pilot
+  opted in (privacy default = off), queue the IGC for upload; send when cell is
+  available; survive restarts; backoff retry.
+- Logbook shows per-flight state: local-only / queued / uploaded / scored.
+- No profile or not opted in → stays local, silently. Never blocks landing UX.
+- The "landed safe" ground-crew ping (Epic 03 3.6) rides the same landing event.
+
+**5.5 — Deck instrument hardening (the remaining K7) — 🟡 partial.** The deck
+*brains* — XC Tracer `$XCTRC` BLE vario ingest, the circling `WindEstimator`,
+fused vario/altitude/wind HUD, HUD stage selector, source ladder — are **built
+and mostly on-device verified** (see Current focus). Homing the leftovers here:
+- ⬜ **Vario picker + device memory** — scan → pick → persist the MAC so multiple
+  varios on launch don't grab the wrong one. Needs hardware to validate.
+- ⬜ **In-flight checks** — live wind while circling; GPS hand-off under movement.
+- ⏸ The cloudbase-gap HUD cue is built but dormant until weather cloudbase is
+  threaded into the deck.
+
+### Dependencies & related
+- **Enabled by K7** (XC Tracer vario stream) — the deck brains are the data
+  source; this epic is the lifecycle around them.
+- **Epic 03 3.5/3.6** — the Spedmo upload + landed-safe plumbing; 5.2's
+  recorder/writer is the prerequisite 3.5 was waiting on ("export TBD").
+- **In-flight task interactions** + **Tasks & waypoints** — share the deck and the
+  IGC replay path used to verify recordings.
+- Design: [../design/flight-state.md](../design/flight-state.md) (the recorder is
+  one of its consumers), [../design/flight-deck-ui.md](../design/flight-deck-ui.md).
 
 ---
 
