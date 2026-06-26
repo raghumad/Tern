@@ -79,6 +79,7 @@ fun SettingsSheet(
     store: com.ternparagliding.redux.MapStore = viewModel(),
     demoReplay: AravisDemoReplay? = null,
     pairingOrchestrator: PairingOrchestrator? = null,
+    onOpenLogbook: (() -> Unit)? = null,
 ) {
     val state by store.state.collectAsState()
     val settingsState = state.settingsState
@@ -110,6 +111,19 @@ fun SettingsSheet(
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         LazyColumn(modifier = Modifier.padding(horizontal = 16.dp).testTag("settings_list")) {
+
+            // Logbook — every recorded flight, saved automatically once airborne.
+            item {
+                Text("Logbook", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
+                OutlinedButton(
+                    onClick = { onOpenLogbook?.invoke() },
+                    enabled = onOpenLogbook != null,
+                    modifier = Modifier.fillMaxWidth().height(48.dp).testTag("btn_open_logbook"),
+                ) {
+                    Text("View flight logbook", fontSize = 16.sp)
+                }
+                HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+            }
 
             // Connections — the two Bluetooth devices Tern pairs with, each with
             // its live status: the XC Tracer vario (sensor link) and the Mezulla

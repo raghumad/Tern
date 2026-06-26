@@ -56,7 +56,7 @@ The scrub surface — skim this, drill into the section for detail.
 **Epic 02:** 2.1–2.4 app (CPA/render/audio) ⬜ · 2.5–2.9 upstream broadcast ⬜ · 2.10–2.13 fork gap-scan ⬜
 **Epic 03:** 3.1 OAuth ⬜ · 3.2 enrichment ⬜ · 3.3 who's-flying ⬜ · 3.4 cell-relayed peers ⬜ · 3.5 auto-IGC ⬜ · 3.6 landed-safe ⬜ · 3.7 SOS-forward ⬜ · 3.8 reports ⬜ · 3.9 clubs→buddies ⬜ · 3.10 soarable (offline ✅ / source ⬜)
 **Epic 04:** 4.1 pre-flashed ⬜ · 4.2 region-from-GPS 🟡 · 4.3 Play Store 🟡 · 4.4 pairing robustness 🟡 · 4.5 no-PIN popup ⬜ · 4.6 concurrent pair ⬜ · 4.7 OTA ⬜ · 4.8 status-at-a-glance 🟡
-**Epic 05:** 5.1 launch→deck ✅ · 5.2 recorder + IGC export 🟡 (core+wiring built & tested; hw-signing + device-verify ⬜) · 5.3 local logbook 🟡 (store+stats done; UI ⬜) · 5.4 Spedmo upload ⬜ (→ 03 3.5/3.6) · 5.5 deck instrument hardening 🟡
+**Epic 05:** 5.1 launch→deck ✅ · 5.2 recorder + IGC export 🟡 (core+wiring built & tested; hw-signing + device-verify ⬜) · 5.3 local logbook 🟡 (store+stats+UI built; on-map replay + device-verify ⬜) · 5.4 Spedmo upload ⬜ (→ 03 3.5/3.6) · 5.5 deck instrument hardening 🟡
 
 ---
 
@@ -500,12 +500,14 @@ Design detail below kept for reference.
   tolerance (and that gaps are honest, the same rule `FlightTrack`/`IgcToXctrc`
   use); and that a multi-pilot replay captures each buddy in the sidecar.
 
-**5.3 — Local flight logbook — 🟡 store + stats built; UI ⬜.** The persistent
-store (`FlightStore.listSummaries()`) and pure row stats (`FlightSummary`:
-duration, alt range, climb/sink, along-track + straight distance, endpoints,
-distinct buddy count) are built and tested. *Remaining ⬜ (on-device review):* the
-Compose logbook screen, on-map replay, rename/delete/export-share, Settings entry.
-A persistent on-device list of recorded flights, offline-first.
+**5.3 — Local flight logbook — 🟡 built; on-map replay + on-device verify ⬜.**
+Store + stats (`FlightStore.listSummaries()`, `FlightSummary`) and the **Compose
+`LogbookScreen`** are built and compile-clean: Settings → "View flight logbook" →
+newest-first cards (date, duration, distance, max alt, buddy-count, PROTECTED
+badge) → tap for detail (full stats) → **export IGC** (FileProvider share) +
+**delete** (incident-protected flights confirm first); integrated into the
+prioritised BackHandler. *Remaining ⬜:* on-map replay (reuses the IGC replay
+path), rename, and **on-device verification** of the whole surface.
 - List rows with at-a-glance stats: date, launch site (resolve from PG-spot DB /
   geocoder), duration, free distance + XC-ish distance, max altitude, max climb,
   top of climb. Derive from the recorded track (reuse `FlightMetrics` /

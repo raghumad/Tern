@@ -43,6 +43,7 @@ fun TernMapScreen(
     var showTaskRibbon by remember { mutableStateOf(false) }
     var showWaypointLibrary by remember { mutableStateOf(false) }
     var showWaypointPicker by remember { mutableStateOf(false) }
+    var showLogbookScreen by remember { mutableStateOf(false) }
     // Workflow A — editing a standalone waypoint's identity (null = closed). Opened from
     // the library, the map weather sheet, or the per-point editor's "Edit waypoint…" link.
     var editingSpotId by remember { mutableStateOf<String?>(null) }
@@ -106,6 +107,7 @@ fun TernMapScreen(
         showWaypointLibrary -> ({ showWaypointLibrary = false })
         showTaskListScreen -> ({ showTaskListScreen = false })
         showTaskRibbon -> ({ showTaskRibbon = false })
+        showLogbookScreen -> ({ showLogbookScreen = false })
         showSettingsSheet -> ({ showSettingsSheet = false })
         state.selectedWaypoint?.isDragging == true -> ({ store.dispatch(MapAction.CancelWaypointDrag) })
         state.movingSpotId != null -> ({ store.dispatch(MapAction.CancelSpotMove) })
@@ -263,6 +265,14 @@ fun TernMapScreen(
             store = store,
             demoReplay = demoReplay,
             pairingOrchestrator = activity?.pairingOrchestrator,
+            onOpenLogbook = { showSettingsSheet = false; showLogbookScreen = true },
+        )
+    }
+
+    if (showLogbookScreen) {
+        LogbookScreen(
+            store = store,
+            onDismiss = { showLogbookScreen = false },
         )
     }
 
