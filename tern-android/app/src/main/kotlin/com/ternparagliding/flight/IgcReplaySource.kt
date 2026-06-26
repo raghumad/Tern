@@ -35,12 +35,56 @@ class IgcReplaySource(
         }
     }
 
+    /**
+     * Emits fixes on a SHARED wall-clock timeline so multiple devices each replaying a different
+     * pilot of the same session fly the *true simultaneous gaggle*. Each fix is scheduled at
+     * `anchorWallMs + (fix.timeMs − sessionStartMs) / speedMultiplier`: every device uses the same
+     * [anchorWallMs] (a near-future wall instant both agree on) and [sessionStartMs] (the session's
+     * shared flight epoch), so absolute flight time maps identically to wall time on both — the
+     * pilots stay aligned. Fixes before [sessionStartMs], or ones we've already fallen behind on,
+     * are skipped so a device that joins late jumps straight to the live moment rather than racing to
+     * catch up (which would briefly mis-time climb). Runs at 1× by default for faithful climb.
+     */
+    fun fixesSynced(anchorWallMs: Long, sessionStartMs: Long): Flow<SensorFix> = flow {
+        val parsed = IgcToXctrc.sentences(flight).mapNotNull { XcTracerParser.parse(it) }
+        for (fix in parsed) {
+            if (fix.timeMs < sessionStartMs) continue // before the shared start → not airborne yet
+            val scheduledWall = anchorWallMs + (fix.timeMs - sessionStartMs) / speedMultiplier
+            val waitMs = scheduledWall - System.currentTimeMillis()
+            when {
+                waitMs > 0 -> delay(waitMs)
+                waitMs < -SKIP_BEHIND_MS -> continue // fell behind (slow LoRa / late tap) → stay aligned
+            }
+            emit(fix)
+        }
+    }
+
     companion object {
         /** 1 minute of flight ≈ 7.5 s on the bench — fast enough to scrub, slow enough to read. */
         const val DEFAULT_SPEED = 8
 
         private const val MIN_STEP_MS = 40L   // don't flood the UI faster than ~25 fps
         private const val MAX_STEP_MS = 1_000L // a logger gap shouldn't freeze the replay
+
+        /** In a synced replay, skip a fix we're more than this far behind on (stay aligned, don't race). */
+        private const val SKIP_BEHIND_MS = 2_000L
+
+        /** The Bir Billing pilots, by replay id (own-ship for the two-device buddy test). */
+        val BIRBILLING_PILOTS = listOf("birbilling-richard", "birbilling-barney", "birbilling-ariel")
+
+        /** First parsed-fix epoch (ms) of a bundled flight, or null. Same pipeline as the replay. */
+        fun firstFixEpochMs(flightId: String): Long? {
+            val flight = load(flightId) ?: return null
+            return IgcToXctrc.sentences(flight).mapNotNull { XcTracerParser.parse(it) }.firstOrNull()?.timeMs
+        }
+
+        /**
+         * The shared sync epoch for the Bir Billing session: the LATEST of the pilots' first fixes,
+         * so every pilot has data from the start (no one stares at a static screen waiting for a
+         * late launcher). Deterministic → both devices compute the same value with no comms.
+         */
+        fun birBillingSyncStartMs(): Long? =
+            BIRBILLING_PILOTS.mapNotNull { firstFixEpochMs(it) }.maxOrNull()
 
         /**
          * Bundled demo flights, by id (the resource lives in `src/main/resources`, packaged into

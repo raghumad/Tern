@@ -513,7 +513,7 @@ fun SettingsSheet(
                 if (com.ternparagliding.BuildConfig.DEBUG) {
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        "Buddy broadcast test (over LoRa)",
+                        "Buddy broadcast test (over LoRa) — tap both phones within ~15s to fly the gaggle in sync",
                         fontSize = 12.sp, color = Color(0xFF94A3B8),
                         modifier = Modifier.padding(bottom = 6.dp),
                     )

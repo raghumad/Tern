@@ -534,17 +534,35 @@ fun MapViewContainer(
         // phone sees this pilot as a live buddy. Replay at 1× (not the 8× bench speed) so the
         // receiver's climb derivation (alt delta / wall-clock receipt gap) isn't inflated.
         val broadcastReplay = com.ternparagliding.BuildConfig.DEBUG && id in BROADCAST_REPLAY_IDS
-        val replaySpeed = if (broadcastReplay) 1 else com.ternparagliding.flight.IgcReplaySource.DEFAULT_SPEED
         var lastReplayTxMs: Long? = null
-        if (broadcastReplay) {
+        // Choose the fix stream: a broadcast test runs SYNCHRONISED (so both phones fly the true
+        // simultaneous gaggle) at 1×; the plain bench replay runs at the 8× scrub speed.
+        val replayFlow = if (broadcastReplay) {
             // The phone BECOMES this pilot: stop real GPS so it can't (a) fight the replay as our
             // own-location, or (b) double-broadcast the real desk position under our board's node
             // (which would make the buddy oscillate between here and Bir Billing). Restored in finally.
             locationService.stopLocationUpdates()
             store.dispatch(MapAction.SetCameraFollow(true))
+            val sessionStart = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                com.ternparagliding.flight.IgcReplaySource.birBillingSyncStartMs()
+            }
+            // Shared wall anchor: the next 20 s boundary, ≥10 s out, computed identically on both
+            // phones (clocks are NTP-synced) so tapping both within the window starts them aligned.
+            val now = System.currentTimeMillis()
+            val window = 20_000L
+            var anchor = ((now / window) + 1) * window
+            if (anchor - now < 10_000L) anchor += window
+            Log.i(TAG, "synced broadcast '$id': anchorIn=${anchor - now}ms sessionStart=$sessionStart")
+            if (sessionStart != null) {
+                com.ternparagliding.flight.IgcReplaySource(flight, 1).fixesSynced(anchor, sessionStart)
+            } else {
+                com.ternparagliding.flight.IgcReplaySource(flight, 1).fixes() // fallback: unsynced 1×
+            }
+        } else {
+            com.ternparagliding.flight.IgcReplaySource(flight, com.ternparagliding.flight.IgcReplaySource.DEFAULT_SPEED).fixes()
         }
         try {
-            com.ternparagliding.flight.IgcReplaySource(flight, replaySpeed).fixes().collect { fix ->
+            replayFlow.collect { fix ->
                 onDeckFix(fix)
                 if (broadcastReplay && fix.hasPosition) {
                     // Adopt the replay as our own position so distance / relative-altitude to the
