@@ -138,7 +138,39 @@ class BleConnection internal constructor(
             "BleConnection",
             "[@${System.identityHashCode(this)}] setOwner('$longName'/'$shortName') sent=$ok board=0x${boardNode.toString(16)}",
         )
+        // Push-on-change: the firmware broadcasts NodeInfo once on rename, but that
+        // single unacked LoRa broadcast can be lost and the periodic re-broadcast is
+        // firmware-clamped to once an hour. So inject the new NodeInfo ourselves a
+        // few times so buddies refresh the name in seconds. Fire-and-forget on the
+        // connection scope so the caller isn't blocked by the inter-send spacing.
+        if (ok) scope.launch { broadcastOwnNodeInfo(longName, shortName) }
         return ok
+    }
+
+    /**
+     * Broadcast the board's own NodeInfo into the mesh [repeats] times, spaced a
+     * few seconds apart, so a buddy reliably learns the (just-changed) name despite
+     * unacked-broadcast loss. Advertises [MeshPacketCodec.HW_MODEL_PRIVATE] so the
+     * receiver's buddy filter keeps the node admitted. No-op if no board node is
+     * known yet.
+     */
+    private suspend fun broadcastOwnNodeInfo(longName: String, shortName: String, repeats: Int = 3) {
+        val boardNode = boardNodeNumber ?: adminTargetNode() ?: return
+        repeat(repeats) { i ->
+            val bytes = MeshPacketCodec.encodeToRadioNodeInfo(
+                fromNodeNumber = boardNode,
+                packetId = allocatePacketId(),
+                longName = longName,
+                shortName = shortName,
+                hwModel = MeshPacketCodec.HW_MODEL_PRIVATE,
+            )
+            val ok = runCatching { transport.writeToRadio(bytes) }.getOrDefault(false)
+            android.util.Log.i(
+                "BleConnection",
+                "[@${System.identityHashCode(this)}] broadcastOwnNodeInfo('$longName') #${i + 1}/$repeats sent=$ok",
+            )
+            if (i < repeats - 1) kotlinx.coroutines.delay(3000)
+        }
     }
 
     /**

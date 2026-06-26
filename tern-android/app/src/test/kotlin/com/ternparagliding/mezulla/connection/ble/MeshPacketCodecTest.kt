@@ -585,6 +585,34 @@ class MeshPacketCodecTest {
         error("AdminMessage.set_config not found")
     }
 
+    @Test
+    fun `nodeInfo broadcast carries the owner name and PRIVATE_HW to the mesh`() {
+        val boardNode = 0x02ed8530L
+        val toRadio = MeshPacketCodec.encodeToRadioNodeInfo(
+            fromNodeNumber = boardNode,
+            packetId = 21,
+            longName = "Pixel 10Pro",
+            shortName = "PX10",
+            hwModel = MeshPacketCodec.HW_MODEL_PRIVATE,
+        )
+
+        val meshPacket = unwrapToRadioPacket(toRadio)
+        // Broadcast, on NODEINFO_APP, from the board's node.
+        assertThat(meshPacketTo(meshPacket)).isEqualTo(0xFFFFFFFFL)
+        val user = meshPacketDataPayload(meshPacket, expectedPortNum = MeshPacketCodec.PORT_NODEINFO_APP)
+        assertThat(userStringField(user, fieldNumber = 2)).isEqualTo("Pixel 10Pro") // long_name
+        assertThat(userStringField(user, fieldNumber = 3)).isEqualTo("PX10")        // short_name
+        assertThat(uint32(user, fieldNumber = 5)).isEqualTo(MeshPacketCodec.HW_MODEL_PRIVATE.toLong()) // hw_model
+
+        // And it decodes back into a named, PRIVATE_HW identity (the buddy's view).
+        val asFromRadio = ProtoWriter().apply { writeMessage(2, meshPacket) }.toByteArray()
+        val event = MeshPacketCodec.decodeFromRadio(asFromRadio)
+        assertThat(event).isInstanceOf(MeshEvent.PeerIdentityKnown::class.java)
+        val peer = (event as MeshEvent.PeerIdentityKnown).peer
+        assertThat(peer.longName).isEqualTo("Pixel 10Pro")
+        assertThat(peer.hwModel).isEqualTo(MeshPacketCodec.HW_MODEL_PRIVATE)
+    }
+
     // ---------- device / display config (read-modify-write) ----------
 
     @Test

@@ -258,26 +258,25 @@ fun SettingsSheet(
                         if (showEditBoard) {
                             val currentLong = selfBoard?.longName?.takeIf { it.isNotBlank() } ?: boardLabel
                             val currentShort = selfBoard?.shortName?.takeIf { it.isNotBlank() } ?: ""
-                            // Snapshot the board's current config so the dialog can pre-select the
-                            // live values and we only write the fields the pilot actually changed.
-                            val curNameSecs = connectionManager?.currentNodeInfoBroadcastSecs()
+                            // Snapshot the board's current display config so the dialog can pre-select
+                            // the live values and we only write the fields the pilot actually changed.
                             val curScreenSecs = connectionManager?.currentScreenOnSecs()
                             val curFlip = connectionManager?.currentFlipScreen() ?: false
                             EditBoardDialog(
                                 currentLongName = currentLong,
                                 currentShortName = currentShort,
-                                currentNameBroadcastSecs = curNameSecs,
                                 currentScreenOnSecs = curScreenSecs,
                                 currentFlipScreen = curFlip,
-                                onSave = { longName, shortName, nameSecs, screenSecs, flip ->
+                                onSave = { longName, shortName, screenSecs, flip ->
                                     showEditBoard = false
                                     val node = selfBoard?.nodeNumber
                                         ?: runCatching { pairedNodeId.toLong(16) }.getOrNull()
                                     scope.launch {
-                                        // Name — only if it changed. Reflect it immediately on
-                                        // success so the pilot sees it without waiting for the
-                                        // board's next NodeInfo; on failure (link dropped mid-write)
-                                        // leave the label alone — the board re-asserts it anyway.
+                                        // Name — only if it changed. setOwner persists it on the board
+                                        // AND bursts the new NodeInfo to buddies (push-on-change).
+                                        // Reflect it immediately on success so the pilot sees it; on
+                                        // failure (link dropped mid-write) leave the label alone — the
+                                        // board re-asserts it anyway.
                                         if (longName != currentLong || shortName != currentShort) {
                                             val ok = connectionManager?.setOwner(longName, shortName) ?: false
                                             if (ok && node != null) {
@@ -292,10 +291,6 @@ fun SettingsSheet(
                                                     ),
                                                 )
                                             }
-                                        }
-                                        // Name-broadcast interval — only if changed.
-                                        if (nameSecs != null && nameSecs != curNameSecs) {
-                                            connectionManager?.setNodeInfoBroadcastSecs(nameSecs)
                                         }
                                         // Display — one write carrying just the changed fields.
                                         val screenChanged = screenSecs != null && screenSecs != curScreenSecs
@@ -519,32 +514,29 @@ fun SettingsSheet(
 
 /**
  * Edit the paired Mezulla board. Covers the Meshtastic owner name (long name on
- * the OLED + the buddy label on other phones, and the ≤4-char short badge) plus a
- * few board-config knobs that matter for buddy flying:
- *  - **Name broadcast** (`device.node_info_broadcast_secs`) — how often the board
- *    re-announces its name. The multi-hour default is why a freshly-reset buddy
- *    can briefly show as `!hex`; lowering it makes names appear fast.
- *  - **Screen timeout** / **Flip screen** — OLED on-time and orientation.
+ * the OLED + the buddy label on other phones, and the ≤4-char short badge) plus the
+ * OLED display knobs (**Screen timeout** / **Flip screen**).
  *
- * Each control pre-selects the board's current value; [onSave] reports them all
- * and the caller writes only what changed. Short name auto-fills from the long
- * name as the pilot types, until they edit it themselves.
+ * Renaming both persists on the board and bursts the new NodeInfo to buddies
+ * (push-on-change), so there's no periodic-broadcast knob: a name change is an
+ * event, pushed once when it happens, not polled. Each control pre-selects the
+ * board's current value; [onSave] reports them and the caller writes only what
+ * changed. Short name auto-fills from the long name as the pilot types, until they
+ * edit it themselves.
  */
 @Composable
 private fun EditBoardDialog(
     currentLongName: String,
     currentShortName: String,
-    currentNameBroadcastSecs: Int?,
     currentScreenOnSecs: Int?,
     currentFlipScreen: Boolean,
-    onSave: (longName: String, shortName: String, nameBroadcastSecs: Int?, screenOnSecs: Int?, flipScreen: Boolean) -> Unit,
+    onSave: (longName: String, shortName: String, screenOnSecs: Int?, flipScreen: Boolean) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var longName by remember { mutableStateOf(currentLongName) }
     // Once the pilot touches the short name we stop auto-deriving it.
     var shortTouched by remember { mutableStateOf(currentShortName.isNotBlank()) }
     var shortName by remember { mutableStateOf(currentShortName.ifBlank { deriveShortName(currentLongName) }) }
-    var nameSecs by remember { mutableStateOf(currentNameBroadcastSecs) }
     var screenSecs by remember { mutableStateOf(currentScreenOnSecs) }
     var flip by remember { mutableStateOf(currentFlipScreen) }
     val trimmedLong = longName.trim()
@@ -574,21 +566,8 @@ private fun EditBoardDialog(
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "Shown on the board's screen and as your label to buddies.",
+                    "Shown on the board's screen and as your label to buddies. Changes are pushed to buddies right away.",
                     fontSize = 11.sp, color = Color(0xFF94A3B8),
-                )
-
-                Spacer(Modifier.height(16.dp))
-                Text("Name broadcast", fontSize = 13.sp)
-                Text(
-                    "How often the board re-announces its name. Lower = buddies see your name sooner.",
-                    fontSize = 11.sp, color = Color(0xFF94A3B8), modifier = Modifier.padding(bottom = 4.dp),
-                )
-                IntChoiceRow(
-                    options = listOf("1 min" to 60, "5 min" to 300, "15 min" to 900, "3 hr" to 10800),
-                    selectedValue = nameSecs,
-                    onSelect = { nameSecs = it },
-                    testTagPrefix = "edit_board_namebcast",
                 )
 
                 Spacer(Modifier.height(16.dp))
@@ -620,7 +599,6 @@ private fun EditBoardDialog(
                     onSave(
                         trimmedLong,
                         trimmedShort.ifBlank { deriveShortName(trimmedLong) },
-                        nameSecs,
                         screenSecs,
                         flip,
                     )

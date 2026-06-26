@@ -637,6 +637,48 @@ internal object MeshPacketCodec {
         return w.toByteArray()
     }
 
+    /**
+     * Encode a ToRadio frame that broadcasts the board's own NodeInfo (a `User`
+     * on NODEINFO_APP) into the mesh — Tern's **push-on-change** name propagation.
+     *
+     * The firmware broadcasts NodeInfo once when the owner changes, but that's a
+     * single unacked LoRa broadcast that can be lost, and the periodic re-broadcast
+     * is firmware-clamped to once an hour (`min_node_info_broadcast_secs`). So after
+     * a rename the app injects this packet a few times itself (a short reliable
+     * burst) so buddies refresh the name in seconds without any periodic spam.
+     *
+     * [hwModel] should be [HW_MODEL_PRIVATE] so the receiving app's buddy filter
+     * keeps admitting this node as a Mezulla (it keys on hw_model). `want_ack` is
+     * left off — this is a broadcast; reliability comes from sending it a few times.
+     */
+    fun encodeToRadioNodeInfo(
+        fromNodeNumber: Long,
+        packetId: Int,
+        longName: String,
+        shortName: String,
+        hwModel: Int,
+    ): ByteArray {
+        val user = ProtoWriter().apply {
+            writeString(F_USER_ID, "!%08x".format(fromNodeNumber))
+            writeString(F_USER_LONG_NAME, longName)
+            writeString(F_USER_SHORT_NAME, shortName)
+            writeInt32(F_USER_HW_MODEL, hwModel)
+        }.toByteArray()
+        val data = ProtoWriter().apply {
+            writeInt32(F_DATA_PORTNUM, PORT_NODEINFO_APP)
+            writeBytes(F_DATA_PAYLOAD, user)
+        }.toByteArray()
+        val packet = ProtoWriter().apply {
+            writeFixed32(F_MESHPACKET_FROM, fromNodeNumber)
+            writeFixed32(F_MESHPACKET_TO, BROADCAST_NODE_NUMBER)
+            writeMessage(F_MESHPACKET_DECODED, data)
+            writeFixed32(F_MESHPACKET_ID, packetId.toLong() and 0xFFFFFFFFL)
+        }.toByteArray()
+        return ProtoWriter().apply {
+            writeMessage(F_TORADIO_PACKET, packet)
+        }.toByteArray()
+    }
+
     /** Encode a ToRadio frame carrying a position broadcast. */
     fun encodeToRadioPosition(fromNodeNumber: Long, packetId: Int, fix: PeerPosition.Fix): ByteArray {
         val payload = encodePositionPayload(fix)
