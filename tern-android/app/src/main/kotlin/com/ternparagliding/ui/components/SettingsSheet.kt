@@ -256,29 +256,54 @@ fun SettingsSheet(
                         }
 
                         if (showEditBoard) {
+                            val currentLong = selfBoard?.longName?.takeIf { it.isNotBlank() } ?: boardLabel
+                            val currentShort = selfBoard?.shortName?.takeIf { it.isNotBlank() } ?: ""
+                            // Snapshot the board's current config so the dialog can pre-select the
+                            // live values and we only write the fields the pilot actually changed.
+                            val curNameSecs = connectionManager?.currentNodeInfoBroadcastSecs()
+                            val curScreenSecs = connectionManager?.currentScreenOnSecs()
+                            val curFlip = connectionManager?.currentFlipScreen() ?: false
                             EditBoardDialog(
-                                currentLongName = selfBoard?.longName?.takeIf { it.isNotBlank() } ?: boardLabel,
-                                currentShortName = selfBoard?.shortName?.takeIf { it.isNotBlank() } ?: "",
-                                onSave = { longName, shortName ->
+                                currentLongName = currentLong,
+                                currentShortName = currentShort,
+                                currentNameBroadcastSecs = curNameSecs,
+                                currentScreenOnSecs = curScreenSecs,
+                                currentFlipScreen = curFlip,
+                                onSave = { longName, shortName, nameSecs, screenSecs, flip ->
                                     showEditBoard = false
                                     val node = selfBoard?.nodeNumber
                                         ?: runCatching { pairedNodeId.toLong(16) }.getOrNull()
                                     scope.launch {
-                                        val ok = connectionManager?.setOwner(longName, shortName) ?: false
-                                        // Reflect the new name immediately on success so the pilot
-                                        // sees it without waiting for the board's next NodeInfo. On
-                                        // failure (link dropped mid-write) we leave the label alone —
-                                        // the board re-asserts its real name via NodeInfo anyway.
-                                        if (ok && node != null) {
-                                            store.dispatch(
-                                                com.ternparagliding.mezulla.redux.PeerAction.SelfBoardIdentified(
-                                                    com.ternparagliding.mezulla.connection.PeerIdentity.fromNodeNumber(
-                                                        nodeNumber = node,
-                                                        longName = longName,
-                                                        shortName = shortName,
+                                        // Name — only if it changed. Reflect it immediately on
+                                        // success so the pilot sees it without waiting for the
+                                        // board's next NodeInfo; on failure (link dropped mid-write)
+                                        // leave the label alone — the board re-asserts it anyway.
+                                        if (longName != currentLong || shortName != currentShort) {
+                                            val ok = connectionManager?.setOwner(longName, shortName) ?: false
+                                            if (ok && node != null) {
+                                                store.dispatch(
+                                                    com.ternparagliding.mezulla.redux.PeerAction.SelfBoardIdentified(
+                                                        com.ternparagliding.mezulla.connection.PeerIdentity.fromNodeNumber(
+                                                            nodeNumber = node,
+                                                            longName = longName,
+                                                            shortName = shortName,
+                                                        ),
+                                                        java.time.Instant.now(),
                                                     ),
-                                                    java.time.Instant.now(),
-                                                ),
+                                                )
+                                            }
+                                        }
+                                        // Name-broadcast interval — only if changed.
+                                        if (nameSecs != null && nameSecs != curNameSecs) {
+                                            connectionManager?.setNodeInfoBroadcastSecs(nameSecs)
+                                        }
+                                        // Display — one write carrying just the changed fields.
+                                        val screenChanged = screenSecs != null && screenSecs != curScreenSecs
+                                        val flipChanged = flip != curFlip
+                                        if (screenChanged || flipChanged) {
+                                            connectionManager?.setDisplay(
+                                                screenOnSecs = if (screenChanged) screenSecs else null,
+                                                flipScreen = if (flipChanged) flip else null,
                                             )
                                         }
                                     }
@@ -493,22 +518,35 @@ fun SettingsSheet(
 }
 
 /**
- * Rename the paired Mezulla board. Edits the Meshtastic owner name — the long
- * name (shown on the OLED and as the buddy label on other phones) and the ≤4-char
- * short badge. Short name auto-fills from the long name as the pilot types, until
- * they edit it themselves; both are written together via set_owner.
+ * Edit the paired Mezulla board. Covers the Meshtastic owner name (long name on
+ * the OLED + the buddy label on other phones, and the ≤4-char short badge) plus a
+ * few board-config knobs that matter for buddy flying:
+ *  - **Name broadcast** (`device.node_info_broadcast_secs`) — how often the board
+ *    re-announces its name. The multi-hour default is why a freshly-reset buddy
+ *    can briefly show as `!hex`; lowering it makes names appear fast.
+ *  - **Screen timeout** / **Flip screen** — OLED on-time and orientation.
+ *
+ * Each control pre-selects the board's current value; [onSave] reports them all
+ * and the caller writes only what changed. Short name auto-fills from the long
+ * name as the pilot types, until they edit it themselves.
  */
 @Composable
 private fun EditBoardDialog(
     currentLongName: String,
     currentShortName: String,
-    onSave: (longName: String, shortName: String) -> Unit,
+    currentNameBroadcastSecs: Int?,
+    currentScreenOnSecs: Int?,
+    currentFlipScreen: Boolean,
+    onSave: (longName: String, shortName: String, nameBroadcastSecs: Int?, screenOnSecs: Int?, flipScreen: Boolean) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var longName by remember { mutableStateOf(currentLongName) }
     // Once the pilot touches the short name we stop auto-deriving it.
     var shortTouched by remember { mutableStateOf(currentShortName.isNotBlank()) }
     var shortName by remember { mutableStateOf(currentShortName.ifBlank { deriveShortName(currentLongName) }) }
+    var nameSecs by remember { mutableStateOf(currentNameBroadcastSecs) }
+    var screenSecs by remember { mutableStateOf(currentScreenOnSecs) }
+    var flip by remember { mutableStateOf(currentFlipScreen) }
     val trimmedLong = longName.trim()
     val trimmedShort = shortName.trim().take(4)
     AlertDialog(
@@ -536,20 +574,92 @@ private fun EditBoardDialog(
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "This is the name on the board's screen and the label your buddies see.",
+                    "Shown on the board's screen and as your label to buddies.",
                     fontSize = 11.sp, color = Color(0xFF94A3B8),
                 )
+
+                Spacer(Modifier.height(16.dp))
+                Text("Name broadcast", fontSize = 13.sp)
+                Text(
+                    "How often the board re-announces its name. Lower = buddies see your name sooner.",
+                    fontSize = 11.sp, color = Color(0xFF94A3B8), modifier = Modifier.padding(bottom = 4.dp),
+                )
+                IntChoiceRow(
+                    options = listOf("1 min" to 60, "5 min" to 300, "15 min" to 900, "3 hr" to 10800),
+                    selectedValue = nameSecs,
+                    onSelect = { nameSecs = it },
+                    testTagPrefix = "edit_board_namebcast",
+                )
+
+                Spacer(Modifier.height(16.dp))
+                Text("Screen timeout", fontSize = 13.sp, modifier = Modifier.padding(bottom = 4.dp))
+                IntChoiceRow(
+                    options = listOf("1 min" to 60, "5 min" to 300, "10 min" to 600, "30 min" to 1800),
+                    selectedValue = screenSecs,
+                    onSelect = { screenSecs = it },
+                    testTagPrefix = "edit_board_screen",
+                )
+
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("Flip screen", modifier = Modifier.weight(1f), fontSize = 14.sp)
+                    Switch(
+                        checked = flip,
+                        onCheckedChange = { flip = it },
+                        modifier = Modifier.testTag("edit_board_flip"),
+                    )
+                }
             }
         },
         confirmButton = {
             TextButton(
-                onClick = { onSave(trimmedLong, trimmedShort.ifBlank { deriveShortName(trimmedLong) }) },
+                onClick = {
+                    onSave(
+                        trimmedLong,
+                        trimmedShort.ifBlank { deriveShortName(trimmedLong) },
+                        nameSecs,
+                        screenSecs,
+                        flip,
+                    )
+                },
                 enabled = trimmedLong.isNotEmpty(),
                 modifier = Modifier.testTag("edit_board_save"),
             ) { Text("Save") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
+}
+
+/** A compact row of selectable chips backed by Int values; highlights [selected]. */
+@Composable
+private fun IntChoiceRow(
+    options: List<Pair<String, Int>>,
+    selectedValue: Int?,
+    onSelect: (Int) -> Unit,
+    testTagPrefix: String,
+) {
+    Row {
+        options.forEach { (label, value) ->
+            val isSelected = value == selectedValue
+            OutlinedButton(
+                onClick = { onSelect(value) },
+                colors = ButtonDefaults.outlinedButtonColors(
+                    containerColor = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
+                    contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
+                ),
+                modifier = Modifier
+                    .height(36.dp)
+                    .padding(horizontal = 2.dp)
+                    .testTag("${testTagPrefix}_$value")
+                    .semantics { selected = isSelected },
+            ) {
+                Text(label, fontSize = 12.sp)
+            }
+        }
+    }
 }
 
 /** First 4 non-space chars of a name, as a sensible default Meshtastic short badge. */

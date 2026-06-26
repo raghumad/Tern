@@ -142,6 +142,62 @@ class BleConnection internal constructor(
     }
 
     /**
+     * Change how often the board re-announces its name (NodeInfo) — admin
+     * `set_config(device.node_info_broadcast_secs)` over the live link. Lowering
+     * it makes a buddy's name appear quickly instead of after the multi-hour
+     * default. Read-modify-write over the cached [deviceConfigBytes] so the rest of
+     * DeviceConfig is preserved. Returns whether the GATT write was accepted;
+     * no-op + false when the link is down, no board is paired, or the board hasn't
+     * streamed its device config yet (without the base we'd wipe the struct).
+     */
+    suspend fun setNodeInfoBroadcastSecs(secs: Int): Boolean {
+        if (linkState != LinkState.UP) {
+            android.util.Log.w("BleConnection", "setNodeInfoBroadcastSecs: link not UP ($linkState) — ignoring")
+            return false
+        }
+        val boardNode = adminTargetNode() ?: run {
+            android.util.Log.w("BleConnection", "setNodeInfoBroadcastSecs: no board node yet")
+            return false
+        }
+        val base = deviceConfigBytes ?: run {
+            android.util.Log.w("BleConnection", "setNodeInfoBroadcastSecs: no cached device config yet — refusing to avoid wiping it")
+            return false
+        }
+        val bytes = MeshPacketCodec.encodeToRadioSetDeviceNodeInfoBroadcast(boardNode, allocatePacketId(), base, secs)
+        val ok = runCatching { transport.writeToRadio(bytes) }.getOrDefault(false)
+        // The board re-streams the applied value on its next config dump; no need to
+        // mutate the cache here (re-appending would grow it on every edit).
+        android.util.Log.i("BleConnection", "[@${System.identityHashCode(this)}] setNodeInfoBroadcastSecs($secs) sent=$ok board=0x${boardNode.toString(16)}")
+        return ok
+    }
+
+    /**
+     * Change OLED display settings — admin `set_config(display)` over the live
+     * link. Only the non-null fields are written; the rest of DisplayConfig is
+     * preserved via read-modify-write over the cached [displayConfigBytes].
+     * Returns whether the GATT write was accepted; same no-op conditions as
+     * [setNodeInfoBroadcastSecs].
+     */
+    suspend fun setDisplay(screenOnSecs: Int?, flipScreen: Boolean?): Boolean {
+        if (linkState != LinkState.UP) {
+            android.util.Log.w("BleConnection", "setDisplay: link not UP ($linkState) — ignoring")
+            return false
+        }
+        val boardNode = adminTargetNode() ?: run {
+            android.util.Log.w("BleConnection", "setDisplay: no board node yet")
+            return false
+        }
+        val base = displayConfigBytes ?: run {
+            android.util.Log.w("BleConnection", "setDisplay: no cached display config yet — refusing to avoid wiping it")
+            return false
+        }
+        val bytes = MeshPacketCodec.encodeToRadioSetDisplay(boardNode, allocatePacketId(), base, screenOnSecs, flipScreen)
+        val ok = runCatching { transport.writeToRadio(bytes) }.getOrDefault(false)
+        android.util.Log.i("BleConnection", "[@${System.identityHashCode(this)}] setDisplay(screenOn=$screenOnSecs, flip=$flipScreen) sent=$ok board=0x${boardNode.toString(16)}")
+        return ok
+    }
+
+    /**
      * Set the board's LoRa **region** — Tern's automatic region-follows-location
      * (the reconcile lives in [com.ternparagliding.mezulla.MezullaConnectionManager]).
      * An admin `set_config(lora)` over the live link; the firmware applies it
@@ -223,6 +279,21 @@ class BleConnection internal constructor(
      */
     @Volatile
     var boardRegion: Int? = null
+        private set
+
+    /**
+     * The board's current DeviceConfig / DisplayConfig as raw protobuf bytes, last
+     * read from its config stream during the handshake. Null until that frame has
+     * been seen. Kept so an edit can read-modify-write the full sub-struct (the
+     * firmware's set_config replaces the whole struct). Volatile: written from the
+     * transport-event coroutine, read from the setter callers.
+     */
+    @Volatile
+    var deviceConfigBytes: ByteArray? = null
+        private set
+
+    @Volatile
+    var displayConfigBytes: ByteArray? = null
         private set
 
     /**
@@ -367,6 +438,14 @@ class BleConnection internal constructor(
                 // reconcile region to the pilot's GPS fix. Cheap on hot frames:
                 // a position packet is one tag read + one skip before null.
                 MeshPacketCodec.decodeLoraRegion(event.bytes)?.let { boardRegion = it }
+                // Cache the board's current device/display config sub-structs so an
+                // edit can read-modify-write them (the firmware replaces the whole
+                // struct on set_config, so we resend the full one with one field
+                // changed). Same cheap one-tag-then-skip cost on hot position frames.
+                MeshPacketCodec.extractConfigSubmessage(event.bytes, MeshPacketCodec.CONFIG_DEVICE_TAG)
+                    ?.let { deviceConfigBytes = it }
+                MeshPacketCodec.extractConfigSubmessage(event.bytes, MeshPacketCodec.CONFIG_DISPLAY_TAG)
+                    ?.let { displayConfigBytes = it }
                 // Capture the board's own node number from MyNodeInfo so we
                 // address admin commands (set_team / set_region) to the real
                 // node, not the QR-derived id which can be wrong (LilyGo).

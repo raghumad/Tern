@@ -585,6 +585,86 @@ class MeshPacketCodecTest {
         error("AdminMessage.set_config not found")
     }
 
+    // ---------- device / display config (read-modify-write) ----------
+
+    @Test
+    fun `extractConfigSubmessage and decoders read device + display fields from a config frame`() {
+        // FromRadio { config = Config { device = DeviceConfig { role=2, node_info_broadcast_secs=10800 } } }
+        val deviceCfg = ProtoWriter().apply { writeInt32(1, 2); writeInt32(7, 10800) }.toByteArray()
+        val config = ProtoWriter().apply { writeMessage(1, deviceCfg) }.toByteArray()
+        val fromRadio = ProtoWriter().apply { writeMessage(5, config) }.toByteArray()
+
+        val extracted = MeshPacketCodec.extractConfigSubmessage(fromRadio, MeshPacketCodec.CONFIG_DEVICE_TAG)
+        assertThat(extracted).isNotNull()
+        assertThat(MeshPacketCodec.deviceNodeInfoBroadcastSecs(extracted!!)).isEqualTo(10800)
+
+        // A position packet (not a config frame) yields null.
+        val notConfig = buildFromRadioWithMeshPacket(
+            fromNodeNumber = antoineNodeNumber, rxTime = rxTime,
+            portNum = MeshPacketCodec.PORT_POSITION_APP, payload = MeshPacketCodec.encodePositionPayload(pos),
+        )
+        assertThat(MeshPacketCodec.extractConfigSubmessage(notConfig, MeshPacketCodec.CONFIG_DEVICE_TAG)).isNull()
+    }
+
+    @Test
+    fun `setDeviceNodeInfoBroadcast overrides the field while preserving the rest of the struct`() {
+        val boardNode = 0x02ed8530L
+        // Base DeviceConfig the board streamed: role=2 (field 1), node_info_broadcast_secs=10800 (field 7).
+        val base = ProtoWriter().apply { writeInt32(1, 2); writeInt32(7, 10800) }.toByteArray()
+
+        val toRadio = MeshPacketCodec.encodeToRadioSetDeviceNodeInfoBroadcast(boardNode, packetId = 12, baseDeviceConfig = base, secs = 60)
+        val meshPacket = unwrapToRadioPacket(toRadio)
+        assertThat(meshPacketTo(meshPacket)).isEqualTo(boardNode)
+        val admin = meshPacketDataPayload(meshPacket, expectedPortNum = MeshPacketCodec.PORT_ADMIN_APP)
+        val device = configSub(extractSetConfigBytes(admin), subTag = MeshPacketCodec.CONFIG_DEVICE_TAG)
+
+        // node_info_broadcast_secs is now 60 (appended override wins, last-occurrence rule).
+        assertThat(MeshPacketCodec.deviceNodeInfoBroadcastSecs(device)).isEqualTo(60)
+        // role (field 1) is untouched — the rest of the struct survives.
+        assertThat(uint32(device, fieldNumber = 1)).isEqualTo(2L)
+    }
+
+    @Test
+    fun `setDisplay writes only the supplied fields over the base struct`() {
+        val boardNode = 0x02ed8530L
+        // Base DisplayConfig: screen_on_secs=600 (field 1), flip_screen=false (omitted), displaymode=3 (field 6).
+        val base = ProtoWriter().apply { writeInt32(1, 600); writeInt32(6, 3) }.toByteArray()
+
+        val toRadio = MeshPacketCodec.encodeToRadioSetDisplay(boardNode, packetId = 13, baseDisplayConfig = base, screenOnSecs = 60, flipScreen = true)
+        val admin = meshPacketDataPayload(unwrapToRadioPacket(toRadio), expectedPortNum = MeshPacketCodec.PORT_ADMIN_APP)
+        val display = configSub(extractSetConfigBytes(admin), subTag = MeshPacketCodec.CONFIG_DISPLAY_TAG)
+
+        assertThat(MeshPacketCodec.displayScreenOnSecs(display)).isEqualTo(60)   // overridden
+        assertThat(MeshPacketCodec.displayFlipScreen(display)).isTrue()          // set
+        assertThat(uint32(display, fieldNumber = 6)).isEqualTo(3L)               // displaymode preserved
+    }
+
+    /** Pull a Config sub-message (by oneof tag) out of a Config body. */
+    private fun configSub(configBytes: ByteArray, subTag: Int): ByteArray {
+        val reader = ProtoReader(configBytes)
+        while (reader.hasMore()) {
+            val tag = reader.readTag()
+            val field = tag ushr 3
+            val wire = tag and 0x7
+            if (field == subTag && wire == Proto.WIRE_LENGTH_DELIMITED) return reader.readLengthDelimited()
+            reader.skipField(wire)
+        }
+        error("Config sub-message $subTag not found")
+    }
+
+    /** Read a singular uint32 field (last occurrence wins) from a message body. */
+    private fun uint32(messageBytes: ByteArray, fieldNumber: Int): Long? {
+        val reader = ProtoReader(messageBytes)
+        var value: Long? = null
+        while (reader.hasMore()) {
+            val tag = reader.readTag()
+            val field = tag ushr 3
+            val wire = tag and 0x7
+            if (field == fieldNumber && wire == Proto.WIRE_VARINT) value = reader.readVarint() else reader.skipField(wire)
+        }
+        return value
+    }
+
     /** Read a bool field [fieldNumber] from the LoRaConfig inside a Config body. */
     private fun loraBoolField(configBytes: ByteArray, fieldNumber: Int): Boolean {
         val cr = ProtoReader(configBytes)

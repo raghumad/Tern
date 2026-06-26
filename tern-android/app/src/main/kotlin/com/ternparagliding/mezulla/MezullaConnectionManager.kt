@@ -426,6 +426,35 @@ class MezullaConnectionManager(
         activeConnection?.setOwner(longName, shortName) ?: false
 
     /**
+     * Change how often the active board re-announces its name (NodeInfo). Lower =
+     * a buddy's name shows up faster. Returns false if there's no live board link.
+     */
+    suspend fun setNodeInfoBroadcastSecs(secs: Int): Boolean =
+        activeConnection?.setNodeInfoBroadcastSecs(secs) ?: false
+
+    /** Change the active board's OLED display settings (on-time, flip). False if no live link. */
+    suspend fun setDisplay(screenOnSecs: Int?, flipScreen: Boolean?): Boolean =
+        activeConnection?.setDisplay(screenOnSecs, flipScreen) ?: false
+
+    /** Current `node_info_broadcast_secs` read from the board's config stream, or null if not seen yet. */
+    fun currentNodeInfoBroadcastSecs(): Int? =
+        activeConnection?.deviceConfigBytes?.let {
+            com.ternparagliding.mezulla.connection.ble.MeshPacketCodec.deviceNodeInfoBroadcastSecs(it)
+        }
+
+    /** Current OLED on-time (`screen_on_secs`), or null if not seen yet. */
+    fun currentScreenOnSecs(): Int? =
+        activeConnection?.displayConfigBytes?.let {
+            com.ternparagliding.mezulla.connection.ble.MeshPacketCodec.displayScreenOnSecs(it)
+        }
+
+    /** Current `flip_screen`, or null if not seen yet. */
+    fun currentFlipScreen(): Boolean? =
+        activeConnection?.displayConfigBytes?.let {
+            com.ternparagliding.mezulla.connection.ble.MeshPacketCodec.displayFlipScreen(it)
+        }
+
+    /**
      * True iff we already have a live, UP persistent link to this exact
      * board. Used by [PairingOrchestrator] to short-circuit a re-scan of a
      * board we're already connected to: while connected, the board isn't

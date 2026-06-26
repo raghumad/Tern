@@ -56,6 +56,19 @@ internal object MeshPacketCodec {
     private const val F_ADMIN_SET_CHANNEL = 33
     private const val F_ADMIN_SET_CONFIG = 34
 
+    // Config sub-message tags (Config.payload_variant oneof) — see meshtastic/config.proto.
+    // Public so [com.ternparagliding.mezulla.connection.ble.BleConnection] can ask
+    // [extractConfigSubmessage] for the right section out of the handshake config stream.
+    const val CONFIG_DEVICE_TAG = 1
+    const val CONFIG_DISPLAY_TAG = 5
+
+    // DeviceConfig field numbers — see meshtastic/config.proto.
+    private const val F_DEVICE_NODE_INFO_BROADCAST_SECS = 7
+
+    // DisplayConfig field numbers — see meshtastic/config.proto.
+    private const val F_DISPLAY_SCREEN_ON_SECS = 1
+    private const val F_DISPLAY_FLIP_SCREEN = 5
+
     // Config / LoRaConfig field numbers — see meshtastic/config.proto.
     private const val F_CONFIG_LORA = 6
     private const val F_LORA_USE_PRESET = 1
@@ -309,6 +322,71 @@ internal object MeshPacketCodec {
         }
         return null
     }
+
+    /**
+     * Extract the raw bytes of one `Config` sub-message (e.g. [CONFIG_DEVICE_TAG],
+     * [CONFIG_DISPLAY_TAG]) from a `FromRadio.config` frame in the handshake
+     * bundle. Returns null when this frame isn't a config frame or doesn't carry
+     * that sub-message.
+     *
+     * The caller caches these bytes so a later edit can be a **read-modify-write**:
+     * the firmware's `handleSetConfig` REPLACES the whole sub-struct with what we
+     * send (e.g. `config.device = ...`), so to change one field without zeroing the
+     * rest (device role, button pins, …) we must resend the full struct. See
+     * [encodeToRadioSetDeviceNodeInfoBroadcast] / [encodeToRadioSetDisplay].
+     */
+    fun extractConfigSubmessage(fromRadioBytes: ByteArray, subConfigTag: Int): ByteArray? {
+        if (fromRadioBytes.isEmpty()) return null
+        val reader = ProtoReader(fromRadioBytes)
+        while (reader.hasMore()) {
+            val tag = reader.readTag()
+            val field = tag ushr 3
+            val wire = tag and 0x7
+            if (field == F_FROMRADIO_CONFIG && wire == Proto.WIRE_LENGTH_DELIMITED) {
+                return subFromConfig(reader.readLengthDelimited(), subConfigTag)
+            }
+            reader.skipField(wire)
+        }
+        return null
+    }
+
+    /** Pull one sub-message (by oneof tag) out of a `Config` body. */
+    private fun subFromConfig(configBytes: ByteArray, subTag: Int): ByteArray? {
+        val reader = ProtoReader(configBytes)
+        while (reader.hasMore()) {
+            val tag = reader.readTag()
+            val field = tag ushr 3
+            val wire = tag and 0x7
+            if (field == subTag && wire == Proto.WIRE_LENGTH_DELIMITED) return reader.readLengthDelimited()
+            reader.skipField(wire)
+        }
+        return null
+    }
+
+    /** Read a singular uint32 field (last occurrence wins) from a message body; null if absent. */
+    private fun uint32Field(messageBytes: ByteArray, fieldTag: Int): Long? {
+        val reader = ProtoReader(messageBytes)
+        var value: Long? = null
+        while (reader.hasMore()) {
+            val tag = reader.readTag()
+            val field = tag ushr 3
+            val wire = tag and 0x7
+            if (field == fieldTag && wire == Proto.WIRE_VARINT) value = reader.readVarint() else reader.skipField(wire)
+        }
+        return value
+    }
+
+    /** `DeviceConfig.node_info_broadcast_secs` from cached device-config bytes (how often the board re-announces its name). */
+    fun deviceNodeInfoBroadcastSecs(deviceConfigBytes: ByteArray): Int? =
+        uint32Field(deviceConfigBytes, F_DEVICE_NODE_INFO_BROADCAST_SECS)?.toInt()
+
+    /** `DisplayConfig.screen_on_secs` from cached display-config bytes (OLED on-time). */
+    fun displayScreenOnSecs(displayConfigBytes: ByteArray): Int? =
+        uint32Field(displayConfigBytes, F_DISPLAY_SCREEN_ON_SECS)?.toInt()
+
+    /** `DisplayConfig.flip_screen` from cached display-config bytes. */
+    fun displayFlipScreen(displayConfigBytes: ByteArray): Boolean? =
+        uint32Field(displayConfigBytes, F_DISPLAY_FLIP_SCREEN)?.let { it != 0L }
 
     /** Read `region` from a `LoRaConfig` body; 0 (UNSET) when the field is omitted. */
     private fun decodeRegionFromLora(loraBytes: ByteArray): Int {
@@ -802,6 +880,76 @@ internal object MeshPacketCodec {
         val admin = ProtoWriter().apply {
             writeMessage(F_ADMIN_SET_CONFIG, config)
         }.toByteArray()
+        val data = ProtoWriter().apply {
+            writeInt32(F_DATA_PORTNUM, PORT_ADMIN_APP)
+            writeBytes(F_DATA_PAYLOAD, admin)
+        }.toByteArray()
+        val packet = ProtoWriter().apply {
+            writeFixed32(F_MESHPACKET_FROM, 0L) // from=0 → trusted local phone, no passkey
+            writeFixed32(F_MESHPACKET_TO, boardNodeNumber)
+            writeMessage(F_MESHPACKET_DECODED, data)
+            writeFixed32(F_MESHPACKET_ID, packetId.toLong() and 0xFFFFFFFFL)
+            writeBool(F_MESHPACKET_WANT_ACK, true)
+        }.toByteArray()
+        return ProtoWriter().apply {
+            writeMessage(F_TORADIO_PACKET, packet)
+        }.toByteArray()
+    }
+
+    /**
+     * Encode a `set_config(device)` that changes only `node_info_broadcast_secs`
+     * — how often the board re-announces its name (NodeInfo). Lowering it makes a
+     * buddy's name appear quickly instead of waiting on the multi-hour default.
+     *
+     * **Read-modify-write:** [baseDeviceConfig] is the board's current DeviceConfig
+     * bytes (cached from the handshake stream); we append the one overriding field.
+     * Protobuf takes the LAST occurrence of a singular field, so the appended value
+     * wins while every other DeviceConfig field (device role, button pins, …) is
+     * preserved — necessary because the firmware replaces the whole struct. `from
+     * = 0` → trusted local phone, no passkey.
+     */
+    fun encodeToRadioSetDeviceNodeInfoBroadcast(
+        boardNodeNumber: Long,
+        packetId: Int,
+        baseDeviceConfig: ByteArray,
+        secs: Int,
+    ): ByteArray {
+        val override = ProtoWriter().apply { writeInt32(F_DEVICE_NODE_INFO_BROADCAST_SECS, secs) }.toByteArray()
+        return encodeSetConfigPacket(boardNodeNumber, packetId, CONFIG_DEVICE_TAG, baseDeviceConfig + override)
+    }
+
+    /**
+     * Encode a `set_config(display)` that changes [screenOnSecs] (OLED on-time)
+     * and/or [flipScreen]. Same read-modify-write as
+     * [encodeToRadioSetDeviceNodeInfoBroadcast] over [baseDisplayConfig]: only the
+     * non-null fields are appended (and win), the rest of DisplayConfig is kept.
+     */
+    fun encodeToRadioSetDisplay(
+        boardNodeNumber: Long,
+        packetId: Int,
+        baseDisplayConfig: ByteArray,
+        screenOnSecs: Int?,
+        flipScreen: Boolean?,
+    ): ByteArray {
+        var sub = baseDisplayConfig
+        if (screenOnSecs != null) {
+            sub += ProtoWriter().apply { writeInt32(F_DISPLAY_SCREEN_ON_SECS, screenOnSecs) }.toByteArray()
+        }
+        if (flipScreen != null) {
+            sub += ProtoWriter().apply { writeBool(F_DISPLAY_FLIP_SCREEN, flipScreen) }.toByteArray()
+        }
+        return encodeSetConfigPacket(boardNodeNumber, packetId, CONFIG_DISPLAY_TAG, sub)
+    }
+
+    /** Wrap a complete `Config` sub-message in `AdminMessage.set_config` → ADMIN_APP → ToRadio. */
+    private fun encodeSetConfigPacket(
+        boardNodeNumber: Long,
+        packetId: Int,
+        configTag: Int,
+        subConfigBytes: ByteArray,
+    ): ByteArray {
+        val config = ProtoWriter().apply { writeMessage(configTag, subConfigBytes) }.toByteArray()
+        val admin = ProtoWriter().apply { writeMessage(F_ADMIN_SET_CONFIG, config) }.toByteArray()
         val data = ProtoWriter().apply {
             writeInt32(F_DATA_PORTNUM, PORT_ADMIN_APP)
             writeBytes(F_DATA_PAYLOAD, admin)
