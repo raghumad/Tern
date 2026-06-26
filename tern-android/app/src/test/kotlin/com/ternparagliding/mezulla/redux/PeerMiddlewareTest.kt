@@ -215,6 +215,37 @@ class PeerMiddlewareTest {
     }
 
     @Test
+    fun `a re-flashed node that re-advertises PRIVATE_HW is re-admitted, not blocked forever`() = runTest {
+        // The core "flash a stock board into a Mezulla" path: a buddy first heard
+        // our board as its stock model (e.g. HELTEC_V3) and evicted it; once the
+        // board is reflashed it advertises PRIVATE_HW. That fresh NodeInfo must
+        // RE-ADMIT the node (eviction is not a one-way door), and its live
+        // positions must then register on the roster.
+        val conn = StubMeshtasticConnection(initialLinkState = LinkState.UP)
+        val dispatched = newDispatchedList()
+        buildAndStart(conn, dispatched)
+
+        val node = 0xc0ffee01L
+        // First seen as a stock board → evicted.
+        conn.emit(MeshEvent.PeerIdentityKnown(PeerIdentity.fromNodeNumber(node, hwModel = 43)))
+        assertThat(dispatched.map { it::class }).containsExactly(PeerAction.PeerRemoved::class)
+
+        // After reflash it advertises PRIVATE_HW → re-admitted (identity update),
+        // no longer blocked.
+        val reflashed = PeerIdentity.fromNodeNumber(node, longName = "Buddy", shortName = "BD", hwModel = 255)
+        conn.emit(MeshEvent.PeerIdentityKnown(reflashed))
+        assertThat(dispatched.last()).isEqualTo(PeerAction.PeerIdentityUpdate(reflashed, Instant.now(fixedClock)))
+
+        // A live position from it now registers (PeerSeen + PeerPositionReceived),
+        // proving the node is off the block-list.
+        conn.emit(MeshEvent.PeerPositionUpdate(reflashed, sampleFix))
+        assertThat(dispatched.map { it::class }).containsAtLeast(
+            PeerAction.PeerSeen::class,
+            PeerAction.PeerPositionReceived::class,
+        )
+    }
+
+    @Test
     fun `NodeInfo from a Mezulla node (PRIVATE_HW) is admitted`() = runTest {
         val conn = StubMeshtasticConnection(initialLinkState = LinkState.UP)
         val dispatched = newDispatchedList()

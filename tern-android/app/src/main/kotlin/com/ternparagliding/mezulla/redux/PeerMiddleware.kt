@@ -78,12 +78,25 @@ class PeerMiddleware(
 
     private fun handle(event: MeshEvent) {
         val now = Instant.now(clock)
-        // Drop events about (a) the board's own node — you aren't your own buddy,
-        // and a board never hears its own NodeInfo over the air, so it would sit
-        // in the roster as a nameless "!hex" entry — and (b) any node already
-        // confirmed to be a non-Mezulla public-mesh node.
         val node = event.senderNodeNumber()
-        if (node != null && (node == connection.selfNodeNumber || node in knownNonMezulla)) return
+        // Always drop the board's own node — you aren't your own buddy, and a
+        // board never hears its own NodeInfo over the air, so it would sit in the
+        // roster as a nameless "!hex" entry.
+        if (node != null && node == connection.selfNodeNumber) return
+        // Drop events from nodes confirmed non-Mezulla (public mesh) — EXCEPT a
+        // fresh NodeInfo that now advertises PRIVATE_HW, which RE-ADMITS the node.
+        // Eviction must NOT be a one-way door: a Mezulla board reflashed from
+        // stock firmware changes its advertised hw_model from its real model
+        // (e.g. HELTEC_V3) to PRIVATE_HW, and a buddy that cached the pre-reflash
+        // NodeInfo would otherwise block it forever — silently killing the core
+        // "flash a stock board into a Mezulla" path. Only PeerIdentityKnown
+        // carries hw_model, so only it can re-admit.
+        if (node != null && node in knownNonMezulla) {
+            val readmits = event is MeshEvent.PeerIdentityKnown &&
+                event.peer.hwModel == MeshPacketCodec.HW_MODEL_PRIVATE
+            if (!readmits) return
+            knownNonMezulla.remove(node)
+        }
         when (event) {
             is MeshEvent.PeerIdentityKnown -> {
                 val hw = event.peer.hwModel
