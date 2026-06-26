@@ -413,14 +413,49 @@ The climb-tinted `FlightTrack` breadcrumb renders the recent path. *(K7,
 on-device verified.)*
 
 **5.2 — Record the flight + export — ⬜ todo.** The actual recorder, distinct
-from the display breadcrumb:
-- **Full-fidelity recorder.** `FlightTrack` is a trailing 2000-pt ring buffer
-  ("the lift around me *now*", capped ~10 km) — it deliberately drops history, so
-  it is **not** a log. Add a persistent recorder that captures **every** fix for
-  the whole flight with `source` / `uncertainty` / `quality` (per
-  [../design/flight-state.md](../design/flight-state.md) — faithful replay, see
-  which sensor was live), written to disk incrementally so a crash/kill mid-flight
-  doesn't lose the flight.
+from the display breadcrumb.
+- **Architecture — recorder is the source of truth; the ring buffer is a view.**
+  `FlightTrack` stays as-is for the live thermal-map (a decimated, bounded ~10 km
+  display projection). The recorder is a **sibling off the same fused-fix stream,
+  not chained to the buffer's eviction.** This matters: the ring buffer keeps a
+  point only if it's ≥5 m from the last, so feeding the log from what it *discards*
+  would inherit that spatial decimation and throw away exactly the slow-moving
+  fixes that show a thermal climb — and IGC / XContest / Spedmo want time-based
+  ~1 Hz fixes, not spatial thinning. So: tap the **raw** stream, keep **every**
+  fix, write to disk **incrementally** (a crash/kill mid-flight must not lose the
+  flight). (The "nothing is lost when the buffer discards" goal is met by the raw
+  tap; if we ever truly want offload-on-evict instead, the buffer would have to
+  stop decimating, which defeats its rendering purpose.)
+- **Per-fix fidelity.** Capture time, lat/lon, **baro + GNSS altitude**, ground
+  speed, heading/track, fused vario, and `source` / `uncertainty` / `quality`
+  (per [../design/flight-state.md](../design/flight-state.md) — faithful replay,
+  see which sensor was live). Today `FlightTrack` keeps only time/lat/lon/climb.
+- **Flight memory (Tern-native sidecar) — more than my own track.** Alongside the
+  IGC-exportable own-track, record the **context that made the flight**: buddy
+  (peer) positions over time, cylinder tags / task progress, the live wind
+  estimate, airspace proximity events. Enables **post-flight gaggle replay**,
+  incident reconstruction, and real-world **swarm-sim fixtures** — this is the
+  overlay-audit "log peers in flight recording" follow-up, now homed here. IGC
+  stays single-pilot (what goes to Spedmo); the sidecar is for in-app replay only.
+  (Privacy: buddy fixes live only in the *local* memory file — only your own track
+  is ever uploaded.)
+- **Black-box / dashcam integrity (the incident case).** Treat the memory file
+  like a car dash-cam used for an insurance/SAR claim: it must be credible *after*
+  a bad event, so —
+  - **Crash-survivable:** incremental flushed writes (covered above) so the record
+    is intact right up to the last fix even if the phone dies on impact; the file
+    is recoverable/openable even when never cleanly finalised.
+  - **Seal on abnormal end, not just on landing:** an SOS fired (Epic 01 1.4), an
+    impact-like deceleration, or a sustained rapid descent should **bookmark** the
+    moment and ensure the segment is flushed + sealed — the evidence must capture
+    the event itself, not stop short of it.
+  - **Tamper-evident:** chain-hash the fix records + sign the sealed file (same
+    spirit as the IGC G-record) so post-hoc edits are detectable. **Honest about
+    strength:** a self-signed phone log is *corroborating* evidence (like a
+    dashcam), **not** third-party-certified — we won't claim legal certification.
+  - **Retention:** incident-sealed flights are never auto-purged; the logbook (5.3)
+    can mark a flight "protected." Ties to Epic 01 1.4 (SOS) + Epic 03 3.7 (SOS
+    forwarding) — the record corroborates the alert.
 - **Start/stop.** Start recording on launch (5.1's airborne latch); **finalise on
   landing.** Landing detection is new — `FlightDetector` never detects it (a
   mid-flight flicker to "grounded" would be worse than leaving follow on). Use the
@@ -432,7 +467,8 @@ from the display breadcrumb:
   FAI-approved). Plus one portable format (GPX or KML) and optionally CSV.
 - **Backed by a claim-driven test:** replay a known IGC through the recorder →
   write IGC → re-parse → assert the round-trip preserves the track within
-  tolerance (and that gaps are honest, the same rule `FlightTrack`/`IgcToXctrc` use).
+  tolerance (and that gaps are honest, the same rule `FlightTrack`/`IgcToXctrc`
+  use); and that a multi-pilot replay captures each buddy in the sidecar.
 
 **5.3 — Local flight logbook — ⬜ todo.** A persistent on-device list of recorded
 flights, offline-first.
@@ -698,8 +734,9 @@ files though the view-mode enum is gone — tidy when convenient.
   doesn't TX it) — also tracked under Epic 01 1.1.
 - Peer-state reset at scenario start (stale identity-only peers linger in tests —
   cosmetic).
-- Peer positions logged during flight recording (post-flight analysis + real
-  swarm-sim fixtures).
+- ~~Peer positions logged during flight recording~~ — **now homed in Epic 05 5.2**
+  (the "flight memory" sidecar: post-flight gaggle replay + incident
+  reconstruction + swarm-sim fixtures).
 
 ---
 
