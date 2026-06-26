@@ -10,7 +10,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.asImageBitmap
 import com.ternparagliding.mezulla.redux.KnownPeer
-import com.ternparagliding.redux.MezullaViewMode
 import org.maplibre.compose.expressions.ast.Expression
 import org.maplibre.compose.expressions.dsl.case
 import org.maplibre.compose.expressions.dsl.const
@@ -37,7 +36,8 @@ private const val ZOOM_FULL = 11.0
  * Renders each known peer as a full pilot HUD on the map: a staleness-
  * coloured puck (person glyph) with a track arrow on its rim, the buddy's
  * relative altitude and distance from the pilot in side pills, callsign on
- * top, and a view-mode metric (or STALE/LOST status) on the bottom.
+ * top, and climb (+ ground speed when uncluttered), or STALE/LOST status, on
+ * the bottom. Crowded screens declutter per [DeclutterLevel].
  *
  * Pattern follows the canonical maplibre-compose example: ONE GeoJSON
  * source with all peer features, ONE SymbolLayer whose `iconImage` is
@@ -56,7 +56,6 @@ private const val ZOOM_FULL = 11.0
 @MaplibreComposable
 fun PeerLayer(
     peers: Map<Long, KnownPeer>,
-    viewMode: MezullaViewMode,
     lastEventTime: Instant,
     ownLocation: GeoPoint? = null,
     nerdFont: Typeface? = null,
@@ -67,8 +66,8 @@ fun PeerLayer(
     // (~8/s in replay), and re-keying here would rebuild every peer bitmap that often and starve
     // the UI thread. The bundle (and its relative alt/distance) instead refreshes on peer events
     // (throttled upstream) using whatever ownLocation is current then — at most a few hundred ms stale.
-    val bundle = remember(peers, viewMode, lastEventTime, altitudeUnit) {
-        buildPeerBundle(peers, viewMode, lastEventTime, ownLocation, altitudeUnit)
+    val bundle = remember(peers, lastEventTime, altitudeUnit) {
+        buildPeerBundle(peers, lastEventTime, ownLocation, altitudeUnit)
     }
 
     if (bundle.specs.isEmpty()) return

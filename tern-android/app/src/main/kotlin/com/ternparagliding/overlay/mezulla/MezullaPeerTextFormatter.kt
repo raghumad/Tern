@@ -3,9 +3,9 @@ package com.ternparagliding.overlay.mezulla
 import com.ternparagliding.mezulla.connection.PeerPosition
 import com.ternparagliding.mezulla.redux.KnownPeer
 import com.ternparagliding.overlay.priority.Position
-import com.ternparagliding.redux.MezullaViewMode
 import java.time.Duration
 import java.time.Instant
+import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.roundToInt
@@ -83,24 +83,21 @@ object MezullaPeerTextFormatter {
     fun detailLine(
         peer: KnownPeer,
         fix: PeerPosition.Fix,
-        viewMode: MezullaViewMode,
         staleness: StalenessLevel,
         pilotPosition: Position?,
         now: Instant,
     ): String {
         if (staleness == StalenessLevel.LOST) return "lost contact"
         val warning = if (staleness == StalenessLevel.STALE) " ${MezullaIcons.WARNING}" else ""
-        return formatSecondLine(peer, fix, viewMode, pilotPosition, now) + warning
+        return formatSecondLine(peer, fix, pilotPosition, now) + warning
     }
 
     /**
-     * The full display text for a peer marker (callsign + second line),
-     * formatted for the active view mode and staleness.
+     * The full display text for a peer marker (callsign + second line).
      */
     fun displayText(
         peer: KnownPeer,
         fix: PeerPosition.Fix,
-        viewMode: MezullaViewMode,
         staleness: StalenessLevel,
         pilotPosition: Position?,
         now: Instant,
@@ -109,53 +106,35 @@ object MezullaPeerTextFormatter {
         val secondLine = if (staleness == StalenessLevel.LOST) {
             "lost contact"
         } else {
-            formatSecondLine(peer, fix, viewMode, pilotPosition, now)
+            formatSecondLine(peer, fix, pilotPosition, now)
         }
         val warning = if (staleness == StalenessLevel.STALE) " ⚠" else ""
         return "$name\n$secondLine$warning"
     }
 
     /**
-     * Format just the second line (below the callsign) for the given
-     * view mode. Exposed for testing independently of [displayText].
+     * The single always-on detail line below a buddy's callsign — no modes. Packs
+     * the relevant reads in one line for the roster: altitude, climb, distance +
+     * bearing (when we know where we are), and ground speed. Missing fields are
+     * simply omitted rather than shown as "---", so the line stays clean.
      */
     fun formatSecondLine(
         peer: KnownPeer,
         fix: PeerPosition.Fix,
-        viewMode: MezullaViewMode,
         pilotPosition: Position?,
         now: Instant,
-    ): String = when (viewMode) {
-        MezullaViewMode.SAFETY -> {
-            val altStr = fix.altitudeMeters?.let { "${it}m" } ?: "---"
-            val ageSeconds = Duration.between(peer.lastSeenAt, now).seconds
-            "$altStr · ${ageSeconds}s ago"
+    ): String {
+        val parts = mutableListOf<String>()
+        fix.altitudeMeters?.let { parts += "${it}m" }
+        peer.climbRateMs?.let { parts += "${if (it >= 0) "▲" else "▼"}${String.format("%.1f", abs(it))} m/s" }
+        if (pilotPosition != null) {
+            val peerPos = Position(fix.latitudeDeg, fix.longitudeDeg)
+            val distanceKm = pilotPosition.distanceKm(peerPos)
+            val cardinal = degreesToCardinal(computeBearing(pilotPosition, peerPos))
+            parts += "${String.format("%.1f", distanceKm)}km $cardinal"
         }
-
-        MezullaViewMode.CLIMB -> {
-            val climbStr = peer.climbRateMs?.let {
-                val sign = if (it >= 0) "+" else ""
-                "$sign${String.format("%.1f", it)} m/s"
-            } ?: "--- m/s"
-            val altStr = fix.altitudeMeters?.let { "${it}m" } ?: "---"
-            "$climbStr · $altStr"
-        }
-
-        MezullaViewMode.TACTICAL -> {
-            if (pilotPosition == null) {
-                "--- · ---"
-            } else {
-                val peerPos = Position(fix.latitudeDeg, fix.longitudeDeg)
-                val distanceKm = pilotPosition.distanceKm(peerPos)
-                val bearing = computeBearing(pilotPosition, peerPos)
-                val bearingCardinal = degreesToCardinal(bearing)
-                val speedKmh = fix.groundSpeedMetersPerSecond?.let {
-                    (it * 3.6).roundToInt()
-                }
-                val speedStr = speedKmh?.let { "$it km/h" } ?: "---"
-                "${String.format("%.1f", distanceKm)}km $bearingCardinal · $speedStr"
-            }
-        }
+        fix.groundSpeedMetersPerSecond?.let { parts += "${(it * 3.6).roundToInt()} km/h" }
+        return if (parts.isEmpty()) "no data" else parts.joinToString(" · ")
     }
 
     // -- Geometry helpers (pure math, no Android dependency) -----------------

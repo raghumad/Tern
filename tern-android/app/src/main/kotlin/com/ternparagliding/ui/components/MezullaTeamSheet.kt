@@ -1,7 +1,6 @@
 package com.ternparagliding.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,7 +11,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -32,9 +30,7 @@ import com.ternparagliding.mezulla.redux.KnownPeer
 import com.ternparagliding.overlay.mezulla.MezullaPeerTextFormatter
 import com.ternparagliding.overlay.mezulla.MezullaPeerTextFormatter.StalenessLevel
 import com.ternparagliding.overlay.priority.Position
-import com.ternparagliding.redux.MapAction
 import com.ternparagliding.redux.MapStore
-import com.ternparagliding.redux.MezullaViewMode
 import java.time.Instant
 
 /**
@@ -54,7 +50,6 @@ fun MezullaTeamSheet(
 ) {
     val state by store.state.collectAsState()
     val peerState = state.peerState
-    val viewMode = state.mezullaViewMode
     // A ticking wall clock so "Xs ago" actually advances between updates and resets
     // when a fresh position arrives. peerState.lastEventTime CANNOT drive this: the
     // freshest event is the active buddy's own position, so its lastSeenAt always
@@ -94,14 +89,6 @@ fun MezullaTeamSheet(
                 LinkStatusText(peerState.linkState, peers.size)
             }
 
-            Spacer(Modifier.height(14.dp))
-
-            // View-mode selector — what every roster row (and every on-map puck) is read by.
-            ViewModeSelector(
-                selected = viewMode,
-                onSelect = { store.dispatch(MapAction.SetMezullaViewMode(it)) },
-            )
-
             Spacer(Modifier.height(16.dp))
 
             if (peers.isEmpty()) {
@@ -112,7 +99,7 @@ fun MezullaTeamSheet(
                 )
             } else {
                 peers.forEach { peer ->
-                    PeerRosterRow(peer, viewMode, pilotPos, now)
+                    PeerRosterRow(peer, pilotPos, now)
                     Spacer(Modifier.height(4.dp))
                 }
             }
@@ -130,56 +117,10 @@ private fun LinkStatusText(linkState: LinkState, peerCount: Int) {
     Text(text, color = color, fontSize = 13.sp)
 }
 
-/** Three-segment toggle for the peer read mode — a glove-friendly custom row (no tiny radios). */
-@Composable
-private fun ViewModeSelector(
-    selected: MezullaViewMode,
-    onSelect: (MezullaViewMode) -> Unit,
-) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .height(44.dp)
-            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(10.dp))
-            .padding(3.dp),
-        horizontalArrangement = Arrangement.spacedBy(3.dp),
-    ) {
-        MezullaViewMode.entries.forEach { mode ->
-            val isSel = mode == selected
-            Box(
-                Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .height(38.dp)
-                    .background(
-                        if (isSel) MaterialTheme.colorScheme.primary else Color.Transparent,
-                        RoundedCornerShape(8.dp),
-                    )
-                    .clickable { onSelect(mode) },
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = modeLabel(mode),
-                    color = if (isSel) MaterialTheme.colorScheme.onPrimary
-                    else MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
-                    fontSize = 13.sp,
-                )
-            }
-        }
-    }
-}
-
-private fun modeLabel(mode: MezullaViewMode): String = when (mode) {
-    MezullaViewMode.SAFETY -> "Safety"
-    MezullaViewMode.CLIMB -> "Climb"
-    MezullaViewMode.TACTICAL -> "Tactical"
-}
 
 @Composable
 private fun PeerRosterRow(
     peer: KnownPeer,
-    viewMode: MezullaViewMode,
     pilotPos: Position?,
     now: Instant,
 ) {
@@ -187,7 +128,7 @@ private fun PeerRosterRow(
     val dotColor = Color(android.graphics.Color.parseColor(MezullaPeerTextFormatter.colorHexForStaleness(staleness)))
     val callsign = MezullaPeerTextFormatter.callsign(peer)
     val detail = peer.lastPosition?.let { fix ->
-        MezullaPeerTextFormatter.detailLine(peer, fix, viewMode, staleness, pilotPos, now)
+        MezullaPeerTextFormatter.detailLine(peer, fix, staleness, pilotPos, now)
     } ?: "no position"
 
     Row(

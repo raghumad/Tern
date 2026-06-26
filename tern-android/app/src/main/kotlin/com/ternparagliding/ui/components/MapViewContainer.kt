@@ -842,7 +842,6 @@ fun MapViewContainer(
             }
             com.ternparagliding.overlay.mezulla.PeerLayer(
                 peers = state.peerState.peers,
-                viewMode = state.mezullaViewMode,
                 lastEventTime = state.peerState.lastEventTime,
                 ownLocation = state.userLocation,
                 nerdFont = nerdFont,

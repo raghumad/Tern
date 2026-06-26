@@ -164,14 +164,6 @@ fun mapReducer(state: MapState, action: MapAction): MapState = when (action) {
     // Zoom to Task (Signalling action for Middleware)
     is MapAction.ZoomToTask -> state
 
-    // Mezulla view mode
-    is MapAction.CycleMezullaViewMode -> state.copy(
-        mezullaViewMode = state.mezullaViewMode.next()
-    )
-    is MapAction.SetMezullaViewMode -> state.copy(
-        mezullaViewMode = action.mode
-    )
-
     // SOS dismiss
     is MapAction.DismissSosAlert -> state.copy(
         dismissedSosAlerts = state.dismissedSosAlerts + action.senderNodeNumber

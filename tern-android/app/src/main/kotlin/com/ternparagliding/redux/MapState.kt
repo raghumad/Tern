@@ -107,9 +107,6 @@ data class MapState(
     // no board has ever been paired.
     val peerState: PeerState = PeerState.empty(),
 
-    // Which view mode is active for peer markers on the map.
-    val mezullaViewMode: MezullaViewMode = MezullaViewMode.SAFETY,
-
     // SOS alerts the pilot has dismissed (by sender node number).
     // Separate from PeerState.activeAlerts.acknowledgedAt because
     // "acknowledged" is a protocol concept (I saw it) while "dismissed"
@@ -211,26 +208,6 @@ data class WaypointSelection(
  * Redux state for overlay management
  */
 enum class OverlayType { AIRSPACE, PG_SPOTS, TASKS, MEZULLA, THERMAL_HOTSPOTS }
-
-/**
- * View mode for Mezulla peer markers. Each mode shows different
- * information on the second line below the callsign.
- *
- * SAFETY (default): altitude and staleness ("1820m . 12s ago")
- * CLIMB: climb rate and relative altitude ("+1.2 m/s . +340m")
- * TACTICAL: distance, bearing, and speed ("2.4 km NW . 38 km/h")
- */
-enum class MezullaViewMode {
-    SAFETY,
-    CLIMB,
-    TACTICAL;
-
-    fun next(): MezullaViewMode = when (this) {
-        SAFETY -> CLIMB
-        CLIMB -> TACTICAL
-        TACTICAL -> SAFETY
-    }
-}
 
 data class OverlayConfig(
     val enabled: Boolean = false,

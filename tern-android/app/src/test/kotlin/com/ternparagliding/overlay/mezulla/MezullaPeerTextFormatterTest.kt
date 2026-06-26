@@ -6,14 +6,13 @@ import com.ternparagliding.mezulla.connection.PeerPosition
 import com.ternparagliding.mezulla.redux.KnownPeer
 import com.ternparagliding.overlay.mezulla.MezullaPeerTextFormatter.StalenessLevel
 import com.ternparagliding.overlay.priority.Position
-import com.ternparagliding.redux.MezullaViewMode
 import org.junit.jupiter.api.Test
 import java.time.Instant
 
 /**
- * Tests for [MezullaPeerTextFormatter]. Covers staleness thresholds,
- * view-mode text generation for all three modes, and edge cases
- * (missing altitude, missing speed, lost contact, nameless peer).
+ * Tests for [MezullaPeerTextFormatter]. Covers staleness thresholds and the
+ * single always-on detail line (no view modes), plus edge cases (missing
+ * altitude, missing speed, lost contact, nameless peer).
  *
  * Pure logic tests — no Android, no MapLibre.
  */
@@ -138,194 +137,90 @@ class MezullaPeerTextFormatterTest {
             .isEqualTo("#9E9E9E")
     }
 
-    // ── SAFETY view mode ─────────────────────────────────────────────
+    // ── Always-on detail line (no view modes) ────────────────────────
 
     @Test
-    fun `safety view shows altitude and age`() {
-        val peer = KnownPeer(
-            identity = antoine,
-            lastPosition = sampleFix,
-            lastSeenAt = now.minusSeconds(12),
-        )
-        val text = MezullaPeerTextFormatter.formatSecondLine(
-            peer, sampleFix, MezullaViewMode.SAFETY, null, now,
-        )
-        assertThat(text).isEqualTo("2400m · 12s ago")
-    }
-
-    @Test
-    fun `safety view shows dashes when altitude is null`() {
-        val noAlt = sampleFix.copy(altitudeMeters = null)
-        val peer = KnownPeer(
-            identity = antoine,
-            lastPosition = noAlt,
-            lastSeenAt = now.minusSeconds(5),
-        )
-        val text = MezullaPeerTextFormatter.formatSecondLine(
-            peer, noAlt, MezullaViewMode.SAFETY, null, now,
-        )
-        assertThat(text).isEqualTo("--- · 5s ago")
-    }
-
-    @Test
-    fun `safety display text includes callsign on first line`() {
-        val peer = KnownPeer(
-            identity = antoine,
-            lastPosition = sampleFix,
-            lastSeenAt = now.minusSeconds(12),
-        )
-        val text = MezullaPeerTextFormatter.displayText(
-            peer, sampleFix, MezullaViewMode.SAFETY, StalenessLevel.FRESH, null, now,
-        )
-        assertThat(text).startsWith("Antoine\n")
-        assertThat(text).contains("2400m")
-        assertThat(text).contains("12s ago")
-    }
-
-    // ── CLIMB view mode ──────────────────────────────────────────────
-
-    @Test
-    fun `climb view shows positive climb rate`() {
+    fun `detail line packs altitude climb distance and speed`() {
+        val pilotPos = Position(45.9, 6.1)
         val peer = KnownPeer(
             identity = antoine,
             lastPosition = sampleFix,
             lastSeenAt = now.minusSeconds(5),
             climbRateMs = 1.8,
         )
-        val text = MezullaPeerTextFormatter.formatSecondLine(
-            peer, sampleFix, MezullaViewMode.CLIMB, null, now,
-        )
-        assertThat(text).isEqualTo("+1.8 m/s · 2400m")
+        val text = MezullaPeerTextFormatter.formatSecondLine(peer, sampleFix, pilotPos, now)
+        assertThat(text).contains("2400m")
+        assertThat(text).contains("▲1.8 m/s")
+        assertThat(text).contains("km ")   // distance + bearing
+        assertThat(text).contains("km/h")  // ground speed
     }
 
     @Test
-    fun `climb view shows negative climb rate`() {
+    fun `detail line shows negative climb with a down arrow`() {
         val peer = KnownPeer(
             identity = antoine,
             lastPosition = sampleFix,
             lastSeenAt = now.minusSeconds(5),
             climbRateMs = -2.3,
         )
-        val text = MezullaPeerTextFormatter.formatSecondLine(
-            peer, sampleFix, MezullaViewMode.CLIMB, null, now,
-        )
-        assertThat(text).isEqualTo("-2.3 m/s · 2400m")
+        val text = MezullaPeerTextFormatter.formatSecondLine(peer, sampleFix, null, now)
+        assertThat(text).contains("▼2.3 m/s")
     }
 
     @Test
-    fun `climb view shows dashes when no climb rate`() {
-        val peer = KnownPeer(
-            identity = antoine,
-            lastPosition = sampleFix,
-            lastSeenAt = now.minusSeconds(5),
-            climbRateMs = null,
-        )
-        val text = MezullaPeerTextFormatter.formatSecondLine(
-            peer, sampleFix, MezullaViewMode.CLIMB, null, now,
-        )
-        assertThat(text).isEqualTo("--- m/s · 2400m")
-    }
-
-    // ── TACTICAL view mode ───────────────────────────────────────────
-
-    @Test
-    fun `tactical view shows distance bearing and speed`() {
-        val pilotPos = Position(45.9, 6.1)
-        val peer = KnownPeer(
-            identity = antoine,
-            lastPosition = sampleFix,
-            lastSeenAt = now.minusSeconds(5),
-        )
-        val text = MezullaPeerTextFormatter.formatSecondLine(
-            peer, sampleFix, MezullaViewMode.TACTICAL, pilotPos, now,
-        )
-        assertThat(text).contains("km")
-        assertThat(text).contains("km/h")
+    fun `detail line omits distance when pilot position is unknown`() {
+        val peer = KnownPeer(identity = antoine, lastPosition = sampleFix, lastSeenAt = now.minusSeconds(5))
+        // No climb, no pilot pos → altitude + ground speed only.
+        val text = MezullaPeerTextFormatter.formatSecondLine(peer, sampleFix, null, now)
+        assertThat(text).isEqualTo("2400m · 34 km/h")
     }
 
     @Test
-    fun `tactical view shows dashes when no pilot position`() {
-        val peer = KnownPeer(
-            identity = antoine,
-            lastPosition = sampleFix,
-            lastSeenAt = now.minusSeconds(5),
-        )
-        val text = MezullaPeerTextFormatter.formatSecondLine(
-            peer, sampleFix, MezullaViewMode.TACTICAL, null, now,
-        )
-        assertThat(text).isEqualTo("--- · ---")
+    fun `detail line omits altitude when unknown`() {
+        val noAlt = sampleFix.copy(altitudeMeters = null)
+        val peer = KnownPeer(identity = antoine, lastPosition = noAlt, lastSeenAt = now.minusSeconds(5))
+        val text = MezullaPeerTextFormatter.formatSecondLine(peer, noAlt, null, now)
+        assertThat(text).isEqualTo("34 km/h")
     }
 
     @Test
-    fun `tactical view shows dashes for speed when ground speed is null`() {
+    fun `detail line omits speed when ground speed is unknown`() {
         val noSpeed = sampleFix.copy(groundSpeedMetersPerSecond = null)
-        val pilotPos = Position(45.9, 6.1)
-        val peer = KnownPeer(
-            identity = antoine,
-            lastPosition = noSpeed,
-            lastSeenAt = now.minusSeconds(5),
-        )
-        val text = MezullaPeerTextFormatter.formatSecondLine(
-            peer, noSpeed, MezullaViewMode.TACTICAL, pilotPos, now,
-        )
-        assertThat(text).contains("---")
+        val peer = KnownPeer(identity = antoine, lastPosition = noSpeed, lastSeenAt = now.minusSeconds(5))
+        val text = MezullaPeerTextFormatter.formatSecondLine(peer, noSpeed, null, now)
+        assertThat(text).isEqualTo("2400m")
+    }
+
+    @Test
+    fun `display text includes callsign on first line`() {
+        val peer = KnownPeer(identity = antoine, lastPosition = sampleFix, lastSeenAt = now.minusSeconds(12))
+        val text = MezullaPeerTextFormatter.displayText(peer, sampleFix, StalenessLevel.FRESH, null, now)
+        assertThat(text).startsWith("Antoine\n")
+        assertThat(text).contains("2400m")
     }
 
     // ── Lost contact override ────────────────────────────────────────
 
     @Test
     fun `lost peer display text shows lost contact`() {
-        val peer = KnownPeer(
-            identity = antoine,
-            lastPosition = sampleFix,
-            lastSeenAt = now.minusSeconds(600),
-        )
-        val text = MezullaPeerTextFormatter.displayText(
-            peer, sampleFix, MezullaViewMode.SAFETY, StalenessLevel.LOST, null, now,
-        )
+        val peer = KnownPeer(identity = antoine, lastPosition = sampleFix, lastSeenAt = now.minusSeconds(600))
+        val text = MezullaPeerTextFormatter.displayText(peer, sampleFix, StalenessLevel.LOST, null, now)
         assertThat(text).isEqualTo("Antoine\nlost contact")
-    }
-
-    @Test
-    fun `lost peer shows lost contact regardless of view mode`() {
-        val peer = KnownPeer(
-            identity = antoine,
-            lastPosition = sampleFix,
-            lastSeenAt = now.minusSeconds(600),
-        )
-        for (mode in MezullaViewMode.entries) {
-            val text = MezullaPeerTextFormatter.displayText(
-                peer, sampleFix, mode, StalenessLevel.LOST, null, now,
-            )
-            assertThat(text).contains("lost contact")
-        }
     }
 
     // ── Stale peer gets warning marker ───────────────────────────────
 
     @Test
     fun `stale peer display text has warning indicator`() {
-        val peer = KnownPeer(
-            identity = antoine,
-            lastPosition = sampleFix,
-            lastSeenAt = now.minusSeconds(200),
-        )
-        val text = MezullaPeerTextFormatter.displayText(
-            peer, sampleFix, MezullaViewMode.SAFETY, StalenessLevel.STALE, null, now,
-        )
+        val peer = KnownPeer(identity = antoine, lastPosition = sampleFix, lastSeenAt = now.minusSeconds(200))
+        val text = MezullaPeerTextFormatter.displayText(peer, sampleFix, StalenessLevel.STALE, null, now)
         assertThat(text).endsWith("⚠")
     }
 
     @Test
     fun `fresh peer display text has no warning indicator`() {
-        val peer = KnownPeer(
-            identity = antoine,
-            lastPosition = sampleFix,
-            lastSeenAt = now.minusSeconds(5),
-        )
-        val text = MezullaPeerTextFormatter.displayText(
-            peer, sampleFix, MezullaViewMode.SAFETY, StalenessLevel.FRESH, null, now,
-        )
+        val peer = KnownPeer(identity = antoine, lastPosition = sampleFix, lastSeenAt = now.minusSeconds(5))
+        val text = MezullaPeerTextFormatter.displayText(peer, sampleFix, StalenessLevel.FRESH, null, now)
         assertThat(text).doesNotContain("⚠")
     }
 

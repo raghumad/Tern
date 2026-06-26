@@ -218,10 +218,6 @@ sealed class MapAction : TernAction {
     object ToggleTaskPanelExpanded : MapAction()
     data class SetTaskPanelExpanded(val expanded: Boolean) : MapAction()
 
-    // Mezulla view mode
-    object CycleMezullaViewMode : MapAction()
-    data class SetMezullaViewMode(val mode: MezullaViewMode) : MapAction()
-
     // SOS dismiss (UI concept, not protocol)
     data class DismissSosAlert(val senderNodeNumber: Long) : MapAction()
 
