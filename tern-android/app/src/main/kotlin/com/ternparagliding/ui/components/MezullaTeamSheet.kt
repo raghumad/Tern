@@ -20,6 +20,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -54,7 +55,17 @@ fun MezullaTeamSheet(
     val state by store.state.collectAsState()
     val peerState = state.peerState
     val viewMode = state.mezullaViewMode
-    val now = peerState.lastEventTime
+    // A ticking wall clock so "Xs ago" actually advances between updates and resets
+    // when a fresh position arrives. peerState.lastEventTime CANNOT drive this: the
+    // freshest event is the active buddy's own position, so its lastSeenAt always
+    // equals lastEventTime → the age cancels to a permanent "0s ago" (looks frozen/
+    // hardcoded). Wall time also lets a buddy that goes quiet visibly age out.
+    val now by produceState(initialValue = Instant.now()) {
+        while (true) {
+            value = Instant.now()
+            kotlinx.coroutines.delay(1000)
+        }
+    }
     val pilotPos = state.userLocation?.let { Position(it.latitude, it.longitude) }
 
     // Nearest-first when we know where we are; otherwise freshest-first. Distance is what a pilot
