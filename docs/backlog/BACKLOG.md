@@ -44,7 +44,7 @@ The scrub surface — skim this, drill into the section for detail.
 | **02 — Traffic awareness** | later | ⬜ | FANET/FLARM/ADS-L. **Gate (Epic 01 MVP) now satisfied** |
 | **03 — Spedmo social layer** | later | 🟡 | Offline Flyability fallback ✅; cloud/social ⬜. **Now unblocked** |
 | **04 — First-time onboarding** | soon | 🟡 | 7-step brochure. Region-from-GPS + release build started |
-| **05 — Flight recording, logbook & export** | now | 🟡 | Launch→deck ✅; record/logbook/IGC export/Spedmo upload ⬜ |
+| **05 — Flight recording, logbook & export** | now | 🟡 | Launch→deck ✅; recorder+IGC+crash-survival+signing built & wired (logbook UI / Spedmo / hw-signing ⬜) |
 | **Tasks & waypoints** | now | ✅ | Task surface is pilot-grade; small polish items remain |
 | **Firmware workstreams** | mixed | 🟡 | Stage 1/2 ✅; upstream cleanup + traffic firmware ⬜ |
 | **Infrastructure & quality** | soon | 🟡 | Reactive overlays ✅ (soak gate ⬜); S5 one-liner ⬜ |
@@ -56,7 +56,7 @@ The scrub surface — skim this, drill into the section for detail.
 **Epic 02:** 2.1–2.4 app (CPA/render/audio) ⬜ · 2.5–2.9 upstream broadcast ⬜ · 2.10–2.13 fork gap-scan ⬜
 **Epic 03:** 3.1 OAuth ⬜ · 3.2 enrichment ⬜ · 3.3 who's-flying ⬜ · 3.4 cell-relayed peers ⬜ · 3.5 auto-IGC ⬜ · 3.6 landed-safe ⬜ · 3.7 SOS-forward ⬜ · 3.8 reports ⬜ · 3.9 clubs→buddies ⬜ · 3.10 soarable (offline ✅ / source ⬜)
 **Epic 04:** 4.1 pre-flashed ⬜ · 4.2 region-from-GPS 🟡 · 4.3 Play Store 🟡 · 4.4 pairing robustness 🟡 · 4.5 no-PIN popup ⬜ · 4.6 concurrent pair ⬜ · 4.7 OTA ⬜ · 4.8 status-at-a-glance 🟡
-**Epic 05:** 5.1 launch→deck ✅ · 5.2 recorder + IGC export ⬜ · 5.3 local logbook ⬜ · 5.4 Spedmo upload ⬜ (→ 03 3.5/3.6) · 5.5 deck instrument hardening 🟡
+**Epic 05:** 5.1 launch→deck ✅ · 5.2 recorder + IGC export 🟡 (core+wiring built & tested; hw-signing + device-verify ⬜) · 5.3 local logbook 🟡 (store+stats done; UI ⬜) · 5.4 Spedmo upload ⬜ (→ 03 3.5/3.6) · 5.5 deck instrument hardening 🟡
 
 ---
 
@@ -412,8 +412,21 @@ datum, 3-fix confirm, latched for the session) drives phase-aware camera-follow
 The climb-tinted `FlightTrack` breadcrumb renders the recent path. *(K7,
 on-device verified.)*
 
-**5.2 — Record the flight + export — ⬜ todo.** The actual recorder, distinct
-from the display breadcrumb.
+**5.2 — Record the flight + export — 🟡 core built, wired, JVM-tested (2026-06).**
+*Built + claim-tested (16 tests):* `flight/recording/` — `FlightRecorder` (full-
+fidelity, raw-tap), `RecordingModel` (own track + buddy + event sidecar),
+`LandingDetector`, `AbnormalEndDetector`, `FlightSummary`, `FlightStore` (crash-
+survivable append-only `.live.jsonl` + sealed `.flight.json` + `recoverOrphans`),
+`FlightSigner`/`DigestFlightSigner` (tamper-evidence over canonical bytes);
+`flight/export/IgcWriter` (round-trips through `IgcParser`); `FlightRecording
+Coordinator` ties it together. **Wired into the app** via
+`redux/FlightRecordingMiddleware` (taps `UpdateVarioFix` + `PeerPositionReceived`,
+runs its own `FlightDetector`, ordered single-thread IO off the main thread).
+*Real-data finding:* a normal XC's spiral-to-land tripped the rapid-descent seal →
+changed to a **bookmark event** (recording continues; only landing/SOS/manual
+seal). *Remaining ⬜:* hardware-Keystore signer (digest is the shipped baseline) +
+server counter-sign (5.4); manual "end flight" control; **on-device verification**.
+Design detail below kept for reference.
 - **Architecture — recorder is the source of truth; the ring buffer is a view.**
   `FlightTrack` stays as-is for the live thermal-map (a decimated, bounded ~10 km
   display projection). The recorder is a **sibling off the same fused-fix stream,
@@ -487,8 +500,12 @@ from the display breadcrumb.
   tolerance (and that gaps are honest, the same rule `FlightTrack`/`IgcToXctrc`
   use); and that a multi-pilot replay captures each buddy in the sidecar.
 
-**5.3 — Local flight logbook — ⬜ todo.** A persistent on-device list of recorded
-flights, offline-first.
+**5.3 — Local flight logbook — 🟡 store + stats built; UI ⬜.** The persistent
+store (`FlightStore.listSummaries()`) and pure row stats (`FlightSummary`:
+duration, alt range, climb/sink, along-track + straight distance, endpoints,
+distinct buddy count) are built and tested. *Remaining ⬜ (on-device review):* the
+Compose logbook screen, on-map replay, rename/delete/export-share, Settings entry.
+A persistent on-device list of recorded flights, offline-first.
 - List rows with at-a-glance stats: date, launch site (resolve from PG-spot DB /
   geocoder), duration, free distance + XC-ish distance, max altitude, max climb,
   top of climb. Derive from the recorded track (reuse `FlightMetrics` /

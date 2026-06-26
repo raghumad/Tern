@@ -196,6 +196,7 @@ fun MapViewContainer(
         store.addMiddleware(com.ternparagliding.redux.TaskPlanningMiddleware(context.applicationContext))
         store.addMiddleware(com.ternparagliding.redux.WeatherMiddleware())
         store.addMiddleware(com.ternparagliding.redux.CountryPreloadMiddleware(context.applicationContext))
+        store.addMiddleware(com.ternparagliding.redux.FlightRecordingMiddleware(context.applicationContext))
     }
 
     // Persist tasks
