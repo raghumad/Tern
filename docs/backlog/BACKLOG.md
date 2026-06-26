@@ -449,10 +449,27 @@ from the display breadcrumb.
     impact-like deceleration, or a sustained rapid descent should **bookmark** the
     moment and ensure the segment is flushed + sealed — the evidence must capture
     the event itself, not stop short of it.
-  - **Tamper-evident:** chain-hash the fix records + sign the sealed file (same
-    spirit as the IGC G-record) so post-hoc edits are detectable. **Honest about
-    strength:** a self-signed phone log is *corroborating* evidence (like a
-    dashcam), **not** third-party-certified — we won't claim legal certification.
+  - **Tamper-evident — two tiers (both fit offline-first):**
+    - *On-device, offline (immediate):* sign the sealed file + chain-hash the fix
+      records with a **hardware-backed Android Keystore** key (StrongBox/TEE) —
+      generated on-device, **non-exportable**, so far stronger than any embedded
+      key. Attach **Key Attestation** (cert chain to Google's attestation root) to
+      prove the signature came from genuine secure hardware, not a software forgery.
+    - *Server-side (when online): the authoritative upgrade.* On upload, have the
+      Tern/Spedmo backend **counter-sign + RFC-3161 timestamp** the flight hash
+      with a *server-held* (HSM) key — a key the user never had, so the record
+      can't be forged or **back-dated**. This is the same "authority holds the key
+      server-side" pattern as Play App Signing.
+    - **Why not the Play app-signing key:** Google holds that private key in their
+      HSM; it never ships in the APK and isn't ours to use, and an embedded key
+      would be extractable from the APK (a secret shipped to every phone isn't a
+      secret). It's a *code*-signing identity, not a data-signing one.
+    - **Honest limit:** this proves "unmodified since signing" + "from this
+      hardware/authority" — **not** that the inputs were truthful (the owner
+      controls the phone and could feed spoofed GPS *before* signing). So:
+      dashcam-grade / corroborating, attested + server-timestamped — **not**
+      FAI-certified (that needs sealed tamper-resistant recorder hardware, which is
+      why a phone IGC G-record is "not validated").
   - **Retention:** incident-sealed flights are never auto-purged; the logbook (5.3)
     can mark a flight "protected." Ties to Epic 01 1.4 (SOS) + Epic 03 3.7 (SOS
     forwarding) — the record corroborates the alert.
