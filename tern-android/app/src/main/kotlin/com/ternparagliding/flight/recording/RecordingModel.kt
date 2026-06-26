@@ -32,11 +32,15 @@ data class FlightRecording(
 ) {
     val durationMs: Long get() = endTimeMs - startTimeMs
 
-    /** True once an incident sealed it (SOS / rapid descent / crash-recovered) — never auto-purge. */
+    /**
+     * True if this flight holds something worth keeping from auto-purge: an SOS or crash-recovery
+     * seal, or a bookmarked incident event (SOS fired / rapid descent). A rapid descent doesn't
+     * *seal* the flight (a spiral-to-land is normal), but if one was flagged the record is kept.
+     */
     val isProtected: Boolean
         get() = sealReason == SealReason.SOS ||
-            sealReason == SealReason.RAPID_DESCENT ||
-            sealReason == SealReason.CRASH_RECOVERED
+            sealReason == SealReason.CRASH_RECOVERED ||
+            events.any { it.type == FlightEventType.SOS_FIRED || it.type == FlightEventType.RAPID_DESCENT }
 }
 
 /**
@@ -95,7 +99,8 @@ enum class SealReason {
     MANUAL,
     /** SOS fired — sealed as evidence. */
     SOS,
-    /** Sustained abnormal descent detected — sealed as evidence. */
+    /** Reserved: an explicit incident seal. A sustained rapid descent is *bookmarked* as an event
+     *  (it keeps recording — a spiral-to-land is normal), so the coordinator does not seal with this. */
     RAPID_DESCENT,
     /** Recovered from an incremental file after a crash/kill (never cleanly finalised). */
     CRASH_RECOVERED,

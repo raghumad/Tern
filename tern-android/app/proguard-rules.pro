@@ -26,6 +26,9 @@
 # ---- Tern DTOs (de)serialized by Jackson — keep classes + members ----
 -keep class com.ternparagliding.model.** { *; }
 -keep class com.ternparagliding.device.RememberedDevice { *; }
+# Flight recordings (the black box): FlightRecording + nested DTOs + the live-log envelope are
+# (de)serialized by Jackson-by-name. Crash recovery reads these back, so keep names + members.
+-keep class com.ternparagliding.flight.recording.** { *; }
 -keep class com.ternparagliding.utils.cache.MapOverlayCacheUtils { *; }
 -keep class com.ternparagliding.utils.cache.MapOverlayCacheUtils$* { *; }
 
