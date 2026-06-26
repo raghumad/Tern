@@ -388,14 +388,14 @@ class MeshPacketCodecTest {
         assertThat(userHasField(user, fieldNumber = 5)).isFalse()
     }
 
-    /** Pull the User bytes out of an AdminMessage.set_owner (field 8). */
+    /** Pull the User bytes out of an AdminMessage.set_owner (field 32). */
     private fun extractSetOwnerUserBytes(adminBytes: ByteArray): ByteArray {
         val reader = ProtoReader(adminBytes)
         while (reader.hasMore()) {
             val tag = reader.readTag()
             val field = tag ushr 3
             val wire = tag and 0x7
-            if (field == 8 && wire == Proto.WIRE_LENGTH_DELIMITED) return reader.readLengthDelimited()
+            if (field == 32 && wire == Proto.WIRE_LENGTH_DELIMITED) return reader.readLengthDelimited()
             reader.skipField(wire)
         }
         error("AdminMessage.set_owner not found")

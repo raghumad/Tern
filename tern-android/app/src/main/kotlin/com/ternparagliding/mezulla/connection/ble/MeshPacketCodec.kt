@@ -52,7 +52,7 @@ internal object MeshPacketCodec {
 
     // AdminMessage field numbers — see meshtastic/admin.proto.
     private const val F_ADMIN_REBOOT_SECONDS = 97
-    private const val F_ADMIN_SET_OWNER = 8
+    private const val F_ADMIN_SET_OWNER = 32
     private const val F_ADMIN_SET_CHANNEL = 33
     private const val F_ADMIN_SET_CONFIG = 34
 
