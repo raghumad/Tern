@@ -4,7 +4,6 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.rule.GrantPermissionRule
 import com.google.common.truth.Truth.assertThat
 import com.ternparagliding.map.MapDriver
-import com.ternparagliding.model.SpotSource
 import com.ternparagliding.redux.MapAction
 import org.junit.After
 import org.junit.Before
@@ -43,15 +42,29 @@ class TaskMapClaimsTest {
     @After
     fun tearDown() = map.close()
 
-    /** #1 Create a waypoint: long-press the map → a waypoint exists where pressed,
-     *  auto-creating the USER spot it references. The exact pilot journey. */
+    /** #1 Long-press is inert: it must NOT drop a task/waypoint. Creation is explicit
+     *  now — "Create New Task" (task list) and the "Add from map" crosshair — because
+     *  auto-creating on every long-press was redundant with those and the source of
+     *  accidental stray tasks (the recurring "1" near Thornton). The pilot invariant:
+     *  a long-press on empty map changes nothing. */
     @Test
-    fun longPress_creates_a_waypoint_with_an_auto_USER_spot() {
-        map.longPressCenterUntil("a waypoint to be created") { s -> s.tasks.any { it.waypoints.isNotEmpty() } }
+    fun longPress_does_not_create_a_waypoint() {
+        repeat(3) { map.longPressCenter() } // hammer it; none should create
+        Thread.sleep(1_000) // give any (unwanted) dispatch time to land
+        assertThat(map.state.tasks.any { it.waypoints.isNotEmpty() }).isFalse()
+        assertThat(map.appAlive()).isTrue()
+    }
+
+    /** The deliberate creation path still works: the crosshair's forceCreate drop mints
+     *  a waypoint with its auto USER spot. (Driven via the store — the crosshair action
+     *  bar is L2 chrome; see ux/validation-checklist.md.) */
+    @Test
+    fun deliberate_drop_creates_a_waypoint_with_an_auto_USER_spot() {
+        map.createWaypointAtCenter()
         val s = map.state
         val wp = s.tasks.first { it.waypoints.isNotEmpty() }.waypoints.first()
         assertThat(wp.spotId).isNotNull()
-        assertThat(s.waypointLibrary.any { it.id == wp.spotId && it.source == SpotSource.USER }).isTrue()
+        assertThat(s.waypointLibrary.any { it.id == wp.spotId }).isTrue()
         assertThat(map.appAlive()).isTrue()
     }
 
@@ -68,8 +81,8 @@ class TaskMapClaimsTest {
     @Ignore("Single-tap can't be injected into the GL SurfaceView on this device; see KDoc.")
     @Test
     fun tapping_a_waypoint_selects_it() {
-        map.longPressCenterUntil("a waypoint to exist") { s -> s.tasks.any { it.waypoints.isNotEmpty() } }
-        // Long-press drops + selects the point as "new" (no editor); clear it, then prove tap→select.
+        map.createWaypointAtCenter()
+        // The drop selects the point as "new" (no editor); clear it, then prove tap→select.
         map.onUi { it.dispatch(MapAction.DeselectWaypoint) }
         map.waitForStore("selection cleared") { it.selectedWaypoint == null }
 
@@ -92,7 +105,7 @@ class TaskMapClaimsTest {
     @Ignore("Move commit is a single map tap, which can't be injected on this device; see KDoc.")
     @Test
     fun moveMode_relocates_a_waypoint_on_a_single_tap() {
-        map.longPressCenterUntil("a waypoint to move") { s -> s.tasks.any { it.waypoints.isNotEmpty() } }
+        map.createWaypointAtCenter()
         val task = map.state.tasks.first { it.waypoints.isNotEmpty() }
         val wp = task.waypoints.first()
         val before = wp.lat to wp.lon
@@ -119,7 +132,7 @@ class TaskMapClaimsTest {
      *  crashed on a NaN alt before the render-safety invariant. */
     @Test
     fun deleting_a_waypoint_does_not_crash_the_map() {
-        map.longPressCenterUntil("a waypoint to delete") { s -> s.tasks.any { it.waypoints.isNotEmpty() } }
+        map.createWaypointAtCenter()
         val task = map.state.tasks.first { it.waypoints.isNotEmpty() }
         val wp = task.waypoints.first()
 

@@ -114,6 +114,19 @@ class MapDriver {
         throw AssertionError("Timed out after ${timeoutMs}ms (retrying long-press) waiting for: $desc")
     }
 
+    /** Deliberately create a task waypoint at the current map centre via the store —
+     *  the same path the "Add from map" crosshair uses (LongPressMap with forceCreate).
+     *  Long-press is now inert on the map, so map-surface tests seed a point this way
+     *  instead of by gesture. */
+    fun createWaypointAtCenter(): MapDriver {
+        onUi { s ->
+            val c = s.state.value.center ?: org.osmdroid.util.GeoPoint(47.0, -122.0)
+            s.dispatch(com.ternparagliding.redux.MapAction.LongPressMap(c, forceCreate = true))
+        }
+        waitForStore("a waypoint to be created") { st -> st.tasks.any { it.waypoints.isNotEmpty() } }
+        return this
+    }
+
     /** True while the app is still foreground — a crash drops it to a dialog/launcher. */
     fun appAlive(): Boolean = device.currentPackageName == "com.ternparagliding"
 

@@ -15,9 +15,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshotFlow
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -727,66 +725,6 @@ fun MapViewContainer(
             }
     }
 
-    // Smart Waypoint Creation State
-    val smartSuggestionState = state.smartSuggestionState
-    val nearbyPGSpot = smartSuggestionState.nearbyPGSpot
-    val pendingWaypointCreation = smartSuggestionState.pendingWaypointCreation
-
-    if (nearbyPGSpot != null && pendingWaypointCreation != null) {
-        val spotName = nearbyPGSpot.feature.get("properties")?.let { props ->
-            (props as? Map<*, *>)?.get("name") as? String
-        } ?: "Unknown Spot"
-
-        val spotType = nearbyPGSpot.feature.get("properties")?.let { props ->
-            (props as? Map<*, *>)?.get("siteType") as? String
-        } ?: "Launch"
-
-        AlertDialog(
-            onDismissRequest = {
-                pendingWaypointCreation.let { geoPoint ->
-                    store.dispatch(MapAction.LongPressMap(geoPoint))
-                }
-                mapViewModel.clearSmartSuggestionState()
-            },
-            title = {
-                Text(
-                    "Nearby ${
-                        spotType.replaceFirstChar {
-                            if (it.isLowerCase()) it.titlecase(java.util.Locale.getDefault()) else it.toString()
-                        }
-                    }"
-                )
-            },
-            text = { Text("Found nearby paragliding spot: \"$spotName\".\n\nDo you want to use this spot as your waypoint?") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        nearbyPGSpot.let { feature ->
-                            val centroid = feature.centroid
-                            val type = if (spotType.equals("landing", ignoreCase = true)) LocationType.LANDING else LocationType.LAUNCH
-                            store.dispatch(MapAction.LongPressMap(centroid, type, spotName))
-                        }
-                        mapViewModel.clearSmartSuggestionState()
-                    }
-                ) {
-                    Text("Use Spot")
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        pendingWaypointCreation.let { geoPoint ->
-                            store.dispatch(MapAction.LongPressMap(geoPoint))
-                        }
-                        mapViewModel.clearSmartSuggestionState()
-                    }
-                ) {
-                    Text("Use Clicked Location")
-                }
-            }
-        )
-    }
-
     Box(modifier = modifier.fillMaxSize()) {
         MaplibreMap(
             Modifier
@@ -819,21 +757,12 @@ fun MapViewContainer(
                     else -> ClickResult.Pass
                 }
             },
-            // Long-press an empty spot on the map → drop a waypoint (auto-creates a
-            // USER spot the new task point references). Re-wired after the MapLibre
-            // Compose migration dropped the OSMDroid long-press handler.
-            onMapLongClick = { pos, _ ->
-                // A press off the globe (or an un-projectable point) can yield a
-                // non-finite coordinate; never feed NaN into a waypoint/spot. And while
-                // any move-mode is armed (task point or spot), a long press must NOT
-                // drop a new waypoint.
-                val st = store.state.value
-                val movingNow = st.selectedWaypoint?.isDragging == true || st.movingSpotId != null
-                if (!movingNow && pos.latitude.isFinite() && pos.longitude.isFinite()) {
-                    store.dispatch(MapAction.LongPressMap(org.osmdroid.util.GeoPoint(pos.latitude, pos.longitude)))
-                }
-                ClickResult.Consume
-            },
+            // Long-press is intentionally inert on the map. Task/waypoint creation goes
+            // through the explicit paths — "Create New Task" (task list) and the
+            // "Add from map" crosshair (which reuses the LongPressMap *action* with
+            // forceCreate). Auto-creating a task on every long-press was redundant with
+            // those flows and the source of accidental tasks (the recurring stray "1").
+            // Pass the gesture through so it never drops a point.
         ) {
             // Nerd Font for marker glyphs (task goal checkered-flag, waypoint flag, peers).
             val markerCtx = LocalContext.current
