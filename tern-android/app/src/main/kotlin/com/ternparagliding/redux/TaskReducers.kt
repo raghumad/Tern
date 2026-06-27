@@ -430,16 +430,27 @@ internal fun handleWaypointActions(state: MapState, action: MapAction): MapState
         }
     }
     is MapAction.RemoveWaypoint -> {
-        val newTasks = state.tasks.map { task ->
-            if (task.id == action.taskId) task.removeWaypoint(action.waypointId) else task
+        // Remove the point. If that empties the task, drop the whole task — an empty task is
+        // meaningless, and (the real bug) leaving it behind orphans its non-empty cache entry,
+        // which TaskPersistence then rehydrates on the next launch (the "deleted waypoint comes
+        // back as '1'" report). The matching cache clear lives in TaskPlanningMiddleware.
+        val newTasks = state.tasks.mapNotNull { task ->
+            if (task.id != action.taskId) {
+                task
+            } else {
+                val updated = task.removeWaypoint(action.waypointId)
+                if (updated.waypoints.isEmpty()) null else updated
+            }
         }
+        val taskEmptied = newTasks.none { it.id == action.taskId }
         val updatedSelection = state.selectedWaypoint?.takeIf {
-            !(it.taskId == action.taskId && it.waypointId == action.waypointId)
+            it.taskId != action.taskId || (it.waypointId != action.waypointId && !taskEmptied)
         }
-        // Clear in-flight nav if it pointed at the removed point.
+        // Clear in-flight nav if it pointed at the removed point; drop selection of a now-gone task.
         state.copy(
             tasks = newTasks,
             selectedWaypoint = updatedSelection,
+            selectedTaskId = state.selectedTaskId?.takeIf { !(taskEmptied && it == action.taskId) },
             activeWaypointId = state.activeWaypointId?.takeIf { it != action.waypointId },
             taggedWaypointIds = state.taggedWaypointIds - action.waypointId,
         )

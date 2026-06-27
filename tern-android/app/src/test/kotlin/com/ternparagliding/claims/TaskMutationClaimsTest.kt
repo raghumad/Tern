@@ -76,6 +76,32 @@ class TaskMutationClaimsTest {
         assertThat(dragged.resolvedTasks().first { it.id == "t1" }.waypoints.single().lat).isWithin(1e-9).of(34.0)
     }
 
+    /**
+     * Regression (the "deleted waypoint comes back as '1'" bug): removing a task's **last**
+     * waypoint must drop the whole task, not leave an empty one. An empty task left in state
+     * orphans its non-empty cache entry, which then rehydrates the deleted point on the next
+     * launch. Verified on-device: long-press → remove the only point → relaunch → it returned.
+     */
+    @Test
+    fun `removing the last waypoint deletes the task and clears its selection`() {
+        // t1 is the selected task with a single point t1p1.
+        val s = mapReducer(state(), MapAction.RemoveWaypoint("t1", "t1p1"))
+        assertThat(s.tasks.any { it.id == "t1" }).isFalse()       // task gone, not emptied
+        assertThat(s.tasks.any { it.id == "t2" }).isTrue()        // the other task survives
+        assertThat(s.selectedTaskId).isNull()                     // selection of the gone task cleared
+        assertThat(s.selectedWaypoint).isNull()
+    }
+
+    @Test
+    fun `removing one of several waypoints keeps the task`() {
+        val two = Task(id = "t3", name = "Task 3", waypoints = listOf(
+            Waypoint(id = "a", lat = 32.0, lon = 76.0, label = "A", spotId = "B42"),
+            Waypoint(id = "b", lat = 32.1, lon = 76.1, label = "B", spotId = "B42")))
+        val st = MapState(tasks = listOf(two), waypointLibrary = listOf(spot))
+        val s = mapReducer(st, MapAction.RemoveWaypoint("t3", "a"))
+        assertThat(s.tasks.single { it.id == "t3" }.waypoints.map { it.id }).containsExactly("b")
+    }
+
     @Test
     fun `cancelling a drag restores the spot's original position`() {
         val started = mapReducer(state(), MapAction.StartWaypointDrag("t1", "t1p1"))

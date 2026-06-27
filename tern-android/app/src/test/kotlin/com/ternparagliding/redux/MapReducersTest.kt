@@ -70,7 +70,9 @@ class MapReducersTest {
 
         val newState = mapReducer(stateWithWaypoint, MapAction.RemoveWaypoint("task1", "wp1"))
 
-        assertThat(newState.tasks[0].waypoints).isEmpty()
+        // Removing a task's last waypoint drops the whole task — an empty task left behind would
+        // orphan its cache entry and rehydrate the deleted point on next launch.
+        assertThat(newState.tasks).isEmpty()
         assertThat(newState.selectedWaypoint).isNull()
     }
 

@@ -90,6 +90,19 @@ class TaskPlanningMiddleware(
                     CacheManager.taskCache.clearCacheForTask(action.taskId)
                 }
             }
+            // Removing a task's LAST waypoint empties the task (the reducer then drops it). That
+            // must also clear the task's cache, or the stale non-empty entry rehydrates it on the
+            // next launch. We see pre-reducer state here, so "no points would remain" = clear.
+            is MapAction.RemoveWaypoint -> {
+                val task = state.tasks.find { it.id == action.taskId }
+                val wouldBeEmpty = task != null &&
+                    task.waypoints.none { it.id != action.waypointId }
+                if (wouldBeEmpty) {
+                    coroutineScope.launch {
+                        CacheManager.taskCache.clearCacheForTask(action.taskId)
+                    }
+                }
+            }
             is MapAction.ClearAllTasks -> {
                 coroutineScope.launch {
                     CacheManager.taskCache.clearCache()
