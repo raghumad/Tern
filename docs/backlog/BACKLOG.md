@@ -41,7 +41,7 @@ The scrub surface — skim this, drill into the section for detail.
 | Epic | Priority | Status | One-line |
 |---|---|---|---|
 | **01 — Buddy mesh + SOS** | now | 🟡 | Peers-on-map half ✅ on hardware; SOS half (1.4–1.7) ⬜ |
-| **02 — Traffic awareness** | later | ⬜ | FANET/FLARM/ADS-L. **Gate (Epic 01 MVP) now satisfied** |
+| **02 — Traffic awareness** | later | ⏸ | FANET/FLARM/ADS-L. **Shelved until V2 dual-radio hardware** (2026-06-27) |
 | **03 — Spedmo social layer** | later | 🟡 | Offline Flyability fallback ✅; cloud/social ⬜. **Now unblocked** |
 | **04 — First-time onboarding** | soon | 🟡 | 7-step brochure. Region-from-GPS + release build started |
 | **05 — Flight recording, logbook & export** | now | 🟡 | Launch→deck ✅; recorder+IGC+crash-survival+signing + logbook UI built & wired (on-map replay / Spedmo / hw-signing ⬜) |
@@ -206,10 +206,28 @@ decided.)
 
 ## Epic 02 — Pilots see nearby aircraft and are seen by them
 
-**Priority: later.** Status ⬜ todo. **Gate update: "after Epic 01 MVP" is now
-satisfied** (buddy mesh shipped) — Phase A can start whenever it's pulled in.
+**Priority: later. Status ⏸ shelved until V2 dual-radio hardware (2026-06-27).**
 Aviation traffic awareness (FANET/FLARM/ADS-L) so a paraglider sharing air with
 a glider/helicopter knows "is anything about to hit me?"
+
+**Why shelved:** the whole epic hinges on the unproven single-radio gap-scan
+(Story 2.10) — hearing FANET/FLARM on the current LilyGo means leaving the mesh
+frequency periodically, at an unknown cost to buddy-mesh delivery. The clean
+answer is the **V2 custom board's second ~$3 SX1276** dedicated to traffic RX
+full-time, leaving the primary radio undisturbed. Rather than invest in a
+gap-scan experiment that V2 hardware makes moot, we wait for V2. The buddy-mesh
+gate (Epic 01 MVP) *is* met, so this is a deliberate hold on value, not a
+blocker. The app-side Phase A (2.1–2.4, CPA brain) is also held — it has nothing
+to feed it until a traffic source exists.
+
+**Pick back up when:** the V2 dual-radio board exists — then start with FANET
+(open, paragliding-native, no legal risk) RX on the dedicated radio, plus the
+Phase A app layer in parallel (swarm-sim testable, needs no hardware).
+
+---
+
+<details>
+<summary>Full Epic 02 plan (kept for when V2 lands)</summary>
 
 **Three layers:** upstream Meshtastic broadcast PRs (general-purpose) · Mezulla-
 fork gap-scan receive (risky, our go/no-go) · Tern app render+CPA+audio.
@@ -247,6 +265,8 @@ shows single-radio gap-scan isn't viable.
 2 stability; module retune support; CPA thresholds (start 500 m / 30 s); accept-
 able mesh-loss bar. **Refs:** `docs/hardware/traffic-awareness.md`, SoftRF,
 GXAirCom, FANET spec.
+
+</details>
 
 ---
 
