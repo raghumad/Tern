@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Mock GPS for IGC-replay / instrumented tests (com.ternparagliding.sim.mockgps).
+         DEBUG ONLY — deliberately NOT in the shipping manifest: the production app never
+         starts a mock provider, and we don't want a location-related permission in the
+         Play data-safety surface. Debug/androidTest builds still get it for replay. -->
+    <uses-permission android:name="android.permission.ACCESS_MOCK_LOCATION"
+        tools:ignore="MockLocation,ProtectedPermissions" />
+
+</manifest>

@@ -225,7 +225,7 @@ fun MapViewContainer(
     }
 
     val locationService = remember(store, context) { ReduxLocationService(store, context) }
-    setupLocationUpdates(state.hasLocationPermission, locationService)
+    setupLocationUpdates(state.hasLocationPermission, locationService, store)
 
     // XC Tracer vario over BLE — a second peripheral beside the LoRa board. The pilot toggles
     // it from the shelf; once it streams positioned fixes it becomes the position authority and
@@ -1068,14 +1068,37 @@ fun MapViewContainer(
 private fun setupLocationUpdates(
     hasLocationPermission: Boolean,
     locationService: ReduxLocationService,
+    store: MapStore,
 ) {
-    LaunchedEffect(hasLocationPermission) {
-        if (hasLocationPermission) {
-            locationService.startLocationUpdates()
-            Log.d(TAG, "Redux location service started")
-        } else {
+    // Location is strictly "while in use." Tern has no business knowing a pilot's location when the
+    // app isn't in the foreground — there is deliberately NO background-location permission and NO
+    // service, and this also binds the foreground GPS request to visibility: stop the moment the app
+    // is backgrounded, resume when it returns. We never (re)start phone GPS while a vario is the
+    // active fix source (it streams over BLE instead), to avoid double-sourcing / double-broadcast.
+    val context = LocalContext.current
+    androidx.compose.runtime.DisposableEffect(hasLocationPermission, context) {
+        fun shouldRun() = hasLocationPermission && !store.state.value.flightDeck.varioConnected
+        val owner = context as? androidx.lifecycle.LifecycleOwner
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            when (event) {
+                androidx.lifecycle.Lifecycle.Event.ON_START ->
+                    if (shouldRun()) locationService.startLocationUpdates()
+                androidx.lifecycle.Lifecycle.Event.ON_STOP -> {
+                    locationService.stopLocationUpdates()
+                    Log.d(TAG, "Backgrounded — location updates stopped")
+                }
+                else -> {}
+            }
+        }
+        owner?.lifecycle?.addObserver(observer)
+        // Permission can flip to granted while already foregrounded (no ON_START fires then), so
+        // reconcile immediately against the current visibility state.
+        if (owner?.lifecycle?.currentState?.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED) == true) {
+            if (shouldRun()) locationService.startLocationUpdates() else locationService.stopLocationUpdates()
+        }
+        onDispose {
+            owner?.lifecycle?.removeObserver(observer)
             locationService.stopLocationUpdates()
-            Log.d(TAG, "Redux location service stopped")
         }
     }
 }
