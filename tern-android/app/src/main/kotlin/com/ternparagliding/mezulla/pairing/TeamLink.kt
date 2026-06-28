@@ -49,6 +49,18 @@ object TeamLink {
     fun encode(team: Team): String =
         PREFIX + "n=" + URLEncoder.encode(team.name, "UTF-8") + "&k=" + team.psk.toHex()
 
+    /**
+     * Build a [Team] from a name + a hex-encoded key — e.g. a Spedmo club's channel name + PSK
+     * (Epic 03 3.9). Returns null if [name] is blank or [pskHex] isn't valid hex; mirrors the
+     * validation [parse] applies to the `k=` field.
+     */
+    fun fromHex(name: String, pskHex: String): Team? {
+        val n = name.trim()
+        if (n.isEmpty()) return null
+        if (!HEX.matches(pskHex) || pskHex.length % 2 != 0) return null
+        return Team(n, pskHex.hexToBytes())
+    }
+
     /** Parse a `tern://team?...` link back to a [Team], or null if it isn't one / is malformed. */
     fun parse(uriString: String): Team? {
         val s = uriString.trim()

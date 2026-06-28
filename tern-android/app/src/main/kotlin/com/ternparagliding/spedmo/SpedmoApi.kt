@@ -1,5 +1,8 @@
 package com.ternparagliding.spedmo
 
+import com.fasterxml.jackson.databind.DeserializationFeature
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.module.kotlin.readValue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -23,6 +26,9 @@ class SpedmoApi(
     private val baseUrl: String,
     private val partnerApiKey: String,
 ) {
+    private val mapper = jacksonObjectMapper()
+        .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+
     sealed interface Result {
         data class Ok(val body: String) : Result
         data class AuthError(val code: Int, val body: String = "") : Result
@@ -33,6 +39,30 @@ class SpedmoApi(
     suspend fun getMember(accessKey: String): Result = exec(accessKey) {
         Request.Builder().url(url("member.api")).get()
     }
+
+    /** One club from `GET /clubs.api`, with its Mezulla team channel (psk is lower-case hex). */
+    data class SpedmoClub(
+        val id: Long = 0,
+        val name: String? = null,
+        val channelName: String? = null,
+        val psk: String? = null,
+        val privateClub: Boolean? = null,
+    )
+
+    sealed interface ClubsResult {
+        data class Ok(val clubs: List<SpedmoClub>) : ClubsResult
+        data class AuthError(val code: Int) : ClubsResult
+        data class Transient(val detail: String) : ClubsResult
+    }
+
+    /** The authenticated member's clubs — `GET /clubs.api`. Parses the JSON list. */
+    suspend fun listClubs(accessKey: String): ClubsResult =
+        when (val r = exec(accessKey) { Request.Builder().url(url("clubs.api")).get() }) {
+            is Result.Ok -> runCatching { ClubsResult.Ok(mapper.readValue<List<SpedmoClub>>(r.body)) }
+                .getOrElse { ClubsResult.Transient("bad response: ${it.message}") }
+            is Result.AuthError -> ClubsResult.AuthError(r.code)
+            is Result.Transient -> ClubsResult.Transient(r.code?.let { "HTTP $it" } ?: (r.cause?.javaClass?.simpleName ?: "network error"))
+        }
 
     /** Upload an IGC flight — `POST /flightDataUpload.api` (raw IGC as the request body). */
     suspend fun uploadIgc(accessKey: String, igc: String): Result = exec(accessKey) {

@@ -77,6 +77,30 @@ class SpedmoApiTest {
     }
 
     @Test
+    fun `listClubs parses the clubs with their team channel`() = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(200).setBody(
+            """[{"id":7,"name":"Chelan XC","channelName":"Chelan XC","psk":"abcdef0123456789","privateClub":true},
+                {"id":8,"name":"Bir","channelName":"Bir","psk":"00ff","privateClub":false}]"""))
+
+        val r = api.listClubs("PILOT-KEY")
+
+        assertThat(r).isInstanceOf(SpedmoApi.ClubsResult.Ok::class.java)
+        val clubs = (r as SpedmoApi.ClubsResult.Ok).clubs
+        assertThat(clubs).hasSize(2)
+        assertThat(clubs[0].id).isEqualTo(7)
+        assertThat(clubs[0].channelName).isEqualTo("Chelan XC")
+        assertThat(clubs[0].psk).isEqualTo("abcdef0123456789")
+        assertThat(clubs[0].privateClub).isTrue()
+        assertThat(server.takeRequest().path).isEqualTo("/api/v1.0/clubs.api")
+    }
+
+    @Test
+    fun `listClubs maps a 401 to AuthError`() = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(401))
+        assertThat(api.listClubs("BAD")).isInstanceOf(SpedmoApi.ClubsResult.AuthError::class.java)
+    }
+
+    @Test
     fun `a 4xx is an AuthError (do not retry)`() = runBlocking {
         server.enqueue(MockResponse().setResponseCode(401).setBody("nope"))
         val result = api.uploadIgc("BAD", "igc")

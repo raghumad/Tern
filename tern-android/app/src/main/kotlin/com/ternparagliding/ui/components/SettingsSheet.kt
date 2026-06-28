@@ -129,6 +129,9 @@ fun SettingsSheet(
             // Self-hides when the build has no partner key.
             item { SpedmoAccountSection() }
 
+            // Spedmo team — adopt a Spedmo club as the Mezulla buddy team (self-hides until linked).
+            item { SpedmoTeamSection(store) }
+
             // Connections — the two Bluetooth devices Tern pairs with, each with
             // its live status: the XC Tracer vario (sensor link) and the Mezulla
             // board (mesh). Connecting/pairing is infrequent, so it lives here
