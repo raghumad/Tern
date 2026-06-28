@@ -27,6 +27,23 @@ val spedmoProps = Properties().apply {
     if (spedmoPropsFile.exists()) spedmoPropsFile.inputStream().use { load(it) }
 }
 
+// --- App version derived from git (the tag is the single source of truth) ----------
+// versionName: `git describe --tags` — exactly on tag v0.1.0 -> "0.1.0"; a few commits
+//   past it -> "0.1.0-3-g1a2b3c4"; no git or no tags -> "0.0.0-dev".
+// versionCode: commit count — monotonic, satisfies Play's strictly-increasing rule.
+// NOTE: the tag must be present locally at build time (create it, or `git fetch --tags`),
+//   else versionName falls back to the *previous* tag or the dev string.
+fun gitOutput(vararg args: String): String = try {
+    providers.exec {
+        isIgnoreExitValue = true
+        commandLine(listOf("git") + args.toList())
+    }.standardOutput.asText.get().trim()
+} catch (e: Exception) { "" }
+
+val gitDescribe = gitOutput("describe", "--tags", "--always", "--dirty")
+val gitVersionName: String = if (gitDescribe.isBlank()) "0.0.0-dev" else gitDescribe.removePrefix("v")
+val gitVersionCode: Int = gitOutput("rev-list", "--count", "HEAD").toIntOrNull() ?: 1
+
 android {
     namespace = "com.ternparagliding"
     compileSdk = 36
@@ -35,8 +52,8 @@ android {
         applicationId = "com.ternparagliding"
         minSdk = 24
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = gitVersionCode
+        versionName = gitVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
