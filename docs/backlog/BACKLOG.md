@@ -202,6 +202,12 @@ auto re-pair on return; glanceable-but-quiet "no LoRa" / "no peers" indicator.
 SOS retransmit policy. (Protocol = Meshtastic; transport = BLE only — both
 decided.)
 
+**Team formation direction (2026-06-27):** a mesh team = a Meshtastic channel
+(name + PSK). Rather than build a bespoke team-management UI here, **team identity
+is delegated to Spedmo** — joining a Spedmo group provisions the channel + PSK to
+the board (Epic 03 organizing principle + Story 3.9). This epic owns the transport
+(channel join/`set_team`/`set_channel`); Epic 03 owns the social membership.
+
 ---
 
 ## Epic 02 — Pilots see nearby aircraft and are seen by them
@@ -275,7 +281,23 @@ GXAirCom, FANET spec.
 **Priority: later** (starts after Epic 01 MVP — **now satisfied**). Spedmo
 (spedmo.com — Spring + Postgres REST API, ~1000 sites, IGC storage, live
 tracking) is a friend's platform Tern plugs into for cellular-relayed enrichment.
-**Tern stays fully offline-first; Spedmo is purely additive.**
+**Tern stays fully offline-first; Spedmo is purely additive.** (Raghu has the
+Spedmo source + a direct relationship, so the partner-API surface can be shaped
+to fit, not just consumed — the usual third-party-API risk is low here.)
+
+**Organizing principle (2026-06-27) — Spedmo is the team/identity backbone.**
+Don't reinvent buddy-team management; ride Spedmo's existing competitions / teams
+/ social groups. **Adding a buddy to a team should be as simple as joining a
+social group on Spedmo.** Layering: *Spedmo = identity & membership* (online, set
+once, cached) · *LoRa mesh (Epic 01) = offline-first transport* (live tracking in
+the air, no cell) · *Spedmo cell-relay (3.4) = fallback* for buddies out of mesh
+range. Decoupled in failure (no cell → mesh still works; no board → cell-relay
+still works). **The crux unsolved piece:** a mesh "team" is a Meshtastic channel
+(shared name + PSK via `set_team`/`set_channel`), so a **Spedmo group must map
+deterministically to a channel + PSK, provisioned to the board on join.** That
+binding is what makes "join a group → buddies appear" work; it doesn't exist yet.
+This elevates **Story 3.9** from a cosmetic "club members brighter" item to the
+spine of the buddy-onboarding UX (and ties Epic 03 ↔ Epic 01).
 
 **What done looks like:** night-before "who flew my site this week"; at-launch
 "who's in the air nearby" + recent landed-pilot notes; in-flight faded markers
@@ -305,9 +327,14 @@ airspace/sites; a from-scratch social network; anything that breaks without cell
   push to Spedmo when cell up; never weakens the mesh path.
 - **3.8 Pilot reports** — post-landing quick conditions; decay after 12 h; soft
   site annotations; queue offline.
-- **3.9 Spedmo clubs → buddy list** — club members brighter in peer view,
-  default scope for social features; `MapState.teamSource="spedmo-club"` hook
-  already exists.
+- **3.9 Spedmo groups → buddy teams (the team-identity backbone, not just a list).**
+  Joining a Spedmo competition / club / social group *is* how you form a buddy team:
+  the group roster becomes the team, members are brightest in the peer view and the
+  default scope for social features. **Core sub-piece:** map a Spedmo group →
+  Meshtastic channel + PSK and provision it to the board on join (see the Epic 03
+  organizing-principle note) so the offline LoRa mesh shows exactly that group. The
+  `MapState.teamSource="spedmo-club"` hook already exists; the channel-provisioning
+  bridge to Epic 01 (`set_team`/`set_channel`) is the new work.
 - **3.10 Soarable forecast from Spedmo — 🟡 offline fallback ✅ / source ⬜.**
   The K4 weather deck shipped `TernLocalFlyability` *and* the **soarable-window
   scan** (`weather/Soarable.kt` — best contiguous flyable run, daylight-bound,
