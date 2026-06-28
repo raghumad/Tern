@@ -51,6 +51,7 @@ fun SpedmoAccountSection() {
 
     var linked by remember { mutableStateOf(SpedmoCredentials.isLinked(ctx)) }
     var autoUpload by remember { mutableStateOf(SpedmoCredentials.autoUpload(ctx)) }
+    var liveTracking by remember { mutableStateOf(SpedmoCredentials.liveTracking(ctx)) }
     var keyText by remember { mutableStateOf("") }
     var validating by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -72,8 +73,27 @@ fun SpedmoAccountSection() {
                     modifier = Modifier.testTag("switch_spedmo_autoupload"),
                 )
             }
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Share live position when I have signal", fontSize = 15.sp)
+                    Text(
+                        "Cellular only — your offline buddy mesh is unaffected.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(
+                    checked = liveTracking,
+                    onCheckedChange = { on -> liveTracking = on; SpedmoCredentials.setLiveTracking(ctx, on) },
+                    modifier = Modifier.testTag("switch_spedmo_livetrack"),
+                )
+            }
             TextButton(
-                onClick = { SpedmoCredentials.clear(ctx); linked = false; autoUpload = false; keyText = "" },
+                onClick = { SpedmoCredentials.clear(ctx); linked = false; autoUpload = false; liveTracking = false; keyText = "" },
                 modifier = Modifier.testTag("btn_spedmo_unlink"),
             ) { Text("Unlink") }
         } else {

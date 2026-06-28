@@ -8,6 +8,7 @@ import com.ternparagliding.flight.recording.FlightSigner
 import com.ternparagliding.flight.recording.FlightStore
 import com.ternparagliding.flight.recording.PeerFixRecord
 import com.ternparagliding.mezulla.redux.PeerAction
+import com.ternparagliding.spedmo.SpedmoLiveTracker
 import com.ternparagliding.spedmo.SpedmoUploader
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -40,6 +41,9 @@ class FlightRecordingMiddleware(
     // Spedmo auto-upload (Epic 03 3.5 / 5.4). Lazy so it's only built (and registers its connectivity
     // drain) once recording actually starts — and only acts when configured + linked + opted in.
     private val uploader by lazy { SpedmoUploader.get(appContext) }
+
+    // Spedmo live tracking (Epic 03 3.4) — pushes position over cell while airborne, gated + throttled.
+    private val liveTracker by lazy { SpedmoLiveTracker.get(appContext) }
 
     // Ordered, single-threaded IO so appends keep their sequence and never run on the main thread.
     private val io = Dispatchers.IO.limitedParallelism(1)
@@ -84,10 +88,13 @@ class FlightRecordingMiddleware(
 
         if (coordinator.isRecording) {
             coordinator.onOwnFix(fix, source = "XC_TRACER")
+            // Relay position to Spedmo over cell while airborne (gated + throttled inside).
+            liveTracker.onAirborneFix(fix)
             // If that fix auto-sealed (landing), hand the flight to Spedmo auto-upload (gated inside)
             // and rearm for a possible next flight this session.
             if (!coordinator.isRecording) {
                 coordinator.lastSealed()?.let { uploader.onFlightSealed(it.id) }
+                liveTracker.reset()
                 detect = FlightDetector.State()
                 takeoffDatumM = Double.NaN
             }

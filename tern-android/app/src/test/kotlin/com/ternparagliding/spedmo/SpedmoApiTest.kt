@@ -45,6 +45,28 @@ class SpedmoApiTest {
     }
 
     @Test
+    fun `livetrackUpdate posts the fix as query params with auth headers`() = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(200))
+
+        val result = api.livetrackUpdate(
+            accessKey = "PILOT-KEY",
+            latitude = 46.5, longitude = 6.6, gpsAltitudeM = 2400, pressureAltitudeM = 2380,
+        )
+
+        assertThat(result).isInstanceOf(SpedmoApi.Result.Ok::class.java)
+        val req: RecordedRequest = server.takeRequest()
+        assertThat(req.method).isEqualTo("POST")
+        val url = req.requestUrl!!
+        assertThat(url.encodedPath).isEqualTo("/api/v1.0/livetrackUpdate.api")
+        assertThat(url.queryParameter("latitude")).isEqualTo("46.5")
+        assertThat(url.queryParameter("longitude")).isEqualTo("6.6")
+        assertThat(url.queryParameter("gpsAltitude")).isEqualTo("2400")
+        assertThat(url.queryParameter("pressureAltitude")).isEqualTo("2380")
+        assertThat(req.getHeader("SPEDMO-API-KEY")).isEqualTo("APP-KEY")
+        assertThat(req.getHeader("SPEDMO-ACCESS-KEY")).isEqualTo("PILOT-KEY")
+    }
+
+    @Test
     fun `getMember validates against member api`() = runBlocking {
         server.enqueue(MockResponse().setResponseCode(200).setBody("""{"email":"a@b.com"}"""))
 

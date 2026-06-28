@@ -2,6 +2,7 @@ package com.ternparagliding.spedmo
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -38,6 +39,27 @@ class SpedmoApi(
         Request.Builder()
             .url(url("flightDataUpload.api"))
             .post(igc.toRequestBody(JSON))
+    }
+
+    /**
+     * Push one live-track point — `POST /livetrackUpdate.api`. Spedmo reads the fields as request
+     * params (server-timestamped), so they go in the query string with an empty JSON body. Used in
+     * flight when cell is available; the server appends to the member's current livetrack.
+     */
+    suspend fun livetrackUpdate(
+        accessKey: String,
+        latitude: Double,
+        longitude: Double,
+        gpsAltitudeM: Int,
+        pressureAltitudeM: Int,
+    ): Result = exec(accessKey) {
+        val u = url("livetrackUpdate.api").toHttpUrl().newBuilder()
+            .addQueryParameter("latitude", latitude.toString())
+            .addQueryParameter("longitude", longitude.toString())
+            .addQueryParameter("gpsAltitude", gpsAltitudeM.toString())
+            .addQueryParameter("pressureAltitude", pressureAltitudeM.toString())
+            .build()
+        Request.Builder().url(u).post("{}".toRequestBody(JSON))
     }
 
     private suspend fun exec(accessKey: String, build: () -> Request.Builder): Result =

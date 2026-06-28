@@ -19,6 +19,7 @@ object SpedmoCredentials {
     private const val PREFS = "tern_spedmo"
     private const val KEY_ACCESS = "member_access_key"
     private const val KEY_AUTO_UPLOAD = "auto_upload"
+    private const val KEY_LIVE_TRACK = "live_tracking"
 
     /** The Tern app's partner key. Blank ⇒ the build has no Spedmo config; treat as not-usable. */
     val partnerApiKey: String get() = BuildConfig.SPEDMO_API_KEY
@@ -44,6 +45,16 @@ object SpedmoCredentials {
 
     fun setAutoUpload(c: Context, on: Boolean) =
         prefs(c).edit().putBoolean(KEY_AUTO_UPLOAD, on).apply()
+
+    /**
+     * Whether to push live position to Spedmo while flying *when cell is available* (Epic 03 3.4).
+     * Default **off** — real-time location sharing is more sensitive than a post-flight upload, so
+     * it's an explicit, separate opt-in. Always silent offline (the LoRa mesh is the offline view).
+     */
+    fun liveTracking(c: Context): Boolean = prefs(c).getBoolean(KEY_LIVE_TRACK, false)
+
+    fun setLiveTracking(c: Context, on: Boolean) =
+        prefs(c).edit().putBoolean(KEY_LIVE_TRACK, on).apply()
 
     /** Unlink: forget the pilot's key and reset opt-in. */
     fun clear(c: Context) = prefs(c).edit().clear().apply()
