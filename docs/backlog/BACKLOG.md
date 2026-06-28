@@ -55,7 +55,7 @@ The scrub surface — skim this, drill into the section for detail.
 **Epic 01:** 1.1 pair ✅ · 1.2 TX ✅ · 1.3 peers-on-map ✅ · 1.4 SOS ⬜ · 1.5 OLED status ⬜ · 1.6 OLED SOS ⬜ · 1.7 graceful degradation ⬜
 **Epic 02:** 2.1–2.4 app (CPA/render/audio) ⬜ · 2.5–2.9 upstream broadcast ⬜ · 2.10–2.13 fork gap-scan ⬜
 **Epic 03:** 3.1 OAuth ⬜ · 3.2 enrichment ⬜ · 3.3 who's-flying ⬜ · 3.4 cell-relayed peers ⬜ · 3.5 auto-IGC ⬜ · 3.6 landed-safe ⬜ · 3.7 SOS-forward ⬜ · 3.8 reports ⬜ · 3.9 clubs→buddies ⬜ · 3.10 soarable (offline ✅ / source ⬜)
-**Epic 04:** 4.1 pre-flashed ⬜ · 4.2 region-from-GPS 🟡 · 4.3 Play Store 🟡 · 4.4 pairing robustness 🟡 · 4.5 no-PIN popup ⬜ · 4.6 concurrent pair ⬜ · 4.7 OTA ⬜ · 4.8 status-at-a-glance 🟡
+**Epic 04:** 4.1 pre-flashed ⬜ · 4.2 region-from-GPS 🟡 · 4.3 Play Store 🟡 · 4.4 pairing robustness 🟡 · 4.5 no-PIN popup ⬜ · 4.6 concurrent pair ⬜ · 4.7 OTA ⬜ · 4.8 status-at-a-glance 🟡 · 4.9 web flasher ⬜
 **Epic 05:** 5.1 launch→deck ✅ · 5.2 recorder + IGC export 🟡 (core+wiring built & tested; hw-signing + device-verify ⬜) · 5.3 local logbook 🟡 (store+stats+UI built; on-map replay + device-verify ⬜) · 5.4 Spedmo upload 🟡 (Tern side built; on-device verify ⬜ → 03 3.5/3.6) · 5.5 deck instrument hardening 🟡
 
 ---
@@ -454,10 +454,51 @@ non-engineer friend and watching).
   controls landed (1.1); *remaining:* corner link badge → tap opens Settings →
   Mezulla; populate link/battery/beacon/peers/firmware/update fields (data flows;
   this is a rendering story); one-tap recover (Forget / Re-pair).
+- **4.9 Web flasher — self-serve first-flash of an off-the-shelf board — ⬜ todo.**
+  *The interim hardware story until the custom nRF52 board (and/or 4.1 pre-flashed
+  fulfillment) exists.* A pilot **buys a standardized board on Amazon** (pin one
+  model — **Heltec LoRa 32 V3 / ESP32-S3**, so everyone's on one known-good firmware
+  variant) and flashes Tern firmware themselves via a **`ternparagliding.com/flasher`
+  web page** (ESP Web Tools / Web Serial), then pairs + configures over BLE as usual.
+  - **Why a web page and not "flash over Bluetooth from the app":** a factory ESP32's
+    ROM bootloader speaks **USB/UART only — there is no BLE in the factory bootloader**,
+    so the *first* flash of a blank board **cannot** happen over Bluetooth. BLE OTA
+    (4.7) only works *after* Tern firmware + the `bleota` helper are already on the
+    board. So first-flash = a one-time USB step; everything after is BLE (pair → config
+    via 1.1/4.2 → updates via 4.7).
+  - **Hard constraint — desktop only:** Web Serial works on **desktop Chromium
+    (Chrome/Edge)**, **not Android Chrome** and **not Firefox/Safari**. So the flow is
+    "plug the board into a *computer*, open the flasher page, click Flash" — not from
+    the phone. (Phone-only first-flash would need an in-app **USB-OTG esptool**
+    implementation — much larger effort, parked.)
+  - **Live pre-flight checklist on the page** (the asked-for self-diagnosing UX):
+    - *Tier 1 (auto on load, no device):* Web Serial support (`'serial' in navigator`),
+      secure context (`isSecureContext` — HTTPS ✓ via Cloudflare), **desktop-vs-phone
+      block** (UA → hard-stop with "open on a computer"), browser identity (Safari/FF →
+      "use Chrome/Edge"). Render as green-check / red-X rows; gate the Flash button.
+    - *Tier 2 (on Connect):* chip detection — esptool reads chip type + MAC + flash
+      size; **chip-family validation is largely free via ESP Web Tools** (a manifest
+      that ships only an **ESP32-S3** build auto-rejects an older ESP32). Show
+      "Detected ESP32-S3 ✓".
+    - *Honest limits:* the silicon reports **chip family, not board model** — can't
+      verify "Heltec V3" exactly (two S3 boards are indistinguishable), so guard on
+      family + trust the buy-this-model instruction. **Drivers can't be probed** — if
+      no port appears, show reactive troubleshooting (data cable not charge-only,
+      CP210x/CH340 driver links, hold BOOT, try another port).
+  - **Build:** static `site/flasher.html` in the **ternparagliding-web** repo (same
+    nginx/Cloudflare) = ESP Web Tools button + `manifest.json` (firmware/bootloader/
+    partition/littlefs/bleota at correct offsets) + the checklist UI. The page can be
+    scaffolded now; only the **built firmware `.bin`s** need dropping in.
+  - **Lifecycle:** bridges **4.1** (pre-flashed, needs inventory) and **4.7** (BLE OTA
+    for subsequent updates). The future **custom nRF52 board retires this** — nRF52
+    supports clean **BLE DFU from blank**, so true tap-to-flash-from-the-app becomes
+    possible and the USB web step goes away.
 
 **Order of attack:** 4.4+4.5+4.6 (pairing robustness — the reason pilots fail
 today) → 4.8 (status confidence) → 4.2 (region) → 4.7 (OTA, unblocks 4.1) → 4.1
-(pre-flash) → 4.3 (Play Store, parallelisable).
+(pre-flash) → 4.3 (Play Store, parallelisable). **4.9 (web flasher)** is the
+interim self-flash path — schedulable independently (it's web work, not app work),
+needed once real pilots start buying their own Heltec boards.
 
 **Not in this epic:** duplicate-BleConnection race (→ Epic 01 1.1 robustness);
 `MEZULLA_TEST_BUILD` (test infra, never shipped).
