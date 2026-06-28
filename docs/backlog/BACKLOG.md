@@ -44,7 +44,7 @@ The scrub surface — skim this, drill into the section for detail.
 | **02 — Traffic awareness** | later | ⏸ | FANET/FLARM/ADS-L. **Shelved until V2 dual-radio hardware** (2026-06-27) |
 | **03 — Spedmo social layer** | later | 🟡 | Offline Flyability fallback ✅; **Spedmo partner API + club model mostly already built** (IGC upload, livetrack push, club-scoped livetrack all exist); Tern-side wiring ⬜ |
 | **04 — First-time onboarding** | soon | 🟡 | 7-step brochure. Region-from-GPS + release build started |
-| **05 — Flight recording, logbook & export** | now | 🟡 | Launch→deck ✅; recorder+IGC+crash-survival+signing + logbook UI built & wired (on-map replay / Spedmo / hw-signing ⬜) |
+| **05 — Flight recording, logbook & export** | now | 🟡 | Launch→deck ✅; recorder+IGC+crash-survival+signing + logbook UI + **Spedmo auto-upload** built & wired (on-map replay / hw-signing / on-device upload verify ⬜) |
 | **Tasks & waypoints** | now | ✅ | Task surface is pilot-grade; small polish items remain |
 | **Firmware workstreams** | mixed | 🟡 | Stage 1/2 ✅; upstream cleanup + traffic firmware ⬜ |
 | **Infrastructure & quality** | soon | 🟡 | Reactive overlays ✅ (soak gate ⬜); S5 one-liner ⬜ |
@@ -56,7 +56,7 @@ The scrub surface — skim this, drill into the section for detail.
 **Epic 02:** 2.1–2.4 app (CPA/render/audio) ⬜ · 2.5–2.9 upstream broadcast ⬜ · 2.10–2.13 fork gap-scan ⬜
 **Epic 03:** 3.1 OAuth ⬜ · 3.2 enrichment ⬜ · 3.3 who's-flying ⬜ · 3.4 cell-relayed peers ⬜ · 3.5 auto-IGC ⬜ · 3.6 landed-safe ⬜ · 3.7 SOS-forward ⬜ · 3.8 reports ⬜ · 3.9 clubs→buddies ⬜ · 3.10 soarable (offline ✅ / source ⬜)
 **Epic 04:** 4.1 pre-flashed ⬜ · 4.2 region-from-GPS 🟡 · 4.3 Play Store 🟡 · 4.4 pairing robustness 🟡 · 4.5 no-PIN popup ⬜ · 4.6 concurrent pair ⬜ · 4.7 OTA ⬜ · 4.8 status-at-a-glance 🟡
-**Epic 05:** 5.1 launch→deck ✅ · 5.2 recorder + IGC export 🟡 (core+wiring built & tested; hw-signing + device-verify ⬜) · 5.3 local logbook 🟡 (store+stats+UI built; on-map replay + device-verify ⬜) · 5.4 Spedmo upload ⬜ (→ 03 3.5/3.6) · 5.5 deck instrument hardening 🟡
+**Epic 05:** 5.1 launch→deck ✅ · 5.2 recorder + IGC export 🟡 (core+wiring built & tested; hw-signing + device-verify ⬜) · 5.3 local logbook 🟡 (store+stats+UI built; on-map replay + device-verify ⬜) · 5.4 Spedmo upload 🟡 (Tern side built; on-device verify ⬜ → 03 3.5/3.6) · 5.5 deck instrument hardening 🟡
 
 ---
 
@@ -340,12 +340,19 @@ airspace/sites; a from-scratch social network; anything that breaks without cell
 - **3.4 Cell-relayed peer markers** — when paired + on cell, fetch buddy
   livetracks, render as *faded* "via cell" markers distinct from mesh peers;
   conservative refresh; vanish on no-cell.
-- **3.5 Auto IGC upload after landing** — landing detection (groundspeed≈0 + baro
-  stable 5 min) queues upload for next signal; survives restart; backoff retry.
-  *Depends on the recorder + IGC writer in Epic 05 5.2; the Tern-side hand-off is
-  Epic 05 5.4.* **Server side done:** `POST /api/v1.0/flightDataUpload.api`
-  (`ApiV1Controller`) already accepts IGC, imports + FAI-scores it. Tern just
-  needs to call it with the cached keys.
+- **3.5 Auto IGC upload after landing — 🟡 Tern-side built (2026-06-27), on-device
+  verify ⬜.** Landing detection queues upload for next signal; survives restart;
+  retries. **Server side done:** `POST /api/v1.0/flightDataUpload.api`
+  (`ApiV1Controller`) accepts IGC, imports + FAI-scores it. **Tern side built:**
+  `spedmo/SpedmoApi` (uploadIgc/getMember, two-header auth), `SpedmoCredentials`
+  (member key in its own prefs; partner key via gitignored `spedmo.properties` →
+  BuildConfig; auto-upload default OFF), `SpedmoUploadQueue` (file-backed,
+  retry/backoff, restart-safe — 8 JVM tests), `SpedmoUploader` (drains on seal +
+  connectivity + manual), wired into `FlightRecordingMiddleware` seal path +
+  crash-recovered orphans. UI: Settings "Spedmo" link/opt-in section, logbook
+  per-flight status + manual upload. *Remaining ⬜:* a real partner key + a test
+  member key, then end-to-end on-device verify (the feature is inert until a key
+  is present). This is **Epic 05 5.4** on the Tern side.
 - **3.6 "Landed safe" to ground crew** — one-tap watcher setup; fires within 30 s
   of landing when cell available; deferred send otherwise; manual re-fire.
 - **3.7 SOS forwarding (defense in depth)** — mesh SOS primary (offline); also
@@ -607,15 +614,20 @@ path), rename, and **on-device verification** of the whole surface.
 - Settings entry point (the contextual-sharing plan already names a "Flight /
   Logbook" home).
 
-**5.4 — Upload to Spedmo when a profile is set up — ⬜ todo** *(bridges to Epic
-03 Stories 3.5 + 3.6).* This epic owns the **Tern-side hand-off**; the Spedmo
-account/upload plumbing lives in Epic 03.
-- On finalise, if a Spedmo profile is linked (Epic 03 3.1) **and** the pilot
-  opted in (privacy default = off), queue the IGC for upload; send when cell is
-  available; survive restarts; backoff retry.
-- Logbook shows per-flight state: local-only / queued / uploaded / scored.
-- No profile or not opted in → stays local, silently. Never blocks landing UX.
-- The "landed safe" ground-crew ping (Epic 03 3.6) rides the same landing event.
+**5.4 — Upload to Spedmo when a profile is set up — 🟡 built (2026-06-27),
+on-device verify ⬜** *(bridges to Epic 03 Stories 3.5 + 3.6).* This epic owns the
+**Tern-side hand-off**; the Spedmo account/upload plumbing lives in Epic 03.
+- ✅ On finalise, if a Spedmo profile is linked (Epic 03 3.1) **and** the pilot
+  opted in (privacy default = off), the IGC is queued; sent when cell is available;
+  survives restarts; retries with give-up cap. (`spedmo/` package +
+  `FlightRecordingMiddleware` seal hook; reuses `IgcExporter`.)
+- ✅ Logbook shows per-flight state (local-only / queued / uploaded / failed) +
+  a manual upload/retry; Settings has the link + opt-in. *(scored state ⬜ — needs
+  the upload response surfaced.)*
+- ✅ No profile or not opted in → stays local, silently. Inert with no partner key.
+- ⬜ End-to-end on-device verify (needs a real partner key + a test member key).
+- ⬜ The "landed safe" ground-crew ping (Epic 03 3.6) rides the same landing event.
+- See implementation detail under **Epic 03 Story 3.5**.
 
 **5.5 — Deck instrument hardening (the remaining K7) — 🟡 partial.** The deck
 *brains* — XC Tracer `$XCTRC` BLE vario ingest, the circling `WindEstimator`,

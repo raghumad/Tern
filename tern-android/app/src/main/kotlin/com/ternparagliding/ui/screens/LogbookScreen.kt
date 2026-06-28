@@ -50,8 +50,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
-import com.ternparagliding.flight.SensorFix
-import com.ternparagliding.flight.export.IgcWriter
+import com.ternparagliding.flight.export.IgcExporter
+import com.ternparagliding.spedmo.SpedmoCredentials
+import com.ternparagliding.spedmo.SpedmoUploadQueue
+import com.ternparagliding.spedmo.SpedmoUploader
 import com.ternparagliding.flight.recording.FlightRecording
 import com.ternparagliding.flight.recording.FlightStore
 import com.ternparagliding.flight.recording.FlightSummary
@@ -115,12 +117,7 @@ fun LogbookScreen(
         scope.launch {
             val intent = withContext(Dispatchers.IO) {
                 val rec = flightStore.load(id) ?: return@withContext null
-                val positioned = rec.ownTrack.filter { it.hasPosition }
-                if (positioned.isEmpty()) return@withContext null
-                val flight = IgcWriter.fromSensorFixes(
-                    positioned.map { SensorFix(it.timeMs, it.lat, it.lon, it.gpsAltitudeM, it.groundSpeedMs, it.courseDeg, it.climbMs, it.pressureHpa) },
-                )
-                val text = IgcWriter.write(flight, IgcWriter.Headers(pilot = rec.pilot ?: "", gliderType = rec.gliderType ?: ""))
+                val text = IgcExporter.toIgc(rec) ?: return@withContext null
                 val file = File(context.cacheDir, "tern-${id}.igc").apply { writeText(text) }
                 val uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
                 Intent(Intent.ACTION_SEND).apply {
@@ -298,6 +295,71 @@ private fun FlightDetail(
                 Icon(Icons.Filled.Delete, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error)
                 Text("  Delete", fontSize = 15.sp, color = MaterialTheme.colorScheme.error)
             }
+        }
+
+        SpedmoUploadRow(flightId = recording.id)
+    }
+}
+
+/**
+ * Spedmo upload state for one flight (Epic 03 3.5 / 5.4). Self-hides when the build has no partner
+ * key; prompts to link when configured-but-unlinked; otherwise shows the current state and offers a
+ * manual upload / retry. Auto-upload (when opted in) means this usually already reads "Uploaded ✓".
+ */
+@Composable
+private fun SpedmoUploadRow(flightId: String) {
+    if (!SpedmoCredentials.isConfigured) return
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val uploader = remember { SpedmoUploader.get(context) }
+    val linked = remember { SpedmoCredentials.isLinked(context) }
+
+    var refresh by remember { mutableStateOf(0) }
+    var busy by remember { mutableStateOf(false) }
+    val status by remember(flightId, refresh) { mutableStateOf(uploader.status(flightId)) }
+
+    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+
+    if (!linked) {
+        Text(
+            "Link a Spedmo account in Settings to upload this flight.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        return
+    }
+
+    val (label, canSend) = when (status) {
+        SpedmoUploadQueue.State.UPLOADED -> "Uploaded to Spedmo ✓" to false
+        SpedmoUploadQueue.State.QUEUED -> "Queued — uploads when online" to false
+        SpedmoUploadQueue.State.FAILED -> "Upload failed" to true
+        null -> "Not uploaded" to true
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("spedmo_upload_status"))
+        if (canSend) {
+            TextButton(
+                enabled = !busy,
+                onClick = {
+                    busy = true
+                    uploader.uploadNow(flightId)
+                    // Drain runs on its own IO scope; poll the on-disk status briefly to reflect it.
+                    scope.launch {
+                        repeat(12) {
+                            kotlinx.coroutines.delay(500)
+                            refresh++
+                            if (uploader.status(flightId) == SpedmoUploadQueue.State.UPLOADED) return@launch
+                        }
+                        busy = false
+                    }
+                },
+                modifier = Modifier.testTag("btn_spedmo_upload"),
+            ) { Text(if (status == SpedmoUploadQueue.State.FAILED) "Retry" else "Upload to Spedmo", fontSize = 15.sp) }
         }
     }
 }

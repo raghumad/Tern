@@ -40,6 +40,7 @@ captures/
 *.jks
 *.keystore
 keystore.properties
+spedmo.properties
 
 # External native build folder created in Android Studio 2.2 and later
 .externalNativeBuild

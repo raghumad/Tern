@@ -8,6 +8,7 @@ import com.ternparagliding.flight.recording.FlightSigner
 import com.ternparagliding.flight.recording.FlightStore
 import com.ternparagliding.flight.recording.PeerFixRecord
 import com.ternparagliding.mezulla.redux.PeerAction
+import com.ternparagliding.spedmo.SpedmoUploader
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -32,8 +33,13 @@ class FlightRecordingMiddleware(
     signer: FlightSigner = DigestFlightSigner(),
 ) : Middleware {
 
-    private val flightStore = FlightStore(File(context.applicationContext.filesDir, "recordings"))
+    private val appContext = context.applicationContext
+    private val flightStore = FlightStore(File(appContext.filesDir, "recordings"))
     private val coordinator = FlightRecordingCoordinator(flightStore, signer)
+
+    // Spedmo auto-upload (Epic 03 3.5 / 5.4). Lazy so it's only built (and registers its connectivity
+    // drain) once recording actually starts — and only acts when configured + linked + opted in.
+    private val uploader by lazy { SpedmoUploader.get(appContext) }
 
     // Ordered, single-threaded IO so appends keep their sequence and never run on the main thread.
     private val io = Dispatchers.IO.limitedParallelism(1)
@@ -59,7 +65,10 @@ class FlightRecordingMiddleware(
     private fun recoverOnce() {
         if (recoveredOrphans) return
         recoveredOrphans = true
+        // Seal any flight orphaned by a mid-air app kill, and let auto-upload pick them up too.
         runCatching { flightStore.recoverOrphans() }
+            .getOrDefault(emptyList())
+            .forEach { uploader.onFlightSealed(it.id) }
     }
 
     private fun onVarioFix(fix: com.ternparagliding.flight.SensorFix) {
@@ -75,8 +84,10 @@ class FlightRecordingMiddleware(
 
         if (coordinator.isRecording) {
             coordinator.onOwnFix(fix, source = "XC_TRACER")
-            // If that fix auto-sealed (landing), rearm for a possible next flight this session.
+            // If that fix auto-sealed (landing), hand the flight to Spedmo auto-upload (gated inside)
+            // and rearm for a possible next flight this session.
             if (!coordinator.isRecording) {
+                coordinator.lastSealed()?.let { uploader.onFlightSealed(it.id) }
                 detect = FlightDetector.State()
                 takeoffDatumM = Double.NaN
             }

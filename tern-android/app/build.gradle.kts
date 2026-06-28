@@ -20,6 +20,13 @@ val keystoreProps = Properties().apply {
     if (keystorePropsFile.exists()) keystorePropsFile.inputStream().use { load(it) }
 }
 
+// Spedmo partner-API config (gitignored, like keystore.properties). Absent on a fresh clone /
+// CI, so the upload feature is simply inert until a key is present — the build still works.
+val spedmoPropsFile = rootProject.file("spedmo.properties")
+val spedmoProps = Properties().apply {
+    if (spedmoPropsFile.exists()) spedmoPropsFile.inputStream().use { load(it) }
+}
+
 android {
     namespace = "com.ternparagliding"
     compileSdk = 36
@@ -32,6 +39,11 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Spedmo partner API (Epic 03/05) — app-identity key + base URL. Empty default so the
+        // build works without spedmo.properties; SpedmoCredentials treats "" as "not configured".
+        buildConfigField("String", "SPEDMO_API_KEY", "\"${spedmoProps.getProperty("apiKey", "")}\"")
+        buildConfigField("String", "SPEDMO_BASE_URL", "\"${spedmoProps.getProperty("baseUrl", "https://spedmo.com")}\"")
     }
 
     signingConfigs {
@@ -209,6 +221,8 @@ dependencies {
 
     // MockWebServer for API testing (debugImplementation to share with androidTest)
     debugImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+    // Also on the JVM unit-test classpath (SpedmoApiTest etc.)
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
 
     // Android Testing
     androidTestImplementation("androidx.test.ext:junit:1.3.0")

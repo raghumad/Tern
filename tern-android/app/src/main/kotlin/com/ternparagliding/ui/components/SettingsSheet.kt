@@ -125,6 +125,10 @@ fun SettingsSheet(
                 HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
             }
 
+            // Spedmo — link an account to upload flights to your online logbook.
+            // Self-hides when the build has no partner key.
+            item { SpedmoAccountSection() }
+
             // Connections — the two Bluetooth devices Tern pairs with, each with
             // its live status: the XC Tracer vario (sensor link) and the Mezulla
             // board (mesh). Connecting/pairing is infrequent, so it lives here
