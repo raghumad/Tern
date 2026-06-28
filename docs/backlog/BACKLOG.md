@@ -367,6 +367,16 @@ airspace/sites; a from-scratch social network; anything that breaks without cell
   organizing-principle note) so the offline LoRa mesh shows exactly that group. The
   `MapState.teamSource="spedmo-club"` hook already exists; the channel-provisioning
   bridge to Epic 01 (`set_team`/`set_channel`) is the new work.
+  - **🟡 Built 2026-06-27/28 (deploy + on-device verify ⬜).** *Spedmo side* (PR
+    branch `tern-team-channel`, proven by ClubServiceTest 3/3 + a 100k-PSK run, not
+    yet pushed): `GET /api/v1.0/clubs.api` returns the member's clubs each with a
+    team `channelName` + `psk` (random 32-byte, **hex**, minted once per club +
+    persisted — a stable secret all members share). *Tern side* (built + tested):
+    `SpedmoApi.listClubs`, `TeamLink.fromHex` (club name+hex PSK → Team), and
+    Settings → "Team from your Spedmo club" (load clubs → pick → `SetTeam(source=
+    "spedmo-club")` → existing set_channel apply path provisions the board).
+    *Remaining:* push + deploy the Spedmo PR, then fetch-clubs→join-channel on
+    device with two phones.
 - **3.10 Soarable forecast from Spedmo — 🟡 offline fallback ✅ / source ⬜.**
   The K4 weather deck shipped `TernLocalFlyability` *and* the **soarable-window
   scan** (`weather/Soarable.kt` — best contiguous flyable run, daylight-bound,
