@@ -33,9 +33,10 @@ class TaskPlanningMiddleware(
     private val elevResolved = java.util.Collections.synchronizedSet(mutableSetOf<String>())
 
     // Offline corridor tiles: one debounced, dedup'd download per task. MapLibre's
-    // OfflineManager callbacks land on the main thread, so the cache job runs on Main
-    // (mirroring CacheTilesButton). cachedCorridorSig remembers the geometry we've handled
-    // this session; tileJobs lets a burst of edits coalesce into a single download.
+    // OfflineManager callbacks land on the main thread, so the cache job runs on Main.
+    // Caching is fully automatic — there is no user-facing "download" action; cachedCorridorSig
+    // remembers the geometry we've handled this session; tileJobs lets a burst of edits
+    // coalesce into a single download.
     private val tileCacher by lazy { com.ternparagliding.offline.TaskTileCacher(context) }
     private val tileScope = CoroutineScope(Dispatchers.Main + Job())
     private val tileJobs = java.util.Collections.synchronizedMap(mutableMapOf<String, Job>())
