@@ -42,7 +42,7 @@ The scrub surface — skim this, drill into the section for detail.
 |---|---|---|---|
 | **01 — Buddy mesh + SOS** | now | 🟡 | Peers-on-map half ✅ on hardware; SOS half (1.4–1.7) ⬜ |
 | **02 — Traffic awareness** | later | ⏸ | FANET/FLARM/ADS-L. **Shelved until V2 dual-radio hardware** (2026-06-27) |
-| **03 — Spedmo social layer** | later | 🟡 | Offline Flyability fallback ✅; cloud/social ⬜. **Now unblocked** |
+| **03 — Spedmo social layer** | later | 🟡 | Offline Flyability fallback ✅; **Spedmo partner API + club model mostly already built** (IGC upload, livetrack push, club-scoped livetrack all exist); Tern-side wiring ⬜ |
 | **04 — First-time onboarding** | soon | 🟡 | 7-step brochure. Region-from-GPS + release build started |
 | **05 — Flight recording, logbook & export** | now | 🟡 | Launch→deck ✅; recorder+IGC+crash-survival+signing + logbook UI built & wired (on-map replay / Spedmo / hw-signing ⬜) |
 | **Tasks & waypoints** | now | ✅ | Task surface is pilot-grade; small polish items remain |
@@ -299,6 +299,29 @@ binding is what makes "join a group → buddies appear" work; it doesn't exist y
 This elevates **Story 3.9** from a cosmetic "club members brighter" item to the
 spine of the buddy-onboarding UX (and ties Epic 03 ↔ Epic 01).
 
+**What already exists in Spedmo (verified 2026-06-27 from `src/paragliding`).**
+The partner API and the social model are mostly built — Epic 03 is far less
+greenfield than assumed:
+- **Partner REST API** `ApiV1Controller` (`/api/v1.0/*.api`), Swagger-documented:
+  `POST flightDataUpload.api` (**IGC upload + FAI scoring — the 5.4/3.5 target,
+  done**), `POST livetrackUpdate.api` (push my live pos — **3.4 TX**), `GET
+  livetracks.api` (recent global — **3.3**), `GET flights.api` / `flightData/{id}.api`
+  (my flights + IGC), `GET member.api` (**3.1**).
+- **Auth = two headers:** API key (partner-app identity, `model.Api`) + member
+  access key (`ApiMember`); issued via `apiAuthorise.pg`; cache once → works
+  offline. Functionally covers 3.1 without a bespoke OAuth flow.
+- **Team backbone already modeled:** `Club` (name/description/`privateClub`/
+  members/watched-sites), `ClubMember` (club↔member+`type`), `ClubInvitation`
+  (invites). **`LiveTrackingService.findByRecentByClub(club)` already returns
+  livetracks scoped to a club's members** — the exact "see my buddies live" query,
+  written but not yet on the v1 API.
+- **Remaining server work (small, we own the source):** (1) expose
+  `findByRecentByClub` as a club-scoped livetracks endpoint; (2) expose "my clubs"
+  on the API (`ClubsController` is web-only today); (3) **the channel/PSK binding**
+  — derive/serve a Meshtastic channel name+PSK per club (the one genuinely new
+  piece); (4) "landed safe" (3.6 — no equivalent yet).
+- Source pointers: [[tern-spedmo-codebase-map]].
+
 **What done looks like:** night-before "who flew my site this week"; at-launch
 "who's in the air nearby" + recent landed-pilot notes; in-flight faded markers
 for out-of-mesh buddies via cellular; auto IGC upload + XC score + "landed safe"
@@ -320,7 +343,9 @@ airspace/sites; a from-scratch social network; anything that breaks without cell
 - **3.5 Auto IGC upload after landing** — landing detection (groundspeed≈0 + baro
   stable 5 min) queues upload for next signal; survives restart; backoff retry.
   *Depends on the recorder + IGC writer in Epic 05 5.2; the Tern-side hand-off is
-  Epic 05 5.4.*
+  Epic 05 5.4.* **Server side done:** `POST /api/v1.0/flightDataUpload.api`
+  (`ApiV1Controller`) already accepts IGC, imports + FAI-scores it. Tern just
+  needs to call it with the cached keys.
 - **3.6 "Landed safe" to ground crew** — one-tap watcher setup; fires within 30 s
   of landing when cell available; deferred send otherwise; manual re-fire.
 - **3.7 SOS forwarding (defense in depth)** — mesh SOS primary (offline); also
