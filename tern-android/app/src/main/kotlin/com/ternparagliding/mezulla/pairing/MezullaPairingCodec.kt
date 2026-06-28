@@ -1,6 +1,8 @@
 package com.ternparagliding.mezulla.pairing
 
 import com.ternparagliding.mezulla.connection.ble.MeshPacketCodec
+import com.ternparagliding.mezulla.connection.ble.Proto
+import com.ternparagliding.mezulla.connection.ble.ProtoReader
 import com.ternparagliding.mezulla.connection.ble.ProtoWriter
 
 /**
@@ -57,6 +59,60 @@ object MezullaPairingCodec {
     }
 
     /**
+     * Decode a board's claim reply out of a raw `FromRadio` frame.
+     *
+     * The firmware's `MezullaOwnershipModule::allocReply()` returns
+     * `[status:1][owner_id:rest]` on PRIVATE_APP, and the framework wraps it in
+     * a MeshPacket whose `from` is the board's TRUE node number. Reading both is
+     * what lets pairing (a) confirm the claim was actually accepted and (b)
+     * confirm we reached the board the QR named — neither of which the old
+     * fire-and-forget claim could do.
+     *
+     * Returns null when [fromRadio] isn't a PRIVATE_APP reply (e.g. a
+     * config/nodeinfo frame from the normal handshake) — caller keeps reading.
+     */
+    fun decodePairingReplyFromRadio(fromRadio: ByteArray): PairingReply? {
+        val packet = lenField(fromRadio, 2) ?: return null   // FromRadio.packet
+        val from = fixed32Field(packet, 1) ?: return null    // MeshPacket.from
+        val data = lenField(packet, 4) ?: return null        // MeshPacket.decoded (Data)
+        val portnum = varintField(data, 1) ?: return null    // Data.portnum
+        if (portnum != PORT_PRIVATE_APP.toLong()) return null
+        val payload = lenField(data, 2) ?: return null       // Data.payload
+        val resp = decodeResponse(payload)
+        return PairingReply(fromNode = from, status = resp.status, ownerId = resp.ownerId)
+    }
+
+    private fun lenField(bytes: ByteArray, field: Int): ByteArray? {
+        val r = ProtoReader(bytes)
+        while (r.hasMore()) {
+            val tag = r.readTag(); val f = tag ushr 3; val w = tag and 0x7
+            if (f == field && w == Proto.WIRE_LENGTH_DELIMITED) return r.readLengthDelimited()
+            r.skipField(w)
+        }
+        return null
+    }
+
+    private fun fixed32Field(bytes: ByteArray, field: Int): Long? {
+        val r = ProtoReader(bytes)
+        while (r.hasMore()) {
+            val tag = r.readTag(); val f = tag ushr 3; val w = tag and 0x7
+            if (f == field && w == Proto.WIRE_FIXED32) return r.readFixed32()
+            r.skipField(w)
+        }
+        return null
+    }
+
+    private fun varintField(bytes: ByteArray, field: Int): Long? {
+        val r = ProtoReader(bytes)
+        while (r.hasMore()) {
+            val tag = r.readTag(); val f = tag ushr 3; val w = tag and 0x7
+            if (f == field && w == Proto.WIRE_VARINT) return r.readVarint()
+            r.skipField(w)
+        }
+        return null
+    }
+
+    /**
      * Wrap a pairing payload in a ToRadio MeshPacket targeting a specific
      * node on PRIVATE_APP. Unlike broadcast position/alert packets, claim
      * packets are directed to the board we're pairing with.
@@ -93,6 +149,17 @@ enum class PairingStatus {
 }
 
 data class PairingResponse(
+    val status: PairingStatus,
+    val ownerId: String,
+)
+
+/**
+ * A claim reply received from a board: the board's own node number (from the
+ * MeshPacket envelope) plus the parsed status/owner. [fromNode] is the identity
+ * check — pairing confirms it equals the node the QR named.
+ */
+data class PairingReply(
+    val fromNode: Long,
     val status: PairingStatus,
     val ownerId: String,
 )

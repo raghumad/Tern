@@ -1,0 +1,13 @@
+# Spedmo partner-API config for the Tern app (Epic 03/05).
+# Copy to `spedmo.properties` (gitignored) and fill in. Absent → the upload feature
+# stays inert (the build still works).
+#
+#   apiKey  — the Tern app's partner API key (Spedmo `Api.key`), issued via
+#             apiAuthorise.pg. Identifies the app, NOT the pilot.
+#   baseUrl — Spedmo origin. Defaults to https://spedmo.com if omitted.
+#             Use http://10.0.2.2:8080 to hit a dev server from the emulator.
+#
+# The per-pilot member access key is NOT here — pilots paste/link that in Settings.
+
+apiKey=
+baseUrl=https://spedmo.com

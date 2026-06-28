@@ -21,19 +21,19 @@ class MapStoreReduceActionTest {
     // -- Known action families are dispatched to their reducers ----------
 
     @Test
-    fun `MapAction is routed to mapReducer`() {
+    fun `MapAction is taskd to mapReducer`() {
         val result = reduceAction(initialState, MapAction.SetLocationReady(true))
         assertThat(result.isLocationReady).isTrue()
     }
 
     @Test
-    fun `WeatherActions is routed to weatherReducer`() {
+    fun `WeatherActions is taskd to weatherReducer`() {
         val result = reduceAction(initialState, WeatherActions.SetWeatherGaugeEnabled(false))
         assertThat(result.weatherState.showWeatherGauges).isFalse()
     }
 
     @Test
-    fun `PeerAction is routed to peerReducer`() {
+    fun `PeerAction is taskd to peerReducer`() {
         val identity = PeerIdentity.fromNodeNumber(42)
         val now = Instant.now()
         val result = reduceAction(initialState, PeerAction.PeerSeen(identity, now))

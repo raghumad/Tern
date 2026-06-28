@@ -7,13 +7,15 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.snapshotFlow
 import com.ternparagliding.overlay.priority.OverlayPrioritizer
 import com.ternparagliding.overlay.priority.Position
 import com.ternparagliding.redux.MapStore
-import com.ternparagliding.utils.CacheManager
+import com.ternparagliding.utils.cache.CacheManager
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.withContext
 import org.maplibre.compose.camera.CameraState
 import org.osmdroid.util.GeoPoint
@@ -42,59 +44,120 @@ fun AirspaceOverlay(
     store: MapStore,
     cameraState: CameraState,
 ) {
-    val context = LocalContext.current.applicationContext
     val state by store.state.collectAsState()
-    val center = state.center ?: return
+    if (state.center == null) return
 
     val airspaceCache = remember { CacheManager.airspaceCache }
     val prioritizer = remember { OverlayPrioritizer() }
 
-    var candidates by remember { mutableStateOf<List<AirspaceCandidate>>(emptyList()) }
-    var lastQueryCenter by remember { mutableStateOf<GeoPoint?>(null) }
+    var featureCollection by remember { mutableStateOf(AirspaceGeoJson.empty()) }
 
-    // Re-query when pilot moves far enough from last query point.
-    LaunchedEffect(center) {
-        val moved = lastQueryCenter?.let { prev ->
-            val distMeters = prev.distanceToAsDouble(center)
-            distMeters / 1000.0
-        } ?: Double.MAX_VALUE
+    // Latest Redux state, read inside the long-lived collector without
+    // re-keying it (which would tear the collector down on every pan).
+    val latestState = rememberUpdatedState(state)
 
-        if (moved < REQUERY_DISTANCE_KM) return@LaunchedEffect
+    // Single long-lived collector. The query+build is cancellable work; keying
+    // a LaunchedEffect directly on `center` cancelled and relaunched it on every
+    // ~30 ms pan tick, so during a continuous drag (or its inertial glide) the
+    // ~250 ms query never survived to commit — the overlay starved for the whole
+    // gesture and only caught up once the map fully settled (the "DC is 30 s
+    // late" report). Instead we drive from a conflated snapshot flow: while a
+    // query+build runs, intermediate centres collapse to the latest, and the
+    // collector resumes with that newest centre once the current one commits.
+    // Forward progress is guaranteed — the overlay refreshes every ~250 ms
+    // *during* the drag instead of after it.
+    LaunchedEffect(Unit) {
+        var lastQueryCenter: GeoPoint? = null
+        var lastQueriedCountries: Set<String> = emptySet()
 
-        val newCandidates = withContext(Dispatchers.IO) {
-            queryAndScore(context, airspaceCache, prioritizer, center)
-        }
+        snapshotFlow { latestState.value.center to latestState.value.airspaceCountries }
+            .conflate()
+            .collect { (center, countries) ->
+                if (center == null) return@collect
 
-        candidates = newCandidates
-        lastQueryCenter = center
-        Log.d(TAG, "Airspace query: ${newCandidates.size} candidates @ ${center.latitude},${center.longitude}")
+                val moved = lastQueryCenter?.let { prev ->
+                    prev.distanceToAsDouble(center) / 1000.0
+                } ?: Double.MAX_VALUE
+                val countriesChanged = countries != lastQueriedCountries
+                // Re-query when the pilot moves far enough OR a country's data
+                // finishes downloading (airspaceCountries changes, same centre —
+                // must bypass the distance guard or freshly-downloaded airspace
+                // would not appear until the next pan).
+                if (moved < REQUERY_DISTANCE_KM && !countriesChanged) return@collect
+
+                // Query (disk) AND build the GeoJSON entirely off the main
+                // thread. Building the FeatureCollection here — not in
+                // AirspaceLayer's composition — keeps the per-vertex parse of a
+                // dense set (~370 ms for ~80 polygons) off the UI thread, so the
+                // map never freezes while airspaces load.
+                // DIAG: split the withContext(IO) round-trip into dispatch (time to
+                // get an IO thread) / exec (queryAndScore) / resume (time to hop back
+                // to this collector's dispatcher). At dense centres (DC) the total
+                // balloons to ~26 s while exec stays ~75 ms — this tells us whether
+                // it's IO-pool starvation (dispatch) or a frame-clock-gated resume.
+                val tQuery = System.currentTimeMillis()
+                var tIoStart = 0L
+                var tIoEnd = 0L
+                val newCandidates = withContext(Dispatchers.IO) {
+                    tIoStart = System.currentTimeMillis()
+                    val r = queryAndScore(airspaceCache, prioritizer, center)
+                    tIoEnd = System.currentTimeMillis()
+                    r
+                }
+                val tBuild = System.currentTimeMillis()
+                val built = withContext(Dispatchers.Default) {
+                    AirspaceGeoJson.toFeatureCollection(newCandidates)
+                }
+                Log.d(
+                    TAG,
+                    "query+build: ${newCandidates.size} candidates @ " +
+                        "${center.latitude},${center.longitude} " +
+                        "dispatch=${tIoStart - tQuery}ms exec=${tIoEnd - tIoStart}ms " +
+                        "resume=${tBuild - tIoEnd}ms build=${System.currentTimeMillis() - tBuild}ms " +
+                        "total=${tBuild - tQuery}ms",
+                )
+
+                featureCollection = built
+                lastQueryCenter = center
+                lastQueriedCountries = countries
+            }
     }
 
-    AirspaceLayer(candidates = candidates)
+    // Altitude-aware relevance: stamp each feature with an emphasis from the pilot's live
+    // altitude vs its floor/ceiling. Re-derived only when the altitude crosses a ~500 ft
+    // bucket (not every fix) — the stamping is cheap (no re-query / no geometry re-parse).
+    // On the ground (altitudeM null) the bucket is null and emphasis falls back to class.
+    val altFt = state.flightDeck.altitudeM?.let { it * 3.28084 }
+    val altBucket = altFt?.let { Math.round(it / 500.0) }
+    val styled = remember(featureCollection, altBucket) {
+        AirspaceGeoJson.withEmphasis(featureCollection, altFt)
+    }
+
+    // Honour the Settings toggle. We keep the collector above running (so re-enabling is instant)
+    // but feed the layer an empty collection when airspaces are switched off.
+    val enabled = state.overlayState.airspaces.enabled
+    AirspaceLayer(featureCollection = if (enabled) styled else AirspaceGeoJson.empty())
 }
 
 /**
- * Query the spatial cache for all countries that have data near
- * [center], resolve airspace classes, filter out Class G, and
- * run the result through the prioritizer.
+ * Query the spatial cache for airspace near [center] across ALL cached
+ * countries, resolve airspace classes, filter out Class G, and run the result
+ * through the prioritizer.
+ *
+ * Note: deliberately does NOT reverse-geocode the centre to pick a single
+ * country. That geocode is a slow network call that gated every render and made
+ * airspaces appear seconds late when panning. The data is already on disk, so
+ * we paint whatever is cached near the centre immediately (and both countries'
+ * airspace near a border). Country detection still drives the *download* path
+ * (UniversalCountryCacheManager) for fetching not-yet-cached countries.
  */
 private fun queryAndScore(
-    context: android.content.Context,
-    cache: com.ternparagliding.utils.AirspaceCache,
+    cache: com.ternparagliding.utils.cache.AirspaceCache,
     prioritizer: OverlayPrioritizer,
     center: GeoPoint,
 ): List<AirspaceCandidate> {
-    // Determine which country's cache to query. The AirspaceCache
-    // is keyed by country code. For now, query the country the
-    // pilot is in. The UniversalCountryCacheManager handles
-    // multi-country queries at a higher level — this composable
-    // works with whatever data the cache already holds.
-    val countryCode = com.ternparagliding.utils.CountryUtils.getCountryCodeFromCoordinates(
-        context, center.latitude, center.longitude,
-    ) ?: return emptyList()
-
     val radiusMiles = QUERY_RADIUS_KM / 1.60934
-    val features = cache.queryNearbyFeatures(countryCode, center, radiusMiles)
+    val features = cache.queryAllCachedNearby(center, radiusMiles)
 
     val allCandidates = features.mapNotNull { feature ->
         val cls = AirspaceGeoJson.resolveAirspaceClass(feature)

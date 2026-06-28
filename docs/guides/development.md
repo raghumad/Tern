@@ -40,5 +40,5 @@ Architecture must handle the absence of a barometer by falling back to Kalman-fi
 
 ## ⚡ Completion Criteria
 - [ ] **Technical**: Zero compilation warnings, 100% Redux compliance (post-Phase 1), <75% memory usage.
-- [ ] **Verification**: Full suite pass via `./gradlew testAll`.
-- [ ] **User Story**: BDD-style tests must include a formal story from the pilot's perspective.
+- [ ] **Verification**: Unit tests + assemble green via `./gradlew testAll` (= `testDebugUnitTest` + `assembleDebug`).
+- [ ] **Claim**: not done until the pilot-facing claim it serves is demonstrated by a claim-driven test — replay a real flight, assert observable behavior (no screenshots). See [claims.md](../claims.md).

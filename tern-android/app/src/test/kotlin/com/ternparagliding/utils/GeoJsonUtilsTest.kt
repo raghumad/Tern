@@ -1,4 +1,6 @@
 package com.ternparagliding.utils
+import com.ternparagliding.utils.cache.GeoJsonUtils
+import com.ternparagliding.utils.cache.OverlayGeoJsonParser
 
 import com.google.common.truth.Truth.assertThat
 import org.junit.jupiter.api.Test
@@ -71,7 +73,7 @@ class GeoJsonUtilsTest {
             }
         """.trimIndent()
         
-        val features = MapOverlayCacheUtils.parseGeoJsonToFeatures(geoJson, "test_type")
+        val features = OverlayGeoJsonParser.parseGeoJsonToFeatures(geoJson, "test_type")
         assertThat(features).hasSize(1)
         assertThat(features[0].overlayType).isEqualTo("test_type")
         assertThat(features[0].centroid.latitude).isEqualTo(47.0)
@@ -85,7 +87,7 @@ class GeoJsonUtilsTest {
             {"type":"Feature","geometry":{"type":"Point","coordinates":[8.2, 47.2]},"properties":{}}
         """.trimIndent()
         
-        val features = MapOverlayCacheUtils.parseNdGeoJsonToFeatures(ndGeoJson, "test_type")
+        val features = OverlayGeoJsonParser.parseNdGeoJsonToFeatures(ndGeoJson, "test_type")
         assertThat(features).hasSize(2)
         assertThat(features[0].centroid.latitude).isEqualTo(47.1)
         assertThat(features[1].centroid.latitude).isEqualTo(47.2)

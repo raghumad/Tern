@@ -11,7 +11,8 @@ live so a new reader can find their way around.
 | Know what we're building next, and in what order | `backlog/` |
 | Understand how the Android app is put together | `architecture/` |
 | Read the design of a specific feature | `features/<name>/` |
-| Set up dev, run tests, or measure performance | `guides/` |
+| Understand how we verify Tern's promises (test strategy) | `claims.md` |
+| Set up dev or measure performance | `guides/` |
 | Read a specific technical decision (RFC) | `rfcs/` |
 | Find the manual UX checklist | `ux/validation-checklist.md` |
 | Reference for designing the custom Mezulla hardware | `hardware/` |

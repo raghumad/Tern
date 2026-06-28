@@ -9,7 +9,7 @@ enum class OverlayKind(val safetyWeight: Int) {
     SOS_ALERT(1000),
     AIRSPACE(100),
     PEER(80),
-    ROUTE_WAYPOINT(60),
+    TASK_WAYPOINT(60),
     PG_SPOT(20),
     WEATHER_MARKER(10),
 }

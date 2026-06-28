@@ -3,7 +3,7 @@ package com.ternparagliding.overlay.pgspot
 import com.ternparagliding.overlay.priority.OverlayKind
 import com.ternparagliding.overlay.priority.OverlayPrioritizer
 import com.ternparagliding.overlay.priority.Position
-import com.ternparagliding.utils.MapOverlayCacheUtils.OverlayFeature
+import com.ternparagliding.utils.cache.MapOverlayCacheUtils.OverlayFeature
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals

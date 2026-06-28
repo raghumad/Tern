@@ -126,9 +126,15 @@ class BleConnectionTest {
             transport.emit(BleTransportEvent.Connected)
             assertThat(awaitItem()).isEqualTo(MeshEvent.LinkStateChange(LinkState.UP))
 
+            // Link-UP runs the firmware-wake handshake (heartbeat +
+            // want_config_id x2) which writes to the transport before any
+            // app frame ever does. Assert on the DELTA so the test tracks
+            // the real contract — "sendOwnPosition emits exactly one frame"
+            // — instead of the absolute count of handshake + app writes.
+            val before = transport.writes.size
             conn.sendOwnPosition(sampleFix)
 
-            assertThat(transport.writes).hasSize(1)
+            assertThat(transport.writes.size - before).isEqualTo(1)
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -165,10 +171,14 @@ class BleConnectionTest {
             transport.emit(BleTransportEvent.Connected)
             assertThat(awaitItem()).isEqualTo(MeshEvent.LinkStateChange(LinkState.UP))
 
+            // As above: the connect handshake has already written several
+            // frames by the time the link is UP, so assert the delta from
+            // this one sendAlert call rather than the absolute write count.
+            val before = transport.writes.size
             val result = conn.sendAlert(lastKnownPosition = sampleFix)
 
             assertThat(result).isEqualTo(MeshtasticConnection.SendResult.Acked)
-            assertThat(transport.writes).hasSize(1)
+            assertThat(transport.writes.size - before).isEqualTo(1)
             cancelAndIgnoreRemainingEvents()
         }
     }

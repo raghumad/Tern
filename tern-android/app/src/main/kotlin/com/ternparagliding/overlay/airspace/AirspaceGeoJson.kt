@@ -1,6 +1,7 @@
 package com.ternparagliding.overlay.airspace
 
-import com.ternparagliding.utils.MapOverlayCacheUtils.OverlayFeature
+import com.ternparagliding.overlay.nestedProperties
+import com.ternparagliding.utils.cache.MapOverlayCacheUtils.OverlayFeature
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import org.maplibre.spatialk.geojson.Feature
@@ -30,11 +31,19 @@ object AirspaceGeoJson {
     fun toFeatureCollection(
         candidates: List<AirspaceCandidate>,
     ): FeatureCollection<Geometry, JsonObject> {
+        // Test seam (pure JVM): report the thread this potentially-expensive
+        // build runs on. Inert in production (no observer set). Lets
+        // AirspaceRenderPerfTest assert the build happens off the main thread.
+        AirspaceBuildProbe.observer?.invoke(Thread.currentThread().name)
         val features = candidates.mapNotNull { candidate ->
             toFeature(candidate)
         }
+        AirspaceBuildProbe.recordBuild(features.size)
         return FeatureCollection(features)
     }
+
+    /** Empty collection — the initial value while the first off-thread build runs. */
+    fun empty(): FeatureCollection<Geometry, JsonObject> = FeatureCollection(emptyList())
 
     /**
      * Convert a single cached [OverlayFeature] + resolved airspace
@@ -61,8 +70,7 @@ object AirspaceGeoJson {
      */
     fun resolveAirspaceClass(feature: OverlayFeature): String {
         val raw = feature.feature
-        @Suppress("UNCHECKED_CAST")
-        val props = raw["properties"] as? Map<String, Any> ?: emptyMap()
+        val props = raw.nestedProperties()
 
         // Try string keys first (most common in clean data).
         val stringClass = props["class"] as? String
@@ -82,9 +90,18 @@ object AirspaceGeoJson {
             typeNum == 1 -> "RESTRICTED"
             typeNum == 2 -> "DANGER"
             typeNum == 3 -> "PROHIBITED"
-            typeNum == 4 -> "MILITARY"
-            icaoNum in 1..5 -> ('A' + (icaoNum!! - 1)).toString()
-            icaoNum in 6..8 -> "G"
+            // OpenAIP type=4 is CTR (control zone around an aerodrome), not military.
+            typeNum == 4 -> "CTR"
+            // OpenAIP icaoClass is 0-indexed: 0=A, 1=B, 2=C, 3=D, 4=E, 5=F,
+            // 6=G. Verified against real data — "DENVER CLASS B AREA A" carries
+            // icaoClass=1. The old `1..5 -> 'A'+(n-1)` shifted every class down
+            // one (Class B rendered as Class A — a safety-relevant mislabel),
+            // dropped Class A (0) to UNKNOWN, and lumped 7/8 into G so they
+            // were skipped as "unrestricted".
+            icaoNum != null && icaoNum in 0..6 -> ('A' + icaoNum).toString()
+            // 7 = unclassified, 8 = special-use airspace — NOT Class G. Map to
+            // UNKNOWN so they still render (isUnrestricted only skips real G).
+            icaoNum == 7 || icaoNum == 8 -> "UNKNOWN"
             else -> "UNKNOWN"
         }
     }
@@ -110,22 +127,90 @@ object AirspaceGeoJson {
     /**
      * Build the JsonObject properties attached to each GeoJSON feature.
      * The FillLayer/LineLayer expressions read `"class"` to pick colours.
+     * Including floor/ceiling for at-a-glance labelling.
      */
     private fun buildProperties(candidate: AirspaceCandidate): JsonObject {
         val raw = candidate.feature.feature
-        @Suppress("UNCHECKED_CAST")
-        val props = raw["properties"] as? Map<String, Any> ?: emptyMap()
+        val props = raw.nestedProperties()
+        
         val name = props["name"] as? String
             ?: props["Name"] as? String
             ?: candidate.feature.id
+
+        // Extract vertical limits (OpenAIP format) — both the human label string and the
+        // numeric feet (for altitude-aware relevance; see [withEmphasis]).
+        val floor = formatLimit(props["lowerLimit"])
+        val ceiling = formatLimit(props["upperLimit"])
+        val floorFt = AirspaceRelevance.parseLimitFeet(props["lowerLimit"])
+        val ceilingFt = AirspaceRelevance.parseLimitFeet(props["upperLimit"])
 
         return JsonObject(
             buildMap {
                 put("class", JsonPrimitive(candidate.airspaceClass))
                 put("name", JsonPrimitive(name))
                 put("id", JsonPrimitive(candidate.id))
+                put("floor", JsonPrimitive(floor))
+                put("ceiling", JsonPrimitive(ceiling))
+                put("label", JsonPrimitive("${candidate.airspaceClass}\n$floor/$ceiling"))
+                // Numeric limits for relevance. A ground-referenced floor (SFC/AGL) isn't
+                // an MSL number, so we flag it instead of emitting a bogus floorFt.
+                put("floorGround", JsonPrimitive(floorFt?.ground ?: false))
+                floorFt?.takeIf { !it.ground }?.let { put("floorFt", JsonPrimitive(it.feet)) }
+                ceilingFt?.let { put("ceilingFt", JsonPrimitive(it.feet)) }
             }
         )
+    }
+
+    /**
+     * Stamp each feature with an altitude-aware **emphasis** (BOLD/NORMAL/FAINT) from the
+     * pilot's live altitude ([pilotFtMsl], null on the ground → static class emphasis) and
+     * the numeric floor/ceiling baked above. Cheap — reuses geometry, only rebuilds the
+     * small properties object — so it can run on every altitude *bucket* change without the
+     * disk query + per-vertex re-parse that [toFeatureCollection] does.
+     */
+    fun withEmphasis(
+        fc: FeatureCollection<Geometry, JsonObject>,
+        pilotFtMsl: Double?,
+    ): FeatureCollection<Geometry, JsonObject> {
+        val stamped = fc.features.map { f ->
+            val p = f.properties ?: return@map f
+            val geom = f.geometry ?: return@map f
+            val cls = (p["class"] as? JsonPrimitive)?.content ?: "UNKNOWN"
+            val floorFt = (p["floorFt"] as? JsonPrimitive)?.content?.toDoubleOrNull()
+            val ceilingFt = (p["ceilingFt"] as? JsonPrimitive)?.content?.toDoubleOrNull()
+            val ground = (p["floorGround"] as? JsonPrimitive)?.content?.toBoolean() ?: false
+            val emphasis = AirspaceRelevance.emphasisFor(cls, floorFt, ceilingFt, ground, pilotFtMsl)
+            Feature(geom, JsonObject(p + ("emphasis" to JsonPrimitive(emphasis.name))))
+        }
+        return FeatureCollection(stamped)
+    }
+
+    private fun formatLimit(limitObj: Any?): String {
+        val map = limitObj as? Map<*, *> ?: return "???"
+        val value = (map["value"] as? Number)?.toInt() ?: return "???"
+        val unit = (map["unit"] as? Number)?.toInt() ?: 1 // Default feet
+        val ref = (map["referenceDatum"] as? Number)?.toInt() ?: 1 // Default MSL
+
+        val unitStr = when(unit) {
+            6 -> "FL"
+            0 -> "m"
+            else -> "ft"
+        }
+
+        val refStr = when(ref) {
+            0 -> "GND"
+            1 -> "MSL"
+            2 -> "STD"
+            else -> ""
+        }
+
+        return if (unit == 6) {
+            "FL${value / 100}"
+        } else if (value == 0 && ref == 0) {
+            "SFC"
+        } else {
+            "$value$unitStr $refStr".trim()
+        }
     }
 
     /**

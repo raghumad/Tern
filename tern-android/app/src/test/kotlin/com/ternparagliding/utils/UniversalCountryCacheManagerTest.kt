@@ -1,8 +1,12 @@
 package com.ternparagliding.utils
+import com.ternparagliding.utils.cache.AirspaceCache
+import com.ternparagliding.utils.cache.PGSpotCache
+import com.ternparagliding.utils.cache.UniversalCountryCacheManager
+import com.ternparagliding.utils.geo.CountryUtils
 
 import android.content.Context
 import com.google.common.truth.Truth.assertThat
-import com.ternparagliding.utils.MapOverlayCacheUtils.OverlayFeature
+import com.ternparagliding.utils.cache.MapOverlayCacheUtils.OverlayFeature
 import io.mockk.*
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.launch
@@ -55,7 +59,7 @@ class UniversalCountryCacheManagerTest {
         val countryCode = "US"
         
         // Simulate cached country by mocking the underlying caches
-        com.ternparagliding.utils.CountryUtils.setTestCountryCode(countryCode)
+        com.ternparagliding.utils.geo.CountryUtils.setTestCountryCode(countryCode)
 
         // Mock cache responses
         val airspaceFeature = OverlayFeature(
@@ -100,7 +104,7 @@ class UniversalCountryCacheManagerTest {
         val countryCode = "CH"
         
         // Simulate cached country by mocking the underlying caches
-        com.ternparagliding.utils.CountryUtils.setTestCountryCode(countryCode)
+        com.ternparagliding.utils.geo.CountryUtils.setTestCountryCode(countryCode)
 
         // Mock cache with a slight delay to simulate work
         val radiusMiles = radiusKm * 0.621371

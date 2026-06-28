@@ -7,16 +7,12 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- Haptic confirmation when a task cylinder is tagged (eyes-out flight feedback). -->
+    <uses-permission android:name="android.permission.VIBRATE" />
 
-    <!-- Mock GPS for IGC-replay tests (com.ternparagliding.sim.mockgps).
-         On Android 6+ this permission alone is not sufficient; the user
-         must also select the Tern test APK as the system mock-location
-         app under Developer Options ("Select mock location app"). The
-         permission is declared so platforms that gate the test-provider
-         API on it still allow our injector. The production app never
-         starts a mock provider. -->
-    <uses-permission android:name="android.permission.ACCESS_MOCK_LOCATION"
-        tools:ignore="MockLocation,ProtectedPermissions" />
+    <!-- ACCESS_MOCK_LOCATION is DEBUG-ONLY now — see app/src/debug/AndroidManifest.xml.
+         The production app never starts a mock provider, so the release build must not
+         carry a location-related test permission (keeps the Play data-safety surface clean). -->
 
     <!-- Compass sensor permissions -->
     <uses-feature android:name="android.hardware.sensor.compass" android:required="false" />
@@ -40,6 +36,7 @@
     <uses-permission android:name="android.permission.CAMERA" />
 
     <application
+        android:name=".TernApplication"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -63,7 +60,12 @@
         <activity
             android:name=".TernParaglidingActivity"
             android:exported="true"
-            android:theme="@style/Theme.Tern">
+            android:theme="@style/Theme.Tern"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|density|uiMode">
+            <!-- Handle config changes in-process: rotating the phone must NOT recreate the
+                 Activity (which would tear down the Compose tree, restart a running flight-deck
+                 replay, and flash the GPS-acquisition screen). MapLibre + Compose relayout on
+                 their own; all in-memory flight state (track, camera, replay progress) survives. -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

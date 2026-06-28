@@ -52,6 +52,79 @@ class PeerReducerTest {
     }
 
     @Test
+    fun `PeersCleared drops all peers and alerts but keeps link state`() {
+        // Simulate a roster full of public-mesh nodes + an alert, then a
+        // channel change (team join) clears it so only the new team repopulates.
+        var state = PeerState.empty()
+        state = peerReducer(state, PeerAction.LinkStateChanged(LinkState.UP))
+        state = peerReducer(state, PeerAction.PeerPositionReceived(antoine, sampleFix, t0))
+        state = peerReducer(state, PeerAction.PeerSeen(guillaume, t1))
+        state = peerReducer(
+            state,
+            PeerAction.PeerAlertReceived(guillaume, sampleFix, t1),
+        )
+        assertThat(state.peers).hasSize(2)
+        assertThat(state.activeAlerts).hasSize(1)
+
+        val cleared = peerReducer(state, PeerAction.PeersCleared)
+
+        assertThat(cleared.peers).isEmpty()
+        assertThat(cleared.activeAlerts).isEmpty()
+        // Link state survives — clearing peers is about channel membership,
+        // not the board link, which is still up.
+        assertThat(cleared.linkState).isEqualTo(LinkState.UP)
+    }
+
+    @Test
+    fun `PeerIdentityUpdate does NOT create a peer when none exists`() {
+        // The board's NodeDB dump arrives as NodeInfo for nodes we've never
+        // heard live (the public mesh). It must not put them on the roster.
+        val newState = peerReducer(PeerState.empty(), PeerAction.PeerIdentityUpdate(antoine, t0))
+
+        assertThat(newState.peers).isEmpty()
+    }
+
+    @Test
+    fun `PeerIdentityUpdate refreshes name and lastSeen for an existing peer`() {
+        // A peer registered by a live position; then NodeInfo fills in the name.
+        val anon = PeerIdentity.fromNodeNumber(antoine.nodeNumber) // no names yet
+        var state = peerReducer(PeerState.empty(), PeerAction.PeerPositionReceived(anon, sampleFix, t0))
+        assertThat(state.peers[antoine.nodeNumber]!!.identity.longName).isNull()
+
+        state = peerReducer(state, PeerAction.PeerIdentityUpdate(antoine, t1))
+
+        val peer = state.peers[antoine.nodeNumber]!!
+        assertThat(peer.identity.longName).isEqualTo("Antoine")
+        assertThat(peer.lastSeenAt).isEqualTo(t1)
+        // Update-only: it must not have wiped the live position fix.
+        assertThat(peer.lastPosition).isEqualTo(sampleFix)
+    }
+
+    @Test
+    fun `PeerRemoved evicts a peer and is a no-op for an unknown one`() {
+        var state = peerReducer(PeerState.empty(), PeerAction.PeerPositionReceived(antoine, sampleFix, t0))
+        assertThat(state.peers).containsKey(antoine.nodeNumber)
+
+        state = peerReducer(state, PeerAction.PeerRemoved(antoine.nodeNumber))
+        assertThat(state.peers).doesNotContainKey(antoine.nodeNumber)
+
+        // Removing a node that isn't on the roster changes nothing.
+        val after = peerReducer(state, PeerAction.PeerRemoved(guillaume.nodeNumber))
+        assertThat(after.peers).isEqualTo(state.peers)
+    }
+
+    @Test
+    fun `SelfBoardIdentified records the board's own identity without adding a peer`() {
+        // The connected board's own NodeInfo names the board (OLED name) for the
+        // UI, but must not create a roster entry — you are not your own buddy.
+        val board = PeerIdentity.fromNodeNumber(0x357d5209L, longName = "Meshtastic 8530", shortName = "8530")
+        val state = peerReducer(PeerState.empty(), PeerAction.SelfBoardIdentified(board, t0))
+
+        assertThat(state.selfBoard).isEqualTo(board)
+        assertThat(state.peers).isEmpty()
+    }
+
+    @Test
     fun `PeerSeen registers a previously-unknown peer`() {
         val newState = peerReducer(PeerState.empty(), PeerAction.PeerSeen(antoine, t0))
 

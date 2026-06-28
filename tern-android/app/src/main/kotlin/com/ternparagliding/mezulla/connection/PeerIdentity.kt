@@ -24,6 +24,14 @@ data class PeerIdentity(
     val hexId: String,
     val longName: String? = null,
     val shortName: String? = null,
+    /**
+     * Meshtastic `User.hw_model` — the node's hardware *type*. Mezulla boards
+     * advertise [com.ternparagliding.mezulla.connection.ble.MeshPacketCodec.HW_MODEL_PRIVATE]
+     * (PRIVATE_HW); public-mesh nodes report their real model. The roster admits
+     * only Mezulla nodes by this. Null until NodeInfo has been seen — positions
+     * don't carry it.
+     */
+    val hwModel: Int? = null,
 ) {
     companion object {
         /** Build from the raw node number; formats [hexId] as `!aabbccdd`. */
@@ -31,12 +39,13 @@ data class PeerIdentity(
             nodeNumber: Long,
             longName: String? = null,
             shortName: String? = null,
+            hwModel: Int? = null,
         ): PeerIdentity {
             require(nodeNumber in 0..0xFFFFFFFFL) {
                 "Meshtastic node number is unsigned 32-bit; got $nodeNumber"
             }
             val hex = "!%08x".format(nodeNumber)
-            return PeerIdentity(nodeNumber, hex, longName, shortName)
+            return PeerIdentity(nodeNumber, hex, longName, shortName, hwModel)
         }
     }
 }

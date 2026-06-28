@@ -152,7 +152,7 @@ Re-opening requires new constraints.
 - `tern-android/scripts/flash-mezulla.sh` — current LilyGo flashing
 - `docs/architecture/meshtastic-connection.md` — the abstraction Mezulla
   connects through
-- `docs/backlog/current-focus.md` — what we're shipping now
+- `docs/backlog/BACKLOG.md` — the full backlog + current focus
 
 ---
 

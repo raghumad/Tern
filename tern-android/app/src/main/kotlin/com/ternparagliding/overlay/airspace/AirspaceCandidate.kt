@@ -3,7 +3,7 @@ package com.ternparagliding.overlay.airspace
 import com.ternparagliding.overlay.priority.OverlayCandidate
 import com.ternparagliding.overlay.priority.OverlayKind
 import com.ternparagliding.overlay.priority.Position
-import com.ternparagliding.utils.MapOverlayCacheUtils.OverlayFeature
+import com.ternparagliding.utils.cache.MapOverlayCacheUtils.OverlayFeature
 
 /**
  * An airspace that wants a slot on the map. Wraps the cached

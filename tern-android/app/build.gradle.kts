@@ -1,4 +1,5 @@
 import java.util.Date
+import java.util.Properties
 import java.io.ByteArrayOutputStream
 
 plugins {
@@ -10,6 +11,21 @@ plugins {
 }
 
 apply(plugin = "jacoco")
+
+// Release signing — credentials live in keystore.properties (gitignored), so they're never
+// committed. Absent on CI / a fresh clone, so it's guarded: with no keystore the release build is
+// simply unsigned (installRelease won't work, assembleRelease still produces an unsigned APK).
+val keystorePropsFile = rootProject.file("keystore.properties")
+val keystoreProps = Properties().apply {
+    if (keystorePropsFile.exists()) keystorePropsFile.inputStream().use { load(it) }
+}
+
+// Spedmo partner-API config (gitignored, like keystore.properties). Absent on a fresh clone /
+// CI, so the upload feature is simply inert until a key is present — the build still works.
+val spedmoPropsFile = rootProject.file("spedmo.properties")
+val spedmoProps = Properties().apply {
+    if (spedmoPropsFile.exists()) spedmoPropsFile.inputStream().use { load(it) }
+}
 
 android {
     namespace = "com.ternparagliding"
@@ -23,6 +39,22 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Spedmo partner API (Epic 03/05) — app-identity key + base URL. Empty default so the
+        // build works without spedmo.properties; SpedmoCredentials treats "" as "not configured".
+        buildConfigField("String", "SPEDMO_API_KEY", "\"${spedmoProps.getProperty("apiKey", "")}\"")
+        buildConfigField("String", "SPEDMO_BASE_URL", "\"${spedmoProps.getProperty("baseUrl", "https://spedmo.com")}\"")
+    }
+
+    signingConfigs {
+        if (keystorePropsFile.exists()) {
+            create("release") {
+                storeFile = rootProject.file(keystoreProps.getProperty("storeFile"))
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+            }
+        }
     }
 
     // Enable coverage for both unit and instrumentation tests
@@ -55,26 +87,19 @@ android {
         }
         // execution = "ANDROIDX_TEST_ORCHESTRATOR" // Commented out to run tests in single process
         
-        managedDevices {
-            allDevices {
-                create<com.android.build.api.dsl.ManagedVirtualDevice>("pixel9proapi35") {
-                    device = "Pixel 9 Pro"
-                    apiLevel = 35
-                    systemImageSource = "aosp"
-                    // Explicitly set ABI to x86_64 to avoid warning and ensure fast emulation on x86 host
-                    testedAbi = "x86_64"
-                }
-            }
-        }
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // Sign with the release key when keystore.properties is present; otherwise leave
+            // unsigned (assembleRelease still builds; installRelease just won't work).
+            signingConfig = signingConfigs.findByName("release") ?: signingConfig
         }
     }
 
@@ -117,11 +142,6 @@ android {
 
     buildToolsVersion = "36.0.0"
 
-    sourceSets {
-        getByName("androidTest") {
-            setRoot("src/instrumentedTests")
-        }
-    }
 }
 
 dependencies {
@@ -201,6 +221,8 @@ dependencies {
 
     // MockWebServer for API testing (debugImplementation to share with androidTest)
     debugImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+    // Also on the JVM unit-test classpath (SpedmoApiTest etc.)
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
 
     // Android Testing
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
@@ -470,448 +492,35 @@ tasks.register("unitTests") {
     dependsOn("testDebugUnitTest")
 }
 
-tasks.register("emulatedDeviceTest") {
+// Claims Report — HELD / BROKEN / GAP per claim, from the claim-driven tests
+// (the honest successor to the old screenshot dashboard). Runs after the unit
+// tests, so both `./gradlew testAll` and a bare `testDebugUnitTest` emit it.
+// Output: app/build/reports/claims-report.html
+tasks.register<Exec>("generateClaimsReport") {
     group = "verification"
-    description = "Run tests on all configured managed devices"
-    // specific device task: pixel5api34DebugAndroidTest
-    // all devices task: allDevicesDebugAndroidTest
-    dependsOn("allDevicesDebugAndroidTest")
+    description = "Generate the Claims Report (HELD/BROKEN/GAP) from claim-test results"
+    commandLine("python3", "${rootProject.projectDir}/scripts/claims_report.py")
+    isIgnoreExitValue = true // a report must never fail the build
+}
+tasks.matching { it.name == "testDebugUnitTest" }.configureEach {
+    finalizedBy("generateClaimsReport")
 }
 
-tasks.register("instrumentedTests") {
-    group = "verification"
-    description = "Run Instrumented Tests (Managed Devices)"
-    dependsOn("emulatedDeviceTest")
-}
-
-tasks.register("coverageReport") {
-    group = "verification"
-    description = "Generate Code Coverage Report (HTML/XML)"
-    dependsOn("testDebugUnitTest", "emulatedDeviceTest", "jacocoTestReport")
-    
-    doLast {
-        println("📊 Coverage Report generated: ${project.layout.buildDirectory.get()}/reports/jacoco/jacocoTestReport/html/index.html")
-    }
-}
-
-tasks.register("generateTestReport") {
-    group = "reporting"
-    description = "Generates combined test report and summary"
-    
-    doFirst {
-        // Clear stale BDD reports to prevent pollution
-        val bddReportDir = file("build/reports/bdd-report")
-        if (bddReportDir.exists()) {
-            println("🧹 Clearing stale BDD reports...")
-            bddReportDir.deleteRecursively()
-        }
-        val summaryFile = file("${project.layout.buildDirectory.get()}/reports/test-summary.md")
-        if (summaryFile.exists()) {
-            summaryFile.delete()
-        }
-    }
-
-    doLast {
-        val testResultsDir = file("${project.layout.buildDirectory.get()}/test-results")
-        // Standard connected android test results
-        val connectedTestResultsDir = file("${project.layout.buildDirectory.get()}/outputs/androidTest-results/connected")
-        // Gradle Managed Device results
-        val managedDeviceResultsDir = file("${project.layout.buildDirectory.get()}/outputs/androidTest-results/managedDevice")
-        
-        val jacocoReportDir = file("${project.layout.buildDirectory.get()}/reports/jacoco")
-        
-        println("\n🎯 TEST EXECUTION SUMMARY")
-        println("=========================")
-        
-        println("\n### Unit Tests")
-        println(generateTestResultsSummary(testResultsDir, "test"))
-        
-        println("\n### Instrumented Tests")
-        if (managedDeviceResultsDir.exists()) {
-             println(generateTestResultsSummary(managedDeviceResultsDir, "managedDevice"))
-             val reportPath = file("${project.layout.buildDirectory.get()}/reports/androidTests/managedDevice/debug/allDevices/index.html")
-             if (reportPath.exists()) {
-                 println("Report: ${reportPath.absolutePath}")
-             }
-            val resultsDir = file("build/outputs/androidTest-results/managedDevice")
-            if (resultsDir.exists()) {
-                val deviceDirs = resultsDir.listFiles()?.filter { it.isDirectory }
-                deviceDirs?.forEach { deviceDir ->
-                    val indexHtml = File(deviceDir, "index.html")
-                    if (indexHtml.exists()) {
-                        println("Test Report for ${deviceDir.name}: file://${indexHtml.absolutePath}")
-                    }
-                }
-            }
-            
-            // Copy BDD Reports and Inject into Standard Report
-            val bddOutputDir = file("build/outputs/managed_device_android_test_additional_output/debug/pixel9proapi35")
-            val bddReportDir = file("build/reports/bdd-report")
-            
-            if (bddOutputDir.exists()) {
-                // 1. Copy raw BDD files to a clean directory
-                copy {
-                    from(bddOutputDir)
-                    into(bddReportDir)
-                }
-                println("BDD Report generated at: file://${bddReportDir.absolutePath}")
-
-                // 2. Inject BDD content into Standard Report
-                val standardReportDir = file("build/reports/androidTests/managedDevice/debug/allDevices")
-                
-                if (standardReportDir.exists()) {
-                    // Iterate over all class report files
-                    standardReportDir.listFiles { _, name -> name.endsWith(".html") && name != "index.html" }?.forEach { classReportFile ->
-                        var htmlContent = classReportFile.readText()
-                        var modified = false
-                        
-                        // Iterate over BDD reports to find matches
-                        bddOutputDir.listFiles { _, name -> name.startsWith("report_") && name.endsWith(".html") }?.forEach { bddFile ->
-                            val methodName = bddFile.name.removePrefix("report_").removeSuffix(".html")
-                            val bddContent = bddFile.readText()
-                            
-                            // Extract body content from BDD report (simple regex)
-                            val bodyMatch = Regex("<body>(.*?)</body>", RegexOption.DOT_MATCHES_ALL).find(bddContent)
-                            val bodyContent = bodyMatch?.groupValues?.get(1) ?: ""
-                            
-                            // Find the row for this method in standard report
-                            // Pattern: <tr><td>methodName</td><td class="success">...</td></tr>
-                            val rowPattern = Regex("<tr>\\s*<td>$methodName</td>\\s*<td class=\".*?\">.*?</td>\\s*</tr>", RegexOption.DOT_MATCHES_ALL)
-                            
-                            if (rowPattern.containsMatchIn(htmlContent)) {
-                                // Inject a new row with the BDD content (Collapsible)
-                                val injection = """
-                                    <tr class="bdd-report-row">
-                                        <td colspan="2" style="padding: 0; border: none;">
-                                            <details style="margin: 5px 10px; border: 1px solid #ddd; border-radius: 4px; background-color: #f9f9f9;">
-                                                <summary style="cursor: pointer; padding: 10px; font-weight: bold; background-color: #eee;">View BDD Scenario Details</summary>
-                                                <div style="padding: 10px; border-top: 1px solid #ddd;">
-                                                    $bodyContent
-                                                </div>
-                                            </details>
-                                        </td>
-                                    </tr>
-                                """.trimIndent()
-                                
-                                htmlContent = htmlContent.replace(rowPattern) { matchResult ->
-                                    matchResult.value + "\n" + injection
-                                }
-                                // println("Injected BDD report for $methodName into ${classReportFile.name}")
-                                modified = true
-                            }
-                        }
-                        
-                        if (modified) {
-                            classReportFile.writeText(htmlContent)
-                            //println("Updated Standard Report: file://${classReportFile.absolutePath}")
-                        }
-                    }
-                    
-                    // Copy images to standard report directory so they display
-                    copy {
-                        from(bddOutputDir)
-                        include("*.png")
-                        into(standardReportDir)
-                    }
-                }
-            }
-        } else {
-             println(generateTestResultsSummary(connectedTestResultsDir, "connected"))
-        }
-
-        // --- Inject BDD Reports into Unit Test Reports ---
-        val unitTestBddOutputDir = file("build/outputs/unit_test_bdd_report")
-        val unitTestReportDir = file("build/reports/tests/testDebugUnitTest/classes") // Unit test class reports are here
-
-        if (unitTestBddOutputDir.exists() && unitTestReportDir.exists()) {
-            println("Injecting Unit Test BDD Reports...")
-            
-            // Iterate over all class report files
-            unitTestReportDir.listFiles { _, name -> name.endsWith(".html") }?.forEach { classReportFile ->
-                var htmlContent = classReportFile.readText()
-                var modified = false
-                
-                // Iterate over BDD reports to find matches
-                unitTestBddOutputDir.listFiles { _, name -> name.startsWith("report_") && name.endsWith(".html") }?.forEach { bddFile ->
-                    val methodName = bddFile.name.removePrefix("report_").removeSuffix(".html")
-                    val bddContent = bddFile.readText()
-                    
-                    // Extract body content from BDD report
-                    val bodyMatch = Regex("<body>(.*?)</body>", RegexOption.DOT_MATCHES_ALL).find(bddContent)
-                    val bodyContent = bodyMatch?.groupValues?.get(1) ?: ""
-                    
-                    // Find the row for this method in standard report
-                    // Unit test report format might differ slightly. Usually:
-                    // <tr>
-                    // <td class="success">methodName</td>
-                    // ...
-                    // </tr>
-                    
-                    // Regex to find the row where the first cell contains the method name
-                    val rowPattern = Regex("<tr>\\s*<td class=\".*?\">$methodName</td>.*?</tr>", RegexOption.DOT_MATCHES_ALL)
-                    
-                    if (rowPattern.containsMatchIn(htmlContent)) {
-                        val injection = """
-                            <tr class="bdd-report-row">
-                                <td colspan="3" style="padding: 0; border: none;">
-                                    <details style="margin: 5px 10px; border: 1px solid #ddd; border-radius: 4px; background-color: #f9f9f9;">
-                                        <summary style="cursor: pointer; padding: 10px; font-weight: bold; background-color: #eee;">View BDD Scenario Details</summary>
-                                        <div style="padding: 10px; border-top: 1px solid #ddd;">
-                                            $bodyContent
-                                        </div>
-                                    </details>
-                                </td>
-                            </tr>
-                        """.trimIndent()
-                        
-                        htmlContent = htmlContent.replace(rowPattern) { matchResult ->
-                            matchResult.value + "\n" + injection
-                        }
-                        modified = true
-                    }
-                }
-                
-                if (modified) {
-                    classReportFile.writeText(htmlContent)
-                }
-            }
-        }
-        
-        println("\n### Code Coverage")
-        println(generateCoverageSummary(jacocoReportDir))
-        
-        println("\n=========================")
-
-        // Inject Console Summary into Main Index Report
-        val mainReportFile = file("${project.layout.buildDirectory.get()}/reports/androidTests/managedDevice/debug/allDevices/index.html")
-        if (mainReportFile.exists()) {
-            val summaryText = generateTestResultsSummary(managedDeviceResultsDir, "managedDevice")
-            val coverageText = generateCoverageSummary(jacocoReportDir)
-            
-            val summaryHtml = """
-                <div style="margin: 20px 0; padding: 15px; background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px;">
-                    <details>
-                        <summary style="cursor: pointer; font-weight: bold; font-size: 1.1em; margin-bottom: 10px;">View Console Summary & Coverage</summary>
-                        <div style="margin-bottom: 10px;">
-                            <a href="../../../../tests/testDebugUnitTest/index.html" style="color: #007bff; text-decoration: none; font-weight: bold;">🔗 Open Unit Test Report (53 Tests)</a>
-                        </div>
-                        <pre style="white-space: pre-wrap; font-family: monospace; background-color: #2b2b2b; color: #f8f8f2; padding: 15px; border-radius: 4px;">
-TEST EXECUTION SUMMARY
-=========================
-
-### Instrumented Tests
-$summaryText
-
-### Code Coverage
-$coverageText
-                        </pre>
-                    </details>
-                </div>
-            """.trimIndent()
-            
-            var htmlContent = mainReportFile.readText()
-            
-            // Check if summary is already injected to avoid duplication
-            if (!htmlContent.contains("View Console Summary & Coverage")) {
-                // Inject after the header or before the content div
-                if (htmlContent.contains("<body>")) {
-                    htmlContent = htmlContent.replace("<body>", "<body>\n$summaryHtml")
-                    mainReportFile.writeText(htmlContent)
-                    println("✅ Injected Console Summary into Main Report: file://${mainReportFile.absolutePath}")
-                }
-            } else {
-                 // Update existing summary if needed (regex replace)
-                 // For now, just skip if already present, or we could try to replace the existing block.
-                 // Since the report is usually regenerated, presence implies we are running testAll multiple times without clean.
-                 // Better to replace the existing block to ensure it's up to date.
-                 val pattern = Regex("<div style=\"margin: 20px 0;.*?</details>\\s*</div>", RegexOption.DOT_MATCHES_ALL)
-                 if (pattern.containsMatchIn(htmlContent)) {
-                     htmlContent = htmlContent.replace(pattern, summaryHtml)
-                     mainReportFile.writeText(htmlContent)
-                     println("🔄 Updated Console Summary in Main Report: file://${mainReportFile.absolutePath}")
-                 }
-            }
-        }
-
-        // Pull screen recordings from device before dashboard generation
-        try {
-            val videoDir = file("${project.layout.buildDirectory.get()}/reports/bdd-report")
-            ProcessBuilder("adb", "pull", "/sdcard/tern-tests/.", videoDir.absolutePath)
-                .redirectErrorStream(true).start().waitFor()
-            val vids = videoDir.listFiles()?.count { it.extension == "mp4" } ?: 0
-            if (vids > 0) println("🎬 Pulled $vids screen recordings from device")
-        } catch (_: Exception) {}
-
-        // Generate the consolidated sidebar dashboard
-        try {
-            val script = file("${project.projectDir}/scripts/test_report.py")
-            if (script.exists()) {
-                val dashProc = ProcessBuilder("python3", script.absolutePath)
-                    .directory(project.projectDir)
-                    .redirectErrorStream(true).start()
-                dashProc.inputStream.bufferedReader().readText()
-                dashProc.waitFor()
-                if (dashProc.exitValue() == 0) {
-                    println("📊 Dashboard: file://${project.layout.buildDirectory.get()}/reports/tern-test-dashboard.html")
-                }
-            }
-        } catch (e: Exception) {
-            println("⚠️ Dashboard generation skipped: ${e.message}")
-        }
-    }
-}
 
 tasks.register("testAll") {
     group = "verification"
-    description = "Run Everything (Unit + Instrumented + Coverage + Summary) - Fresh Run"
-    
-    // Explicitly depend on clean to ensure fresh results
-    dependsOn("clean")
-    
-    // Run all tests and generate coverage
-    dependsOn("unitTests", "instrumentedTests", "coverageReport")
+    description = "The known-good bar: unit tests + assemble"
+    // The instrumented BDD suite was removed in favour of claim-driven tests
+    // (see docs/claims.md). testAll now proves the baseline: unit tests green
+    // and the app assembles. Run `./gradlew clean testAll` for a fresh run.
+    dependsOn("testDebugUnitTest", "assembleDebug")
 
     doFirst {
-        println("🚀 Initiating DEFINITIVE verification run (clean + all tests)...")
+        println("🚀 Tern verification: unit tests + assemble")
     }
 }
 
-tasks.register<Exec>("testSafely") {
-    group = "verification"
-    description = "Run Stable tests first, then Unstable tests (Isolated execution)"
-    commandLine("sh", "./run_tests_safely.sh")
-}
 
-// Ensure reporting runs even if tests fail
-tasks.withType<Test> {
-    finalizedBy("generateTestReport")
-}
-
-afterEvaluate {
-    tasks.filter { it.name.endsWith("AndroidTest") }.forEach {
-        it.finalizedBy("generateTestReport")
-    }
-}
-
-fun generateTestResultsSummary(resultsDir: File, testType: String): String {
-    if (!resultsDir.exists()) {
-        return "**$testType**: No test results found at ${resultsDir.absolutePath}"
-    }
-
-    val testFiles = resultsDir.walkTopDown().filter { it.name.endsWith(".xml") }.toList()
-    println("DEBUG: Found ${testFiles.size} XML files in ${resultsDir.absolutePath}")
-    testFiles.forEach { println("DEBUG: Found XML: ${it.name}") }
-
-    var totalTests = 0
-    var passedTests = 0
-    var failedTests = 0
-    var skippedTests = 0
-    val failures = mutableListOf<String>()
-
-    testFiles.forEach { file ->
-        try {
-            val content = file.readText()
-            // Simple parsing of JUnit XML results
-            val testSuite = content.substringAfter("<testsuite").substringBefore(">")
-            val tests = testSuite.substringAfter("tests=\"").substringBefore("\"").toIntOrNull() ?: 0
-            val failuresCount = testSuite.substringAfter("failures=\"").substringBefore("\"").toIntOrNull() ?: 0
-            val errors = testSuite.substringAfter("errors=\"").substringBefore("\"").toIntOrNull() ?: 0
-            val skipped = testSuite.substringAfter("skipped=\"").substringBefore("\"").toIntOrNull() ?: 0
-
-            totalTests += tests
-            failedTests += failuresCount + errors
-            skippedTests += skipped
-            passedTests += tests - failuresCount - errors - skipped
-
-            if (failuresCount > 0 || errors > 0) {
-                val failurePattern = Regex("<failure.*?</failure>")
-                failurePattern.findAll(content).forEach { match ->
-                    val failureText = match.value
-                    val testName = failureText.substringAfter("message=\"").substringBefore("\"")
-                    failures.add("❌ $testName")
-                }
-            }
-        } catch (e: Exception) {
-            // Ignore parsing errors
-        }
-    }
-
-    val sourceDir = if (testType == "managedDevice" || testType == "connected") {
-        file("src/instrumentedTests")
-    } else {
-        file("src/test")
-    }
-
-    val expectedTests = if (sourceDir.exists()) {
-        sourceDir.walkTopDown()
-            .filter { it.extension == "kt" || it.extension == "java" }
-            .sumOf { file ->
-                // Simple regex to count @Test annotations
-                // Matches @Test, @org.junit.Test, @org.junit.jupiter.api.Test
-                Regex("@(org\\.junit\\.|org\\.junit\\.jupiter\\.api\\.)?Test").findAll(file.readText()).count()
-            }
-    } else {
-        0
-    }
-
-    val mismatchWarning = if (totalTests < expectedTests) {
-        """
-        
-        ⚠️ CRITICAL WARNING: POTENTIAL TEST RUNNER CRASH
-        Expected $expectedTests tests (found in source), but only $totalTests were reported.
-        The test runner may have crashed or aborted early.
-        """.trimIndent()
-    } else {
-        ""
-    }
-
-    return """
-    Total: $totalTests (Expected: ~$expectedTests)
-    ✅ Passed: $passedTests
-    ❌ Failed: $failedTests
-    ⏭️ Skipped: $skippedTests
-    ${if (failures.isNotEmpty()) "\nFailures:\n" + failures.joinToString("\n") else ""}
-    $mismatchWarning
-    """.trimIndent()
-}
-
-fun generateCoverageSummary(reportDir: File): String {
-    val htmlReport = File(reportDir, "jacocoTestReport/html/index.html")
-    val xmlReport = File(reportDir, "jacocoTestReport/jacocoTestReport.xml")
-
-    if (!htmlReport.exists()) {
-        return "Coverage Report: Not generated"
-    }
-
-    var totalCoverage = 0.0
-    
-    // Parse XML report for total coverage
-    if (xmlReport.exists()) {
-        try {
-            val xmlContent = xmlReport.readText()
-            var totalMissed = 0
-            var totalCovered = 0
-            
-            val counterPattern = Regex("<counter type=\"INSTRUCTION\" missed=\"(\\d+)\" covered=\"(\\d+)\"/>")
-            counterPattern.findAll(xmlContent).forEach { match ->
-                totalMissed += match.groupValues[1].toInt()
-                totalCovered += match.groupValues[2].toInt()
-            }
-            
-            val total = totalMissed + totalCovered
-            if (total > 0) {
-                totalCoverage = (totalCovered.toDouble() / total * 100)
-            }
-        } catch (e: Exception) {
-            return "Error parsing coverage XML"
-        }
-    }
-
-    return """
-    Overall Instruction Coverage: ${"%.1f".format(totalCoverage)}%
-    Report: ${htmlReport.absolutePath}
-    """.trimIndent()
-}
 // Performance Benchmark Tasks
 tasks.register("runPerformanceBenchmarks") {
     group = "verification"
@@ -966,26 +575,6 @@ tasks.register("generatePerformanceReports") {
  * Usage: ./gradlew device -Ptest=WeatherUXTest
  * Or: ./gradlew device -Pt=WeatherUXTest
  */
-tasks.register("device") {
-    group = "verification"
-    description = "Shorthand for connectedDebugAndroidTest. Usage: ./gradlew device -Ptest=ClassName"
-    
-    val testClass = project.findProperty("test") as? String ?: project.findProperty("t") as? String
-    if (testClass != null) {
-        val fullClasses = testClass.split(",").joinToString(",") { 
-            if (it.contains(".")) it else "com.ternparagliding.ui.$it"
-        }
-        // Set the project property that AGP's test task automatically picks up
-        project.extensions.extraProperties.set("android.testInstrumentationRunnerArguments.class", fullClasses)
-        dependsOn("connectedDebugAndroidTest")
-    } else {
-        doLast {
-            println("\n❌ Error: No test class specified.")
-            println("Usage: ./gradlew device -Ptest=WeatherUXTest")
-            println("Usage (short): ./gradlew device -Pt=WeatherUXTest\n")
-        }
-    }
-}
 
 // ============================================================================
 // Mezulla hardware-cycle Gradle tasks
@@ -1156,11 +745,17 @@ fun configureHardwareCycleTest(
 
         // Bump logcat ring buffer so investigations don't lose history mid-run.
         runAdb(listOf("adb", "-s", deviceSerial, "shell", "logcat", "-G", "16M"))
+        // The replay runner feeds the DUT's own track as mock GPS, which needs
+        // the MOCK_LOCATION appop. A fresh APK install resets it, so (re)grant
+        // it every run rather than relying on a manual Developer-Options toggle.
+        runAdb(listOf("adb", "-s", deviceSerial, "shell", "appops", "set", "com.ternparagliding", "android:mock_location", "allow"))
         // Keep the screen on for the duration of the test. Without this,
         // the device sleeps mid-test, screen recording / screenshots
         // come back BLANK, and visual-assert tests fail spuriously.
         // 7 = USB + AC + wireless. Sticks until reboot.
         runAdb(listOf("adb", "-s", deviceSerial, "shell", "settings", "put", "global", "stay_on_while_plugged_in", "7"))
+        // Clear stale screen recordings so we only ever pull this run's video.
+        runAdb(listOf("adb", "-s", deviceSerial, "shell", "mkdir -p /sdcard/tern-tests; rm -f /sdcard/tern-tests/*.mp4"))
         // Wake the screen and dismiss the keyguard. Without dismissing
         // the keyguard, the test activity launches behind the lock
         // screen — screenshots come back showing the lock screen
@@ -1174,6 +769,39 @@ fun configureHardwareCycleTest(
         outputDir.mkdirs()
         val instrumentationLog = file("$outputDir/instrumentation.log")
 
+        // ---- Board (Mezulla) serial capture, host-side --------------------
+        // The phone can't see the board's USB serial, so we capture it here
+        // and merge it into the per-test BDD reports afterwards. Two-sided
+        // logs are what make BLE drop/reconnect RCA possible.
+        val serialLog = file("$outputDir/mezulla-serial.log")
+        var serialProc: Process? = null
+        run {
+            val captureScript = rootProject.file("scripts/capture_mezulla_serial.py")
+            val pioPython = "${System.getProperty("user.home")}/.platformio/penv/bin/python"
+            if (!captureScript.exists() || !file(mezullaPort).exists()) {
+                println("📟 board serial capture skipped (script or $mezullaPort missing)")
+            } else runCatching {
+                // Stamp serial lines in the PHONE's clock so they line up with
+                // the report step timestamps. offset = host_epoch - device_epoch.
+                val devOut = ByteArrayOutputStream()
+                runAdb(listOf("adb", "-s", deviceSerial, "shell", "date", "+%s%3N"), devOut)
+                val devMs = devOut.toString().trim().toLongOrNull()
+                val offsetMs = if (devMs != null) System.currentTimeMillis() - devMs else 0L
+                serialProc = ProcessBuilder(
+                    pioPython, captureScript.absolutePath,
+                    "--port", mezullaPort, "--baud", "115200",
+                    "--offset-ms", offsetMs.toString(), "--out", serialLog.absolutePath,
+                ).redirectErrorStream(true)
+                    .redirectOutput(file("$outputDir/serial-capture.out"))
+                    .start()
+                println("📟 board serial capture started → ${serialLog.absolutePath} (clock offset ${offsetMs}ms)")
+                // Opening the port pulses DTR/RTS and resets the ESP32. Give it
+                // time to reboot + start advertising before the first pair, so
+                // the first scenario doesn't burn its budget waiting for boot.
+                Thread.sleep(14_000)
+            }.onFailure { println("📟 board serial capture setup failed: ${it.message}") }
+        }
+
         // Run the test via am instrument. AGP's connectedDebugAndroidTest
         // can't have its args changed at execution time, so this is the
         // most reliable path. The whole am-instrument command goes as one
@@ -1182,9 +810,16 @@ fun configureHardwareCycleTest(
         // like a shell background-job separator without quoting).
         val amCmd = buildString {
             append("am instrument -w ")
-            append("-e class '$testClass#$testMethod' ")
+            // Empty testMethod → run all @Test methods in the class
+            // (used by the BLE reliability suite which has many small tests).
+            val classFilter = if (testMethod.isBlank()) testClass else "$testClass#$testMethod"
+            append("-e class '$classFilter' ")
             if (pairUri.isNotBlank()) append("-e pairUri '$pairUri' ")
             append("-e speedMultiplier '$speedMultiplier' ")
+            // Exploratory overlay+memory probe (real airspace/PG + heap scorecard,
+            // no pass/fail). Opt in with -PprobeOverlays=true.
+            if ((project.findProperty("probeOverlays") as? String) == "true")
+                append("-e probeOverlays true ")
             append("com.ternparagliding.test/androidx.test.runner.AndroidJUnitRunner")
         }
         val amArgs = listOf("adb", "-s", deviceSerial, "shell", amCmd)
@@ -1193,6 +828,17 @@ fun configureHardwareCycleTest(
         val exitCode = runAdb(amArgs, outStream)
         outStream.close()
 
+        // Stop the board serial capture and let it flush before we merge.
+        serialProc?.let { p ->
+            runCatching {
+                p.destroy()        // SIGTERM — capture script flushes + closes
+                Thread.sleep(800)
+                if (p.isAlive) p.destroyForcibly()
+                p.waitFor()
+            }
+            println("📟 board serial capture stopped")
+        }
+
         val logText = instrumentationLog.readText()
         val passed = logText.contains(Regex("OK \\(\\d+ tests?\\)")) &&
             !logText.contains("FAILURES!!!")
@@ -1200,6 +846,72 @@ fun configureHardwareCycleTest(
         // Publish to BDD dashboard so test_report.py picks it up.
         val bddDir = file("${project.layout.buildDirectory.get()}/reports/bdd-report")
         bddDir.mkdirs()
+
+        // Pull the on-device BDD report HTML + screenshots back to the host.
+        // ReportGenerator mirrors them to /sdcard/Android/data/com.ternparagliding/files/tern-tests-report/
+        // so we can adb pull them — TestStorage isn't reachable when we run
+        // via `am instrument` (no AGP orchestrator).
+        val onDeviceReportDir = "/sdcard/Android/data/com.ternparagliding/files/tern-tests-report"
+        val reportFilename = "report_${testClass.substringAfterLast('.')}_$testMethod.html"
+        val reportFile = file("$bddDir/$reportFilename")
+        runAdb(
+            listOf("adb", "-s", deviceSerial, "pull", "$onDeviceReportDir/.", bddDir.absolutePath),
+            ByteArrayOutputStream(),
+        )
+        val reportFileExists = reportFile.exists()
+        if (reportFileExists) {
+            println("📊 BDD report → ${reportFile.absolutePath}")
+        } else {
+            println("⚠️  No on-device BDD report at $onDeviceReportDir/$reportFilename")
+        }
+
+        // Merge the board serial log into each pulled per-test report (adds a
+        // "📟 Mezulla Serial (board)" section sliced to that scenario's window).
+        run {
+            val injectScript = rootProject.file("scripts/inject_mezulla_serial.py")
+            if (injectScript.exists() && serialLog.exists()) runCatching {
+                ProcessBuilder(
+                    "python3", injectScript.absolutePath,
+                    "--bdd-dir", bddDir.absolutePath,
+                    "--serial-log", serialLog.absolutePath,
+                ).inheritIO().start().waitFor()
+            }.onFailure { println("📟 board serial inject failed: ${it.message}") }
+        }
+
+        // Pull screen recordings next to the report so the <video> tags
+        // resolve. screenrecord writes to /sdcard/tern-tests as the shell
+        // uid; the app can't read those under scoped storage, so we adb-pull
+        // them here (adb runs as shell). The report references "<test>.mp4"
+        // relative to bddDir.
+        runCatching {
+            val lsOut = ByteArrayOutputStream()
+            runAdb(listOf("adb", "-s", deviceSerial, "shell", "ls", "/sdcard/tern-tests/"), lsOut)
+            lsOut.toString().lines().map { it.trim() }.filter { it.endsWith(".mp4") }.forEach { mp4 ->
+                runAdb(
+                    listOf("adb", "-s", deviceSerial, "pull", "/sdcard/tern-tests/$mp4", "${bddDir.absolutePath}/$mp4"),
+                    ByteArrayOutputStream(),
+                )
+                println("🎬 pulled video → $mp4")
+            }
+        }.onFailure { println("🎬 video pull failed: ${it.message}") }
+
+        // For class-level runs (testMethod == ""), the BDD framework
+        // already writes one summary_*.json per individual @Test method
+        // and the dashboard picks those up. Skip writing the aggregate
+        // gradle summary in that case — it'd override the per-test
+        // entries with one misleading "FAIL" row for the whole class.
+        if (testMethod.isBlank()) {
+            println("📝 BDD summaries written per-test by the framework")
+            println("📋 Instrumentation log → ${instrumentationLog.absolutePath}")
+            if (!passed) {
+                println("❌ $name FAILED. Tail of log:")
+                logText.lines().takeLast(30).forEach { println("    $it") }
+                throw GradleException("$name failed (am instrument exit $exitCode, parsed result: FAIL)")
+            }
+            println("✅ $name PASSED")
+            return@doLast
+        }
+
         val summaryFile = file(
             "$bddDir/summary_${testClass.substringAfterLast('.')}_$testMethod.json"
         )
@@ -1210,7 +922,7 @@ fun configureHardwareCycleTest(
               "testName": "$testMethod",
               "status": "${if (passed) "PASS" else "FAIL"}",
               "scenarioName": "Mezulla $name",
-              "reportFile": "",
+              "reportFile": "${if (reportFileExists) reportFilename else ""}",
               "outputDir": "${outputDir.absolutePath}"
             }
             """.trimIndent()
@@ -1229,8 +941,8 @@ fun configureHardwareCycleTest(
 }
 
 configureHardwareCycleTest(
-    name = "fullCycleTest",
-    testClass = "com.ternparagliding.test.FullCycleTest",
+    name = "aravisCycleTest",
+    testClass = "com.ternparagliding.test.AravisCycleTest",
     testMethod = "pilot_pairs_then_flies_with_buddies_visible",
     requiresReflash = true,
 )
@@ -1247,5 +959,36 @@ configureHardwareCycleTest(
     testClass = "com.ternparagliding.test.AravisReplayTest",
     testMethod = "aravis_team_xc_replay_golden_path_50km_range",
     requiresReflash = false,
+)
+
+// Fast-iteration variant: pair + replay using the Edith's Gap two-pilot
+// scenario (~2 h flight instead of 11 h 15 m). Whole cycle lands in
+// ~1–2 min wall-clock — useful for debugging map / peer-render issues.
+configureHardwareCycleTest(
+    name = "edithsGapCycleTest",
+    testClass = "com.ternparagliding.test.EdithsGapCycleTest",
+    testMethod = "pilot_pairs_then_flies_with_buddies_visible",
+    requiresReflash = false,
+)
+
+// Bir Billing — long three-pilot Himalayan XC endurance pass (DUT Richard,
+// peers Ariel + Barney). Default 32x ≈ 11 min replay; override with
+// -PspeedMultiplier. The realistic field test for the peer HUD.
+configureHardwareCycleTest(
+    name = "birBillingCycleTest",
+    testClass = "com.ternparagliding.test.BirBillingCycleTest",
+    testMethod = "pilot_pairs_then_flies_with_buddies_visible",
+    requiresReflash = false,
+)
+
+// BLE reliability suite — runs all @Test methods in BleReliabilityTest
+// in one shot. Each test is its own scenario; the runnable ones
+// (T2/T3/T4/T6/T7/F5) exercise the reliability contract on real
+// hardware. @Ignore'd ones are skipped silently.
+configureHardwareCycleTest(
+    name = "bleReliabilityTest",
+    testClass = "com.ternparagliding.test.BleReliabilityTest",
+    testMethod = "",  // empty → all @Test methods in the class
+    requiresReflash = true,
 )
 

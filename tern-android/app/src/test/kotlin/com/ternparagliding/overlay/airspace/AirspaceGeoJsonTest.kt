@@ -3,7 +3,7 @@ package com.ternparagliding.overlay.airspace
 import com.ternparagliding.overlay.priority.OverlayKind
 import com.ternparagliding.overlay.priority.Position
 import com.ternparagliding.overlay.priority.distanceDecay
-import com.ternparagliding.utils.MapOverlayCacheUtils.OverlayFeature
+import com.ternparagliding.utils.cache.MapOverlayCacheUtils.OverlayFeature
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -171,6 +171,51 @@ class AirspaceGeoJsonTest {
                 "type" to "Feature",
                 "geometry" to mapOf("type" to "Polygon", "coordinates" to listOf(triangleCoords())),
                 "properties" to mapOf("type" to 1.0),
+            ),
+            centroid = GeoPoint(46.0, 6.0),
+            hilbertIndex = 1L,
+            overlayType = "airspace",
+        )
+        assertEquals("RESTRICTED", AirspaceGeoJson.resolveAirspaceClass(feat))
+    }
+
+    @Test
+    fun `resolveAirspaceClass maps 0-indexed OpenAIP icaoClass to A-G`() {
+        fun byIcao(icao: Double): String = AirspaceGeoJson.resolveAirspaceClass(
+            OverlayFeature(
+                internalId = "test",
+                feature = mapOf(
+                    "type" to "Feature",
+                    "geometry" to mapOf("type" to "Polygon", "coordinates" to listOf(triangleCoords())),
+                    "properties" to mapOf("type" to 0.0, "icaoClass" to icao),
+                ),
+                centroid = GeoPoint(46.0, 6.0),
+                hilbertIndex = 1L,
+                overlayType = "airspace",
+            )
+        )
+        // 0-indexed: 0=A .. 6=G. Real "DENVER CLASS B AREA A" carries icaoClass=1.
+        assertEquals("A", byIcao(0.0))
+        assertEquals("B", byIcao(1.0))
+        assertEquals("C", byIcao(2.0))
+        assertEquals("D", byIcao(3.0))
+        assertEquals("E", byIcao(4.0))
+        assertEquals("F", byIcao(5.0))
+        assertEquals("G", byIcao(6.0))
+        // 7 = unclassified, 8 = SUA: NOT Class G — must stay visible (not dropped).
+        assertEquals("UNKNOWN", byIcao(7.0))
+        assertEquals("UNKNOWN", byIcao(8.0))
+    }
+
+    @Test
+    fun `resolveAirspaceClass lets type override icaoClass for special-use airspace`() {
+        // Real R-2601 etc. carry type=1 (Restricted) with icaoClass=8 — type wins.
+        val feat = OverlayFeature(
+            internalId = "test",
+            feature = mapOf(
+                "type" to "Feature",
+                "geometry" to mapOf("type" to "Polygon", "coordinates" to listOf(triangleCoords())),
+                "properties" to mapOf("type" to 1.0, "icaoClass" to 8.0),
             ),
             centroid = GeoPoint(46.0, 6.0),
             hilbertIndex = 1L,

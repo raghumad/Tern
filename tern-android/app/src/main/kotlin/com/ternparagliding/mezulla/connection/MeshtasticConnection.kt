@@ -43,11 +43,62 @@ interface MeshtasticConnection {
     val pairedBoardId: String?
 
     /**
+     * The board's own Meshtastic node number, as it reports in `my_info`
+     * during the handshake. This is the live, authoritative number and can
+     * differ from [pairedBoardId] (the QR/pairing-derived id — see the LilyGo
+     * node mismatch). Null until the board has reported it.
+     *
+     * Used to keep the board's OWN node out of the peer roster: a board never
+     * hears its own NodeInfo over the air, so it would otherwise sit in the
+     * buddy list forever as a nameless self-entry — and you are not your own
+     * buddy.
+     */
+    val selfNodeNumber: Long? get() = null
+
+    /**
      * Current link state. Reflects whether Tern can currently exchange
      * packets with the paired board. See [LinkState] for the values and
      * what each one means for the UI.
      */
     val linkState: LinkState
+
+    /**
+     * Negotiated MTU of the active link, or null when no link / unknown.
+     * Surfaced for the BLE-reliability test suite (T4).
+     */
+    fun negotiatedMtu(): Int? = null
+
+    /**
+     * Active BLE PHY (BluetoothDevice.PHY_LE_1M / PHY_LE_2M / PHY_LE_CODED),
+     * or null when not over BLE / unknown. Surfaced for F5.
+     */
+    fun activePhy(): Int? = null
+
+    /**
+     * Cumulative count of heartbeat ToRadio packets Tern has sent on
+     * this connection. Used by the T6 BLE-reliability test to verify
+     * the periodic heartbeat sender fires while the link is idle.
+     */
+    fun heartbeatsSent(): Int = 0
+
+    /**
+     * TEST-ONLY: trigger a GATT disconnect to exercise the
+     * auto-reconnect path. The transport's standard reconnect logic
+     * should observe the drop, scan, and reconnect — at which point
+     * the handshake re-runs (T3). Production code should never call
+     * this; it is a test seam for the BLE reliability suite (T2).
+     */
+    fun simulateDisconnectForTest() {}
+
+    /**
+     * TEST-ONLY: command the board to reboot in [rebootSeconds] seconds
+     * (admin reboot over the live link). Unlike [simulateDisconnectForTest]
+     * — a graceful local GATT teardown — this is a *real* link loss: the
+     * board goes away, re-advertises after boot, and the transport
+     * reconnects. Faithful to T2/T3's "board rebooted mid-flight" scenario.
+     * Default no-op for non-BLE implementations.
+     */
+    suspend fun rebootBoardForTest(rebootSeconds: Int = 5) {}
 
     /**
      * Stream of everything the board hands up to Tern: peer positions,

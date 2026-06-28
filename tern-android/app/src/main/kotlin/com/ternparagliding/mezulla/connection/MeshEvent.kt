@@ -64,4 +64,17 @@ sealed interface MeshEvent {
      * payload.
      */
     data class PeerIdentityKnown(val peer: PeerIdentity) : MeshEvent
+
+    /**
+     * The firmware finished delivering a config bundle in response to a
+     * `want_config_id` ToRadio request. Maps to FromRadio's
+     * `config_complete_id` variant (field 7). The configId in the reply
+     * echoes whatever value the phone sent in the request, so the
+     * handshake driver can match each stage's completion.
+     *
+     * Internal — used by [BleConnection] to drive the multi-stage
+     * Meshtastic handshake (Stage 1 = device config, Stage 2 = nodeDB).
+     * The redux middleware doesn't act on this event.
+     */
+    data class ConfigComplete(val configId: Int) : MeshEvent
 }

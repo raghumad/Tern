@@ -66,20 +66,21 @@
 *   **Single Source of Truth**: Strict ownership of domain logic.
 
 ### Verification
-*   **BDD Testing**: Behavior-driven scenarios for pilot workflows.
-*   **Definition of Done**: Mandatory safety checks before merge.
+*   **Claim-driven tests**: each pilot-facing promise is demonstrated by replaying a real flight and asserting observable behavior. See [../claims.md](../claims.md).
+*   **Definition of Done**: unit + assemble green, and the served claim demonstrated.
 
 ## 5. Testing Strategy
 
-### 5.1 Instrumentation
-*   **Configuration**: `ANDROIDX_TEST_ORCHESTRATOR` is **DISABLED**.
-*   **Rationale**: Running all UI tests in a single process allows state (Redux Store, In-Memory Cache) to persist between tests. This enables **Composable Scenarios** where one test sets up the state for the next, mimicking long user sessions.
+The unit of testing is a **claim** — a promise Tern makes to a pilot
+(offline-first, airspace safety, team awareness, graceful degradation), not a
+screen. See [../claims.md](../claims.md) for the full matrix.
 
-### 5.2 BDD Framework
-*   **DSL**: Custom `BddTest` class with `given`, `when`, `then` syntax.
-*   **Global Steps**: Reusable setup functions (e.g., `givenAppIsLaunchedOnMap`) to reduce boilerplate.
-*   **Thumb Rule for New Features**: **EVERY** new feature or significant component must be accompanied by a BDD-style automated test verifying its core user-facing scenarios. Manual verification should only be a supplementary check, not the primary validation method.
-*   **The "Story" Principle**: Every BDD scenario must include a clear **Story** that defines *who* is using the feature, *what* their context is, and *why* it matters (e.g., "As a pilot on launch without cell service, I need..."). This ensures development remains deeply aligned with the pilot's UX and safety principles.
+### 5.1 Unit tests (JVM)
+*   Logic — Redux reducers, spatial queries, parsers, state machines — runs on the JVM via `./gradlew testAll` (`testDebugUnitTest` + `assembleDebug`). Fast, deterministic.
+
+### 5.2 Claim-driven capability tests
+*   Each claim is proven by replaying a real recorded flight (Aravis, Bir Billing) through the app's data/logic stack, controlling the environment (network on/off, fault injection), and asserting observable behavior — cache hits, store state, warnings fired — **not** screenshots.
+*   The earlier emulator/BDD screenshot suite was removed; see [../archive/testing-bdd-suite-removed.md](../archive/testing-bdd-suite-removed.md).
 
 ## 6. Performance Monitoring
 

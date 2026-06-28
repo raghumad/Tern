@@ -48,6 +48,61 @@ internal object MeshPacketCodec {
     const val PORT_NODEINFO_APP = 4
     const val PORT_ALERT_APP = 11
     const val PORT_TELEMETRY_APP = 67
+    const val PORT_ADMIN_APP = 6
+
+    // AdminMessage field numbers — see meshtastic/admin.proto.
+    private const val F_ADMIN_REBOOT_SECONDS = 97
+    private const val F_ADMIN_SET_OWNER = 32
+    private const val F_ADMIN_SET_CHANNEL = 33
+    private const val F_ADMIN_SET_CONFIG = 34
+
+    // Config sub-message tags (Config.payload_variant oneof) — see meshtastic/config.proto.
+    // Public so [com.ternparagliding.mezulla.connection.ble.BleConnection] can ask
+    // [extractConfigSubmessage] for the right section out of the handshake config stream.
+    const val CONFIG_DEVICE_TAG = 1
+    const val CONFIG_DISPLAY_TAG = 5
+
+    // DeviceConfig field numbers — see meshtastic/config.proto.
+    private const val F_DEVICE_NODE_INFO_BROADCAST_SECS = 7
+
+    // DisplayConfig field numbers — see meshtastic/config.proto.
+    private const val F_DISPLAY_SCREEN_ON_SECS = 1
+    private const val F_DISPLAY_FLIP_SCREEN = 5
+
+    // Config / LoRaConfig field numbers — see meshtastic/config.proto.
+    private const val F_CONFIG_LORA = 6
+    private const val F_LORA_USE_PRESET = 1
+    private const val F_LORA_REGION = 7
+    private const val F_LORA_HOP_LIMIT = 8
+    private const val F_LORA_TX_ENABLED = 9
+
+    /** Default mesh hop limit when we (re)write a full LoRaConfig. Matches Meshtastic's default. */
+    private const val DEFAULT_HOP_LIMIT = 3
+
+    // Channel field numbers — see meshtastic/channel.proto.
+    private const val F_CHANNEL_INDEX = 1
+    private const val F_CHANNEL_SETTINGS = 2
+    private const val F_CHANNEL_ROLE = 3
+    private const val CHANNEL_ROLE_PRIMARY = 1 // Channel.Role.PRIMARY
+
+    // ChannelSettings field numbers — see meshtastic/channel.proto.
+    private const val F_CHANNELSETTINGS_PSK = 2
+    private const val F_CHANNELSETTINGS_NAME = 3
+    private const val F_CHANNELSETTINGS_MODULE_SETTINGS = 7
+
+    // ModuleSettings field numbers — see meshtastic/channel.proto.
+    private const val F_MODULESETTINGS_POSITION_PRECISION = 1
+
+    /**
+     * Position precision (number of lat/lon bits kept) baked into the team
+     * channel. **Load-bearing:** the field defaults to 0 on the wire, and the
+     * firmware reads 0 as "strip all positions" — so a team channel created
+     * without it shares NO location and buddies never see each other (observed
+     * live: `Strip phone position due to channel precision 0`). 32 = full
+     * precision, which is what a private buddy team wants (find each other in a
+     * thermal / gaggle); there's no privacy trade-off inside your own group.
+     */
+    private const val DEFAULT_POSITION_PRECISION = 32
 
     // MeshPacket field numbers — see meshtastic/mesh.proto.
     private const val F_MESHPACKET_FROM = 1
@@ -64,10 +119,23 @@ internal object MeshPacketCodec {
 
     // FromRadio variant field numbers.
     private const val F_FROMRADIO_PACKET = 2
+    private const val F_FROMRADIO_MY_INFO = 3
     private const val F_FROMRADIO_NODE_INFO = 4
+    private const val F_FROMRADIO_CONFIG = 5
+
+    // MyNodeInfo field numbers (subset) — see meshtastic/mesh.proto.
+    private const val F_MYNODEINFO_MY_NODE_NUM = 1
 
     // ToRadio variant field numbers.
     private const val F_TORADIO_PACKET = 1
+    private const val F_TORADIO_WANT_CONFIG_ID = 3
+    private const val F_TORADIO_HEARTBEAT = 7
+
+    // FromRadio variant field numbers used during the multi-stage
+    // Meshtastic handshake. config_complete_id is the firmware's "I'm
+    // done streaming this config bundle" marker — see
+    // BleConnection's runHandshake.
+    private const val F_FROMRADIO_CONFIG_COMPLETE_ID = 7
 
     // NodeInfo field numbers (subset).
     private const val F_NODEINFO_NUM = 1
@@ -77,6 +145,24 @@ internal object MeshPacketCodec {
     private const val F_USER_ID = 1
     private const val F_USER_LONG_NAME = 2
     private const val F_USER_SHORT_NAME = 3
+    private const val F_USER_HW_MODEL = 5
+
+    /**
+     * Meshtastic `HardwareModel.PRIVATE_HW` (255) — the reserved "custom/private
+     * hardware" value. Mezulla firmware advertises this for every Mezulla board
+     * (Heltec/LilyGo today, custom hardware later) so the app can admit only
+     * Mezulla nodes to the buddy roster. See the firmware's `owner.hw_model`.
+     */
+    const val HW_MODEL_PRIVATE = 255
+
+    /**
+     * Meshtastic `HardwareModel.UNSET` (0) — "not known yet". A board synthesizes
+     * a placeholder NodeInfo (default name, `hw_model = UNSET`) for a neighbour it
+     * has only heard a position from, before it receives that neighbour's real
+     * NodeInfo. UNSET must NOT be treated as "confirmed non-Mezulla" — it just
+     * means the model is unknown so far. See [com.ternparagliding.mezulla.redux.PeerMiddleware].
+     */
+    const val HW_MODEL_UNSET = 0
 
     // Position field numbers (subset).
     private const val F_POSITION_LATITUDE_I = 1
@@ -126,10 +212,197 @@ internal object MeshPacketCodec {
                     val niBytes = reader.readLengthDelimited()
                     return decodeNodeInfo(niBytes)
                 }
+                F_FROMRADIO_CONFIG_COMPLETE_ID -> {
+                    if (wire != Proto.WIRE_VARINT) {
+                        reader.skipField(wire); continue
+                    }
+                    val configId = reader.readVarint().toInt()
+                    return MeshEvent.ConfigComplete(configId)
+                }
                 else -> reader.skipField(wire)
             }
         }
         return null
+    }
+
+    /**
+     * Read the board's current LoRa region from a `FromRadio.config` frame
+     * (streamed as part of the handshake config bundle). Kept separate from
+     * [decodeFromRadio] because region isn't a [MeshEvent] we surface — the
+     * connection caches it to reconcile region against the pilot's GPS fix.
+     *
+     * Returns:
+     *  - the region code, when this is the LoRa-config frame and the region
+     *    field is present;
+     *  - 0 (UNSET), when this IS the LoRa-config frame but the region field is
+     *    absent — proto3 omits zero-valued scalars, so a fresh/unset board
+     *    sends a `lora` sub-message with no `region` field;
+     *  - null, when this frame is not a LoRa-config frame (a different config
+     *    variant, a packet, nodeinfo, …) — the caller ignores it.
+     *
+     * The 0-vs-null distinction is load-bearing: 0 means "board reports UNSET,
+     * reconcile it", null means "this frame says nothing about region".
+     */
+    fun decodeLoraRegion(fromRadioBytes: ByteArray): Int? {
+        if (fromRadioBytes.isEmpty()) return null
+        val reader = ProtoReader(fromRadioBytes)
+        while (reader.hasMore()) {
+            val tag = reader.readTag()
+            val field = tag ushr 3
+            val wire = tag and 0x7
+            if (field == F_FROMRADIO_CONFIG && wire == Proto.WIRE_LENGTH_DELIMITED) {
+                return decodeLoraRegionFromConfig(reader.readLengthDelimited())
+            }
+            reader.skipField(wire)
+        }
+        return null
+    }
+
+    /**
+     * Read the board's own node number from a `FromRadio.my_info` (MyNodeInfo)
+     * frame, streamed once near the start of the handshake config bundle.
+     *
+     * This is the **authoritative** address for local admin commands
+     * (`set_channel` / `set_config`): the firmware handles an admin packet
+     * locally only when `to` equals its own node number — otherwise it routes
+     * the packet out as a PKI direct message and, lacking a key for that
+     * "destination", drops it (NAK / Error=39). The QR/pairing-derived board id
+     * can disagree with the real node number (observed on LilyGo/ESP32, whose
+     * QR advertises a node that differs from the firmware's actual nodeNum), so
+     * we prefer this value for admin addressing (see
+     * [com.ternparagliding.mezulla.connection.ble.BleConnection]).
+     *
+     * Returns the node number, or null when this frame isn't a my_info frame.
+     * Tolerant of either varint (proto3 `uint32`) or fixed32 encoding for
+     * `my_node_num` to survive firmware proto drift.
+     */
+    fun decodeMyNodeNum(fromRadioBytes: ByteArray): Long? {
+        if (fromRadioBytes.isEmpty()) return null
+        val reader = ProtoReader(fromRadioBytes)
+        while (reader.hasMore()) {
+            val tag = reader.readTag()
+            val field = tag ushr 3
+            val wire = tag and 0x7
+            if (field == F_FROMRADIO_MY_INFO && wire == Proto.WIRE_LENGTH_DELIMITED) {
+                return decodeMyNodeNumFromMyInfo(reader.readLengthDelimited())
+            }
+            reader.skipField(wire)
+        }
+        return null
+    }
+
+    /** Pull `my_node_num` out of a `MyNodeInfo` body. */
+    private fun decodeMyNodeNumFromMyInfo(bytes: ByteArray): Long? {
+        val reader = ProtoReader(bytes)
+        var num: Long? = null
+        while (reader.hasMore()) {
+            val tag = reader.readTag()
+            val field = tag ushr 3
+            val wire = tag and 0x7
+            when {
+                field == F_MYNODEINFO_MY_NODE_NUM && wire == Proto.WIRE_VARINT -> num = reader.readVarint()
+                field == F_MYNODEINFO_MY_NODE_NUM && wire == Proto.WIRE_FIXED32 -> num = reader.readFixed32()
+                else -> reader.skipField(wire)
+            }
+        }
+        return num
+    }
+
+    /** Pull `lora.region` out of a `Config` body, or null if this Config isn't the LoRa variant. */
+    private fun decodeLoraRegionFromConfig(configBytes: ByteArray): Int? {
+        val reader = ProtoReader(configBytes)
+        while (reader.hasMore()) {
+            val tag = reader.readTag()
+            val field = tag ushr 3
+            val wire = tag and 0x7
+            if (field == F_CONFIG_LORA && wire == Proto.WIRE_LENGTH_DELIMITED) {
+                return decodeRegionFromLora(reader.readLengthDelimited())
+            }
+            reader.skipField(wire)
+        }
+        return null
+    }
+
+    /**
+     * Extract the raw bytes of one `Config` sub-message (e.g. [CONFIG_DEVICE_TAG],
+     * [CONFIG_DISPLAY_TAG]) from a `FromRadio.config` frame in the handshake
+     * bundle. Returns null when this frame isn't a config frame or doesn't carry
+     * that sub-message.
+     *
+     * The caller caches these bytes so a later edit can be a **read-modify-write**:
+     * the firmware's `handleSetConfig` REPLACES the whole sub-struct with what we
+     * send (e.g. `config.device = ...`), so to change one field without zeroing the
+     * rest (device role, button pins, …) we must resend the full struct. See
+     * [encodeToRadioSetDeviceNodeInfoBroadcast] / [encodeToRadioSetDisplay].
+     */
+    fun extractConfigSubmessage(fromRadioBytes: ByteArray, subConfigTag: Int): ByteArray? {
+        if (fromRadioBytes.isEmpty()) return null
+        val reader = ProtoReader(fromRadioBytes)
+        while (reader.hasMore()) {
+            val tag = reader.readTag()
+            val field = tag ushr 3
+            val wire = tag and 0x7
+            if (field == F_FROMRADIO_CONFIG && wire == Proto.WIRE_LENGTH_DELIMITED) {
+                return subFromConfig(reader.readLengthDelimited(), subConfigTag)
+            }
+            reader.skipField(wire)
+        }
+        return null
+    }
+
+    /** Pull one sub-message (by oneof tag) out of a `Config` body. */
+    private fun subFromConfig(configBytes: ByteArray, subTag: Int): ByteArray? {
+        val reader = ProtoReader(configBytes)
+        while (reader.hasMore()) {
+            val tag = reader.readTag()
+            val field = tag ushr 3
+            val wire = tag and 0x7
+            if (field == subTag && wire == Proto.WIRE_LENGTH_DELIMITED) return reader.readLengthDelimited()
+            reader.skipField(wire)
+        }
+        return null
+    }
+
+    /** Read a singular uint32 field (last occurrence wins) from a message body; null if absent. */
+    private fun uint32Field(messageBytes: ByteArray, fieldTag: Int): Long? {
+        val reader = ProtoReader(messageBytes)
+        var value: Long? = null
+        while (reader.hasMore()) {
+            val tag = reader.readTag()
+            val field = tag ushr 3
+            val wire = tag and 0x7
+            if (field == fieldTag && wire == Proto.WIRE_VARINT) value = reader.readVarint() else reader.skipField(wire)
+        }
+        return value
+    }
+
+    /** `DeviceConfig.node_info_broadcast_secs` from cached device-config bytes (how often the board re-announces its name). */
+    fun deviceNodeInfoBroadcastSecs(deviceConfigBytes: ByteArray): Int? =
+        uint32Field(deviceConfigBytes, F_DEVICE_NODE_INFO_BROADCAST_SECS)?.toInt()
+
+    /** `DisplayConfig.screen_on_secs` from cached display-config bytes (OLED on-time). */
+    fun displayScreenOnSecs(displayConfigBytes: ByteArray): Int? =
+        uint32Field(displayConfigBytes, F_DISPLAY_SCREEN_ON_SECS)?.toInt()
+
+    /** `DisplayConfig.flip_screen` from cached display-config bytes. */
+    fun displayFlipScreen(displayConfigBytes: ByteArray): Boolean? =
+        uint32Field(displayConfigBytes, F_DISPLAY_FLIP_SCREEN)?.let { it != 0L }
+
+    /** Read `region` from a `LoRaConfig` body; 0 (UNSET) when the field is omitted. */
+    private fun decodeRegionFromLora(loraBytes: ByteArray): Int {
+        val reader = ProtoReader(loraBytes)
+        var region = 0
+        while (reader.hasMore()) {
+            val tag = reader.readTag()
+            val field = tag ushr 3
+            val wire = tag and 0x7
+            if (field == F_LORA_REGION && wire == Proto.WIRE_VARINT) {
+                region = reader.readVarint().toInt()
+            } else {
+                reader.skipField(wire)
+            }
+        }
+        return region
     }
 
     private fun decodeMeshPacket(bytes: ByteArray): MeshEvent? {
@@ -189,6 +462,7 @@ internal object MeshPacketCodec {
                         nodeNumber = fromNodeNumber,
                         longName = user.longName,
                         shortName = user.shortName,
+                        hwModel = user.hwModel,
                     ),
                 )
             }
@@ -255,14 +529,20 @@ internal object MeshPacketCodec {
         )
     }
 
-    private data class DecodedUser(val id: String?, val longName: String?, val shortName: String?)
+    private data class DecodedUser(
+        val id: String?,
+        val longName: String?,
+        val shortName: String?,
+        val hwModel: Int?,
+    )
 
     private fun decodeUser(bytes: ByteArray): DecodedUser {
-        if (bytes.isEmpty()) return DecodedUser(null, null, null)
+        if (bytes.isEmpty()) return DecodedUser(null, null, null, null)
         val reader = ProtoReader(bytes)
         var id: String? = null
         var longName: String? = null
         var shortName: String? = null
+        var hwModel: Int? = null
         while (reader.hasMore()) {
             val tag = reader.readTag()
             val field = tag ushr 3
@@ -271,10 +551,11 @@ internal object MeshPacketCodec {
                 F_USER_ID -> if (wire == Proto.WIRE_LENGTH_DELIMITED) id = reader.readString() else reader.skipField(wire)
                 F_USER_LONG_NAME -> if (wire == Proto.WIRE_LENGTH_DELIMITED) longName = reader.readString() else reader.skipField(wire)
                 F_USER_SHORT_NAME -> if (wire == Proto.WIRE_LENGTH_DELIMITED) shortName = reader.readString() else reader.skipField(wire)
+                F_USER_HW_MODEL -> if (wire == Proto.WIRE_VARINT) hwModel = reader.readInt32() else reader.skipField(wire)
                 else -> reader.skipField(wire)
             }
         }
-        return DecodedUser(id, longName, shortName)
+        return DecodedUser(id, longName, shortName, hwModel)
     }
 
     private fun decodeNodeInfo(bytes: ByteArray): MeshEvent.PeerIdentityKnown? {
@@ -292,12 +573,13 @@ internal object MeshPacketCodec {
             }
         }
         val nodeNumber = num ?: return null
-        val user = userBytes?.let { decodeUser(it) } ?: DecodedUser(null, null, null)
+        val user = userBytes?.let { decodeUser(it) } ?: DecodedUser(null, null, null, null)
         return MeshEvent.PeerIdentityKnown(
             PeerIdentity.fromNodeNumber(
                 nodeNumber = nodeNumber,
                 longName = user.longName,
                 shortName = user.shortName,
+                hwModel = user.hwModel,
             ),
         )
     }
@@ -355,6 +637,48 @@ internal object MeshPacketCodec {
         return w.toByteArray()
     }
 
+    /**
+     * Encode a ToRadio frame that broadcasts the board's own NodeInfo (a `User`
+     * on NODEINFO_APP) into the mesh — Tern's **push-on-change** name propagation.
+     *
+     * The firmware broadcasts NodeInfo once when the owner changes, but that's a
+     * single unacked LoRa broadcast that can be lost, and the periodic re-broadcast
+     * is firmware-clamped to once an hour (`min_node_info_broadcast_secs`). So after
+     * a rename the app injects this packet a few times itself (a short reliable
+     * burst) so buddies refresh the name in seconds without any periodic spam.
+     *
+     * [hwModel] should be [HW_MODEL_PRIVATE] so the receiving app's buddy filter
+     * keeps admitting this node as a Mezulla (it keys on hw_model). `want_ack` is
+     * left off — this is a broadcast; reliability comes from sending it a few times.
+     */
+    fun encodeToRadioNodeInfo(
+        fromNodeNumber: Long,
+        packetId: Int,
+        longName: String,
+        shortName: String,
+        hwModel: Int,
+    ): ByteArray {
+        val user = ProtoWriter().apply {
+            writeString(F_USER_ID, "!%08x".format(fromNodeNumber))
+            writeString(F_USER_LONG_NAME, longName)
+            writeString(F_USER_SHORT_NAME, shortName)
+            writeInt32(F_USER_HW_MODEL, hwModel)
+        }.toByteArray()
+        val data = ProtoWriter().apply {
+            writeInt32(F_DATA_PORTNUM, PORT_NODEINFO_APP)
+            writeBytes(F_DATA_PAYLOAD, user)
+        }.toByteArray()
+        val packet = ProtoWriter().apply {
+            writeFixed32(F_MESHPACKET_FROM, fromNodeNumber)
+            writeFixed32(F_MESHPACKET_TO, BROADCAST_NODE_NUMBER)
+            writeMessage(F_MESHPACKET_DECODED, data)
+            writeFixed32(F_MESHPACKET_ID, packetId.toLong() and 0xFFFFFFFFL)
+        }.toByteArray()
+        return ProtoWriter().apply {
+            writeMessage(F_TORADIO_PACKET, packet)
+        }.toByteArray()
+    }
+
     /** Encode a ToRadio frame carrying a position broadcast. */
     fun encodeToRadioPosition(fromNodeNumber: Long, packetId: Int, fix: PeerPosition.Fix): ByteArray {
         val payload = encodePositionPayload(fix)
@@ -402,4 +726,327 @@ internal object MeshPacketCodec {
             writeMessage(F_TORADIO_PACKET, packet)
         }.toByteArray()
     }
+
+    /**
+     * Encode a ToRadio frame that commands the board to reboot in
+     * [rebootSeconds] seconds (an `AdminMessage.reboot_seconds` on
+     * ADMIN_APP, addressed to the board itself).
+     *
+     * No admin session passkey is needed: the firmware's AdminModule skips
+     * the passkey check when `MeshPacket.from == 0` (a locally-connected
+     * phone over BLE is implicitly trusted). So we send `from = 0`.
+     *
+     * Used by the BLE reliability suite (T2/T3) to faithfully simulate a
+     * "board rebooted mid-flight" drop — a real link loss + re-advertise +
+     * reconnect — rather than a graceful local GATT disconnect.
+     */
+    fun encodeToRadioReboot(boardNodeNumber: Long, packetId: Int, rebootSeconds: Int): ByteArray {
+        val admin = ProtoWriter().apply {
+            writeInt32(F_ADMIN_REBOOT_SECONDS, rebootSeconds)
+        }.toByteArray()
+        val data = ProtoWriter().apply {
+            writeInt32(F_DATA_PORTNUM, PORT_ADMIN_APP)
+            writeBytes(F_DATA_PAYLOAD, admin)
+        }.toByteArray()
+        val packet = ProtoWriter().apply {
+            writeFixed32(F_MESHPACKET_FROM, 0L) // from=0 → trusted local phone, no passkey
+            writeFixed32(F_MESHPACKET_TO, boardNodeNumber)
+            writeMessage(F_MESHPACKET_DECODED, data)
+            writeFixed32(F_MESHPACKET_ID, packetId.toLong() and 0xFFFFFFFFL)
+            writeBool(F_MESHPACKET_WANT_ACK, true)
+        }.toByteArray()
+        return ProtoWriter().apply {
+            writeMessage(F_TORADIO_PACKET, packet)
+        }.toByteArray()
+    }
+
+    /**
+     * Encode a `ChannelSettings` body — the fields a Tern "team" needs: a shared [psk]
+     * (the team secret), a human [name], and [positionPrecision] in `module_settings` so the
+     * board actually shares location on this channel. This is what [encodeToRadioSetChannel]
+     * writes to the board. An empty [psk] means an unencrypted channel; a [positionPrecision] of
+     * 0 omits the module_settings (the firmware then strips positions — see
+     * [DEFAULT_POSITION_PRECISION]).
+     */
+    fun encodeChannelSettings(
+        name: String,
+        psk: ByteArray,
+        positionPrecision: Int = DEFAULT_POSITION_PRECISION,
+    ): ByteArray =
+        ProtoWriter().apply {
+            if (psk.isNotEmpty()) writeBytes(F_CHANNELSETTINGS_PSK, psk)
+            writeString(F_CHANNELSETTINGS_NAME, name)
+            if (positionPrecision > 0) {
+                val moduleSettings = ProtoWriter().apply {
+                    writeInt32(F_MODULESETTINGS_POSITION_PRECISION, positionPrecision)
+                }.toByteArray()
+                writeMessage(F_CHANNELSETTINGS_MODULE_SETTINGS, moduleSettings)
+            }
+        }.toByteArray()
+
+    /** Decode a `ChannelSettings` body to (name, psk). Null when no name field is present. */
+    fun decodeChannelSettings(bytes: ByteArray): Pair<String, ByteArray>? {
+        val reader = ProtoReader(bytes)
+        var name: String? = null
+        var psk = ByteArray(0)
+        while (reader.hasMore()) {
+            val tag = reader.readTag()
+            val field = tag ushr 3
+            val wire = tag and 0x7
+            when (field) {
+                F_CHANNELSETTINGS_PSK ->
+                    if (wire == Proto.WIRE_LENGTH_DELIMITED) psk = reader.readLengthDelimited() else reader.skipField(wire)
+                F_CHANNELSETTINGS_NAME ->
+                    if (wire == Proto.WIRE_LENGTH_DELIMITED) name = reader.readString() else reader.skipField(wire)
+                else -> reader.skipField(wire)
+            }
+        }
+        return name?.let { it to psk }
+    }
+
+    /**
+     * Encode a ToRadio frame that renames the board — Tern's **set_owner**. An
+     * `AdminMessage.set_owner` carrying a `User{long_name, short_name}` on
+     * ADMIN_APP, addressed to the board. `from = 0` → trusted local phone, no
+     * passkey (same trust path as [encodeToRadioReboot]). This is the name shown
+     * on the board's OLED and broadcast as its NodeInfo, so renaming here makes
+     * the board's label match everywhere (Settings, the buddy list on other
+     * phones, the OLED).
+     *
+     * Only [longName] and [shortName] are sent. We deliberately omit `hw_model`:
+     * the firmware's `handleSetOwner` copies only the name fields and leaves
+     * `hw_model` untouched, so the board's `PRIVATE_HW` advertisement (what the
+     * buddy filter keys on) survives a rename. `short_name` is the ≤4-char badge
+     * Meshtastic shows on the small node tile; the caller is responsible for
+     * trimming it.
+     */
+    fun encodeToRadioSetOwner(
+        boardNodeNumber: Long,
+        packetId: Int,
+        longName: String,
+        shortName: String,
+    ): ByteArray {
+        val user = ProtoWriter().apply {
+            writeString(F_USER_LONG_NAME, longName)
+            writeString(F_USER_SHORT_NAME, shortName)
+        }.toByteArray()
+        val admin = ProtoWriter().apply {
+            writeMessage(F_ADMIN_SET_OWNER, user)
+        }.toByteArray()
+        val data = ProtoWriter().apply {
+            writeInt32(F_DATA_PORTNUM, PORT_ADMIN_APP)
+            writeBytes(F_DATA_PAYLOAD, admin)
+        }.toByteArray()
+        val packet = ProtoWriter().apply {
+            writeFixed32(F_MESHPACKET_FROM, 0L) // from=0 → trusted local phone, no passkey
+            writeFixed32(F_MESHPACKET_TO, boardNodeNumber)
+            writeMessage(F_MESHPACKET_DECODED, data)
+            writeFixed32(F_MESHPACKET_ID, packetId.toLong() and 0xFFFFFFFFL)
+            writeBool(F_MESHPACKET_WANT_ACK, true)
+        }.toByteArray()
+        return ProtoWriter().apply {
+            writeMessage(F_TORADIO_PACKET, packet)
+        }.toByteArray()
+    }
+
+    /**
+     * Encode a ToRadio frame that sets the board's PRIMARY channel — Tern's **set_team**. An
+     * `AdminMessage.set_channel` carrying `Channel{index=0, role=PRIMARY, settings={name, psk}}`
+     * on ADMIN_APP, addressed to the board. `from = 0` → trusted local phone, no passkey (same
+     * trust path as [encodeToRadioReboot]). After the board applies it, only boards sharing this
+     * name+psk hear each other — i.e. they're now on the same team.
+     *
+     * The channel carries a non-zero `position_precision` (via [encodeChannelSettings]) so the
+     * board shares location on it — without it the firmware strips every position and buddies
+     * never see each other. See [DEFAULT_POSITION_PRECISION].
+     */
+    fun encodeToRadioSetChannel(boardNodeNumber: Long, packetId: Int, name: String, psk: ByteArray): ByteArray {
+        val channel = ProtoWriter().apply {
+            writeInt32(F_CHANNEL_INDEX, 0)
+            writeMessage(F_CHANNEL_SETTINGS, encodeChannelSettings(name, psk))
+            writeInt32(F_CHANNEL_ROLE, CHANNEL_ROLE_PRIMARY)
+        }.toByteArray()
+        val admin = ProtoWriter().apply {
+            writeMessage(F_ADMIN_SET_CHANNEL, channel)
+        }.toByteArray()
+        val data = ProtoWriter().apply {
+            writeInt32(F_DATA_PORTNUM, PORT_ADMIN_APP)
+            writeBytes(F_DATA_PAYLOAD, admin)
+        }.toByteArray()
+        val packet = ProtoWriter().apply {
+            writeFixed32(F_MESHPACKET_FROM, 0L) // from=0 → trusted local phone, no passkey
+            writeFixed32(F_MESHPACKET_TO, boardNodeNumber)
+            writeMessage(F_MESHPACKET_DECODED, data)
+            writeFixed32(F_MESHPACKET_ID, packetId.toLong() and 0xFFFFFFFFL)
+            writeBool(F_MESHPACKET_WANT_ACK, true)
+        }.toByteArray()
+        return ProtoWriter().apply {
+            writeMessage(F_TORADIO_PACKET, packet)
+        }.toByteArray()
+    }
+
+    /**
+     * Encode a ToRadio frame that sets the board's LoRa **region** — the wire
+     * half of Tern's automatic region-follows-location (US in the USA, EU in
+     * Europe). An `AdminMessage.set_config` carrying a full `Config.lora` on
+     * ADMIN_APP, addressed to the board. `from = 0` → trusted local phone, no
+     * passkey (same trust path as [encodeToRadioReboot]).
+     *
+     * Why a *full* LoRaConfig and not just the region: the firmware's
+     * `handleSetConfig` REPLACES the entire LoRaConfig struct with what we
+     * send, so a region-only message would zero `use_preset` / `modem_preset`
+     * / `hop_limit` / `tx_enabled`. We therefore send a complete, sane config:
+     * `use_preset = true` (board derives bandwidth/SF/CR from the default
+     * preset), the target [region], a default [hopLimit], and—critically—
+     * `tx_enabled = true`. TX is asserted explicitly because the firmware only
+     * auto-enables TX on the *first* set from UNSET; on a region *change*
+     * (US→EU when the pilot travels) it leaves TX as sent, so omitting it
+     * would silence the radio. `modem_preset` is left at its proto3 default
+     * (0 = LONG_FAST), which matches a fresh board.
+     */
+    fun encodeToRadioSetLoraConfig(
+        boardNodeNumber: Long,
+        packetId: Int,
+        region: Int,
+        hopLimit: Int = DEFAULT_HOP_LIMIT,
+    ): ByteArray {
+        val lora = ProtoWriter().apply {
+            writeBool(F_LORA_USE_PRESET, true)
+            writeInt32(F_LORA_REGION, region)
+            writeInt32(F_LORA_HOP_LIMIT, hopLimit)
+            writeBool(F_LORA_TX_ENABLED, true)
+        }.toByteArray()
+        val config = ProtoWriter().apply {
+            writeMessage(F_CONFIG_LORA, lora)
+        }.toByteArray()
+        val admin = ProtoWriter().apply {
+            writeMessage(F_ADMIN_SET_CONFIG, config)
+        }.toByteArray()
+        val data = ProtoWriter().apply {
+            writeInt32(F_DATA_PORTNUM, PORT_ADMIN_APP)
+            writeBytes(F_DATA_PAYLOAD, admin)
+        }.toByteArray()
+        val packet = ProtoWriter().apply {
+            writeFixed32(F_MESHPACKET_FROM, 0L) // from=0 → trusted local phone, no passkey
+            writeFixed32(F_MESHPACKET_TO, boardNodeNumber)
+            writeMessage(F_MESHPACKET_DECODED, data)
+            writeFixed32(F_MESHPACKET_ID, packetId.toLong() and 0xFFFFFFFFL)
+            writeBool(F_MESHPACKET_WANT_ACK, true)
+        }.toByteArray()
+        return ProtoWriter().apply {
+            writeMessage(F_TORADIO_PACKET, packet)
+        }.toByteArray()
+    }
+
+    /**
+     * Encode a `set_config(device)` that changes only `node_info_broadcast_secs`
+     * — how often the board re-announces its name (NodeInfo). Lowering it makes a
+     * buddy's name appear quickly instead of waiting on the multi-hour default.
+     *
+     * **Read-modify-write:** [baseDeviceConfig] is the board's current DeviceConfig
+     * bytes (cached from the handshake stream); we append the one overriding field.
+     * Protobuf takes the LAST occurrence of a singular field, so the appended value
+     * wins while every other DeviceConfig field (device role, button pins, …) is
+     * preserved — necessary because the firmware replaces the whole struct. `from
+     * = 0` → trusted local phone, no passkey.
+     */
+    fun encodeToRadioSetDeviceNodeInfoBroadcast(
+        boardNodeNumber: Long,
+        packetId: Int,
+        baseDeviceConfig: ByteArray,
+        secs: Int,
+    ): ByteArray {
+        val override = ProtoWriter().apply { writeInt32(F_DEVICE_NODE_INFO_BROADCAST_SECS, secs) }.toByteArray()
+        return encodeSetConfigPacket(boardNodeNumber, packetId, CONFIG_DEVICE_TAG, baseDeviceConfig + override)
+    }
+
+    /**
+     * Encode a `set_config(display)` that changes [screenOnSecs] (OLED on-time)
+     * and/or [flipScreen]. Same read-modify-write as
+     * [encodeToRadioSetDeviceNodeInfoBroadcast] over [baseDisplayConfig]: only the
+     * non-null fields are appended (and win), the rest of DisplayConfig is kept.
+     */
+    fun encodeToRadioSetDisplay(
+        boardNodeNumber: Long,
+        packetId: Int,
+        baseDisplayConfig: ByteArray,
+        screenOnSecs: Int?,
+        flipScreen: Boolean?,
+    ): ByteArray {
+        var sub = baseDisplayConfig
+        if (screenOnSecs != null) {
+            sub += ProtoWriter().apply { writeInt32(F_DISPLAY_SCREEN_ON_SECS, screenOnSecs) }.toByteArray()
+        }
+        if (flipScreen != null) {
+            sub += ProtoWriter().apply { writeBool(F_DISPLAY_FLIP_SCREEN, flipScreen) }.toByteArray()
+        }
+        return encodeSetConfigPacket(boardNodeNumber, packetId, CONFIG_DISPLAY_TAG, sub)
+    }
+
+    /** Wrap a complete `Config` sub-message in `AdminMessage.set_config` → ADMIN_APP → ToRadio. */
+    private fun encodeSetConfigPacket(
+        boardNodeNumber: Long,
+        packetId: Int,
+        configTag: Int,
+        subConfigBytes: ByteArray,
+    ): ByteArray {
+        val config = ProtoWriter().apply { writeMessage(configTag, subConfigBytes) }.toByteArray()
+        val admin = ProtoWriter().apply { writeMessage(F_ADMIN_SET_CONFIG, config) }.toByteArray()
+        val data = ProtoWriter().apply {
+            writeInt32(F_DATA_PORTNUM, PORT_ADMIN_APP)
+            writeBytes(F_DATA_PAYLOAD, admin)
+        }.toByteArray()
+        val packet = ProtoWriter().apply {
+            writeFixed32(F_MESHPACKET_FROM, 0L) // from=0 → trusted local phone, no passkey
+            writeFixed32(F_MESHPACKET_TO, boardNodeNumber)
+            writeMessage(F_MESHPACKET_DECODED, data)
+            writeFixed32(F_MESHPACKET_ID, packetId.toLong() and 0xFFFFFFFFL)
+            writeBool(F_MESHPACKET_WANT_ACK, true)
+        }.toByteArray()
+        return ProtoWriter().apply {
+            writeMessage(F_TORADIO_PACKET, packet)
+        }.toByteArray()
+    }
+
+    /**
+     * Encode a ToRadio frame that asks the firmware to replay its
+     * config bundle and then start streaming subsequent packets.
+     * Required at least once per BLE (or TCP) connect — the
+     * Meshtastic phone protocol leaves the firmware quiet otherwise.
+     *
+     * The configId is an opaque 32-bit identifier; the firmware
+     * echoes it back in a [MeshEvent.ConfigComplete] packet so the
+     * handshake driver can match each stage's completion. We follow
+     * the official Meshtastic-Android client and use two stages:
+     *   - Stage 1: configId = [HANDSHAKE_CONFIG_NONCE]    → device + module config + channels
+     *   - Stage 2: configId = [HANDSHAKE_NODE_INFO_NONCE] → full nodeDB
+     */
+    fun encodeWantConfigId(configId: Int): ByteArray =
+        ProtoWriter().apply {
+            writeInt32(F_TORADIO_WANT_CONFIG_ID, configId)
+        }.toByteArray()
+
+    /**
+     * Encode an empty Heartbeat ToRadio frame. Sent immediately after
+     * BLE connect to wake the firmware's phone-protocol state machine
+     * before the [encodeWantConfigId] requests. Without this, the
+     * official Meshtastic-Android client has observed the firmware
+     * dropping the first want_config_id silently on some boards.
+     * Body is empty (zero-length Heartbeat message).
+     */
+    fun encodeHeartbeat(): ByteArray =
+        ProtoWriter().apply {
+            writeMessage(F_TORADIO_HEARTBEAT, ByteArray(0))
+        }.toByteArray()
+
+    /**
+     * Stage-1 nonce — matches `HandshakeConstants.CONFIG_NONCE` in the
+     * official Meshtastic-Android client. Value is opaque/echoed, but
+     * we use the same number so any debug-tooling that recognises it
+     * (e.g. firmware logs) reads the same way.
+     */
+    const val HANDSHAKE_CONFIG_NONCE = 69420
+
+    /** Stage-2 nonce — matches `HandshakeConstants.NODE_INFO_NONCE`. */
+    const val HANDSHAKE_NODE_INFO_NONCE = 69421
 }

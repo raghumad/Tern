@@ -3,33 +3,57 @@ package com.ternparagliding.mezulla.pairing
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
-import android.bluetooth.BluetoothGatt
-import android.bluetooth.BluetoothGattCallback
-import android.bluetooth.BluetoothGattCharacteristic
-import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothManager
-import android.bluetooth.BluetoothProfile
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.Context
-import android.os.ParcelUuid
+import android.os.Build
 import android.util.Log
+import com.ternparagliding.mezulla.connection.MeshEvent
+import com.ternparagliding.mezulla.connection.ble.AndroidBleTransport
+import com.ternparagliding.mezulla.connection.ble.BleTransport
+import com.ternparagliding.mezulla.connection.ble.BleTransportEvent
+import com.ternparagliding.mezulla.connection.ble.MeshPacketCodec
 import com.ternparagliding.mezulla.connection.ble.MeshtasticGattUuids
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.UUID
 
 /**
- * Handles the one-time BLE scan → connect → claim handshake for
- * pairing with a Mezulla board. This is NOT the always-on connection
- * — it's a transient operation that runs once during pairing and
- * then hands off to [BleConnection] for ongoing communication.
+ * One-time BLE connect → claim handshake for pairing with a Mezulla board.
+ * Transient: runs once during pairing, then hands off to the persistent
+ * [com.ternparagliding.mezulla.connection.ble.BleConnection].
  *
- * The Meshtastic service UUID is used for scanning. Once connected,
- * we write the claim packet on PRIVATE_APP and read the response.
+ * Two correctness guarantees, both absent from the original fire-and-forget
+ * version (see docs/architecture/mezulla-pairing-audit):
+ *
+ *  1. **Right board.** When the QR carries the board's BLE MAC (`m=`), we
+ *     connect to that exact address — no broad scan, so we can't latch onto
+ *     whichever Meshtastic board answers first (the bug that paired a phone
+ *     to a neighbour's board). Legacy QRs without `m=` fall back to a scan.
+ *
+ *  2. **Real acknowledgement.** We read the board's claim reply and require
+ *     `status == OK` AND the reply's `from` == the node we intended. So
+ *     "paired" means the board actually accepted us — never a hopeful guess.
+ *
+ * The claim rides on the **documented Meshtastic phone-protocol handshake**
+ * (heartbeat → `want_config_id` → drain config) exactly like the persistent
+ * [com.ternparagliding.mezulla.connection.ble.BleConnection]. This matters:
+ * the firmware's PhoneAPI serves nothing on `FromRadio` until the client has
+ * announced itself with `want_config_id` and drained the config stream. The
+ * previous bespoke GATT session skipped the handshake, so the board's claim
+ * ack — even once the firmware delivered it to the phone queue — was never
+ * served, and pairing hung at "finding board". We reuse the proven
+ * [AndroidBleTransport] (write serialisation + drain-on-write-ack) rather
+ * than hand-rolling the GATT state machine a second time.
  */
 @SuppressLint("MissingPermission")
 class BlePairingService(private val context: Context) {
@@ -37,228 +61,277 @@ class BlePairingService(private val context: Context) {
     companion object {
         private const val TAG = "BlePairingService"
         private const val SCAN_TIMEOUT_MS = 30_000L
-        private const val CONNECT_TIMEOUT_MS = 10_000L
-        private const val CLAIM_TIMEOUT_MS = 5_000L
-        private val MESHTASTIC_SERVICE_UUID = UUID.fromString("6ba1b218-15a8-461f-9fa8-5dcae273eafd")
+        // Time to find + connect + drain to the board (the transport scans by
+        // MAC and emits Connected once the FromRadio FIFO is first drained).
+        private const val CONNECT_TIMEOUT_MS = 25_000L
+        // Time to complete the want_config_id config download. Generous — the
+        // board streams its whole nodeDB/config; the reply can't be served
+        // until this finishes (PhoneAPI stays in send-config until then).
+        private const val CONFIG_TIMEOUT_MS = 25_000L
+        // Time to wait for the board's claim ack after we write the claim.
+        private const val REPLY_TIMEOUT_MS = 10_000L
+        // Gap between the heartbeat and want_config_id writes — lets the
+        // heartbeat's GATT write land before the next op (see runClaim).
+        private const val HANDSHAKE_SETTLE_MS = 150L
+        // The claim write can collide with the tail of the config drain;
+        // retry a few times with a short backoff before giving up.
+        private const val CLAIM_WRITE_ATTEMPTS = 8
+        private const val CLAIM_WRITE_RETRY_MS = 250L
+        // Backup raw-read drain cadence while awaiting the ack (covers a
+        // missed FromNum notify).
+        private const val REPLY_POLL_MS = 600L
+        private val MESHTASTIC_SERVICE_UUID = MeshtasticGattUuids.SERVICE
     }
 
     /**
-     * Scan for a Meshtastic board, connect, send claim, return result.
-     * This is a suspend function — call from a coroutine.
+     * Test seam: how a [BleTransport] is built for a target MAC. Production
+     * uses [AndroidBleTransport]; tests can inject a fake to exercise the
+     * handshake/claim/verify flow without real Bluetooth.
+     */
+    internal var transportFactory: (String, CoroutineScope) -> BleTransport =
+        { mac, scope -> AndroidBleTransport(context, mac, scope) }
+
+    /**
+     * Connect, handshake, claim, verify. Call from a coroutine.
+     *
+     * @param boardNodeNumber the node id from the QR (`n=`) — used to address
+     *   the claim and to verify the reply's `from`.
+     * @param bleMac the board's BLE address from the QR (`m=`), or null for a
+     *   legacy QR. When non-null we connect straight to it (no broad scan).
      */
     suspend fun claimBoard(
         pairingToken: String,
         ownerId: String,
         boardNodeNumber: Long,
-    ): ClaimResult {
+        bleMac: String? = null,
+    ): ClaimResult = coroutineScope {
         val btManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
-        Log.d(TAG, "BluetoothManager: $btManager, context: ${context.javaClass.name}")
         val adapter = btManager?.adapter
         if (adapter == null) {
             Log.w(TAG, "BluetoothAdapter is null. btManager=$btManager")
-            return ClaimResult.BluetoothUnavailable
+            return@coroutineScope ClaimResult.BluetoothUnavailable
         }
+        if (!adapter.isEnabled) return@coroutineScope ClaimResult.BluetoothDisabled
 
-        if (!adapter.isEnabled) return ClaimResult.BluetoothDisabled
-
-        // Check BLE permissions at runtime (Android 12+)
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val scanPerm = context.checkSelfPermission(android.Manifest.permission.BLUETOOTH_SCAN)
             val connectPerm = context.checkSelfPermission(android.Manifest.permission.BLUETOOTH_CONNECT)
             if (scanPerm != android.content.pm.PackageManager.PERMISSION_GRANTED ||
                 connectPerm != android.content.pm.PackageManager.PERMISSION_GRANTED) {
                 Log.w(TAG, "Missing BLE permissions (BLUETOOTH_SCAN or BLUETOOTH_CONNECT)")
-                return ClaimResult.BluetoothUnavailable
+                return@coroutineScope ClaimResult.BluetoothUnavailable
             }
         }
 
-        // Step 1: Scan for Meshtastic devices
-        Log.i(TAG, "Scanning for Meshtastic devices...")
-        val device = try {
-            scanForMeshtasticDevice(adapter)
-        } catch (e: TimeoutCancellationException) {
-            Log.w(TAG, "Scan timed out")
-            return ClaimResult.BoardNotFound
+        // Resolve the target MAC: straight from the QR when present
+        // (deterministic), otherwise a one-off scan for any Meshtastic board
+        // (legacy QRs). Identity is still enforced afterwards by the
+        // claim-reply `from` check, so a wrong board here fails honestly.
+        val targetMac: String = if (bleMac != null) {
+            Log.i(TAG, "Pairing to board MAC $bleMac (node ${"%08x".format(boardNodeNumber)})")
+            bleMac
+        } else {
+            Log.i(TAG, "No MAC in QR — scanning for a Meshtastic board (legacy)")
+            try {
+                scanForMeshtasticDevice(adapter).address
+            } catch (e: TimeoutCancellationException) {
+                Log.w(TAG, "Scan timed out — board not found")
+                return@coroutineScope ClaimResult.BoardNotFound
+            }
         }
 
-        val deviceName = device.name ?: device.address
-        Log.i(TAG, "Found device: $deviceName")
-
-        // Step 2: Connect GATT
-        Log.i(TAG, "Connecting to ${device.address}...")
-        val gatt = try {
-            connectGatt(device)
-        } catch (e: TimeoutCancellationException) {
-            Log.w(TAG, "GATT connect timed out")
-            return ClaimResult.ConnectionFailed("Connect timeout")
-        } catch (e: Exception) {
-            Log.w(TAG, "GATT connect failed", e)
-            return ClaimResult.ConnectionFailed(e.message ?: "Unknown error")
-        }
-
-        // Step 3: Send claim packet
-        Log.i(TAG, "Sending claim packet...")
+        val transport = transportFactory(targetMac, this)
         try {
-            val meshService = gatt.getService(MESHTASTIC_SERVICE_UUID)
-            val payload = MezullaPairingCodec.encodeClaimPacket(pairingToken, ownerId)
-            val toRadio = meshService?.characteristics?.firstOrNull { ch ->
-                (ch.properties and android.bluetooth.BluetoothGattCharacteristic.PROPERTY_WRITE) != 0
-            }
-
-            if (toRadio == null) {
-                gatt.disconnect()
-                gatt.close()
-                return ClaimResult.ConnectionFailed("ToRadio characteristic not found")
-            }
-
-            // Write the claim as a raw ToRadio frame on PRIVATE_APP
-            val frame = MezullaPairingCodec.encodeToRadioPrivateApp(
-                fromNodeNumber = 0L,
-                toNodeNumber = boardNodeNumber,
-                packetId = (System.nanoTime() and 0x7FFFFFFF).toInt().coerceAtLeast(1),
-                payload = payload,
-            )
-
-            Log.i(TAG, "ToRadio UUID: ${toRadio.uuid}, frame size: ${frame.size} bytes")
-            Log.i(TAG, "Frame hex: ${frame.joinToString(" ") { "%02x".format(it) }}")
-
-            val writeResult = writeCharacteristic(gatt, toRadio, frame)
-            Log.i(TAG, "Claim write result: $writeResult")
-
-            if (!writeResult) {
-                gatt.disconnect()
-                gatt.close()
-                return ClaimResult.ConnectionFailed("Write failed")
-            }
-
-            gatt.disconnect()
-            gatt.close()
-
-            Log.i(TAG, "Claim sent successfully")
-            return ClaimResult.Success(device.address, deviceName)
-
+            runClaim(transport, targetMac, pairingToken, ownerId, boardNodeNumber)
+        } catch (e: TimeoutCancellationException) {
+            Log.w(TAG, "Pairing timed out", e)
+            ClaimResult.ConnectionFailed("Timed out talking to the board — try again")
         } catch (e: Exception) {
-            Log.e(TAG, "Claim failed", e)
-            runCatching { gatt.disconnect(); gatt.close() }
-            return ClaimResult.ConnectionFailed(e.message ?: "Claim error")
+            Log.e(TAG, "Pairing session failed", e)
+            ClaimResult.ConnectionFailed(e.message ?: "Pairing error")
+        } finally {
+            runCatching { transport.stop() }
         }
     }
 
+    /**
+     * Drive one connect → handshake → claim → verify cycle over [transport].
+     * Runs inside the caller's [coroutineScope]; the event collector is a
+     * child job cancelled on return.
+     */
+    private suspend fun runClaim(
+        transport: BleTransport,
+        targetMac: String,
+        pairingToken: String,
+        ownerId: String,
+        expectedNode: Long,
+    ): ClaimResult = coroutineScope {
+        val connected = CompletableDeferred<Unit>()
+        val configDone = CompletableDeferred<Unit>()
+        val reply = CompletableDeferred<PairingReply>()
+
+        val collector = launch {
+            transport.events().collect { ev ->
+                when (ev) {
+                    BleTransportEvent.Connected ->
+                        if (!connected.isCompleted) connected.complete(Unit)
+
+                    BleTransportEvent.Disconnected -> {
+                        val err = RuntimeException("Board disconnected during pairing")
+                        if (!connected.isCompleted) connected.completeExceptionally(err)
+                        if (!reply.isCompleted) reply.completeExceptionally(err)
+                    }
+
+                    BleTransportEvent.InitialScanTimeout -> {
+                        // Keep waiting; the CONNECT_TIMEOUT below bounds this.
+                    }
+
+                    is BleTransportEvent.FromRadioFrame -> {
+                        // The claim ack is a PRIVATE_APP packet; check that first.
+                        val pr = MezullaPairingCodec.decodePairingReplyFromRadio(ev.bytes)
+                        if (pr != null) {
+                            Log.i(TAG, "Claim reply: from=${"%08x".format(pr.fromNode)} status=${pr.status}")
+                            if (!reply.isCompleted) reply.complete(pr)
+                            return@collect
+                        }
+                        // Otherwise watch for our config-complete sentinel.
+                        val me = MeshPacketCodec.decodeFromRadio(ev.bytes)
+                        if (me is MeshEvent.ConfigComplete &&
+                            me.configId == MeshPacketCodec.HANDSHAKE_CONFIG_NONCE &&
+                            !configDone.isCompleted
+                        ) {
+                            configDone.complete(Unit)
+                        }
+                    }
+                }
+            }
+        }
+
+        try {
+            transport.start()
+            withTimeout(CONNECT_TIMEOUT_MS) { connected.await() }
+
+            // Documented Meshtastic handshake: heartbeat wakes the phone-API
+            // state machine, want_config_id pulls config (and moves the API
+            // into send-packets state so our claim ack will actually be
+            // served back to us). Drain is handled by the transport.
+            //
+            // The 100ms gap is load-bearing: writeToRadio returns as soon as
+            // the GATT write is *issued*, not when it's acked, and Android
+            // allows only one in-flight GATT op. Firing want_config_id
+            // immediately after the heartbeat drops it (the heartbeat write is
+            // still in flight), config never streams, and the claim ack stays
+            // gated. Mirrors BleConnection.runHandshake.
+            transport.writeToRadio(MeshPacketCodec.encodeHeartbeat())
+            delay(HANDSHAKE_SETTLE_MS)
+            transport.writeToRadio(
+                MeshPacketCodec.encodeWantConfigId(MeshPacketCodec.HANDSHAKE_CONFIG_NONCE)
+            )
+            val configOk = runCatching {
+                withTimeout(CONFIG_TIMEOUT_MS) { configDone.await() }
+                true
+            }.getOrDefault(false)
+            Log.i(TAG, "Handshake config drained (complete=$configOk)")
+
+            // Write the claim (want_response set by the codec; the firmware
+            // also pushes the ack straight to the phone queue).
+            val payload = MezullaPairingCodec.encodeClaimPacket(pairingToken, ownerId)
+            val frame = MezullaPairingCodec.encodeToRadioPrivateApp(
+                fromNodeNumber = 0L, // firmware rewrites 0 → its own node num
+                toNodeNumber = expectedNode,
+                packetId = (System.nanoTime() and 0x7FFFFFFF).toInt().coerceAtLeast(1),
+                payload = payload,
+            )
+            // Retry the write: right after config the transport may still be
+            // draining FromRadio (one in-flight GATT op at a time), so the
+            // first writeToRadio can come back false. Back off and re-issue.
+            var claimSent = false
+            for (attempt in 1..CLAIM_WRITE_ATTEMPTS) {
+                if (transport.writeToRadio(frame)) { claimSent = true; break }
+                Log.i(TAG, "Claim write busy (attempt $attempt) — retrying")
+                delay(CLAIM_WRITE_RETRY_MS)
+            }
+            if (!claimSent) {
+                return@coroutineScope ClaimResult.ConnectionFailed("Claim write rejected")
+            }
+
+            // The board enqueues the ack a beat after the claim (it persists +
+            // redraws first). It normally arrives via a FromNum notify, but a
+            // single notify can be missed, so we also nudge a raw-read drain on
+            // a timer. NOT a heartbeat poll: the firmware answers a heartbeat
+            // with a queue-status frame that preempts the queued reply.
+            val r = withTimeoutOrNull(REPLY_TIMEOUT_MS) {
+                val poller = launch {
+                    while (true) {
+                        delay(REPLY_POLL_MS)
+                        runCatching { transport.pollDrain() }
+                    }
+                }
+                try {
+                    reply.await()
+                } finally {
+                    poller.cancel()
+                }
+            }
+            if (r == null) {
+                return@coroutineScope ClaimResult.ConnectionFailed("No claim reply from board")
+            }
+
+            // Identity gate: the board that replied must be the one we meant
+            // to claim. With connect-by-MAC this always holds; the check
+            // catches a legacy/scanned mismatch or a spoof.
+            if (r.fromNode != expectedNode) {
+                Log.w(TAG, "Reply from wrong node: got ${"%08x".format(r.fromNode)} expected ${"%08x".format(expectedNode)}")
+                return@coroutineScope ClaimResult.ConnectionFailed("Connected to the wrong board — try again")
+            }
+            when (r.status) {
+                PairingStatus.OK -> ClaimResult.Success(targetMac, targetMac)
+                PairingStatus.TOKEN_MISMATCH -> ClaimResult.ClaimRejected(PairingStatus.TOKEN_MISMATCH)
+                PairingStatus.ALREADY_CLAIMED -> ClaimResult.ClaimRejected(PairingStatus.ALREADY_CLAIMED)
+                PairingStatus.UNKNOWN -> ClaimResult.ClaimRejected(PairingStatus.UNKNOWN)
+            }
+        } finally {
+            collector.cancel()
+        }
+    }
+
+    /**
+     * Legacy fallback: scan for any Meshtastic board (used only for QRs
+     * without `m=`). Completes on the first service-UUID match and returns
+     * the device so the caller can take its MAC. Identity is still enforced
+     * afterwards by the claim-reply `from` check.
+     */
     private suspend fun scanForMeshtasticDevice(adapter: BluetoothAdapter): BluetoothDevice {
         val deferred = CompletableDeferred<BluetoothDevice>()
-        val scanner = adapter.bluetoothLeScanner
-            ?: throw IllegalStateException("BLE scanner unavailable")
+        val scanner = adapter.bluetoothLeScanner ?: throw IllegalStateException("BLE scanner unavailable")
 
         val callback = object : ScanCallback() {
             override fun onScanResult(callbackType: Int, result: ScanResult) {
-                val name = result.device.name ?: ""
-                val addr = result.device.address
-                Log.d(TAG, "Scan hit: name='$name' addr=$addr rssi=${result.rssi}")
-
-                // Match Meshtastic devices by service UUID in the advertisement
-                // or by device name prefix (Meshtastic boards advertise as "Meshtastic XXXX")
                 val serviceUuids = result.scanRecord?.serviceUuids ?: emptyList()
-                // Match by Meshtastic service UUID in advertisement data.
-                // Name-based matching is unreliable (Govee lights, etc.
-                // match similar patterns). Service UUID is the only
-                // trustworthy signal.
                 val isMeshtastic = serviceUuids.any { it.uuid == MESHTASTIC_SERVICE_UUID }
-
                 if (isMeshtastic && !deferred.isCompleted) {
-                    Log.i(TAG, "Found Meshtastic device: $name ($addr)")
+                    val name = result.scanRecord?.deviceName ?: result.device.name
+                    Log.i(TAG, "Legacy scan found Meshtastic device: $name (${result.device.address})")
                     deferred.complete(result.device)
                     scanner.stopScan(this)
                 }
             }
 
             override fun onScanFailed(errorCode: Int) {
-                Log.e(TAG, "Scan failed: $errorCode")
                 deferred.completeExceptionally(RuntimeException("BLE scan failed: $errorCode"))
             }
         }
 
-        // Unfiltered scan — MediaTek BLE stacks sometimes ignore service
-        // UUID filters even when the board advertises them. We match by
-        // service UUID in the callback instead.
-        val filter = ScanFilter.Builder().build()
         val settings = ScanSettings.Builder()
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
             .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
             .build()
-
-        Log.i(TAG, "Starting BLE scan: pid=${android.os.Process.myPid()} tid=${Thread.currentThread().id} uid=${android.os.Process.myUid()}")
-        scanner.startScan(listOf(filter), settings, callback)
-
+        scanner.startScan(listOf(ScanFilter.Builder().build()), settings, callback)
         try {
-            return withTimeout(SCAN_TIMEOUT_MS) {
-                deferred.await()
-            }
+            return withTimeout(SCAN_TIMEOUT_MS) { deferred.await() }
         } catch (e: TimeoutCancellationException) {
             scanner.stopScan(callback)
-            Log.w(TAG, "Scan timed out, scanner stopped")
             throw e
-        }
-    }
-
-    private suspend fun connectGatt(device: BluetoothDevice): BluetoothGatt {
-        val deferred = CompletableDeferred<BluetoothGatt>()
-
-        val callback = object : BluetoothGattCallback() {
-            override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
-                Log.i(TAG, "onConnectionStateChange: status=$status newState=$newState")
-                when (newState) {
-                    BluetoothProfile.STATE_CONNECTED -> {
-                        Log.i(TAG, "GATT connected (status=$status), requesting MTU 517...")
-                        gatt.requestMtu(517)
-                    }
-                    BluetoothProfile.STATE_DISCONNECTED -> {
-                        Log.w(TAG, "GATT disconnected: status=$status (0x${status.toString(16)})")
-                        if (!deferred.isCompleted) {
-                            deferred.completeExceptionally(RuntimeException("Disconnected: GATT status=$status (0x${status.toString(16)})"))
-                        }
-                    }
-                }
-            }
-
-            override fun onMtuChanged(gatt: BluetoothGatt, mtu: Int, status: Int) {
-                Log.i(TAG, "MTU changed: mtu=$mtu status=$status")
-                Log.i(TAG, "Discovering services...")
-                gatt.discoverServices()
-            }
-
-            override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
-                Log.i(TAG, "onServicesDiscovered: status=$status")
-                if (status == BluetoothGatt.GATT_SUCCESS) {
-                    Log.i(TAG, "Services discovered (${gatt.services.size} services)")
-                    deferred.complete(gatt)
-                } else {
-                    deferred.completeExceptionally(RuntimeException("Service discovery failed: $status"))
-                }
-            }
-        }
-
-        device.connectGatt(context, false, callback)
-
-        return withTimeout(CONNECT_TIMEOUT_MS) {
-            deferred.await()
-        }
-    }
-
-    @Suppress("DEPRECATION")
-    private fun writeCharacteristic(
-        gatt: BluetoothGatt,
-        characteristic: BluetoothGattCharacteristic,
-        value: ByteArray,
-    ): Boolean {
-        return if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-            val result = gatt.writeCharacteristic(
-                characteristic, value, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
-            )
-            result == BluetoothGatt.GATT_SUCCESS
-        } else {
-            characteristic.value = value
-            characteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
-            gatt.writeCharacteristic(characteristic)
         }
     }
 }

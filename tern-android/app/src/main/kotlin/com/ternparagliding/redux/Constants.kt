@@ -1,0 +1,56 @@
+package com.ternparagliding.redux
+
+/**
+ * Aviation-grade constants for the Tern paragliding app
+ * Extracted magic numbers for maintainability and consistency
+ */
+
+// Redux Store Constants
+object ReduxConstants {
+    /** Batch window for state updates (100ms for responsiveness) */
+    const val BATCH_WINDOW_MS = 100L
+
+    /** Maximum actions per batch to prevent update storms */
+    const val MAX_BATCH_SIZE = 10
+}
+
+// Overlay Constants
+object OverlayConstants {
+    /** Default overlay opacity (80% visible) */
+    const val DEFAULT_OVERLAY_OPACITY = 0.8f
+
+    /** Default filter radius for spatial queries (300 miles) */
+    const val DEFAULT_FILTER_RADIUS_MILES = 300.0
+}
+
+// Map View Constants
+object MapConstants {
+    /** Default zoom level for map initialization */
+    const val DEFAULT_ZOOM_LEVEL = 8.0
+}
+
+// Task Management Constants
+object TaskConstants {
+    /** Maximum number of tasks allowed (10-task limit) */
+    const val MAX_TASKS = 10
+
+    /** Default FAI cylinder radius in meters (Source of Truth) */
+    const val FAI_DEFAULT_RADIUS_METERS = 400.0
+
+    /** A triangle course is "closed" when consecutive/return points coincide within this
+     *  distance (km) — collapses a snapped start/corner and a goal that returns to start. */
+    const val TRIANGLE_CLOSURE_KM = 0.4
+
+    /** FAI-triangle rule: each of the three sides must be ≥ this fraction of the perimeter
+     *  (the classic 28% rule). Below it the closed triangle is a FLAT triangle. */
+    const val FAI_MIN_LEG_FRACTION = 0.28
+}
+
+// Cache Constants
+object CacheConstants {
+    /** Default maximum cache size (5GB) */
+    const val DEFAULT_MAX_CACHE_SIZE_MB = 5120L
+
+    /** Bytes per megabyte conversion factor */
+    const val BYTES_PER_MB = 1024 * 1024
+}
