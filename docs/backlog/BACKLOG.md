@@ -44,7 +44,7 @@ The scrub surface — skim this, drill into the section for detail.
 | **02 — Traffic awareness** | later | ⬜ | FANET/FLARM/ADS-L. **Gate (Epic 01 MVP) now satisfied** |
 | **03 — Spedmo social layer** | later | 🟡 | Offline Flyability fallback ✅; cloud/social ⬜. **Now unblocked** |
 | **04 — First-time onboarding** | soon | 🟡 | 7-step brochure. Region-from-GPS + release build started |
-| **05 — Flight recording, logbook & export** | now | 🟡 | Launch→deck ✅; recorder+IGC+crash-survival+signing built & wired (logbook UI / Spedmo / hw-signing ⬜) |
+| **05 — Flight recording, logbook & export** | now | 🟡 | Launch→deck ✅; recorder+IGC+crash-survival+signing + logbook UI built & wired (on-map replay / Spedmo / hw-signing ⬜) |
 | **Tasks & waypoints** | now | ✅ | Task surface is pilot-grade; small polish items remain |
 | **Firmware workstreams** | mixed | 🟡 | Stage 1/2 ✅; upstream cleanup + traffic firmware ⬜ |
 | **Infrastructure & quality** | soon | 🟡 | Reactive overlays ✅ (soak gate ⬜); S5 one-liner ⬜ |
@@ -578,8 +578,13 @@ Speed Section (SSS→ESS), Time Gate, Leg, Task type (Open/Flat/FAI).
   highlight; zoom-adaptive labels. A single **waypoint flag glyph** (`nf-fa-flag`)
   means "waypoint" everywhere (map, dock, page headers, Settings).
 - **Map-based editing** — tap-select (`TaskLayer.onClick`→`SelectWaypoint`,
-  L1-verified) · long-press create with **ground-distance snap** to an existing
-  spot (~150 m, no duplicate stacking) · **move-mode** reposition (tap-select →
+  L1-verified) · **explicit creation only** — "Create New Task" (task list) +
+  the **"Add from map" crosshair** (reuses the `LongPressMap` action with
+  `forceCreate` + **ground-distance snap** to an existing spot, ~150 m, no
+  duplicate stacking). **Long-press is intentionally inert** (2026-06): auto-
+  creating a task on every long-press duplicated those paths and was the source
+  of accidental stray tasks (the recurring "1"); the smart-suggestion dialog it
+  fed was dead code and was removed. · **move-mode** reposition (tap-select →
   editor → "Move on Map" → tap new spot; chosen over press-and-hold drag, which
   felt wrong on-device — the drag gesture is intentionally unwired). Per-point
   editing (role / start gate / cylinder / rename) from the panel tile.
@@ -697,8 +702,9 @@ auto-download gate.)
 ### Resolved this cycle (kept briefly so they aren't re-investigated)
 - ✅ **Back exits app from the task panel (B1)** — prioritised `BackHandler` closes
   the topmost open layer first.
-- ✅ **Create-waypoint forced a full-screen modal (B2)** — long-press drop flags
+- ✅ **Create-waypoint forced a full-screen modal (B2)** — a map drop flags
   `WaypointSelection.isNew`; editor opens only on tapping an existing point.
+  (Drops now come from the crosshair, not long-press — see Tasks & waypoints.)
 - ✅ **Dock reachability while panel open (B4)** — non-bug (top-right dock never
   overlaps the bottom panel).
 - ✅ **Airspace `type=4` mislabelled "MILITARY"** — already maps `type=4 → CTR`.
