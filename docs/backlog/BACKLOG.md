@@ -555,6 +555,22 @@ Design detail below kept for reference.
       dashcam-grade / corroborating, attested + server-timestamped — **not**
       FAI-certified (that needs sealed tamper-resistant recorder hardware, which is
       why a phone IGC G-record is "not validated").
+  - **⬜ RESEARCH LATER — keyless "democratized" authenticity (chain + witness +
+    anchor) as an alternative to PKI.** Open question raised 2026-06-27: instead of
+    hardware-Keystore + cert signing, lean on three keyless mechanisms, two of which
+    Tern already produces: (1) **hash-chain** the fix records (tamper-evidence, no
+    keys — the digest baseline is most of this); (2) **multi-party witnessing** —
+    buddy mesh peers already log each other in the flight-memory sidecar, and Spedmo
+    club-mate livetracks corroborate server-side once the team backbone lands, so
+    Spedmo becomes a notary for free; (3) optional **public timestamp anchor**
+    (e.g. OpenTimestamps → Bitcoin, free, no central authority) — can ride the same
+    upload queue as 5.4. Keep IGC for interop; the authenticity layer rides as a
+    format-free sidecar (matches flight-memory). Same honest limit as PKI (can't
+    prove the GPS input was real — only corroborate it), but no key custody / CA /
+    cert workflow, and corroboration is harder to fake than a lone signature. PKI
+    drops to "only if FAI certification is ever needed." **Needs a research pass
+    before adopting** (OpenTimestamps client cost/latency, witness-record format,
+    collusion handling).
   - **Retention:** incident-sealed flights are never auto-purged; the logbook (5.3)
     can mark a flight "protected." Ties to Epic 01 1.4 (SOS) + Epic 03 3.7 (SOS
     forwarding) — the record corroborates the alert.
