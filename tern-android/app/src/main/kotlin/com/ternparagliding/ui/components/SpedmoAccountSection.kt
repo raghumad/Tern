@@ -16,6 +16,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -29,9 +30,13 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.LifecycleOwner
 import com.ternparagliding.network.HttpClientProvider
 import com.ternparagliding.spedmo.SpedmoApi
 import com.ternparagliding.spedmo.SpedmoCredentials
+import com.ternparagliding.spedmo.SpedmoSignIn
 import kotlinx.coroutines.launch
 
 /**
@@ -55,6 +60,23 @@ fun SpedmoAccountSection() {
     var keyText by remember { mutableStateOf("") }
     var validating by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var showManual by remember { mutableStateOf(false) }
+
+    // Re-read link state when the screen resumes. The "Sign in with Spedmo" flow leaves the app for
+    // the system browser and returns via the tern://spedmo-auth deep link (stored by the Activity);
+    // refreshing on ON_RESUME flips this section to the linked state without a manual reopen.
+    DisposableEffect(ctx) {
+        val owner = ctx as? LifecycleOwner
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                linked = SpedmoCredentials.isLinked(ctx)
+                autoUpload = SpedmoCredentials.autoUpload(ctx)
+                liveTracking = SpedmoCredentials.liveTracking(ctx)
+            }
+        }
+        owner?.lifecycle?.addObserver(observer)
+        onDispose { owner?.lifecycle?.removeObserver(observer) }
+    }
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Text("Spedmo", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
@@ -98,10 +120,28 @@ fun SpedmoAccountSection() {
             ) { Text("Unlink") }
         } else {
             Text(
-                "Paste your Spedmo member access key to upload flights to your logbook.",
+                "Sign in with your Spedmo account to upload flights and use your club as a buddy team.",
                 fontSize = 13.sp,
-                modifier = Modifier.padding(bottom = 6.dp),
+                modifier = Modifier.padding(bottom = 8.dp),
             )
+            OutlinedButton(
+                onClick = {
+                    if (!SpedmoSignIn.launch(ctx)) error = "No browser found to sign in"
+                },
+                modifier = Modifier.fillMaxWidth().height(48.dp).testTag("btn_spedmo_signin"),
+            ) { Text("Sign in with Spedmo", fontSize = 16.sp) }
+
+            TextButton(
+                onClick = { showManual = !showManual; error = null },
+                modifier = Modifier.testTag("btn_spedmo_manual_toggle"),
+            ) { Text(if (showManual) "Hide manual key entry" else "Enter a key manually", fontSize = 13.sp) }
+
+            if (!showManual) {
+                error?.let { Text(it, color = MaterialTheme.colorScheme.error, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp)) }
+            }
+        }
+
+        if (!linked && showManual) {
             OutlinedTextField(
                 value = keyText,
                 onValueChange = { keyText = it; error = null },

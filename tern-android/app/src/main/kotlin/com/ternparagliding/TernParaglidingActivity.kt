@@ -120,6 +120,22 @@ class TernParaglidingActivity : ComponentActivity() {
         if (intent.action != Intent.ACTION_VIEW) return
         val uri = intent.data?.toString() ?: return
 
+        // Spedmo sign-in return (tern://spedmo-auth?key=…): the system browser bounces back here after
+        // the pilot logs in with Google/Facebook on Spedmo's page. Store the per-pilot access key; the
+        // Settings → Spedmo section refreshes to the linked state on resume.
+        com.ternparagliding.spedmo.SpedmoAuthLink.parse(uri)?.let { result ->
+            when (result) {
+                is com.ternparagliding.spedmo.SpedmoAuthResult.Success -> {
+                    com.ternparagliding.spedmo.SpedmoCredentials.setAccessKey(this, result.accessKey)
+                    Log.i(TAG, "Spedmo sign-in complete")
+                    android.widget.Toast.makeText(this, "Signed in to Spedmo", android.widget.Toast.LENGTH_LONG).show()
+                }
+                com.ternparagliding.spedmo.SpedmoAuthResult.Cancelled ->
+                    android.widget.Toast.makeText(this, "Spedmo sign-in cancelled", android.widget.Toast.LENGTH_SHORT).show()
+            }
+            return
+        }
+
         // Team join link (tern://team?…): record the team *intent* on the shared store. The reconcile
         // effect (MapViewContainer) writes it to the board when the link is up — so joining works even
         // with the board off, and we don't depend on a live link at the moment the link is opened.
