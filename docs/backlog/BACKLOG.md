@@ -957,7 +957,9 @@ R8-shrunk; commit `089f1d2`; `tern-release-build` memory) but is signed with a
 - **Pre-launch:** internal-testing track first; fix the pre-launch report crashes;
   verify on a clean device with the real upload-key signature.
 
-> Also covered by **Epic 04 Story 4.3**.
+> Also covered by **Epic 04 Story 4.3**. Submission content (listing copy,
+> data-safety, content-rating answers) drafted in
+> [play-store-listing.md](play-store-listing.md).
 
 ---
 
